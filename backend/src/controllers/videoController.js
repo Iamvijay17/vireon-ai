@@ -12,7 +12,7 @@ class VideoController {
   static async create(req, res, next) {
     try {
       const data = validate(createVideoSchema)(req.body);
-      const job = await VideoService.create(req.user._id, data);
+      const job = await VideoService.create(data);
 
       // Emit socket event
       SocketService.emitJobCreated(job);
@@ -20,7 +20,6 @@ class VideoController {
       // Add to BullMQ queue for background processing
       await videoQueue.add('render-video', {
         jobId: job._id.toString(),
-        userId: req.user._id.toString(),
       });
 
       LoggerService.info('Video job queued for processing', {
@@ -40,13 +39,13 @@ class VideoController {
   }
 
   /**
-   * GET /api/videos - Get all videos for the current user
+   * GET /api/videos - Get all videos
    */
   static async list(req, res, next) {
     try {
       const page = parseInt(req.query.page, 10) || 1;
       const limit = parseInt(req.query.limit, 10) || 20;
-      const result = await VideoService.getUserJobs(req.user._id, page, limit);
+      const result = await VideoService.getAllJobs(page, limit);
       res.json(result);
     } catch (err) {
       next(err);
@@ -59,7 +58,7 @@ class VideoController {
   static async getById(req, res, next) {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
-      const job = await VideoService.getById(id, req.user._id);
+      const job = await VideoService.getById(id);
       res.json({ job });
     } catch (err) {
       next(err);
@@ -72,7 +71,7 @@ class VideoController {
   static async delete(req, res, next) {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
-      const result = await VideoService.delete(id, req.user._id);
+      const result = await VideoService.delete(id);
       res.json(result);
     } catch (err) {
       next(err);

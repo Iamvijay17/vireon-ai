@@ -8,7 +8,6 @@ const config = require('./config');
 const LoggerService = require('./services/LoggerService');
 const SocketService = require('./services/SocketService');
 const errorHandler = require('./middleware/errorHandler');
-const authRoutes = require('./routes/auth');
 const videoRoutes = require('./routes/videos');
 
 const app = express();
@@ -59,7 +58,6 @@ app.get('/health', (req, res) => {
 });
 
 // ── API Routes ───────────────────────────────────────────────────────────────
-app.use('/api/auth', authRoutes);
 app.use('/api/videos', videoRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────

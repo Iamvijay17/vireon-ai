@@ -10,9 +10,8 @@ class VideoService {
   /**
    * Create a new video job.
    */
-  static async create(userId, data) {
+  static async create(data) {
     const job = await VideoJob.create({
-      userId,
       topic: data.topic,
       type: data.type,
       language: data.language || 'english',
@@ -33,17 +32,17 @@ class VideoService {
   }
 
   /**
-   * Get all jobs for a user with pagination.
+   * Get all jobs with pagination.
    */
-  static async getUserJobs(userId, page = 1, limit = 20) {
+  static async getAllJobs(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     const [jobs, total] = await Promise.all([
-      VideoJob.find({ userId })
+      VideoJob.find()
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      VideoJob.countDocuments({ userId }),
+      VideoJob.countDocuments(),
     ]);
 
     return {
@@ -60,11 +59,8 @@ class VideoService {
   /**
    * Get a single job by ID.
    */
-  static async getById(jobId, userId) {
-    const query = { _id: jobId };
-    if (userId) query.userId = userId;
-
-    const job = await VideoJob.findOne(query);
+  static async getById(jobId) {
+    const job = await VideoJob.findById(jobId);
     if (!job) {
       throw { status: 404, message: 'Job not found' };
     }
@@ -74,8 +70,8 @@ class VideoService {
   /**
    * Delete a job.
    */
-  static async delete(jobId, userId) {
-    const job = await VideoJob.findOneAndDelete({ _id: jobId, userId });
+  static async delete(jobId) {
+    const job = await VideoJob.findByIdAndDelete(jobId);
     if (!job) {
       throw { status: 404, message: 'Job not found or already deleted' };
     }
