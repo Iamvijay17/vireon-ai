@@ -1,5 +1,6 @@
 import React from "react";
 import { Layout, Menu } from "antd";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   DashboardOutlined,
   ProjectOutlined,
@@ -9,31 +10,63 @@ import {
   ThunderboltOutlined,
   CodeOutlined,
   BarChartOutlined,
+  RocketOutlined,
 } from "@ant-design/icons";
 import { colors } from "../../shared/theme";
 
 const { Sider } = Layout;
 
-// ─── Menu Items Configuration ───────────────────────────────────────────────
+// Route mapping for menu keys
+const ROUTE_MAP = {
+  "/": "dashboard",
+  "/projects": "projects",
+  "/wizard": "wizard",
+  "/render": "render",
+  "/editor/complete": "complete",
+  "/analytics": "analytics",
+  "/settings": "settings",
+};
+
 const menuItems = [
-  { key: "1", icon: <DashboardOutlined />, label: "Dashboard" },
-  { key: "2", icon: <ProjectOutlined />, label: "Projects" },
-  { key: "3", icon: <ThunderboltOutlined />, label: "Render" },
+  { key: "dashboard", icon: <DashboardOutlined />, label: "Dashboard", route: "/" },
+  { key: "projects", icon: <ProjectOutlined />, label: "Projects", route: "/projects" },
+  { key: "render", icon: <RocketOutlined />, label: "Render", route: "/render" },
   {
     key: "sub1",
     icon: <CodeOutlined />,
     label: "Editor",
     children: [
-      { key: "4", icon: <AppstoreOutlined />, label: "Wizard" },
-      { key: "5", icon: <FileTextOutlined />, label: "Complete" },
+      { key: "wizard", icon: <AppstoreOutlined />, label: "Wizard", route: "/wizard" },
+      { key: "complete", icon: <FileTextOutlined />, label: "Complete", route: "/editor/complete" },
     ],
   },
-  { key: "6", icon: <BarChartOutlined />, label: "Analytics" },
-  { key: "7", icon: <SettingOutlined />, label: "Settings" },
+  { key: "analytics", icon: <BarChartOutlined />, label: "Analytics", route: "/analytics" },
+  { key: "settings", icon: <SettingOutlined />, label: "Settings", route: "/settings" },
 ];
+
+// Convert flat list + nested to a map for key->route resolution
+const findRoute = (items, key) => {
+  for (const item of items) {
+    if (item.key === key) return item.route;
+    if (item.children) {
+      const found = findRoute(item.children, key);
+      if (found) return found;
+    }
+  }
+  return null;
+};
 
 // ─── Sidebar Component ───────────────────────────────────────────────────────
 const AppSidebar = ({ collapsed, onCollapse }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const currentKey = ROUTE_MAP[location.pathname] || "dashboard";
+
+  const handleMenuClick = ({ key }) => {
+    const route = findRoute(menuItems, key);
+    if (route) navigate(route);
+  };
+
   return (
     <Sider
       collapsible
@@ -55,6 +88,7 @@ const AppSidebar = ({ collapsed, onCollapse }) => {
     >
       {/* ── Logo Area ─────────────────────────────────────────────────── */}
       <div
+        onClick={() => navigate("/")}
         style={{
           height: 64,
           display: "flex",
@@ -64,6 +98,7 @@ const AppSidebar = ({ collapsed, onCollapse }) => {
           borderBottom: `1px solid rgba(255,255,255,0.08)`,
           transition: "padding 0.2s",
           overflow: "hidden",
+          cursor: "pointer",
         }}
       >
         <div
@@ -103,9 +138,10 @@ const AppSidebar = ({ collapsed, onCollapse }) => {
       <Menu
         theme="dark"
         mode="inline"
-        defaultSelectedKeys={["1"]}
+        selectedKeys={[currentKey]}
         defaultOpenKeys={["sub1"]}
         items={menuItems}
+        onClick={handleMenuClick}
         style={{
           borderRight: 0,
           paddingTop: 8,

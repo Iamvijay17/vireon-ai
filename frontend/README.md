@@ -1,16 +1,39 @@
-# React + Vite
+# Vireon AI - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Ant Design frontend for the Vireon AI video generation platform.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Framework:** React 19
+- **UI Library:** Ant Design 6
+- **Routing:** React Router 7
+- **HTTP Client:** Axios
+- **Realtime:** Socket.IO Client
+- **Build Tool:** Vite
 
-## React Compiler
+## Pages
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | Dashboard | Job stats, recent jobs table, real-time updates |
+| `/wizard` | Create Video | 3-step form: topic/type → voice → resolution |
+| `/render?id=` | Render Progress | Real-time progress, pipeline steps, video download |
+| `/projects` | Projects | Placeholder |
+| `/editor/complete` | Complete | Placeholder |
+| `/analytics` | Analytics | Placeholder |
+| `/settings` | Settings | Placeholder |
 
-## Expanding the ESLint configuration
+## Quick Start
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Environment
+
+Create `.env` in frontend root (optional):
+
+```
+VITE_API_URL=http://localhost:3000

@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Layout } from "antd";
+import { Routes, Route } from "react-router-dom";
 import AppSidebar from "./sidebar";
 import AppNavbar from "./navbar";
+import Dashboard from "../pages/dashboard";
+import Wizard from "../pages/wizard";
+import RenderPage from "../pages/render";
+import PlaceholderPage from "../pages/placeholder";
 import { colors, typography } from "../shared/theme";
 
 const { Content, Footer } = Layout;
@@ -53,7 +58,7 @@ const AppLayout = () => {
         {/* Navbar (sticky) */}
         <AppNavbar collapsed={collapsed} onToggle={toggleCollapsed} />
 
-        {/* Page content */}
+        {/* Page content with routing */}
         <Content
           style={{
             padding: 24,
@@ -61,7 +66,15 @@ const AppLayout = () => {
             background: colors.bg,
           }}
         >
-          {/* Content will go here */}
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/wizard" element={<Wizard />} />
+            <Route path="/render" element={<RenderPage />} />
+            <Route path="/projects" element={<PlaceholderPage title="Projects" description="Manage your AI projects, create new ones, and organize your work." />} />
+            <Route path="/analytics" element={<PlaceholderPage title="Analytics" description="View usage analytics and performance metrics for your renders." />} />
+            <Route path="/settings" element={<PlaceholderPage title="Settings" description="Configure your preferences and application settings." />} />
+            <Route path="/editor/complete" element={<PlaceholderPage title="Complete" description="View your completed renders and download the final outputs." />} />
+          </Routes>
         </Content>
 
         {/* Footer */}
