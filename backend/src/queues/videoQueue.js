@@ -25,7 +25,7 @@ const videoQueue = new Queue('video-rendering', {
 });
 
 videoQueue.on('error', (err) => {
-  LoggerService.error('BullMQ Queue error', { error: err.message });
+  LoggerService.error('BullMQ Queue error', { error: err });
 });
 
 LoggerService.info('BullMQ video queue initialized', {
