@@ -109,6 +109,10 @@ class LoggerService {
     logger.info(message, meta);
   }
 
+  static success(message, meta = {}) {
+    logger.info(`✅ ${message}`, meta);
+  }
+
   static warn(message, meta = {}) {
     logger.warn(message, meta);
   }
@@ -139,6 +143,14 @@ class LoggerService {
 
   static upload(message, meta = {}) {
     logger.log('upload', message, meta);
+  }
+
+  static border(message, level = 'info') {
+    const line = '═'.repeat(Math.min(message.length + 6, 60));
+    const icon = level === 'success' ? '✅' : level === 'event' ? '📢' : 'ℹ️';
+    console.log(`\n╔${line}╗`);
+    console.log(`║   ${icon} ${message}   ║`);
+    console.log(`╚${line}╝\n`);
   }
 
   static stream() {
