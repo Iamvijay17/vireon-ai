@@ -1,0 +1,105 @@
+const path = require('path');
+const fs = require('fs').promises;
+const LoggerService = require('./LoggerService');
+
+/**
+ * Local storage service for managing job files on disk.
+ * Single Responsibility: Local file management.
+ */
+class StorageService {
+  static getJobDir(jobId) {
+    return path.resolve(__dirname, '../../jobs', jobId);
+  }
+
+  static getAudioDir(jobId) {
+    return path.join(this.getJobDir(jobId), 'audio');
+  }
+
+  static getRenderDir(jobId) {
+    return path.join(this.getJobDir(jobId), 'render');
+  }
+
+  /**
+   * Ensure all job directories exist.
+   */
+  static async ensureJobDirs(jobId) {
+    const dirs = [
+      this.getJobDir(jobId),
+      this.getAudioDir(jobId),
+      this.getRenderDir(jobId),
+    ];
+
+    for (const dir of dirs) {
+      await fs.mkdir(dir, { recursive: true });
+    }
+
+    return this.getJobDir(jobId);
+  }
+
+  /**
+   * Get all files for upload from a job directory.
+   */
+  static async getUploadFiles(jobId) {
+    const jobDir = this.getJobDir(jobId);
+    const files = {
+      script: [],
+      audio: [],
+      render: [],
+    };
+
+    // Script file
+    const scriptPath = path.join(jobDir, 'script.json');
+    try {
+      await fs.access(scriptPath);
+      files.script.push(scriptPath);
+    } catch {
+      LoggerService.warn('Script file not found for upload', { jobId });
+    }
+
+    // Audio files
+    const audioDir = this.getAudioDir(jobId);
+    try {
+      const audioFiles = await fs.readdir(audioDir);
+      audioFiles
+        .filter((f) => f.endsWith('.mp3'))
+        .forEach((f) => files.audio.push(path.join(audioDir, f)));
+    } catch {
+      LoggerService.warn('Audio directory not found for upload', { jobId });
+    }
+
+    // Render files
+    const renderDir = this.getRenderDir(jobId);
+    try {
+      const renderFiles = await fs.readdir(renderDir);
+      renderFiles.forEach((f) => files.render.push(path.join(renderDir, f)));
+    } catch {
+      LoggerService.warn('Render directory not found for upload', { jobId });
+    }
+
+    // Assets file
+    const assetsPath = path.join(jobDir, 'assets.json');
+    try {
+      await fs.access(assetsPath);
+      files.script.push(assetsPath);
+    } catch {
+      // assets might not exist yet
+    }
+
+    return files;
+  }
+
+  /**
+   * Clean up job directory.
+   */
+  static async cleanupJob(jobId) {
+    const jobDir = this.getJobDir(jobId);
+    try {
+      await fs.rm(jobDir, { recursive: true, force: true });
+      LoggerService.info('Job directory cleaned up', { jobId });
+    } catch (err) {
+      LoggerService.warn('Failed to cleanup job directory', { jobId, error: err.message });
+    }
+  }
+}
+
+module.exports = StorageService;

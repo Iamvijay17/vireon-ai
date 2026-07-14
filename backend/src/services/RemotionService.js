@@ -1,0 +1,126 @@
+const { execSync } = require('child_process');
+const fs = require('fs').promises;
+const path = require('path');
+const config = require('../config');
+const LoggerService = require('./LoggerService');
+
+/**
+ * Service for rendering videos using Remotion.
+ * Single Responsibility: Video rendering via Remotion CLI.
+ */
+class RemotionService {
+  /**
+   * Generate assets.json from the script for Remotion consumption.
+   */
+  static async prepareAssets(jobId, script, jobConfig) {
+    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    await fs.mkdir(jobDir, { recursive: true });
+
+    const assets = {
+      title: script.title,
+      description: script.description,
+      resolution: jobConfig.resolution || '1920x1080',
+      aspectRatio: jobConfig.aspectRatio || '16:9',
+      scenes: script.scenes.map((scene) => ({
+        sceneNumber: scene.sceneNumber,
+        title: scene.title,
+        subtitle: scene.subtitle,
+        duration: scene.duration,
+        backgroundColor: scene.backgroundColor,
+        transition: scene.transition,
+        imagePrompt: scene.imagePrompt,
+        cameraMotion: scene.cameraMotion,
+        animation: scene.animation,
+        audio: {
+          file: `./audio/scene${scene.sceneNumber}.mp3`,
+          duration: scene.audio.duration,
+        },
+        fonts: {
+          primary: 'Inter',
+          secondary: 'Roboto',
+        },
+        theme: {
+          type: jobConfig.type || 'educational',
+          textColor: '#ffffff',
+          accentColor: '#6c63ff',
+        },
+      })),
+      output: {
+        video: `./render/video.mp4`,
+        thumbnail: `./render/thumbnail.png`,
+      },
+    };
+
+    const assetsPath = path.join(jobDir, 'assets.json');
+    await fs.writeFile(assetsPath, JSON.stringify(assets, null, 2), 'utf-8');
+
+    LoggerService.render('Assets prepared for Remotion', {
+      jobId,
+      scenes: assets.scenes.length,
+      path: assetsPath,
+    });
+
+    return assetsPath;
+  }
+
+  /**
+   * Execute Remotion render process.
+   */
+  static async renderVideo(jobId) {
+    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    const assetsPath = path.join(jobDir, 'assets.json');
+    const renderDir = path.join(jobDir, 'render');
+
+    await fs.mkdir(renderDir, { recursive: true });
+
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= config.remotion.maxRetries; attempt++) {
+      try {
+        LoggerService.render(`Rendering video (attempt ${attempt}/${config.remotion.maxRetries})`, {
+          jobId,
+        });
+
+        const cmd = `${config.remotion.binary} render ${assetsPath} ${renderDir}/video.mp4 --overwrite`;
+        execSync(cmd, {
+          cwd: path.resolve(__dirname, '../..'),
+          timeout: config.remotion.timeout,
+          stdio: 'pipe',
+        });
+
+        // Verify output exists
+        const videoPath = path.join(renderDir, 'video.mp4');
+        const stats = await fs.stat(videoPath);
+
+        LoggerService.render('Video rendered successfully', {
+          jobId,
+          size: `${(stats.size / (1024 * 1024)).toFixed(2)} MB`,
+          path: videoPath,
+        });
+
+        return {
+          video: 'render/video.mp4',
+          thumbnail: 'render/thumbnail.png',
+          path: renderDir,
+        };
+      } catch (err) {
+        lastError = err;
+        const isLastAttempt = attempt === config.remotion.maxRetries;
+
+        LoggerService.warn(
+          `Remotion attempt ${attempt} failed${isLastAttempt ? ' (final)' : ''}`,
+          { error: err.message }
+        );
+
+        if (!isLastAttempt) {
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 30000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    throw new Error(`Remotion rendering failed after ${config.remotion.maxRetries} attempts: ${lastError.message}`);
+  }
+}
+
+module.exports = RemotionService;
