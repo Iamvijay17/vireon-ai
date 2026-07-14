@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import {
-  Typography, Card, Form, Input, Select, Button, Steps, Result, Descriptions, Tag, Spin, message, Space
+  Typography, Card, Form, Input, Select, Button, Steps, Result, Descriptions, Tag, Spin, message
 } from "antd";
 import {
-  ThunderboltOutlined, VideoCameraOutlined, AudioOutlined, FileTextOutlined, CheckCircleOutlined,
+  VideoCameraOutlined, AudioOutlined, FileTextOutlined, CheckCircleOutlined,
   RocketOutlined, ArrowLeftOutlined, ArrowRightOutlined, SendOutlined
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
@@ -56,151 +56,67 @@ const LANGUAGES = [
   { value: "korean", label: "Korean" },
 ];
 
+const STEPS = [
+  { title: "Topic & Type", icon: <FileTextOutlined /> },
+  { title: "Voice & Language", icon: <AudioOutlined /> },
+  { title: "Resolution", icon: <VideoCameraOutlined /> },
+  { title: "Done", icon: <CheckCircleOutlined /> },
+];
+
 const Wizard = () => {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [fieldValues, setFieldValues] = useState({});
 
-  const handleSubmit = async () => {
+  const handleNext = async () => {
+    // Validate only the fields for the current step
     try {
-      const values = await form.validateFields();
-      setLoading(true);
-
-      const res = await createVideoJob(values);
-      setResult(res.data);
-      message.success("Video job created! Processing started.");
-    } catch (err) {
-      if (err.response) {
-        message.error(err.response.data?.error || "Failed to create job");
+      const fieldsToValidate = [];
+      if (current === 0) {
+        fieldsToValidate.push("topic", "type", "language");
+      } else if (current === 1) {
+        fieldsToValidate.push("voice");
+      } else if (current === 2) {
+        fieldsToValidate.push("resolution", "aspectRatio");
       }
-    } finally {
-      setLoading(false);
-      setCurrent(3); // Go to result step
+      await form.validateFields(fieldsToValidate);
+      // Save current values
+      const allValues = form.getFieldsValue();
+      setFieldValues(allValues);
+      setCurrent((prev) => prev + 1);
+    } catch {
+      // Validation failed - form will show errors
     }
   };
 
-  const steps = [
-    {
-      title: "Topic & Type",
-      icon: <FileTextOutlined />,
-      content: (
-        <div style={{ maxWidth: 560, margin: "0 auto" }}>
-          <Title level={5} style={{ marginBottom: 24 }}>What do you want to create?</Title>
-          <Form.Item
-            name="topic"
-            label="Video Topic"
-            rules={[{ required: true, message: "Please enter a topic" }, { min: 3, message: "At least 3 characters" }]}
-          >
-            <Input.TextArea
-              rows={3}
-              placeholder="e.g., Introduction to Quantum Computing, The Future of AI, How to Start a Business..."
-              size="large"
-            />
-          </Form.Item>
+  const handleBack = () => {
+    const allValues = form.getFieldsValue();
+    setFieldValues(allValues);
+    setCurrent((prev) => prev - 1);
+  };
 
-          <Form.Item
-            name="type"
-            label="Video Type"
-            rules={[{ required: true, message: "Please select a type" }]}
-          >
-            <Select
-              placeholder="Select video type"
-              size="large"
-              options={VIDEO_TYPES}
-              showSearch
-            />
-          </Form.Item>
+  const handleSubmit = async () => {
+    try {
+      const allValues = form.getFieldsValue();
+      setLoading(true);
+      setFieldValues(allValues);
 
-          <Form.Item
-            name="language"
-            label="Language"
-            initialValue="english"
-          >
-            <Select size="large" options={LANGUAGES} />
-          </Form.Item>
-        </div>
-      ),
-    },
-    {
-      title: "Voice & Voice",
-      icon: <AudioOutlined />,
-      content: (
-        <div style={{ maxWidth: 560, margin: "0 auto" }}>
-          <Title level={5} style={{ marginBottom: 24 }}>Configure audio settings</Title>
+      console.log("Submitting payload:", allValues);
 
-          <Form.Item
-            name="voice"
-            label="Voice"
-            initialValue="female-1"
-          >
-            <Select size="large" options={VOICES} />
-          </Form.Item>
-        </div>
-      ),
-    },
-    {
-      title: "Resolution",
-      icon: <VideoCameraOutlined />,
-      content: (
-        <div style={{ maxWidth: 560, margin: "0 auto" }}>
-          <Title level={5} style={{ marginBottom: 24 }}>Choose output quality</Title>
-
-          <Form.Item
-            name="resolution"
-            label="Resolution"
-            initialValue="1920x1080"
-          >
-            <Select size="large" options={RESOLUTIONS} />
-          </Form.Item>
-
-          <Form.Item
-            name="aspectRatio"
-            label="Aspect Ratio"
-            initialValue="16:9"
-          >
-            <Select size="large" options={ASPECT_RATIOS} />
-          </Form.Item>
-        </div>
-      ),
-    },
-    {
-      title: "Done",
-      icon: <CheckCircleOutlined />,
-      content: result ? (
-        <Result
-          status="success"
-          title="Video Job Created!"
-          subTitle={`Your video "${result.jobId}" has been queued for processing.`}
-          extra={[
-            <Button type="primary" key="view" onClick={() => navigate(`/render?id=${result.jobId}`)}>
-              View Progress
-            </Button>,
-            <Button key="new" onClick={() => { setResult(null); setCurrent(0); form.resetFields(); }}>
-              Create Another
-            </Button>,
-            <Button key="dashboard" onClick={() => navigate("/")}>
-              Back to Dashboard
-            </Button>,
-          ]}
-        >
-          <Descriptions column={1} bordered size="small" style={{ maxWidth: 400, margin: "0 auto" }}>
-            <Descriptions.Item label="Job ID">
-              <Text copyable>{result.jobId}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Status">
-              <Tag icon={<RocketOutlined />} color="processing">{result.status}</Tag>
-            </Descriptions.Item>
-          </Descriptions>
-        </Result>
-      ) : (
-        <div style={{ textAlign: "center", padding: 48 }}>
-          <Spin size="large" tip="Creating your video job..." />
-        </div>
-      ),
-    },
-  ];
+      const res = await createVideoJob(allValues);
+      setResult(res.data);
+      message.success("Video job created! Processing started.");
+      setCurrent(3);
+    } catch (err) {
+      const errMsg = err?.response?.data?.error || err?.response?.data?.details?.[0]?.message || "Failed to create job";
+      message.error(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div>
@@ -209,46 +125,141 @@ const Wizard = () => {
       </Title>
 
       <Steps current={current} style={{ marginBottom: 48, maxWidth: 700 }}>
-        {steps.map((s) => ({
-          title: s.title,
-          icon: s.icon,
-        }))}
+        {STEPS.map((s) => ({ title: s.title, icon: s.icon }))}
       </Steps>
 
-      <Card style={{ borderRadius: 12, minHeight: 400 }}>
-        <Form
-          form={form}
-          layout="vertical"
-          size="large"
-          style={{ marginTop: 24 }}
-        >
-          {steps[current].content}
-        </Form>
-
+      <Card style={{ borderRadius: 12, minHeight: 420 }}>
         {current < 3 && (
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 48, maxWidth: 560, margin: "48px auto 0" }}>
-            <Button
-              disabled={current === 0}
-              onClick={() => setCurrent((prev) => prev - 1)}
-              icon={<ArrowLeftOutlined />}
-            >
-              Back
-            </Button>
-            {current < steps.length - 2 ? (
-              <Button type="primary" onClick={() => setCurrent((prev) => prev + 1)} icon={<ArrowRightOutlined />}>
-                Next
-              </Button>
-            ) : (
-              <Button
-                type="primary"
-                icon={<SendOutlined />}
-                onClick={handleSubmit}
-                loading={loading}
-                size="large"
+          <Form
+            form={form}
+            layout="vertical"
+            size="large"
+            initialValues={{
+              language: "english",
+              voice: "female-1",
+              resolution: "1920x1080",
+              aspectRatio: "16:9",
+              ...fieldValues,
+            }}
+          >
+            {/* ── Step 1: Topic & Type ──────────────────────────────────────── */}
+            <div style={{ maxWidth: 560, margin: "0 auto", display: current === 0 ? "block" : "none" }}>
+              <Title level={5} style={{ marginBottom: 24 }}>What do you want to create?</Title>
+
+              <Form.Item
+                name="topic"
+                label="Video Topic"
+                rules={[
+                  { required: true, message: "Please enter a topic" },
+                  { min: 3, message: "At least 3 characters" },
+                ]}
               >
-                Create Video
-              </Button>
-            )}
+                <Input.TextArea
+                  rows={3}
+                  placeholder="e.g., Introduction to Quantum Computing, The Future of AI, How to Start a Business..."
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="type"
+                label="Video Type"
+                rules={[{ required: true, message: "Please select a type" }]}
+              >
+                <Select placeholder="Select video type" options={VIDEO_TYPES} showSearch />
+              </Form.Item>
+
+              <Form.Item name="language" label="Language">
+                <Select options={LANGUAGES} />
+              </Form.Item>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 32 }}>
+                <Button type="primary" onClick={handleNext} icon={<ArrowRightOutlined />}>
+                  Next
+                </Button>
+              </div>
+            </div>
+
+            {/* ── Step 2: Voice & Language ──────────────────────────────────── */}
+            <div style={{ maxWidth: 560, margin: "0 auto", display: current === 1 ? "block" : "none" }}>
+              <Title level={5} style={{ marginBottom: 24 }}>Configure audio settings</Title>
+
+              <Form.Item name="voice" label="Voice">
+                <Select options={VOICES} />
+              </Form.Item>
+
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
+                <Button onClick={handleBack} icon={<ArrowLeftOutlined />}>
+                  Back
+                </Button>
+                <Button type="primary" onClick={handleNext} icon={<ArrowRightOutlined />}>
+                  Next
+                </Button>
+              </div>
+            </div>
+
+            {/* ── Step 3: Resolution ─────────────────────────────────────────── */}
+            <div style={{ maxWidth: 560, margin: "0 auto", display: current === 2 ? "block" : "none" }}>
+              <Title level={5} style={{ marginBottom: 24 }}>Choose output quality</Title>
+
+              <Form.Item name="resolution" label="Resolution">
+                <Select options={RESOLUTIONS} />
+              </Form.Item>
+
+              <Form.Item name="aspectRatio" label="Aspect Ratio">
+                <Select options={ASPECT_RATIOS} />
+              </Form.Item>
+
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
+                <Button onClick={handleBack} icon={<ArrowLeftOutlined />}>
+                  Back
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<SendOutlined />}
+                  onClick={handleSubmit}
+                  loading={loading}
+                  size="large"
+                >
+                  Create Video
+                </Button>
+              </div>
+            </div>
+          </Form>
+        )}
+
+        {/* ── Step 4: Result ─────────────────────────────────────────────────── */}
+        {current === 3 && result && (
+          <Result
+            status="success"
+            title="Video Job Created!"
+            subTitle="Your video has been queued for processing. You can monitor its progress in real-time."
+            extra={[
+              <Button type="primary" key="view" onClick={() => navigate(`/render?id=${result.jobId}`)}>
+                View Progress
+              </Button>,
+              <Button key="new" onClick={() => { setResult(null); setCurrent(0); form.resetFields(); setFieldValues({}); }}>
+                Create Another
+              </Button>,
+              <Button key="dashboard" onClick={() => navigate("/")}>
+                Back to Dashboard
+              </Button>,
+            ]}
+          >
+            <Descriptions column={1} bordered size="small" style={{ maxWidth: 400, margin: "24px auto 0" }}>
+              <Descriptions.Item label="Job ID">
+                <Text copyable>{result.jobId}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag icon={<RocketOutlined />} color="processing">{result.status}</Tag>
+              </Descriptions.Item>
+            </Descriptions>
+          </Result>
+        )}
+
+        {current === 3 && !result && (
+          <div style={{ textAlign: "center", padding: 80 }}>
+            <Spin size="large" />
+            <div style={{ marginTop: 16, color: colors.textSecondary }}>Creating your video job...</div>
           </div>
         )}
       </Card>
