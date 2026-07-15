@@ -2,6 +2,17 @@ const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
 const config = require('../config');
 const LoggerService = require('../services/LoggerService');
+
+// Connect to MongoDB on worker startup
+mongoose.connect(config.mongodb.uri, {
+  serverSelectionTimeoutMS: 5000,
+  heartbeatFrequencyMS: 10000,
+}).then(() => {
+  LoggerService.success('Worker MongoDB connected successfully');
+}).catch((err) => {
+  LoggerService.error('Worker MongoDB connection failed', { error: err.message });
+  process.exit(1);
+});
 const VideoService = require('../services/VideoService');
 const PromptService = require('../services/PromptService');
 const LMStudioService = require('../services/LMStudioService');
