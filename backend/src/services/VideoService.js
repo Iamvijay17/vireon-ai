@@ -175,23 +175,42 @@ class VideoService {
   }
 
   /**
-   * Determine the next step to resume based on job state.
-   * Returns the step to start from after a failure.
+   * Map error step to resume status.
+   * When a step fails, we resume from the beginning of that step.
    */
   static getResumeStep(job) {
-    // If job has script and completed scenes, determine where to resume
+    const failedStep = job.error?.step;
+
+    // Map error step to resume status
+    // When a step fails, we resume from that same step to retry it
+    const stepStatusMap = {
+      [JOB_STATUS.SCRIPT_GENERATION]: { status: JOB_STATUS.QUEUED, progress: 0 },
+      [JOB_STATUS.SCRIPT_COMPLETED]: { status: JOB_STATUS.QUEUED, progress: 0 },
+      [JOB_STATUS.GENERATING_AUDIO]: { status: JOB_STATUS.GENERATING_AUDIO, progress: 40 },
+      [JOB_STATUS.AUDIO_COMPLETED]: { status: JOB_STATUS.PREPARING_ASSETS, progress: 60 },
+      [JOB_STATUS.PREPARING_ASSETS]: { status: JOB_STATUS.PREPARING_ASSETS, progress: 60 },
+      [JOB_STATUS.RENDERING]: { status: JOB_STATUS.RENDERING, progress: 80 },
+      [JOB_STATUS.UPLOADING]: { status: JOB_STATUS.UPLOADING, progress: 90 },
+    };
+
+    // If we have specific error step info, use it
+    if (failedStep && stepStatusMap[failedStep]) {
+      LoggerService.info('Resuming from failed step', {
+        failedStep,
+        resumeStatus: stepStatusMap[failedStep].status,
+      });
+      
+      return {
+        status: stepStatusMap[failedStep].status,
+        progress: stepStatusMap[failedStep].progress,
+        currentStep: stepStatusMap[failedStep].status,
+      };
+    }
+
+    // Fallback: Determine based on job state (script and audio files)
     if (job.script?.scenes?.length > 0) {
       // Check if any audio files exist - if so, we can resume from audio step
       const scenesWithAudio = job.script.scenes.filter(s => s.audio?.file);
-      
-      if (scenesWithAudio.length > 0 && scenesWithAudio.length < job.script.scenes.length) {
-        // Partial audio - resume from GENERATING_AUDIO
-        return {
-          status: JOB_STATUS.GENERATING_AUDIO,
-          progress: 40,
-          currentStep: JOB_STATUS.GENERATING_AUDIO,
-        };
-      }
       
       if (scenesWithAudio.length === job.script.scenes.length) {
         // All audio done - resume from PREPARING_ASSETS
@@ -202,7 +221,7 @@ class VideoService {
         };
       }
       
-      // Script exists but no audio - resume from GENERATING_AUDIO
+      // Some or no audio - resume from GENERATING_AUDIO
       return {
         status: JOB_STATUS.GENERATING_AUDIO,
         progress: 40,
@@ -249,6 +268,7 @@ class VideoService {
     LoggerService.info('Video job restarted', {
       jobId,
       resumeStep: resumeInfo.status,
+      failedStep: job.error?.step,
       hadScript: !!job.script?.scenes?.length,
       scenesWithAudio: job.script?.scenes?.filter(s => s.audio?.file)?.length || 0,
     });
