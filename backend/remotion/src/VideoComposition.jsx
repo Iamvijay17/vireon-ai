@@ -65,7 +65,7 @@ const Scene = ({ scene, jobId }) => {
   const { height } = useVideoConfig();
 
   return (
-    <AbsoluteFill style={{ backgroundColor: scene?.backgroundColor || '#1a1a2e' }}>
+    <AbsoluteFill style={{ backgroundColor:  '#1a1a2e' }}>
       <div
         style={{
           height: '100%',
@@ -135,21 +135,28 @@ export const VideoComposition = ({ assets, jobId }) => {
     );
   }
 
-  // Calculate total duration (8 seconds per scene by default)
-  const sceneDuration = 8; // seconds per scene
+  // Calculate total duration based on actual scene durations
   const fps = 30;
+  let currentFrame = 0;
 
   return (
     <>
-      {scenes.map((scene, index) => (
-        <Sequence
-          key={scene.sceneNumber || index}
-          from={index * sceneDuration * fps}
-          durationInFrames={sceneDuration * fps}
-        >
-          <Scene scene={scene} jobId={jobId} />
-        </Sequence>
-      ))}
+      {scenes.map((scene, index) => {
+        const sceneDuration = scene.duration || 8; // seconds per scene, default 8
+        const sceneStart = currentFrame;
+        const sceneEnd = currentFrame + sceneDuration * fps;
+        currentFrame = sceneEnd;
+
+        return (
+          <Sequence
+            key={scene.sceneNumber || index}
+            from={sceneStart}
+            durationInFrames={sceneDuration * fps}
+          >
+            <Scene scene={scene} jobId={jobId} />
+          </Sequence>
+        );
+      })}
     </>
   );
 };
