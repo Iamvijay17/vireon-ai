@@ -1,4 +1,4 @@
-const axios = require('axios');
+const { Client } = require("@gradio/client");
 const fs = require('fs').promises;
 const path = require('path');
 const config = require('../../config');
@@ -9,6 +9,27 @@ const LoggerService = require('../LoggerService');
  * Single Responsibility: Text-to-speech generation.
  */
 class AudioService {
+  /**
+   * Get reference audio path based on voice selection.
+   * Falls back to a default voice if none specified.
+   */
+  static getReferenceAudio(voice) {
+    const voiceDir = path.resolve(__dirname, '../../../voices');
+    const voiceMap = {
+      male: 'male_voice.mp3',
+      female: 'female_voice.mp3',
+      default: 'default_voice.mp3'
+    };
+    
+    // If voice is a path, use it directly
+    if (voice && voice.includes('/')) {
+      return voice;
+    }
+    
+    // Otherwise, use mapped voice
+    return path.join(voiceDir, voiceMap[voice] || voiceMap.default);
+  }
+
   /**
    * Generate audio for a single scene's text.
    * Implements retry with exponential backoff.
@@ -26,6 +47,9 @@ class AudioService {
     const outputFile = path.join(audioDir, `scene${scene.sceneNumber}.mp3`);
     let lastError = null;
 
+    // Get reference audio path
+    const refAudioPath = this.getReferenceAudio(voice);
+
     for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
       try {
         LoggerService.tts(`Generating audio scene ${scene.sceneNumber} (attempt ${attempt})`, {
@@ -33,37 +57,52 @@ class AudioService {
           textLength: text.length,
         });
 
-        const response = await axios.post(
-          config.tts.url,
-          {
-            text,
-            voice: voice || 'default',
-            speed: 1.0,
-            format: 'mp3',
-          },
-          {
-            responseType: 'arraybuffer',
-            timeout: config.tts.timeout,
-          }
-        );
+        // Connect to Gradio F5-TTS server
+        const client = await Client.connect(config.tts.url.replace(/\/generate$/, '').replace(/\/$/, ''));
 
-        await fs.writeFile(outputFile, response.data);
+        // Read reference audio file
+        const audioBuffer = await fs.readFile(refAudioPath);
+        const audioBlob = new Blob([audioBuffer], { type: "audio/mpeg" });
 
-        // Estimate duration based on audio file size (rough heuristic: ~16KB per second for mp3 @ 128kbps)
-        const stats = await fs.stat(outputFile);
-        const estimatedDuration = Math.round((stats.size / 16000) * 10) / 10;
-
-        LoggerService.tts(`Audio generated for scene ${scene.sceneNumber}`, {
-          file: `scene${scene.sceneNumber}.mp3`,
-          duration: estimatedDuration,
-          size: `${(stats.size / 1024).toFixed(1)} KB`,
+        // Call the F5-TTS API with proper parameters
+        const result = await client.predict("/basic_tts", {
+          ref_audio_input: audioBlob,
+          ref_text_input: "", // Empty reference text lets the model auto-detect
+          gen_text_input: text,
+          remove_silence: false,
+          randomize_seed: true,
+          seed_input: 0,
+          cross_fade_duration_slider: 0.15,
+          nfe_slider: 32,
+          speed_slider: 1.0,
         });
 
-        return {
-          file: `scene${scene.sceneNumber}.mp3`,
-          path: outputFile,
-          duration: estimatedDuration || Math.ceil(text.split(' ').length * 0.4), // fallback: ~0.4s per word
-        };
+        const audio = result.data[0];
+
+        if (audio && audio.url) {
+          // Download the generated audio
+          const outputResponse = await fetch(audio.url);
+          const outputAudioBuffer = await outputResponse.arrayBuffer();
+          await fs.writeFile(outputFile, Buffer.from(outputAudioBuffer));
+
+          // Estimate duration based on audio file size (rough heuristic: ~16KB per second for mp3 @ 128kbps)
+          const stats = await fs.stat(outputFile);
+          const estimatedDuration = Math.round((stats.size / 16000) * 10) / 10;
+
+          LoggerService.tts(`Audio generated for scene ${scene.sceneNumber}`, {
+            file: `scene${scene.sceneNumber}.mp3`,
+            duration: estimatedDuration,
+            size: `${(stats.size / 1024).toFixed(1)} KB`,
+          });
+
+          return {
+            file: `scene${scene.sceneNumber}.mp3`,
+            path: outputFile,
+            duration: estimatedDuration || Math.ceil(text.split(' ').length * 0.4), // fallback: ~0.4s per word
+          };
+        }
+
+        throw new Error('No audio URL returned from TTS API');
       } catch (err) {
         lastError = err;
         const isLastAttempt = attempt === config.tts.maxRetries;
