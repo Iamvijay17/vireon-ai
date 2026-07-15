@@ -10,6 +10,13 @@ const LoggerService = require('./LoggerService');
  */
 class RemotionService {
   /**
+   * Get the Remotion project root directory.
+   */
+  static getRemotionProjectRoot() {
+    return path.resolve(__dirname, '../../remotion');
+  }
+
+  /**
    * Generate assets.json from the script for Remotion consumption.
    */
   static async prepareAssets(jobId, script, jobConfig) {
@@ -25,7 +32,7 @@ class RemotionService {
         sceneNumber: scene.sceneNumber,
         title: scene.title,
         subtitle: scene.subtitle,
-        duration: scene.duration,
+        duration: scene.duration || 8,
         backgroundColor: scene.backgroundColor,
         transition: scene.transition,
         imagePrompt: scene.imagePrompt,
@@ -33,7 +40,7 @@ class RemotionService {
         animation: scene.animation,
         audio: {
           file: `./audio/scene${scene.sceneNumber}.mp3`,
-          duration: scene.audio.duration,
+          duration: scene.audio?.duration || 0,
         },
         fonts: {
           primary: 'Inter',
@@ -60,7 +67,7 @@ class RemotionService {
       path: assetsPath,
     });
 
-    return assetsPath;
+    return assets;
   }
 
   /**
@@ -70,8 +77,17 @@ class RemotionService {
     const jobDir = path.resolve(__dirname, '../../jobs', jobId);
     const assetsPath = path.join(jobDir, 'assets.json');
     const renderDir = path.join(jobDir, 'render');
+    const remotionRoot = this.getRemotionProjectRoot();
 
     await fs.mkdir(renderDir, { recursive: true });
+
+    // Read assets.json for duration calculation
+    const assetsContent = await fs.readFile(assetsPath, 'utf-8');
+    const assets = JSON.parse(assetsContent);
+    const totalDuration = assets.scenes.reduce(
+      (sum, scene) => sum + (scene.duration || 8),
+      0
+    );
 
     let lastError = null;
 
@@ -79,11 +95,37 @@ class RemotionService {
       try {
         LoggerService.render(`Rendering video (attempt ${attempt}/${config.remotion.maxRetries})`, {
           jobId,
+          remotionRoot,
+          assetsPath,
+          duration: totalDuration,
         });
 
-        const cmd = `${config.remotion.binary} render ${assetsPath} ${renderDir}/video.mp4 --overwrite`;
+        // Calculate dimensions from resolution
+        const [width, height] = (assets.resolution || '1920x1080').split('x').map(Number);
+
+        // Use npx to run remotion from the remotion project directory
+        // Pass assets via --props and calculate duration
+        const propsJson = JSON.stringify({ assets });
+        const cmd = [
+          'npx',
+          'remotion',
+          'render',
+          'VideoComposition',
+          `${renderDir}/video.mp4`,
+          '--props',
+          `'${propsJson}'`,
+          '--duration-in-frames',
+          String(totalDuration * 30), // 30 fps
+          '--width',
+          String(width),
+          '--height',
+          String(height),
+          '--fframe-per-second',
+          '30',
+        ].join(' ');
+
         execSync(cmd, {
-          cwd: path.resolve(__dirname, '../..'),
+          cwd: remotionRoot,
           timeout: config.remotion.timeout,
           stdio: 'pipe',
         });
@@ -119,7 +161,7 @@ class RemotionService {
       }
     }
 
-    throw new Error(`Remotion rendering failed after ${config.remotion.maxRetries} attempts: ${lastError.message}`);
+    throw new Error(`Remotion rendering failed after ${config.remotion.maxRetries} attempts: ${lastError?.message}`);
   }
 }
 
