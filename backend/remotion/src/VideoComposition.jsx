@@ -16,10 +16,10 @@ const Text = ({ children, style }) => (
 
 /**
  * Get the audio source path for Remotion Audio component.
- * Handles absolute Windows paths, HTTP URLs, and relative paths.
- * For relative paths, uses jobId to construct proper path relative to public dir.
+ * The Remotion Audio component requires files to be accessible via HTTP or from the public directory.
+ * We use staticFile() to reference files in the public directory.
  */
-const getAudioSrc = (audioFile, jobId) => {
+const getAudioSrc = (audioFile, jobId, sceneNumber) => {
   if (!audioFile) return null;
 
   // If it's already a URL (http:// or https://), return as-is
@@ -27,18 +27,31 @@ const getAudioSrc = (audioFile, jobId) => {
     return audioFile;
   }
 
-  // If it's an absolute Windows path (e.g., C:/...), convert to file:// URL
+  // If it's an absolute Windows path, extract the path relative to the jobs folder (public dir)
+  // The path will be like C:/.../jobs/{jobId}/audio/scene1.mp3
+  // We want just {jobId}/audio/scene1.mp3 for staticFile
   const normalizedPath = audioFile.replace(/\\/g, '/');
   if (normalizedPath.match(/^[A-Za-z]:/)) {
-    const encodedPath = normalizedPath.replace(/ /g, '%20');
-    return `file:///${encodedPath}`;
+    // Extract the jobId from path - it's the folder before 'audio'
+    // Path structure: .../jobs/{jobId}/audio/scene{N}.mp3
+    const pathParts = normalizedPath.split('/');
+    const audioIndex = pathParts.indexOf('audio');
+    if (audioIndex >= 0) {
+      const extractedJobId = pathParts[audioIndex - 1];
+      const sceneName = pathParts[audioIndex + 1];
+      if (extractedJobId && sceneName) {
+        return staticFile(`${extractedJobId}/audio/${sceneName}`);
+      }
+    }
+    // Fallback to jobId from prop if available
+    if (jobId) {
+      return staticFile(`${jobId}/audio/scene${sceneNumber || 1}.mp3`);
+    }
+    return null;
   }
 
-  // For relative paths, strip ./ prefix
-  // staticFile requires paths like "audio/sceneX.mp3" or "jobId/audio/sceneX.mp3"
+  // For relative paths, strip ./ prefix and use staticFile with jobId prefix
   const cleanPath = audioFile.replace(/^\.\//, '');
-
-  // If jobId is available, prepend it to the path for proper public dir resolution
   if (jobId) {
     return staticFile(`${jobId}/${cleanPath}`);
   }
@@ -104,7 +117,7 @@ const Scene = ({ scene, jobId }) => {
       </div>
       {scene?.audio?.file && (
         <Audio
-          src={getAudioSrc(scene.audio.file, jobId)}
+          src={getAudioSrc(scene.audio.file, jobId, scene.sceneNumber)}
         />
       )}
     </AbsoluteFill>
