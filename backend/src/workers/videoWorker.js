@@ -149,6 +149,10 @@ const worker = new Worker(
         LoggerService.info('All audio already generated, skipping audio step');
       }
 
+      // Re-fetch the job from DB to get updated scene durations from audio generation
+      const updatedJob = await VideoService.getById(jobId);
+      script = updatedJob.script;
+
       await VideoService.updateStatus(jobId, JOB_STATUS.AUDIO_COMPLETED, { progress: 50 });
       SocketService.emitJobProgress({ _id: jobId, progress: 50, status: JOB_STATUS.AUDIO_COMPLETED, currentStep: JOB_STATUS.AUDIO_COMPLETED, currentScene: script.scenes.length });
 
