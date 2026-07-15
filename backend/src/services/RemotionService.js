@@ -73,7 +73,7 @@ class RemotionService {
   /**
    * Execute Remotion render process.
    */
-  static async renderVideo(jobId) {
+  static async renderVideo(jobId, assets = null) {
     const jobDir = path.resolve(__dirname, '../../jobs', jobId);
     const assetsPath = path.join(jobDir, 'assets.json');
     const renderDir = path.join(jobDir, 'render');
@@ -82,9 +82,8 @@ class RemotionService {
     await fs.mkdir(renderDir, { recursive: true });
 
     // Read assets.json for duration calculation
-    const assetsContent = await fs.readFile(assetsPath, 'utf-8');
-    const assets = JSON.parse(assetsContent);
-    const totalDuration = assets.scenes.reduce(
+    const assetsFile = assets || JSON.parse(await fs.readFile(assetsPath, 'utf-8'));
+    const totalDuration = assetsFile.scenes.reduce(
       (sum, scene) => sum + (scene.duration || 8),
       0
     );
@@ -101,28 +100,14 @@ class RemotionService {
         });
 
         // Calculate dimensions from resolution
-        const [width, height] = (assets.resolution || '1920x1080').split('x').map(Number);
+        const [width, height] = (assetsFile.resolution || '1920x1080').split('x').map(Number);
 
-        // Use npx to run remotion from the remotion project directory
-        // Pass assets via --props and calculate duration
-        const propsJson = JSON.stringify({ assets });
-        const cmd = [
-          'npx',
-          'remotion',
-          'render',
-          'VideoComposition',
-          `${renderDir}/video.mp4`,
-          '--props',
-          `'${propsJson}'`,
-          '--duration-in-frames',
-          String(totalDuration * 30), // 30 fps
-          '--width',
-          String(width),
-          '--height',
-          String(height),
-          '--fframe-per-second',
-          '30',
-        ].join(' ');
+        // Use remotion render from the remotion project directory
+        // For Remotion v4, we use the project structure with npx remotion render
+        const propsJson = JSON.stringify({ assets: assetsFile });
+
+        // Build the command - Remotion v4 uses remotion render VideoComposition out.mp4
+        const cmd = `npx remotion render VideoComposition ${renderDir}/video.mp4 --props='${propsJson}' --duration-in-frames ${totalDuration * 30} --width ${width} --height ${height} --fps 30`;
 
         execSync(cmd, {
           cwd: remotionRoot,
