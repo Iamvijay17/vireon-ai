@@ -6,9 +6,9 @@ import {
 import {
   ArrowLeftOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined,
   ClockCircleOutlined, FileTextOutlined, AudioOutlined, VideoCameraOutlined,
-  CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined
+  CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined, RedoOutlined
 } from "@ant-design/icons";
-import { getVideoJob } from "../../services/api";
+import { getVideoJob, restartVideoJob } from "../../services/api";
 import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed } from "../../services/socket";
 import { colors } from "../../shared/theme";
 
@@ -34,6 +34,7 @@ const RenderPage = () => {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [restartLoading, setRestartLoading] = useState(false);
 
   const fetchJob = async () => {
     if (!jobId) return;
@@ -46,6 +47,20 @@ const RenderPage = () => {
       setError(err.response?.data?.error || "Failed to fetch job");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRestart = async () => {
+    if (!jobId) return;
+    try {
+      setRestartLoading(true);
+      await restartVideoJob(jobId);
+      message.success("Job restarted successfully");
+      // Job will be updated via socket events to QUEUED and then progress
+    } catch (err) {
+      message.error(err.response?.data?.error || "Failed to restart job");
+    } finally {
+      setRestartLoading(false);
     }
   };
 
@@ -129,6 +144,17 @@ const RenderPage = () => {
       <Space style={{ marginBottom: 24 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/")}>Back</Button>
         <Button icon={<ReloadOutlined />} onClick={fetchJob} loading={loading}>Refresh</Button>
+        {isFailed && (
+          <Button 
+            icon={<RedoOutlined />} 
+            type="primary" 
+            danger
+            onClick={handleRestart} 
+            loading={restartLoading}
+          >
+            Restart Job
+          </Button>
+        )}
       </Space>
 
       <Title level={4} style={{ color: colors.textPrimary, marginBottom: 8 }}>

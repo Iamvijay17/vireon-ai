@@ -16,16 +16,19 @@ class AudioService {
   static getReferenceAudio(voice) {
     const voiceDir = path.resolve(__dirname, '../../../voices');
     const voiceMap = {
-      male: 'male_voice.mp3',
-      female: 'female_voice.mp3',
-      default: '../../voices/female_voice.mp3',
+      'male-1': 'default_male_voice.wav',
+      'male-2': 'default_male_voice.wav',
+      'female-1': 'default_female_voice.wav',
+      'female-2': 'default_female_voice.wav',
+      'neutral-1': 'default_male_voice.wav',
+      default: 'default_male_voice.wav',
     };
-
+    
     // If voice is a path, use it directly
-    if (voice && voice.includes('/')) {
+    if (voice && (voice.includes('/') || voice.includes('\\'))) {
       return voice;
     }
-
+    
     // Otherwise, use mapped voice
     return path.join(voiceDir, voiceMap[voice] || voiceMap.default);
   }
@@ -62,7 +65,9 @@ class AudioService {
 
         // Read reference audio file
         const audioBuffer = await fs.readFile(refAudioPath);
-        const audioBlob = new Blob([audioBuffer], { type: "audio/mpeg" });
+        
+        // Create blob for Gradio API (Node.js 24+ supports Blob natively)
+        const audioBlob = new Blob([audioBuffer], { type: "audio/wav" });
 
         // Call the F5-TTS API with proper parameters
         const result = await client.predict("/basic_tts", {

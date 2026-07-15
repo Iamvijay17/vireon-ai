@@ -173,6 +173,87 @@ class VideoService {
       { new: true }
     );
   }
+
+  /**
+   * Determine the next step to resume based on job state.
+   * Returns the step to start from after a failure.
+   */
+  static getResumeStep(job) {
+    // If job has script and completed scenes, determine where to resume
+    if (job.script?.scenes?.length > 0) {
+      // Check if any audio files exist - if so, we can resume from audio step
+      const scenesWithAudio = job.script.scenes.filter(s => s.audio?.file);
+      
+      if (scenesWithAudio.length > 0 && scenesWithAudio.length < job.script.scenes.length) {
+        // Partial audio - resume from GENERATING_AUDIO
+        return {
+          status: JOB_STATUS.GENERATING_AUDIO,
+          progress: 40,
+          currentStep: JOB_STATUS.GENERATING_AUDIO,
+        };
+      }
+      
+      if (scenesWithAudio.length === job.script.scenes.length) {
+        // All audio done - resume from PREPARING_ASSETS
+        return {
+          status: JOB_STATUS.PREPARING_ASSETS,
+          progress: 60,
+          currentStep: JOB_STATUS.PREPARING_ASSETS,
+        };
+      }
+      
+      // Script exists but no audio - resume from GENERATING_AUDIO
+      return {
+        status: JOB_STATUS.GENERATING_AUDIO,
+        progress: 40,
+        currentStep: JOB_STATUS.GENERATING_AUDIO,
+      };
+    }
+    
+    // No script - start from beginning
+    return {
+      status: JOB_STATUS.QUEUED,
+      progress: 0,
+      currentStep: JOB_STATUS.QUEUED,
+    };
+  }
+
+  /**
+   * Restart a failed job - resume from the failed step.
+   */
+  static async restart(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    if (job.status !== JOB_STATUS.FAILED) {
+      throw { status: 400, message: `Job is not in FAILED state (current: ${job.status})` };
+    }
+
+    // Determine resume step based on job state
+    const resumeInfo = this.getResumeStep(job);
+
+    // Update job to resume from the appropriate step
+    const updatedJob = await VideoJob.findByIdAndUpdate(
+      jobId,
+      {
+        status: resumeInfo.status,
+        progress: resumeInfo.progress,
+        currentStep: resumeInfo.currentStep,
+        error: undefined,
+      },
+      { new: true }
+    );
+
+    LoggerService.info('Video job restarted', {
+      jobId,
+      resumeStep: resumeInfo.status,
+      hadScript: !!job.script?.scenes?.length,
+      scenesWithAudio: job.script?.scenes?.filter(s => s.audio?.file)?.length || 0,
+    });
+    return updatedJob;
+  }
 }
 
 module.exports = VideoService;

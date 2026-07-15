@@ -77,6 +77,37 @@ class VideoController {
       next(err);
     }
   }
+
+  /**
+   * POST /api/videos/:id/restart - Restart a failed job
+   */
+  static async restart(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const job = await VideoService.restart(id);
+
+      // Emit socket event
+      SocketService.emitJobCreated(job);
+
+      // Re-add to BullMQ queue for background processing
+      await videoQueue.add('render-video', {
+        jobId: job._id.toString(),
+      });
+
+      LoggerService.info('Video job restarted for processing', {
+        jobId: job._id,
+        queue: 'video-rendering',
+      });
+
+      res.json({
+        jobId: job._id,
+        status: job.status,
+        progress: job.progress,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = VideoController;
