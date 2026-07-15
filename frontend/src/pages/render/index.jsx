@@ -8,7 +8,7 @@ import {
   ClockCircleOutlined, FileTextOutlined, AudioOutlined, VideoCameraOutlined,
   CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined, RedoOutlined
 } from "@ant-design/icons";
-import { getVideoJob, restartVideoJob } from "../../services/api";
+import { getVideoJob, restartVideoJob, rerenderVideoJob } from "../../services/api";
 import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, requestJobStatus, onJobStatus } from "../../services/socket";
 import { colors } from "../../shared/theme";
 
@@ -35,6 +35,7 @@ const RenderPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [restartLoading, setRestartLoading] = useState(false);
+  const [rerenderLoading, setRerenderLoading] = useState(false);
 
   // Store unsubscribe functions for cleanup
   const unsubscribesRef = useRef([]);
@@ -63,6 +64,19 @@ const RenderPage = () => {
       message.error(err.response?.data?.error || "Failed to restart job");
     } finally {
       setRestartLoading(false);
+    }
+  };
+
+  const handleRerender = async () => {
+    if (!jobId) return;
+    try {
+      setRerenderLoading(true);
+      await rerenderVideoJob(jobId);
+      message.success("Re-render started successfully");
+    } catch (err) {
+      message.error(err.response?.data?.error || "Failed to re-render job");
+    } finally {
+      setRerenderLoading(false);
     }
   };
 
@@ -198,6 +212,16 @@ const RenderPage = () => {
             loading={restartLoading}
           >
             Restart Job
+          </Button>
+        )}
+        {isComplete && (
+          <Button 
+            icon={<RedoOutlined />} 
+            type="primary"
+            onClick={handleRerender} 
+            loading={rerenderLoading}
+          >
+            Re-render
           </Button>
         )}
       </Space>

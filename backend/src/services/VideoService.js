@@ -177,6 +177,62 @@ class VideoService {
   }
 
   /**
+   * Re-render a completed job - resets to PREPARING_ASSETS state
+   * so the pipeline re-runs from assets preparation, rendering, and upload.
+   * Keeps the existing script and audio data intact.
+   */
+  static async rerender(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    // Only allow re-render from COMPLETED or FAILED states
+    const rerenderableStates = [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED];
+    if (!rerenderableStates.includes(job.status)) {
+      throw { status: 400, message: `Job is in ${job.status} state and cannot be re-rendered. Only COMPLETED or FAILED jobs can be re-rendered.` };
+    }
+
+    // Clean up old render and assets files so the worker re-creates them
+    const fs = require('fs').promises;
+    const path = require('path');
+    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    const renderDir = path.join(jobDir, 'render');
+    const assetsPath = path.join(jobDir, 'assets.json');
+    const propsPath = path.join(jobDir, 'render-props.json');
+
+    // Delete render output and assets (keep audio and script)
+    try { await fs.rm(renderDir, { recursive: true, force: true }); } catch {}
+    try { await fs.unlink(assetsPath); } catch {}
+    try { await fs.unlink(propsPath); } catch {}
+
+    // Reset to PREPARING_ASSETS - keeps script and audio, re-runs from assets prep
+    const updatedJob = await VideoJob.findByIdAndUpdate(
+      jobId,
+      {
+        status: JOB_STATUS.PREPARING_ASSETS,
+        progress: 60,
+        currentStep: JOB_STATUS.PREPARING_ASSETS,
+        error: undefined,
+        videoUrl: '',
+        thumbnailUrl: '',
+        scriptUrl: '',
+        audioUrls: [],
+        assetsUrl: '',
+      },
+      { new: true }
+    );
+
+    LoggerService.info('Video job re-rendering', {
+      jobId,
+      originalStatus: job.status,
+      resumeStep: JOB_STATUS.PREPARING_ASSETS,
+    });
+
+    return updatedJob;
+  }
+
+  /**
    * Map step to resume status for jobs that are stuck.
    * When a job is stuck in a processing state, we resume from the next step.
    */
