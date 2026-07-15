@@ -36,8 +36,11 @@ const RenderPage = () => {
   const [error, setError] = useState(null);
   const [restartLoading, setRestartLoading] = useState(false);
 
-  // Ref to track if listeners are set up
-  const listenersSetupRef = useRef(false);
+  // Store unsubscribe functions for cleanup
+  const unsubscribesRef = useRef([]);
+  // Track current jobId for handlers (updated on each render)
+  const jobIdRef = useRef(jobId);
+  jobIdRef.current = jobId;
 
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
@@ -66,6 +69,68 @@ const RenderPage = () => {
     }
   };
 
+  // Cleanup previous event listeners
+  const cleanup = useCallback(() => {
+    unsubscribesRef.current.forEach((unsubscribe) => unsubscribe && unsubscribe());
+    unsubscribesRef.current = [];
+  }, []);
+
+  // Setup socket event listeners
+  const setupListeners = useCallback((currentJobId) => {
+    cleanup();
+
+    // Progress updates
+    const unsubProgress = onJobProgress((data) => {
+      if (data.jobId === currentJobId) {
+        setJob((prev) => prev ? { ...prev, progress: data.progress, status: data.status, currentStep: data.currentStep, currentScene: data.currentScene } : prev);
+      }
+    });
+    unsubscribesRef.current.push(unsubProgress);
+
+    // Completion
+    const unsubCompleted = onJobCompleted((data) => {
+      if (data.jobId === currentJobId) {
+        setJob((prev) => prev ? { ...prev, progress: 100, status: "COMPLETED", videoUrl: data.videoUrl, thumbnailUrl: data.thumbnailUrl } : prev);
+        message.success("Video generation completed!");
+      }
+    });
+    unsubscribesRef.current.push(unsubCompleted);
+
+    // Failure
+    const unsubFailed = onJobFailed((data) => {
+      if (data.jobId === currentJobId) {
+        setJob((prev) => prev ? { ...prev, status: "FAILED", error: data.error } : prev);
+        message.error("Video generation failed");
+      }
+    });
+    unsubscribesRef.current.push(unsubFailed);
+
+    // Listen for initial job status after joining room
+    const unsubStatus = onJobStatus((data) => {
+      if (data.jobId === currentJobId) {
+        setJob((prev) => ({
+          ...(prev || {}),
+          progress: data.progress,
+          status: data.status,
+          currentStep: data.currentStep,
+          currentScene: data.currentScene,
+          videoUrl: data.videoUrl || prev?.videoUrl,
+          thumbnailUrl: data.thumbnailUrl || prev?.thumbnailUrl,
+        }));
+      }
+    });
+    unsubscribesRef.current.push(unsubStatus);
+
+    // Reconnection handler - re-join room and get status
+    const unsubConnect = onConnect(() => {
+      if (jobIdRef.current) {
+        joinJobRoom(jobIdRef.current);
+        requestJobStatus(jobIdRef.current);
+      }
+    });
+    unsubscribesRef.current.push(unsubConnect);
+  }, [cleanup]);
+
   useEffect(() => {
     if (!jobId) {
       setLoading(false);
@@ -78,56 +143,8 @@ const RenderPage = () => {
     // Connect socket if not connected
     connect();
 
-    // Setup socket event listeners only once
-    if (!listenersSetupRef.current) {
-      listenersSetupRef.current = true;
-
-      // Progress updates
-      onJobProgress((data) => {
-        if (data.jobId === jobId) {
-          setJob((prev) => prev ? { ...prev, progress: data.progress, status: data.status, currentStep: data.currentStep, currentScene: data.currentScene } : prev);
-        }
-      });
-
-      // Completion
-      onJobCompleted((data) => {
-        if (data.jobId === jobId) {
-          setJob((prev) => prev ? { ...prev, progress: 100, status: "COMPLETED", videoUrl: data.videoUrl, thumbnailUrl: data.thumbnailUrl } : prev);
-          message.success("Video generation completed!");
-        }
-      });
-
-      // Failure
-      onJobFailed((data) => {
-        if (data.jobId === jobId) {
-          setJob((prev) => prev ? { ...prev, status: "FAILED", error: data.error } : prev);
-          message.error("Video generation failed");
-        }
-      });
-
-      // Listen for initial job status after joining room
-      onJobStatus((data) => {
-        if (data.jobId === jobId) {
-          setJob((prev) => ({
-            ...(prev || {}),
-            progress: data.progress,
-            status: data.status,
-            currentStep: data.currentStep,
-            currentScene: data.currentScene,
-            videoUrl: data.videoUrl || prev?.videoUrl,
-            thumbnailUrl: data.thumbnailUrl || prev?.thumbnailUrl,
-          }));
-        }
-      });
-
-      // Reconnection handler - re-join room and get status
-      onConnect(() => {
-        if (jobId) {
-          joinJobRoom(jobId);
-          requestJobStatus(jobId);
-        }
-      });
-    }
+    // Setup event listeners
+    setupListeners(jobId);
 
     // Join room - server will immediately send jobStatus with current state
     joinJobRoom(jobId);
@@ -136,7 +153,7 @@ const RenderPage = () => {
     return () => {
       leaveJobRoom(jobId);
     };
-  }, [jobId, fetchJob]);
+  }, [jobId, fetchJob, setupListeners]);
 
   if (loading) {
     return (
