@@ -18,14 +18,14 @@ class AudioService {
     const voiceMap = {
       male: 'male_voice.mp3',
       female: 'female_voice.mp3',
-      default: 'default_voice.mp3'
+      default: '../../voices/female_voice.mp3',
     };
-    
+
     // If voice is a path, use it directly
     if (voice && voice.includes('/')) {
       return voice;
     }
-    
+
     // Otherwise, use mapped voice
     return path.join(voiceDir, voiceMap[voice] || voiceMap.default);
   }
