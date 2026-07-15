@@ -10,6 +10,16 @@ const LoggerService = require('./LoggerService');
  */
 class RemotionService {
   /**
+   * Get the Remotion binary path.
+   */
+  static getRemotionBinary() {
+    const remotionRoot = this.getRemotionProjectRoot();
+    // Try to find the remotion binary in node_modules
+    const binaryPath = path.join(remotionRoot, 'node_modules', '@remotion', 'cli', 'remotion-cli.js');
+    return binaryPath;
+  }
+
+  /**
    * Get the Remotion project root directory.
    */
   static getRemotionProjectRoot() {
@@ -102,12 +112,28 @@ class RemotionService {
         // Calculate dimensions from resolution
         const [width, height] = (assetsFile.resolution || '1920x1080').split('x').map(Number);
 
-        // Use remotion render from the remotion project directory
-        // For Remotion v4, we use the project structure with npx remotion render
+        // Use npx to run remotion from the remotion project directory
+        // The assets are passed via --props argument
         const propsJson = JSON.stringify({ assets: assetsFile });
 
-        // Build the command - Remotion v4 uses remotion render VideoComposition out.mp4
-        const cmd = `npx remotion render VideoComposition ${renderDir}/video.mp4 --props='${propsJson}' --duration-in-frames ${totalDuration * 30} --width ${width} --height ${height} --fps 30`;
+        // Build the command - using the local remotion package
+        const cmd = [
+          'node',
+          path.join(remotionRoot, 'node_modules', '@remotion', 'cli', 'remotion-cli.js'),
+          'render',
+          'VideoComposition',
+          `${renderDir}/video.mp4`,
+          '--props',
+          `"${propsJson}"`,
+          '--duration-in-frames',
+          String(totalDuration * 30),
+          '--width',
+          String(width),
+          '--height',
+          String(height),
+          '--fps',
+          '30',
+        ].join(' ');
 
         execSync(cmd, {
           cwd: remotionRoot,
