@@ -1,8 +1,8 @@
 const { Client } = require("@gradio/client");
-const fs = require('fs').promises;
-const path = require('path');
-const config = require('../../config');
-const LoggerService = require('../LoggerService');
+const fs = require("fs").promises;
+const path = require("path");
+const config = require("../../config");
+const LoggerService = require("../LoggerService");
 
 /**
  * Service for generating audio via Pinokio F5-TTS API.
@@ -14,21 +14,21 @@ class AudioService {
    * Falls back to a default voice if none specified.
    */
   static getReferenceAudio(voice) {
-    const voiceDir = path.resolve(__dirname, '../../../voices');
+    const voiceDir = path.resolve(__dirname, "../../../voices");
     const voiceMap = {
-      'male-1': 'default_male_voice.wav',
-      'male-2': 'default_male_voice.wav',
-      'female-1': 'default_female_voice.wav',
-      'female-2': 'default_female_voice.wav',
-      'neutral-1': 'default_male_voice.wav',
-      default: 'default_male_voice.wav',
+      "male-1": "default_male_voice.wav",
+      "male-2": "default_male_voice.wav",
+      "female-1": "default_female_voice.wav",
+      "female-2": "default_female_voice.wav",
+      "neutral-1": "default_male_voice.wav",
+      default: "default_male_voice.wav",
     };
-    
+
     // If voice is a path, use it directly
-    if (voice && (voice.includes('/') || voice.includes('\\'))) {
+    if (voice && (voice.includes("/") || voice.includes("\\"))) {
       return voice;
     }
-    
+
     // Otherwise, use mapped voice
     return path.join(voiceDir, voiceMap[voice] || voiceMap.default);
   }
@@ -40,11 +40,13 @@ class AudioService {
   static async generateSceneAudio(jobId, scene, voice) {
     const { text } = scene.audio;
     if (!text) {
-      LoggerService.warn('Scene has no audio text, skipping', { sceneNumber: scene.sceneNumber });
+      LoggerService.warn("Scene has no audio text, skipping", {
+        sceneNumber: scene.sceneNumber,
+      });
       return null;
     }
 
-    const audioDir = path.resolve(__dirname, '../../../jobs', jobId, 'audio');
+    const audioDir = path.resolve(__dirname, "../../../jobs", jobId, "audio");
     await fs.mkdir(audioDir, { recursive: true });
 
     const outputFile = path.join(audioDir, `scene${scene.sceneNumber}.mp3`);
@@ -55,17 +57,22 @@ class AudioService {
 
     for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
       try {
-        LoggerService.tts(`Generating audio scene ${scene.sceneNumber} (attempt ${attempt})`, {
-          voice,
-          textLength: text.length,
-        });
+        LoggerService.tts(
+          `Generating audio scene ${scene.sceneNumber} (attempt ${attempt})`,
+          {
+            voice,
+            textLength: text.length,
+          },
+        );
 
         // Connect to Gradio F5-TTS server
-        const client = await Client.connect(config.tts.url.replace(/\/generate$/, '').replace(/\/$/, ''));
+        const client = await Client.connect(
+          config.tts.url.replace(/\/generate$/, "").replace(/\/$/, ""),
+        );
 
         // Read reference audio file
         const audioBuffer = await fs.readFile(refAudioPath);
-        
+
         // Create blob for Gradio API (Node.js 24+ supports Blob natively)
         const audioBlob = new Blob([audioBuffer], { type: "audio/wav" });
 
@@ -90,31 +97,37 @@ class AudioService {
           const outputAudioBuffer = await outputResponse.arrayBuffer();
           await fs.writeFile(outputFile, Buffer.from(outputAudioBuffer));
 
-          // Estimate duration based on audio file size (rough heuristic: ~16KB per second for mp3 @ 128kbps)
-          const stats = await fs.stat(outputFile);
-          const estimatedDuration = Math.round((stats.size / 16000) * 10) / 10;
+          // Get exact duration by decoding the audio file via helper ESM script
+          const { execSync } = require("child_process");
+          const helperScript = path.resolve(__dirname, "getAudioDuration.mjs");
+          const durationStr = execSync(
+            `node "${helperScript}" "${outputFile}"`,
+            { encoding: "utf8", timeout: 30000 },
+          ).trim();
+          // const duration = Math.round(parseFloat(durationStr) * 10) / 10;
+          // const duration = Math.round(parseFloat(durationStr) * 100) / 100;
+          const duration = parseFloat(durationStr);
 
           LoggerService.tts(`Audio generated for scene ${scene.sceneNumber}`, {
             file: `scene${scene.sceneNumber}.mp3`,
-            duration: estimatedDuration,
-            size: `${(stats.size / 1024).toFixed(1)} KB`,
+            duration: duration,
           });
 
           return {
             file: `scene${scene.sceneNumber}.mp3`,
             path: outputFile,
-            duration: estimatedDuration || Math.ceil(text.split(' ').length * 0.4), // fallback: ~0.4s per word
+            duration: duration || Math.ceil(text.split(" ").length * 0.4), // fallback: ~0.4s per word
           };
         }
 
-        throw new Error('No audio URL returned from TTS API');
+        throw new Error("No audio URL returned from TTS API");
       } catch (err) {
         lastError = err;
         const isLastAttempt = attempt === config.tts.maxRetries;
 
         LoggerService.warn(
-          `TTS attempt ${attempt} failed for scene ${scene.sceneNumber}${isLastAttempt ? ' (final)' : ''}`,
-          { error: err.message }
+          `TTS attempt ${attempt} failed for scene ${scene.sceneNumber}${isLastAttempt ? " (final)" : ""}`,
+          { error: err.message },
         );
 
         if (!isLastAttempt) {
@@ -124,14 +137,16 @@ class AudioService {
       }
     }
 
-    throw new Error(`TTS failed after ${config.tts.maxRetries} attempts for scene ${scene.sceneNumber}: ${lastError.message}`);
+    throw new Error(
+      `TTS failed after ${config.tts.maxRetries} attempts for scene ${scene.sceneNumber}: ${lastError.message}`,
+    );
   }
 
   /**
    * Generate audio for all scenes in a script.
    */
   static async generateAllAudio(jobId, scenes, voice) {
-    LoggerService.tts('Starting batch audio generation', {
+    LoggerService.tts("Starting batch audio generation", {
       jobId,
       scenes: scenes.length,
       voice,
@@ -139,13 +154,17 @@ class AudioService {
 
     const results = [];
     for (let i = 0; i < scenes.length; i++) {
-      const result = await this.generateSceneAudio(jobId, scenes[i], voice || scenes[i].audio?.voice);
+      const result = await this.generateSceneAudio(
+        jobId,
+        scenes[i],
+        voice || scenes[i].audio?.voice,
+      );
       if (result) {
         results.push(result);
       }
     }
 
-    LoggerService.tts('Batch audio generation complete', {
+    LoggerService.tts("Batch audio generation complete", {
       jobId,
       generated: results.length,
     });
