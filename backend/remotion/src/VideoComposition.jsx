@@ -16,23 +16,34 @@ const Text = ({ children, style }) => (
 
 /**
  * Get the audio source path for Remotion Audio component.
- * The Remotion Audio component requires files to be accessible via HTTP or from the public directory.
- * We use staticFile() to reference files in the public directory.
+ * The Remotion Audio component requires files to be accessible via HTTP.
+ * We use the Express server's /public endpoint which serves the jobs directory,
+ * since dynamically generated audio files are not available in the static webpack public dir.
  */
 const getAudioSrc = (audioFile, jobId, sceneNumber) => {
   if (!audioFile) return null;
 
   // If it's already a URL (http:// or https://), return as-is
+  // Newer assets use Express server URLs directly (e.g. http://localhost:3001/public/{jobId}/audio/scene{N}.mp3)
   if (audioFile.startsWith('http://') || audioFile.startsWith('https://')) {
     return audioFile;
   }
 
-  // If it's an absolute Windows path, extract the path relative to the jobs folder (public dir)
-  // The path will be like C:/.../jobs/{jobId}/audio/scene1.mp3
-  // We want just {jobId}/audio/scene1.mp3 for staticFile
+  // Determine the server port for the Express backend serving static files
+  // The Express backend defaults to port 3000 (configurable via PORT env var)
+  // In Studio mode (browser), use window.location.port so it works across different setups
+  const getServerPort = () => {
+    if (typeof window !== 'undefined' && window.location) {
+      return window.location.port || '3000';
+    }
+    return '3000';
+  };
+
+  const serverPort = getServerPort();
+
+  // If it's an absolute Windows path, extract jobId and serve via Express HTTP
   const normalizedPath = audioFile.replace(/\\/g, '/');
   if (normalizedPath.match(/^[A-Za-z]:/)) {
-    // Extract the jobId from path - it's the folder before 'audio'
     // Path structure: .../jobs/{jobId}/audio/scene{N}.mp3
     const pathParts = normalizedPath.split('/');
     const audioIndex = pathParts.indexOf('audio');
@@ -40,23 +51,23 @@ const getAudioSrc = (audioFile, jobId, sceneNumber) => {
       const extractedJobId = pathParts[audioIndex - 1];
       const sceneName = pathParts[audioIndex + 1];
       if (extractedJobId && sceneName) {
-        return staticFile(`${extractedJobId}/audio/${sceneName}`);
+        return `http://localhost:${serverPort}/public/${extractedJobId}/audio/${sceneName}`;
       }
     }
     // Fallback to jobId from prop if available
     if (jobId) {
-      return staticFile(`${jobId}/audio/scene${sceneNumber || 1}.mp3`);
+      return `http://localhost:${serverPort}/public/${jobId}/audio/scene${sceneNumber || 1}.mp3`;
     }
     return null;
   }
 
-  // For relative paths, strip ./ prefix and use staticFile with jobId prefix
+  // For relative paths, serve via Express HTTP with jobId prefix
   const cleanPath = audioFile.replace(/^\.\//, '');
   if (jobId) {
-    return staticFile(`${jobId}/${cleanPath}`);
+    return `http://localhost:${serverPort}/public/${jobId}/${cleanPath}`;
   }
 
-  return staticFile(cleanPath);
+  return `http://localhost:${serverPort}/public/${cleanPath}`;
 };
 
 // Scene component for individual scenes

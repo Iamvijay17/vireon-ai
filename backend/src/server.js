@@ -4,6 +4,7 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 const config = require('./config');
 const LoggerService = require('./services/LoggerService');
 const SocketService = require('./services/SocketService');
@@ -33,6 +34,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ── HTTP Request Logging ─────────────────────────────────────────────────────
 app.use(morgan('short', { stream: LoggerService.stream() }));
+
+// ── Static Files (serve jobs directory for Remotion audio assets) ────────────
+const jobsDir = path.resolve(__dirname, '../jobs');
+app.use('/public', express.static(jobsDir));
+LoggerService.info('Static files configured', { path: jobsDir });
 
 // ── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

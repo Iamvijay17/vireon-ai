@@ -130,6 +130,8 @@ class VideoService {
     if (scene) {
       scene.audio.file = audioData.file;
       scene.audio.duration = audioData.duration;
+      // The audio file duration is the actual scene duration
+      scene.duration = audioData.duration;
     }
 
     await job.save();

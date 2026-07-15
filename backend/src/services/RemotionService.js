@@ -49,7 +49,11 @@ class RemotionService {
         cameraMotion: scene.cameraMotion,
         animation: scene.animation,
         audio: {
-          file: path.join(jobDir, 'audio', `scene${scene.sceneNumber}.mp3`),
+          // Use HTTP URL served by Express static middleware
+          // e.g. http://localhost:{port}/public/{jobId}/audio/scene{N}.mp3
+          // This avoids the Remotion webpack public dir caching issue where dynamic files are not available.
+          // The Express server serves the jobs directory at /public via express.static
+          file: `http://localhost:${config.port || 3000}/public/${jobId}/audio/scene${scene.sceneNumber}.mp3`,
           duration: scene.audio?.duration || 0,
         },
         fonts: {

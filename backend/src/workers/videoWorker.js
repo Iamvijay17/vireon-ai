@@ -243,6 +243,7 @@ const worker = new Worker(
   {
     connection,
     concurrency: 3, // Process up to 3 jobs concurrently
+    lockDuration: 600_000, // 10 minutes - extended to cover long video pipelines
     limiter: {
       max: 10, // Max 10 jobs per second
       duration: 1000,
