@@ -28,9 +28,7 @@ export const disconnect = () => {
 // ─── Room Management ───────────────────────────────────────────────────────────
 
 export const joinJobRoom = (jobId) => {
-  socket.emit('join', jobId, (response) => {
-    // Optional: handle acknowledgment
-  });
+  socket.emit('join', jobId);
 };
 
 export const leaveJobRoom = (jobId) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Typography, Card, Row, Col, Progress, Tag, Descriptions, Button, Spin, Steps, Space, Alert, message, Empty
@@ -9,7 +9,7 @@ import {
   CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined, RedoOutlined
 } from "@ant-design/icons";
 import { getVideoJob, restartVideoJob } from "../../services/api";
-import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, isConnected, requestJobStatus, onJobStatus } from "../../services/socket";
+import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, requestJobStatus, onJobStatus } from "../../services/socket";
 import { colors } from "../../shared/theme";
 
 const { Title, Text } = Typography;
@@ -38,9 +38,6 @@ const RenderPage = () => {
 
   // Store unsubscribe functions for cleanup
   const unsubscribesRef = useRef([]);
-  // Track current jobId for handlers (updated on each render)
-  const jobIdRef = useRef(jobId);
-  jobIdRef.current = jobId;
 
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
@@ -123,13 +120,13 @@ const RenderPage = () => {
 
     // Reconnection handler - re-join room and get status
     const unsubConnect = onConnect(() => {
-      if (jobIdRef.current) {
-        joinJobRoom(jobIdRef.current);
-        requestJobStatus(jobIdRef.current);
+      if (jobId) {
+        joinJobRoom(jobId);
+        requestJobStatus(jobId);
       }
     });
     unsubscribesRef.current.push(unsubConnect);
-  }, [cleanup]);
+  }, [cleanup, jobId]);
 
   useEffect(() => {
     if (!jobId) {
