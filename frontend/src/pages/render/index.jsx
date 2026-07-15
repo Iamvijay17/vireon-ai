@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Typography, Card, Row, Col, Progress, Tag, Descriptions, Button, Spin, Steps, Space, Alert, message, Empty
@@ -9,7 +9,7 @@ import {
   CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined, RedoOutlined
 } from "@ant-design/icons";
 import { getVideoJob, restartVideoJob } from "../../services/api";
-import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed } from "../../services/socket";
+import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, isConnected, requestJobStatus, onJobStatus } from "../../services/socket";
 import { colors } from "../../shared/theme";
 
 const { Title, Text } = Typography;
@@ -36,7 +36,10 @@ const RenderPage = () => {
   const [error, setError] = useState(null);
   const [restartLoading, setRestartLoading] = useState(false);
 
-  const fetchJob = async () => {
+  // Ref to track if listeners are set up
+  const listenersSetupRef = useRef(false);
+
+  const fetchJob = useCallback(async () => {
     if (!jobId) return;
     try {
       setLoading(true);
@@ -48,7 +51,7 @@ const RenderPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobId]);
 
   const handleRestart = async () => {
     if (!jobId) return;
@@ -56,7 +59,6 @@ const RenderPage = () => {
       setRestartLoading(true);
       await restartVideoJob(jobId);
       message.success("Job restarted successfully");
-      // Job will be updated via socket events to QUEUED and then progress
     } catch (err) {
       message.error(err.response?.data?.error || "Failed to restart job");
     } finally {
@@ -69,43 +71,72 @@ const RenderPage = () => {
       setLoading(false);
       return;
     }
+
+    // Initial fetch
     fetchJob();
+
+    // Connect socket if not connected
     connect();
+
+    // Setup socket event listeners only once
+    if (!listenersSetupRef.current) {
+      listenersSetupRef.current = true;
+
+      // Progress updates
+      onJobProgress((data) => {
+        if (data.jobId === jobId) {
+          setJob((prev) => prev ? { ...prev, progress: data.progress, status: data.status, currentStep: data.currentStep, currentScene: data.currentScene } : prev);
+        }
+      });
+
+      // Completion
+      onJobCompleted((data) => {
+        if (data.jobId === jobId) {
+          setJob((prev) => prev ? { ...prev, progress: 100, status: "COMPLETED", videoUrl: data.videoUrl, thumbnailUrl: data.thumbnailUrl } : prev);
+          message.success("Video generation completed!");
+        }
+      });
+
+      // Failure
+      onJobFailed((data) => {
+        if (data.jobId === jobId) {
+          setJob((prev) => prev ? { ...prev, status: "FAILED", error: data.error } : prev);
+          message.error("Video generation failed");
+        }
+      });
+
+      // Listen for initial job status after joining room
+      onJobStatus((data) => {
+        if (data.jobId === jobId) {
+          setJob((prev) => ({
+            ...(prev || {}),
+            progress: data.progress,
+            status: data.status,
+            currentStep: data.currentStep,
+            currentScene: data.currentScene,
+            videoUrl: data.videoUrl || prev?.videoUrl,
+            thumbnailUrl: data.thumbnailUrl || prev?.thumbnailUrl,
+          }));
+        }
+      });
+
+      // Reconnection handler - re-join room and get status
+      onConnect(() => {
+        if (jobId) {
+          joinJobRoom(jobId);
+          requestJobStatus(jobId);
+        }
+      });
+    }
+
+    // Join room - server will immediately send jobStatus with current state
     joinJobRoom(jobId);
 
+    // Cleanup on unmount or jobId change
     return () => {
       leaveJobRoom(jobId);
     };
-  }, [jobId]);
-
-  // Real-time updates
-  useEffect(() => {
-    const unsubProgress = onJobProgress((data) => {
-      if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, progress: data.progress, status: data.status, currentStep: data.currentStep, currentScene: data.currentScene } : prev);
-      }
-    });
-
-    const unsubCompleted = onJobCompleted((data) => {
-      if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, progress: 100, status: "COMPLETED", videoUrl: data.videoUrl, thumbnailUrl: data.thumbnailUrl } : prev);
-        message.success("Video generation completed!");
-      }
-    });
-
-    const unsubFailed = onJobFailed((data) => {
-      if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, status: "FAILED", error: data.error } : prev);
-        message.error("Video generation failed");
-      }
-    });
-
-    return () => {
-      unsubProgress();
-      unsubCompleted();
-      unsubFailed();
-    };
-  }, [jobId]);
+  }, [jobId, fetchJob]);
 
   if (loading) {
     return (
