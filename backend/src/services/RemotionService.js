@@ -49,7 +49,7 @@ class RemotionService {
         cameraMotion: scene.cameraMotion,
         animation: scene.animation,
         audio: {
-          file: `./audio/scene${scene.sceneNumber}.mp3`,
+          file: path.join(jobDir, 'audio', `scene${scene.sceneNumber}.mp3`),
           duration: scene.audio?.duration || 0,
         },
         fonts: {
@@ -112,19 +112,22 @@ class RemotionService {
         // Calculate dimensions from resolution
         const [width, height] = (assetsFile.resolution || '1920x1080').split('x').map(Number);
 
-        // Use npx to run remotion from the remotion project directory
-        // The assets are passed via --props argument
-        const propsJson = JSON.stringify({ assets: assetsFile });
+        // Write props to a temp file to avoid escaping issues
+        const propsPath = path.join(jobDir, 'render-props.json');
+        const propsJson = JSON.stringify({ assets: assetsFile, jobId });
+        await fs.writeFile(propsPath, propsJson, 'utf-8');
 
-        // Build the command - using the local remotion package
-        const cmd = [
-          'node',
-          path.join(remotionRoot, 'node_modules', '@remotion', 'cli', 'remotion-cli.js'),
+        // Use shell: true to properly handle paths with spaces on Windows
+        const binaryPath = path.join(remotionRoot, 'node_modules', '@remotion', 'cli', 'remotion-cli.js');
+        const outputPath = path.join(renderDir, 'video.mp4');
+
+        // Build command arguments for array syntax (handles spaces correctly)
+        const args = [
           'render',
           'VideoComposition',
-          `${renderDir}/video.mp4`,
+          outputPath,
           '--props',
-          `"${propsJson}"`,
+          propsPath,
           '--duration-in-frames',
           String(totalDuration * 30),
           '--width',
@@ -133,12 +136,15 @@ class RemotionService {
           String(height),
           '--fps',
           '30',
-        ].join(' ');
+        ];
 
-        execSync(cmd, {
+        LoggerService.render('Remotion command args', { args });
+
+        execSync(`node "${binaryPath}" ${args.map(a => `"${a}"`).join(' ')}`, {
           cwd: remotionRoot,
           timeout: config.remotion.timeout,
-          stdio: 'pipe',
+          stdio: ['pipe', 'pipe', 'pipe'],
+          shell: true, // Use shell to handle paths with spaces on Windows
         });
 
         // Verify output exists
@@ -160,9 +166,16 @@ class RemotionService {
         lastError = err;
         const isLastAttempt = attempt === config.remotion.maxRetries;
 
+        // Log more detailed error
+        const errorDetails = {
+          message: err.message,
+          stdout: err.stdout?.toString(),
+          stderr: err.stderr?.toString(),
+        };
+
         LoggerService.warn(
           `Remotion attempt ${attempt} failed${isLastAttempt ? ' (final)' : ''}`,
-          { error: err.message }
+          errorDetails
         );
 
         if (!isLastAttempt) {

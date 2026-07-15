@@ -48,6 +48,7 @@ export const RemotionRoot = () => {
             description: '',
             scenes: [],
           },
+          jobId: '',
         }}
       />
     </>

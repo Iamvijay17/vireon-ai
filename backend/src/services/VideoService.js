@@ -175,6 +175,64 @@ class VideoService {
   }
 
   /**
+   * Map step to resume status for jobs that are stuck.
+   * When a job is stuck in a processing state, we resume from the next step.
+   */
+  static getStepForResume(job) {
+    const currentStep = job.status;
+
+    // Map current step to the next step to resume from
+    const stepStatusMap = {
+      [JOB_STATUS.SCRIPT_GENERATION]: { status: JOB_STATUS.QUEUED, progress: 0 },
+      [JOB_STATUS.SCRIPT_COMPLETED]: { status: JOB_STATUS.SCRIPT_COMPLETED, progress: 20 },
+      [JOB_STATUS.GENERATING_AUDIO]: { status: JOB_STATUS.GENERATING_AUDIO, progress: 40 },
+      [JOB_STATUS.AUDIO_COMPLETED]: { status: JOB_STATUS.AUDIO_COMPLETED, progress: 50 },
+      [JOB_STATUS.PREPARING_ASSETS]: { status: JOB_STATUS.PREPARING_ASSETS, progress: 60 },
+      [JOB_STATUS.RENDERING]: { status: JOB_STATUS.RENDERING, progress: 80 },
+      [JOB_STATUS.UPLOADING]: { status: JOB_STATUS.UPLOADING, progress: 90 },
+    };
+
+    // If we have specific current step info, use it
+    if (stepStatusMap[currentStep]) {
+      LoggerService.info('Resuming from current step', {
+        currentStep,
+        resumeStatus: stepStatusMap[currentStep].status,
+      });
+
+      return {
+        status: stepStatusMap[currentStep].status,
+        progress: stepStatusMap[currentStep].progress,
+        currentStep: stepStatusMap[currentStep].status,
+      };
+    }
+
+    // Fallback: Determine based on job state (script and audio files)
+    if (job.script?.scenes?.length > 0) {
+      const scenesWithAudio = job.script.scenes.filter(s => s.audio?.file);
+
+      if (scenesWithAudio.length === job.script.scenes.length) {
+        return {
+          status: JOB_STATUS.PREPARING_ASSETS,
+          progress: 60,
+          currentStep: JOB_STATUS.PREPARING_ASSETS,
+        };
+      }
+
+      return {
+        status: JOB_STATUS.GENERATING_AUDIO,
+        progress: 40,
+        currentStep: JOB_STATUS.GENERATING_AUDIO,
+      };
+    }
+
+    return {
+      status: JOB_STATUS.QUEUED,
+      progress: 0,
+      currentStep: JOB_STATUS.QUEUED,
+    };
+  }
+
+  /**
    * Map error step to resume status.
    * When a step fails, we resume from the beginning of that step.
    */
@@ -199,7 +257,7 @@ class VideoService {
         failedStep,
         resumeStatus: stepStatusMap[failedStep].status,
       });
-      
+
       return {
         status: stepStatusMap[failedStep].status,
         progress: stepStatusMap[failedStep].progress,
@@ -209,27 +267,23 @@ class VideoService {
 
     // Fallback: Determine based on job state (script and audio files)
     if (job.script?.scenes?.length > 0) {
-      // Check if any audio files exist - if so, we can resume from audio step
       const scenesWithAudio = job.script.scenes.filter(s => s.audio?.file);
-      
+
       if (scenesWithAudio.length === job.script.scenes.length) {
-        // All audio done - resume from PREPARING_ASSETS
         return {
           status: JOB_STATUS.PREPARING_ASSETS,
           progress: 60,
           currentStep: JOB_STATUS.PREPARING_ASSETS,
         };
       }
-      
-      // Some or no audio - resume from GENERATING_AUDIO
+
       return {
         status: JOB_STATUS.GENERATING_AUDIO,
         progress: 40,
         currentStep: JOB_STATUS.GENERATING_AUDIO,
       };
     }
-    
-    // No script - start from beginning
+
     return {
       status: JOB_STATUS.QUEUED,
       progress: 0,
@@ -238,7 +292,7 @@ class VideoService {
   }
 
   /**
-   * Restart a failed job - resume from the failed step.
+   * Restart a failed or stuck job - resume from the appropriate step.
    */
   static async restart(jobId) {
     const job = await VideoJob.findById(jobId);
@@ -246,12 +300,17 @@ class VideoService {
       throw { status: 404, message: 'Job not found' };
     }
 
-    if (job.status !== JOB_STATUS.FAILED) {
-      throw { status: 400, message: `Job is not in FAILED state (current: ${job.status})` };
+    // Only allow restart from FAILED or stuck processing states
+    const nonRestartableStates = [JOB_STATUS.COMPLETED];
+    if (nonRestartableStates.includes(job.status)) {
+      throw { status: 400, message: `Job is in ${job.status} state and cannot be restarted` };
     }
 
-    // Determine resume step based on job state
-    const resumeInfo = this.getResumeStep(job);
+    // If job is in FAILED state, use error step to determine resume point
+    // If job is stuck in a processing state, use current status to determine resume point
+    const resumeInfo = job.status === JOB_STATUS.FAILED
+      ? this.getResumeStep(job)
+      : this.getStepForResume(job);
 
     // Update job to resume from the appropriate step
     const updatedJob = await VideoJob.findByIdAndUpdate(
@@ -268,6 +327,7 @@ class VideoService {
     LoggerService.info('Video job restarted', {
       jobId,
       resumeStep: resumeInfo.status,
+      originalStatus: job.status,
       failedStep: job.error?.step,
       hadScript: !!job.script?.scenes?.length,
       scenesWithAudio: job.script?.scenes?.filter(s => s.audio?.file)?.length || 0,
