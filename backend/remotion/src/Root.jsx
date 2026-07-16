@@ -95,6 +95,11 @@ const templateNames = {
   'template-038': 'Template-038-Metrics-Grid',
   'template-039': 'Template-039-Profile-Spotlight',
   'template-040': 'Template-040-Skills-Chips',
+  'template-041': 'Template-041-Modern-Minimal',
+  'template-042': 'Template-042-Podcast',
+  'template-043': 'Template-043-News',
+  'template-044': 'Template-044-Social-Media',
+  'template-045': 'Template-045-Cinematic',
 };
 
 const templateDurations = {
