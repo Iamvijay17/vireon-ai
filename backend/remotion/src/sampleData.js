@@ -242,4 +242,135 @@ export const sampleScenes = {
     },
     duration: 8,
   },
+
+  'template-016': {
+    templateId: 'template-016',
+    elements: {
+      images: [
+        { url: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=600&h=400&fit=crop' },
+        { url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&h=400&fit=crop' },
+        { url: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=600&h=400&fit=crop' },
+        { url: 'https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=600&h=400&fit=crop' },
+      ],
+      caption: "Nature's beauty captured in four seasons",
+      subtitle: 'A visual journey through landscapes',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-017': {
+    templateId: 'template-017',
+    elements: {
+      title: 'The Journey Begins',
+      body: 'Every great adventure starts with a single step. Our story begins in the heart of the mountains, where the air is crisp and the horizon stretches endlessly.',
+      image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=600&fit=crop',
+      badge: 'Chapter 1',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-018': {
+    templateId: 'template-018',
+    elements: {
+      images: [
+        { url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop', height: '240px' },
+        { url: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=500&fit=crop', height: '340px' },
+        { url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=350&fit=crop', height: '280px' },
+        { url: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=400&h=450&fit=crop', height: '300px' },
+        { url: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=400&h=300&fit=crop', height: '220px' },
+        { url: 'https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=400&h=400&fit=crop', height: '260px' },
+      ],
+      caption: 'A world of wonder',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-019': {
+    templateId: 'template-019',
+    elements: {
+      title: 'Discover the Unknown',
+      subtitle: 'Explore breathtaking landscapes and uncover hidden stories waiting to be told.',
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop',
+      cta: 'Start Exploring',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-020': {
+    templateId: 'template-020',
+    elements: {
+      title: 'Summit at Sunrise',
+      body: 'The first light of dawn breaks over the mountain peaks, painting the sky in shades of gold and crimson.',
+      image: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&h=400&fit=crop',
+      label: 'Travel Story',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-021': {
+    templateId: 'template-021',
+    elements: {
+      title: 'Under the Stars',
+      body: 'A night spent under the canopy of stars, where the universe reveals its infinite beauty and ancient secrets.',
+      image: 'https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=1920&h=1080&fit=crop',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-022': {
+    templateId: 'template-022',
+    elements: {
+      title: 'Memories in Print',
+      photos: [
+        { url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=300&fit=crop', caption: 'Mountain trails' },
+        { url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=300&fit=crop', caption: 'Forest whispers' },
+      ],
+      backgroundColor: '#1a1a3e',
+    },
+    duration: 8,
+  },
+
+  'template-023': {
+    templateId: 'template-023',
+    elements: {
+      title: 'Travel Stories',
+      cards: [
+        { image: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=400&h=200&fit=crop', title: 'Mountain Escape', description: 'Find peace among the peaks' },
+        { image: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=200&fit=crop', title: 'Forest Adventure', description: 'Explore ancient woodlands' },
+        { image: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=400&h=200&fit=crop', title: 'Coastal Journey', description: 'Where land meets sea' },
+      ],
+      backgroundColor: '#1e293b',
+    },
+    duration: 8,
+  },
+
+  'template-024': {
+    templateId: 'template-024',
+    elements: {
+      title: 'Above & Below',
+      label: 'Dual Perspective',
+      topImage: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=400&fit=crop',
+      bottomImage: 'https://images.unsplash.com/photo-1505144808419-1957a94ca61e?w=800&h=400&fit=crop',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-025': {
+    templateId: 'template-025',
+    elements: {
+      title: 'The Hidden Valley',
+      body: 'Deep within the mountains lies a valley untouched by time, where nature reigns supreme.',
+      image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920&h=1080&fit=crop',
+      tag: 'New Discovery',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
 };

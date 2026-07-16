@@ -1,0 +1,48 @@
+export const styles = {
+  container: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+    boxSizing: 'border-box',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  masonry: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: 16,
+    height: '75%',
+    width: '95%',
+    alignItems: 'center',
+  },
+  column: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  },
+  masonryImage: {
+    width: '100%',
+    objectFit: 'cover',
+    borderRadius: 16,
+  },
+  overlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: '30px 50px',
+    background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+    zIndex: 2,
+  },
+  caption: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: 600,
+    textAlign: 'center',
+  },
+};

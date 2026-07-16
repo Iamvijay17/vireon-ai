@@ -1,0 +1,52 @@
+export const styles = {
+  container: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    padding: 0,
+    boxSizing: 'border-box',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  topImage: {
+    width: '100%',
+    height: '55%',
+    objectFit: 'cover',
+  },
+  bottomPanel: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    padding: '40px 60px',
+    position: 'relative',
+  },
+  label: {
+    color: '#60a5fa',
+    fontSize: 18,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    marginBottom: 12,
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 38,
+    fontWeight: 'bold',
+    lineHeight: 1.2,
+    marginBottom: 12,
+  },
+  body: {
+    color: '#94a3b8',
+    fontSize: 22,
+    lineHeight: 1.5,
+  },
+  divider: {
+    width: 60,
+    height: 3,
+    backgroundColor: '#60a5fa',
+    borderRadius: 2,
+    marginBottom: 16,
+  },
+};

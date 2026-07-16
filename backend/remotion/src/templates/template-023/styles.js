@@ -1,0 +1,56 @@
+export const styles = {
+  container: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 60,
+    boxSizing: 'border-box',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  carouselTrack: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: 20,
+    width: '100%',
+    overflow: 'hidden',
+    padding: '20px 0',
+  },
+  carouselCard: {
+    minWidth: 300,
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 20,
+    overflow: 'hidden',
+    border: '1px solid rgba(255,255,255,0.1)',
+  },
+  cardImage: {
+    width: '100%',
+    height: 200,
+    objectFit: 'cover',
+  },
+  cardContent: {
+    padding: '20px 24px',
+  },
+  cardTitle: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: 600,
+    marginBottom: 8,
+  },
+  cardDesc: {
+    color: '#94a3b8',
+    fontSize: 18,
+    lineHeight: 1.4,
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 36,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+};

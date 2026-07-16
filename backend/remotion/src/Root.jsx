@@ -70,6 +70,16 @@ const templateNames = {
   'template-013': 'Template-013-Steps-HowTo',
   'template-014': 'Template-014-Bar-Chart',
   'template-015': 'Template-015-Feature-Grid',
+  'template-016': 'Template-016-Image-Collage-Grid',
+  'template-017': 'Template-017-Story-Image-Text',
+  'template-018': 'Template-018-Masonry-Wall',
+  'template-019': 'Template-019-Parallax-Hero',
+  'template-020': 'Template-020-Image-Card-Story',
+  'template-021': 'Template-021-Vignette-Story',
+  'template-022': 'Template-022-Polaroid-Collage',
+  'template-023': 'Template-023-Story-Cards',
+  'template-024': 'Template-024-Split-Reveal',
+  'template-025': 'Template-025-Curtain-Reveal',
 };
 
 const templateDurations = {
