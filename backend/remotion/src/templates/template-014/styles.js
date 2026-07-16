@@ -1,0 +1,68 @@
+export const styles = {
+  container: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 60,
+    boxSizing: 'border-box',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 40,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 50,
+  },
+  barChart: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 20,
+    width: '100%',
+    maxWidth: 800,
+  },
+  barRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  barLabelRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  barLabel: {
+    color: '#e2e8f0',
+    fontSize: 22,
+    fontWeight: 500,
+  },
+  barValue: {
+    color: '#60a5fa',
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  barTrack: {
+    width: '100%',
+    height: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 14,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  barIcon: {
+    marginRight: 8,
+    fontSize: 20,
+  },
+};
