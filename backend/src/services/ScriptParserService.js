@@ -45,6 +45,9 @@ class ScriptParserService {
       imagePrompt: scene.imagePrompt || '',
       cameraMotion: scene.cameraMotion || 'static',
       animation: scene.animation || '',
+      // Template-based rendering fields
+      templateId: scene.templateId || '',
+      elements: scene.elements || null,
       audio: {
         text: scene.audio?.text || '',
         file: '',

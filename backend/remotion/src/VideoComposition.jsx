@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, useMemo } from "react";
 import {
   useCurrentFrame,
   useVideoConfig,
@@ -6,13 +6,11 @@ import {
   Audio,
   Sequence,
   staticFile,
-} from 'remotion';
+} from "remotion";
+import TemplateRegistry from "./templates/TemplateRegistry";
+import DefaultTemplate from "./templates/DefaultTemplate";
 
-const Text = ({ children, style }) => (
-  <div style={style}>
-    {children}
-  </div>
-);
+const Text = ({ children, style }) => <div style={style}>{children}</div>;
 
 /**
  * Get the audio source path for Remotion Audio component.
@@ -24,29 +22,25 @@ const getAudioSrc = (audioFile, jobId, sceneNumber) => {
   if (!audioFile) return null;
 
   // If it's already a URL (http:// or https://), return as-is
-  // Newer assets use Express server URLs directly (e.g. http://localhost:3001/public/{jobId}/audio/scene{N}.mp3)
-  if (audioFile.startsWith('http://') || audioFile.startsWith('https://')) {
+  if (audioFile.startsWith("http://") || audioFile.startsWith("https://")) {
     return audioFile;
   }
 
   // Determine the server port for the Express backend serving static files
-  // The Express backend defaults to port 3000 (configurable via PORT env var)
-  // In Studio mode (browser), use window.location.port so it works across different setups
   const getServerPort = () => {
-    if (typeof window !== 'undefined' && window.location) {
-      return window.location.port || '3000';
+    if (typeof window !== "undefined" && window.location) {
+      return window.location.port || "3000";
     }
-    return '3000';
+    return "3000";
   };
 
   const serverPort = getServerPort();
 
   // If it's an absolute Windows path, extract jobId and serve via Express HTTP
-  const normalizedPath = audioFile.replace(/\\/g, '/');
+  const normalizedPath = audioFile.replace(/\\/g, "/");
   if (normalizedPath.match(/^[A-Za-z]:/)) {
-    // Path structure: .../jobs/{jobId}/audio/scene{N}.mp3
-    const pathParts = normalizedPath.split('/');
-    const audioIndex = pathParts.indexOf('audio');
+    const pathParts = normalizedPath.split("/");
+    const audioIndex = pathParts.indexOf("audio");
     if (audioIndex >= 0) {
       const extractedJobId = pathParts[audioIndex - 1];
       const sceneName = pathParts[audioIndex + 1];
@@ -54,7 +48,6 @@ const getAudioSrc = (audioFile, jobId, sceneNumber) => {
         return `http://localhost:${serverPort}/public/${extractedJobId}/audio/${sceneName}`;
       }
     }
-    // Fallback to jobId from prop if available
     if (jobId) {
       return `http://localhost:${serverPort}/public/${jobId}/audio/scene${sceneNumber || 1}.mp3`;
     }
@@ -62,7 +55,7 @@ const getAudioSrc = (audioFile, jobId, sceneNumber) => {
   }
 
   // For relative paths, serve via Express HTTP with jobId prefix
-  const cleanPath = audioFile.replace(/^\.\//, '');
+  const cleanPath = audioFile.replace(/^\.\//, "");
   if (jobId) {
     return `http://localhost:${serverPort}/public/${jobId}/${cleanPath}`;
   }
@@ -70,78 +63,77 @@ const getAudioSrc = (audioFile, jobId, sceneNumber) => {
   return `http://localhost:${serverPort}/public/${cleanPath}`;
 };
 
-// Scene component for individual scenes
-const Scene = ({ scene, jobId }) => {
-  const frame = useCurrentFrame();
-  const { height } = useVideoConfig();
+/**
+ * Loading fallback component shown while a template is being lazy-loaded
+ */
+const TemplateLoadingFallback = () => (
+  <AbsoluteFill
+    style={{
+      backgroundColor: "#1a1a2e",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+    }}
+  >
+    <div
+      style={{
+        color: "#94a3b8",
+        fontSize: 24,
+        textAlign: "center",
+      }}
+    >
+      Loading template...
+    </div>
+  </AbsoluteFill>
+);
+
+/**
+ * Resolves the correct template component from the registry based on templateId.
+ * Falls back to DefaultTemplate if templateId is missing or unknown.
+ *
+ * @param {string} templateId - The template identifier from scene JSON
+ * @returns {React.Component} The matching template component or DefaultTemplate
+ */
+const resolveTemplate = (templateId) => {
+  if (!templateId) {
+    console.warn("No templateId provided in scene — using DefaultTemplate");
+    return DefaultTemplate;
+  }
+
+  const Template = TemplateRegistry[templateId];
+
+  if (!Template) {
+    console.warn(`Unknown template: "${templateId}" — using DefaultTemplate`);
+    return DefaultTemplate;
+  }
+
+  return Template;
+};
+
+// Scene component that dynamically selects and renders the correct template
+// Each template handles its own audio rendering internally
+const Scene = React.memo(({ scene, jobId }) => {
+  const templateId = scene?.templateId;
+  const Template = resolveTemplate(templateId);
 
   return (
-    <AbsoluteFill style={{ backgroundColor:  '#1a1a2e' }}>
-      <div
-        style={{
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 60,
-        }}
-      >
-        {scene?.title && (
-          <Text
-            style={{
-              color: '#fff',
-              fontSize: 64,
-              fontWeight: 'bold',
-              marginBottom: 24,
-              textAlign: 'center',
-              width: '100%',
-            }}
-          >
-            {scene.title}
-          </Text>
-        )}
-        {scene?.subtitle && (
-          <Text
-            style={{
-              color: '#ccc',
-              fontSize: 32,
-              marginBottom: 40,
-              textAlign: 'center',
-              width: '100%',
-            }}
-          >
-            {scene.subtitle}
-          </Text>
-        )}
-        {(!scene?.title && !scene?.subtitle) && (
-          <Text
-            style={{
-              color: '#888',
-              fontSize: 48,
-              fontStyle: 'italic',
-            }}
-          >
-            Scene {scene?.sceneNumber}
-          </Text>
-        )}
-      </div>
-      {scene?.audio?.file && (
-        <Audio
-          src={getAudioSrc(scene.audio.file, jobId, scene.sceneNumber)}
-        />
-      )}
+    <AbsoluteFill>
+      <Suspense fallback={<TemplateLoadingFallback />}>
+        <Template scene={scene} />
+      </Suspense>
     </AbsoluteFill>
   );
-};
+});
+
+Scene.displayName = "Scene";
 
 export const VideoComposition = ({ assets, jobId }) => {
   const { title, scenes } = assets || {};
 
   if (!scenes || scenes.length === 0) {
     return (
-      <AbsoluteFill style={{ backgroundColor: '#1a1a2e' }}>
-        <Text style={{ color: '#fff', fontSize: 80 }}>No scenes available</Text>
+      <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>
+        <Text style={{ color: "#fff", fontSize: 80 }}>No scenes available</Text>
       </AbsoluteFill>
     );
   }

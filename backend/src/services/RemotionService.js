@@ -48,6 +48,9 @@ class RemotionService {
         imagePrompt: scene.imagePrompt,
         cameraMotion: scene.cameraMotion,
         animation: scene.animation,
+        // Template-based rendering fields
+        templateId: scene.templateId || '',
+        elements: scene.elements || null,
         audio: {
           // Use HTTP URL served by Express static middleware
           // e.g. http://localhost:{port}/public/{jobId}/audio/scene{N}.mp3
