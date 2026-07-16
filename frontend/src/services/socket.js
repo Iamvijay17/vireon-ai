@@ -5,6 +5,10 @@ const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const socket = io(SOCKET_URL, {
   autoConnect: false,
   transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
 });
 
 // ─── Connection Management ─────────────────────────────────────────────────────
@@ -51,6 +55,31 @@ export const onJobCompleted = (callback) => {
 export const onJobFailed = (callback) => {
   socket.on('jobFailed', callback);
   return () => socket.off('jobFailed', callback);
+};
+
+// ─── Connection Status ─────────────────────────────────────────────────────────
+
+export const onConnect = (callback) => {
+  socket.on('connect', callback);
+  return () => socket.off('connect', callback);
+};
+
+export const onDisconnect = (callback) => {
+  socket.on('disconnect', callback);
+  return () => socket.off('disconnect', callback);
+};
+
+export const isConnected = () => socket.connected;
+
+// ─── Request Current Status (for reconnection) ─────────────────────────────────
+
+export const requestJobStatus = (jobId) => {
+  socket.emit('getStatus', jobId);
+};
+
+export const onJobStatus = (callback) => {
+  socket.on('jobStatus', callback);
+  return () => socket.off('jobStatus', callback);
 };
 
 export default socket;

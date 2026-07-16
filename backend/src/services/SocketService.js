@@ -2,6 +2,7 @@ const { Server } = require('socket.io');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
 const { SOCKET_EVENTS } = require('../constants');
+const VideoService = require('./VideoService');
 
 let io = null;
 
@@ -24,9 +25,28 @@ class SocketService {
     io.on(SOCKET_EVENTS.CONNECTION, (socket) => {
       LoggerService.info(`Socket connected: ${socket.id}`);
 
-      socket.on(SOCKET_EVENTS.JOIN, (jobId) => {
-        socket.join(`job:${jobId}`);
-        LoggerService.debug(`Socket ${socket.id} joined job:${jobId}`);
+      socket.on(SOCKET_EVENTS.JOIN, async (jobId, callback) => {
+        try {
+          await socket.join(`job:${jobId}`);
+          LoggerService.debug(`Socket ${socket.id} joined job:${jobId}`);
+          
+          // Send acknowledgment
+          if (callback && typeof callback === 'function') {
+            callback({ status: 'ok', jobId });
+          }
+          
+          // Immediately send current job status to the client
+          SocketService.sendJobStatus(jobId, socket);
+        } catch (err) {
+          LoggerService.error('Error joining room', { error: err.message, jobId });
+          if (callback && typeof callback === 'function') {
+            callback({ status: 'error', error: err.message });
+          }
+        }
+      });
+
+      socket.on('getStatus', async (jobId) => {
+        SocketService.sendJobStatus(jobId, socket);
       });
 
       socket.on(SOCKET_EVENTS.LEAVE, (jobId) => {
@@ -41,6 +61,29 @@ class SocketService {
 
     LoggerService.info('Socket.IO initialized');
     return io;
+  }
+
+  /**
+   * Send current job status to a specific socket.
+   */
+  static async sendJobStatus(jobId, socket) {
+    try {
+      const job = await VideoService.getById(jobId);
+      if (job) {
+        socket.emit('jobStatus', {
+          jobId: job._id,
+          status: job.status,
+          progress: job.progress,
+          currentStep: job.currentStep,
+          currentScene: job.currentScene,
+          videoUrl: job.videoUrl,
+          thumbnailUrl: job.thumbnailUrl,
+        });
+        LoggerService.debug(`Sent job status for ${jobId}`, { status: job.status });
+      }
+    } catch (err) {
+      LoggerService.error('Failed to send job status', { error: err.message, jobId });
+    }
   }
 
   /**

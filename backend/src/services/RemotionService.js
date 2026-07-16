@@ -10,6 +10,23 @@ const LoggerService = require('./LoggerService');
  */
 class RemotionService {
   /**
+   * Get the Remotion binary path.
+   */
+  static getRemotionBinary() {
+    const remotionRoot = this.getRemotionProjectRoot();
+    // Try to find the remotion binary in node_modules
+    const binaryPath = path.join(remotionRoot, 'node_modules', '@remotion', 'cli', 'remotion-cli.js');
+    return binaryPath;
+  }
+
+  /**
+   * Get the Remotion project root directory.
+   */
+  static getRemotionProjectRoot() {
+    return path.resolve(__dirname, '../../remotion');
+  }
+
+  /**
    * Generate assets.json from the script for Remotion consumption.
    */
   static async prepareAssets(jobId, script, jobConfig) {
@@ -25,15 +42,19 @@ class RemotionService {
         sceneNumber: scene.sceneNumber,
         title: scene.title,
         subtitle: scene.subtitle,
-        duration: scene.duration,
+        duration: scene.duration || 8,
         backgroundColor: scene.backgroundColor,
         transition: scene.transition,
         imagePrompt: scene.imagePrompt,
         cameraMotion: scene.cameraMotion,
         animation: scene.animation,
         audio: {
-          file: `./audio/scene${scene.sceneNumber}.mp3`,
-          duration: scene.audio.duration,
+          // Use HTTP URL served by Express static middleware
+          // e.g. http://localhost:{port}/public/{jobId}/audio/scene{N}.mp3
+          // This avoids the Remotion webpack public dir caching issue where dynamic files are not available.
+          // The Express server serves the jobs directory at /public via express.static
+          file: `http://localhost:${config.port || 3000}/public/${jobId}/audio/scene${scene.sceneNumber}.mp3`,
+          duration: scene.audio?.duration || 0,
         },
         fonts: {
           primary: 'Inter',
@@ -60,18 +81,26 @@ class RemotionService {
       path: assetsPath,
     });
 
-    return assetsPath;
+    return assets;
   }
 
   /**
    * Execute Remotion render process.
    */
-  static async renderVideo(jobId) {
+  static async renderVideo(jobId, assets = null) {
     const jobDir = path.resolve(__dirname, '../../jobs', jobId);
     const assetsPath = path.join(jobDir, 'assets.json');
     const renderDir = path.join(jobDir, 'render');
+    const remotionRoot = this.getRemotionProjectRoot();
 
     await fs.mkdir(renderDir, { recursive: true });
+
+    // Read assets.json for duration calculation
+    const assetsFile = assets || JSON.parse(await fs.readFile(assetsPath, 'utf-8'));
+    const totalDuration = assetsFile.scenes.reduce(
+      (sum, scene) => sum + (scene.duration || 8),
+      0
+    );
 
     let lastError = null;
 
@@ -79,13 +108,47 @@ class RemotionService {
       try {
         LoggerService.render(`Rendering video (attempt ${attempt}/${config.remotion.maxRetries})`, {
           jobId,
+          remotionRoot,
+          assetsPath,
+          duration: totalDuration,
         });
 
-        const cmd = `${config.remotion.binary} render ${assetsPath} ${renderDir}/video.mp4 --overwrite`;
-        execSync(cmd, {
-          cwd: path.resolve(__dirname, '../..'),
+        // Calculate dimensions from resolution
+        const [width, height] = (assetsFile.resolution || '1920x1080').split('x').map(Number);
+
+        // Write props to a temp file to avoid escaping issues
+        const propsPath = path.join(jobDir, 'render-props.json');
+        const propsJson = JSON.stringify({ assets: assetsFile, jobId });
+        await fs.writeFile(propsPath, propsJson, 'utf-8');
+
+        // Use shell: true to properly handle paths with spaces on Windows
+        const binaryPath = path.join(remotionRoot, 'node_modules', '@remotion', 'cli', 'remotion-cli.js');
+        const outputPath = path.join(renderDir, 'video.mp4');
+
+        // Build command arguments for array syntax (handles spaces correctly)
+        const args = [
+          'render',
+          'VideoComposition',
+          outputPath,
+          '--props',
+          propsPath,
+          '--duration-in-frames',
+          String(totalDuration * 30),
+          '--width',
+          String(width),
+          '--height',
+          String(height),
+          '--fps',
+          '30',
+        ];
+
+        LoggerService.render('Remotion command args', { args });
+
+        execSync(`node "${binaryPath}" ${args.map(a => `"${a}"`).join(' ')}`, {
+          cwd: remotionRoot,
           timeout: config.remotion.timeout,
-          stdio: 'pipe',
+          stdio: ['pipe', 'pipe', 'pipe'],
+          shell: true, // Use shell to handle paths with spaces on Windows
         });
 
         // Verify output exists
@@ -107,9 +170,16 @@ class RemotionService {
         lastError = err;
         const isLastAttempt = attempt === config.remotion.maxRetries;
 
+        // Log more detailed error
+        const errorDetails = {
+          message: err.message,
+          stdout: err.stdout?.toString(),
+          stderr: err.stderr?.toString(),
+        };
+
         LoggerService.warn(
           `Remotion attempt ${attempt} failed${isLastAttempt ? ' (final)' : ''}`,
-          { error: err.message }
+          errorDetails
         );
 
         if (!isLastAttempt) {
@@ -119,7 +189,7 @@ class RemotionService {
       }
     }
 
-    throw new Error(`Remotion rendering failed after ${config.remotion.maxRetries} attempts: ${lastError.message}`);
+    throw new Error(`Remotion rendering failed after ${config.remotion.maxRetries} attempts: ${lastError?.message}`);
   }
 }
 

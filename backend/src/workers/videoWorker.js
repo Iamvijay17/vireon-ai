@@ -2,6 +2,17 @@ const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
 const config = require('../config');
 const LoggerService = require('../services/LoggerService');
+
+// Connect to MongoDB on worker startup
+mongoose.connect(config.mongodb.uri, {
+  serverSelectionTimeoutMS: 5000,
+  heartbeatFrequencyMS: 10000,
+}).then(() => {
+  LoggerService.success('Worker MongoDB connected successfully');
+}).catch((err) => {
+  LoggerService.error('Worker MongoDB connection failed', { error: err.message });
+  process.exit(1);
+});
 const VideoService = require('../services/VideoService');
 const PromptService = require('../services/PromptService');
 const LMStudioService = require('../services/LMStudioService');
@@ -19,9 +30,40 @@ const connection = {
 };
 
 /**
+ * Check if assets.json exists on disk for a job.
+ */
+async function assetsExist(jobId) {
+  const fs = require('fs').promises;
+  const path = require('path');
+  const assetsPath = path.resolve(__dirname, '../../jobs', jobId, 'assets.json');
+  try {
+    await fs.access(assetsPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if render output exists on disk for a job.
+ */
+async function renderExists(jobId) {
+  const fs = require('fs').promises;
+  const path = require('path');
+  const renderPath = path.resolve(__dirname, '../../jobs', jobId, 'render', 'video.mp4');
+  try {
+    await fs.access(renderPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Video rendering worker.
  * Processes jobs from the BullMQ queue through the 8-step pipeline.
  * Never crashes - all errors are caught and logged.
+ * Supports resuming from failed steps.
  */
 const worker = new Worker(
   'video-rendering',
@@ -29,89 +71,140 @@ const worker = new Worker(
     const { jobId } = job.data;
     LoggerService.border(`🎬 Processing Job: ${jobId}`, 'event');
 
+    // Get job details to check current state
+    const videoJob = await VideoService.getById(jobId);
+    const currentStatus = videoJob.status;
+
+    // Determine script to use (existing or generate new)
+    let script = videoJob.script;
+
+    // Track the current step for error reporting
+    let currentStep = null;
+
     try {
-      // ── Step 1: Update status to SCRIPT_GENERATION ──────────────────────
-      await VideoService.updateStatus(jobId, JOB_STATUS.SCRIPT_GENERATION, { progress: 10 });
-      SocketService.emitJobProgress({ _id: jobId, progress: 10, status: JOB_STATUS.SCRIPT_GENERATION, currentStep: JOB_STATUS.SCRIPT_GENERATION, currentScene: 0 });
+      // ── Step 1: Script Generation (only if starting fresh or restarting from QUEUED)
+      if (!script?.scenes?.length || currentStatus === JOB_STATUS.QUEUED) {
+        currentStep = JOB_STATUS.SCRIPT_GENERATION;
+        await VideoService.updateStatus(jobId, JOB_STATUS.SCRIPT_GENERATION, { progress: 10 });
+        SocketService.emitJobProgress({ _id: jobId, progress: 10, status: JOB_STATUS.SCRIPT_GENERATION, currentStep: JOB_STATUS.SCRIPT_GENERATION, currentScene: 0 });
 
-      // Get job details
-      const videoJob = await VideoService.getById(jobId);
-      LoggerService.info('Step 1: Starting script generation', { topic: videoJob.topic, type: videoJob.type });
+        LoggerService.info('Starting script generation', { topic: videoJob.topic, type: videoJob.type });
 
-      // ── Step 2: Render prompt template ──────────────────────────────────
-      const prompt = PromptService.render(videoJob.type, {
-        topic: videoJob.topic,
-        language: videoJob.language,
-        duration: '60',
-      });
+        // ── Step 2: Render prompt template
+        const prompt = PromptService.render(videoJob.type, {
+          topic: videoJob.topic,
+          language: videoJob.language,
+          duration: '60',
+        });
 
-      // ── Step 3: Call LM Studio ──────────────────────────────────────────
-      const rawScript = await LMStudioService.generateScript(prompt);
-      const validatedScript = ScriptParserService.validate(rawScript);
+        // ── Step 3: Call LM Studio
+        const rawScript = await LMStudioService.generateScript(prompt);
+        script = ScriptParserService.validate(rawScript);
 
-      // Save script to disk
-      await ScriptParserService.saveScript(jobId, validatedScript);
+        // Save script to disk
+        await ScriptParserService.saveScript(jobId, script);
 
-      // Update job with script
-      await VideoService.updateScript(jobId, validatedScript);
-      SocketService.emitJobProgress({ _id: jobId, progress: 20, status: JOB_STATUS.SCRIPT_COMPLETED, currentStep: JOB_STATUS.SCRIPT_COMPLETED, currentScene: 0 });
+        // Update job with script
+        await VideoService.updateScript(jobId, script);
+        SocketService.emitJobProgress({ _id: jobId, progress: 20, status: JOB_STATUS.SCRIPT_COMPLETED, currentStep: JOB_STATUS.SCRIPT_COMPLETED, currentScene: 0 });
 
-      LoggerService.success('Step 3: Script generated and saved', {
-        title: validatedScript.title,
-        scenes: validatedScript.scenes.length,
-      });
-
-      // ── Step 4: Generate Audio ──────────────────────────────────────────
-      await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_AUDIO, { progress: 40 });
-      SocketService.emitJobProgress({ _id: jobId, progress: 40, status: JOB_STATUS.GENERATING_AUDIO, currentStep: JOB_STATUS.GENERATING_AUDIO, currentScene: 0 });
-
-      const audioResults = await AudioService.generateAllAudio(jobId, validatedScript.scenes, videoJob.voice);
-
-      // Update each scene with audio data
-      for (const result of audioResults) {
-        const sceneNum = parseInt(result.file.match(/\d+/)[0], 10);
-        await VideoService.updateSceneAudio(jobId, sceneNum, result);
+        LoggerService.success('Script generated and saved', {
+          title: script.title,
+          scenes: script.scenes.length,
+        });
+      } else {
+        LoggerService.info('Using existing script (skipping script generation)', {
+          title: script.title,
+          scenes: script.scenes.length,
+          currentStatus,
+        });
       }
 
+      // ── Step 4: Audio Generation (skip if all scenes have audio)
+      const scenesWithAudio = script.scenes.filter(s => s.audio?.file);
+      const needsAudioGeneration = scenesWithAudio.length < script.scenes.length;
+
+      if (needsAudioGeneration) {
+        currentStep = JOB_STATUS.GENERATING_AUDIO;
+        await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_AUDIO, { progress: 40 });
+        SocketService.emitJobProgress({ _id: jobId, progress: 40, status: JOB_STATUS.GENERATING_AUDIO, currentStep: JOB_STATUS.GENERATING_AUDIO, currentScene: 0 });
+
+        // Get scenes that need audio (those without audio file)
+        const scenesToProcess = script.scenes.filter(s => !s.audio?.file);
+
+        LoggerService.info('Generating audio for scenes', {
+          totalScenes: script.scenes.length,
+          alreadyGenerated: scenesWithAudio.length,
+          pendingScenes: scenesToProcess.length,
+        });
+
+        const audioResults = await AudioService.generateAllAudio(jobId, scenesToProcess, videoJob.voice);
+
+        // Update each scene with audio data
+        for (const result of audioResults) {
+          const sceneNum = parseInt(result.file.match(/\d+/)[0], 10);
+          await VideoService.updateSceneAudio(jobId, sceneNum, result);
+        }
+      } else {
+        LoggerService.info('All audio already generated, skipping audio step');
+      }
+
+      // Re-fetch the job from DB to get updated scene durations from audio generation
+      const updatedJob = await VideoService.getById(jobId);
+      script = updatedJob.script;
+
       await VideoService.updateStatus(jobId, JOB_STATUS.AUDIO_COMPLETED, { progress: 50 });
-      SocketService.emitJobProgress({ _id: jobId, progress: 50, status: JOB_STATUS.AUDIO_COMPLETED, currentStep: JOB_STATUS.AUDIO_COMPLETED, currentScene: audioResults.length });
+      SocketService.emitJobProgress({ _id: jobId, progress: 50, status: JOB_STATUS.AUDIO_COMPLETED, currentStep: JOB_STATUS.AUDIO_COMPLETED, currentScene: script.scenes.length });
 
-      LoggerService.success('Step 4: Audio generation complete', { files: audioResults.length });
+      LoggerService.success('Audio generation complete', { files: script.scenes.length });
 
-      // ── Step 5: Prepare Assets ──────────────────────────────────────────
-      await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS, { progress: 60 });
-      SocketService.emitJobProgress({ _id: jobId, progress: 60, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
+      // ── Step 5: Prepare Assets (skip if already exists)
+      const hasAssets = await assetsExist(jobId);
+      if (!hasAssets) {
+        currentStep = JOB_STATUS.PREPARING_ASSETS;
+        await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS, { progress: 60 });
+        SocketService.emitJobProgress({ _id: jobId, progress: 60, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
 
-      const assetsPath = await RemotionService.prepareAssets(jobId, validatedScript, {
-        resolution: videoJob.resolution,
-        aspectRatio: videoJob.aspectRatio,
-        type: videoJob.type,
-      });
+        const assetsPath = await RemotionService.prepareAssets(jobId, script, {
+          resolution: videoJob.resolution,
+          aspectRatio: videoJob.aspectRatio,
+          type: videoJob.type,
+        });
 
-      LoggerService.success('Step 5: Assets prepared', { path: assetsPath });
+        LoggerService.success('Assets prepared', { path: assetsPath });
+      } else {
+        LoggerService.info('Assets already prepared, skipping');
+      }
 
-      // ── Step 6: Render Video ────────────────────────────────────────────
-      await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING, { progress: 80 });
-      SocketService.emitJobProgress({ _id: jobId, progress: 80, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
+      // ── Step 6: Render Video (skip if already exists)
+      const hasRender = await renderExists(jobId);
+      if (!hasRender) {
+        currentStep = JOB_STATUS.RENDERING;
+        await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING, { progress: 80 });
+        SocketService.emitJobProgress({ _id: jobId, progress: 80, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
 
-      const renderResult = await RemotionService.renderVideo(jobId);
+        const renderResult = await RemotionService.renderVideo(jobId);
 
-      LoggerService.success('Step 6: Video rendered', renderResult);
+        LoggerService.success('Video rendered', renderResult);
+      } else {
+        LoggerService.info('Video already rendered, skipping');
+      }
 
-      // ── Step 7: Upload to GitHub ────────────────────────────────────────
+      // ── Step 7: Upload to GitHub
+      currentStep = JOB_STATUS.UPLOADING;
       await VideoService.updateStatus(jobId, JOB_STATUS.UPLOADING, { progress: 90 });
       SocketService.emitJobProgress({ _id: jobId, progress: 90, status: JOB_STATUS.UPLOADING, currentStep: JOB_STATUS.UPLOADING, currentScene: 0 });
 
       const uploadFiles = await StorageService.getUploadFiles(jobId);
       const uploaded = await GitHubService.uploadJobAssets(jobId, uploadFiles);
 
-      LoggerService.success('Step 7: Upload complete', {
+      LoggerService.success('Upload complete', {
         script: uploaded.script?.length || 0,
         audio: uploaded.audio?.length || 0,
         render: uploaded.render?.length || 0,
       });
 
-      // ── Step 8: Complete Job ────────────────────────────────────────────
+      // ── Step 8: Complete Job
       const completedJob = await VideoService.complete(jobId, {
         videoUrl: uploaded.render?.[0] || '',
         thumbnailUrl: uploaded.render?.[1] || '',
@@ -135,12 +228,13 @@ const worker = new Worker(
     } catch (err) {
       LoggerService.error(`Job ${jobId} failed`, {
         error: err.message,
+        step: currentStep,
         stack: config.isDev ? err.stack : undefined,
       });
 
-      // Mark job as failed in database
+      // Mark job as failed in database with the actual step
       try {
-        const failedJob = await VideoService.fail(jobId, err.message, 'PROCESSING');
+        const failedJob = await VideoService.fail(jobId, err.message, currentStep || 'PROCESSING');
         SocketService.emitJobFailed(failedJob, err.message);
       } catch (dbErr) {
         LoggerService.error('Failed to update job status in DB', { error: dbErr.message });
@@ -153,6 +247,7 @@ const worker = new Worker(
   {
     connection,
     concurrency: 3, // Process up to 3 jobs concurrently
+    lockDuration: 600_000, // 10 minutes - extended to cover long video pipelines
     limiter: {
       max: 10, // Max 10 jobs per second
       duration: 1000,

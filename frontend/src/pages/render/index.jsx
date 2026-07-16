@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Typography, Card, Row, Col, Progress, Tag, Descriptions, Button, Spin, Steps, Space, Alert, message, Empty
@@ -6,10 +6,10 @@ import {
 import {
   ArrowLeftOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined,
   ClockCircleOutlined, FileTextOutlined, AudioOutlined, VideoCameraOutlined,
-  CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined
+  CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined, RedoOutlined
 } from "@ant-design/icons";
-import { getVideoJob } from "../../services/api";
-import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed } from "../../services/socket";
+import { getVideoJob, restartVideoJob, rerenderVideoJob } from "../../services/api";
+import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, requestJobStatus, onJobStatus } from "../../services/socket";
 import { colors } from "../../shared/theme";
 
 const { Title, Text } = Typography;
@@ -34,8 +34,13 @@ const RenderPage = () => {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [restartLoading, setRestartLoading] = useState(false);
+  const [rerenderLoading, setRerenderLoading] = useState(false);
 
-  const fetchJob = async () => {
+  // Store unsubscribe functions for cleanup
+  const unsubscribesRef = useRef([]);
+
+  const fetchJob = useCallback(async () => {
     if (!jobId) return;
     try {
       setLoading(true);
@@ -47,50 +52,119 @@ const RenderPage = () => {
     } finally {
       setLoading(false);
     }
+  }, [jobId]);
+
+  const handleRestart = async () => {
+    if (!jobId) return;
+    try {
+      setRestartLoading(true);
+      await restartVideoJob(jobId);
+      message.success("Job restarted successfully");
+    } catch (err) {
+      message.error(err.response?.data?.error || "Failed to restart job");
+    } finally {
+      setRestartLoading(false);
+    }
   };
+
+  const handleRerender = async () => {
+    if (!jobId) return;
+    try {
+      setRerenderLoading(true);
+      await rerenderVideoJob(jobId);
+      message.success("Re-render started successfully");
+    } catch (err) {
+      message.error(err.response?.data?.error || "Failed to re-render job");
+    } finally {
+      setRerenderLoading(false);
+    }
+  };
+
+  // Cleanup previous event listeners
+  const cleanup = useCallback(() => {
+    unsubscribesRef.current.forEach((unsubscribe) => unsubscribe && unsubscribe());
+    unsubscribesRef.current = [];
+  }, []);
+
+  // Setup socket event listeners
+  const setupListeners = useCallback((currentJobId) => {
+    cleanup();
+
+    // Progress updates
+    const unsubProgress = onJobProgress((data) => {
+      if (data.jobId === currentJobId) {
+        setJob((prev) => prev ? { ...prev, progress: data.progress, status: data.status, currentStep: data.currentStep, currentScene: data.currentScene } : prev);
+      }
+    });
+    unsubscribesRef.current.push(unsubProgress);
+
+    // Completion
+    const unsubCompleted = onJobCompleted((data) => {
+      if (data.jobId === currentJobId) {
+        setJob((prev) => prev ? { ...prev, progress: 100, status: "COMPLETED", videoUrl: data.videoUrl, thumbnailUrl: data.thumbnailUrl } : prev);
+        message.success("Video generation completed!");
+      }
+    });
+    unsubscribesRef.current.push(unsubCompleted);
+
+    // Failure
+    const unsubFailed = onJobFailed((data) => {
+      if (data.jobId === currentJobId) {
+        setJob((prev) => prev ? { ...prev, status: "FAILED", error: data.error } : prev);
+        message.error("Video generation failed");
+      }
+    });
+    unsubscribesRef.current.push(unsubFailed);
+
+    // Listen for initial job status after joining room
+    const unsubStatus = onJobStatus((data) => {
+      if (data.jobId === currentJobId) {
+        setJob((prev) => ({
+          ...(prev || {}),
+          progress: data.progress,
+          status: data.status,
+          currentStep: data.currentStep,
+          currentScene: data.currentScene,
+          videoUrl: data.videoUrl || prev?.videoUrl,
+          thumbnailUrl: data.thumbnailUrl || prev?.thumbnailUrl,
+        }));
+      }
+    });
+    unsubscribesRef.current.push(unsubStatus);
+
+    // Reconnection handler - re-join room and get status
+    const unsubConnect = onConnect(() => {
+      if (jobId) {
+        joinJobRoom(jobId);
+        requestJobStatus(jobId);
+      }
+    });
+    unsubscribesRef.current.push(unsubConnect);
+  }, [cleanup, jobId]);
 
   useEffect(() => {
     if (!jobId) {
       setLoading(false);
       return;
     }
+
+    // Initial fetch
     fetchJob();
+
+    // Connect socket if not connected
     connect();
+
+    // Setup event listeners
+    setupListeners(jobId);
+
+    // Join room - server will immediately send jobStatus with current state
     joinJobRoom(jobId);
 
+    // Cleanup on unmount or jobId change
     return () => {
       leaveJobRoom(jobId);
     };
-  }, [jobId]);
-
-  // Real-time updates
-  useEffect(() => {
-    const unsubProgress = onJobProgress((data) => {
-      if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, progress: data.progress, status: data.status, currentStep: data.currentStep, currentScene: data.currentScene } : prev);
-      }
-    });
-
-    const unsubCompleted = onJobCompleted((data) => {
-      if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, progress: 100, status: "COMPLETED", videoUrl: data.videoUrl, thumbnailUrl: data.thumbnailUrl } : prev);
-        message.success("Video generation completed!");
-      }
-    });
-
-    const unsubFailed = onJobFailed((data) => {
-      if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, status: "FAILED", error: data.error } : prev);
-        message.error("Video generation failed");
-      }
-    });
-
-    return () => {
-      unsubProgress();
-      unsubCompleted();
-      unsubFailed();
-    };
-  }, [jobId]);
+  }, [jobId, fetchJob, setupListeners]);
 
   if (loading) {
     return (
@@ -129,6 +203,27 @@ const RenderPage = () => {
       <Space style={{ marginBottom: 24 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/")}>Back</Button>
         <Button icon={<ReloadOutlined />} onClick={fetchJob} loading={loading}>Refresh</Button>
+        {isFailed && (
+          <Button 
+            icon={<RedoOutlined />} 
+            type="primary" 
+            danger
+            onClick={handleRestart} 
+            loading={restartLoading}
+          >
+            Restart Job
+          </Button>
+        )}
+        {isComplete && (
+          <Button 
+            icon={<RedoOutlined />} 
+            type="primary"
+            onClick={handleRerender} 
+            loading={rerenderLoading}
+          >
+            Re-render
+          </Button>
+        )}
       </Space>
 
       <Title level={4} style={{ color: colors.textPrimary, marginBottom: 8 }}>

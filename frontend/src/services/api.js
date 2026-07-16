@@ -19,6 +19,10 @@ export const getVideoJob = (id) => api.get(`/api/videos/${id}`);
 
 export const deleteVideoJob = (id) => api.delete(`/api/videos/${id}`);
 
+export const restartVideoJob = (id) => api.post(`/api/videos/${id}/restart`);
+
+export const rerenderVideoJob = (id) => api.post(`/api/videos/${id}/rerender`);
+
 // ─── Health ───────────────────────────────────────────────────────────────────
 
 export const getHealth = () => api.get('/health');
