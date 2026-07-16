@@ -80,12 +80,30 @@ const templateNames = {
   'template-023': 'Template-023-Story-Cards',
   'template-024': 'Template-024-Split-Reveal',
   'template-025': 'Template-025-Curtain-Reveal',
+  'template-026': 'Template-026-Definition-Glossary',
+  'template-027': 'Template-027-Checklist-Points',
+  'template-028': 'Template-028-Comparison-Table',
+  'template-029': 'Template-029-Did-You-Know',
+  'template-030': 'Template-030-Report-Summary',
+  'template-031': 'Template-031-Expert-Quote',
+  'template-032': 'Template-032-Step-Guide',
+  'template-033': 'Template-033-Benefits-Row',
+  'template-034': 'Template-034-Learning-Paths',
+  'template-035': 'Template-035-Tech-Tags',
+  'template-036': 'Template-036-Case-Study',
+  'template-037': 'Template-037-Milestones',
+  'template-038': 'Template-038-Metrics-Grid',
+  'template-039': 'Template-039-Profile-Spotlight',
+  'template-040': 'Template-040-Skills-Chips',
 };
 
 const templateDurations = {
   'template-004': 360,
   'template-009': 300,
   'template-013': 300,
+  'template-028': 300,
+  'template-032': 300,
+  'template-037': 300,
 };
 
 export const RemotionRoot = () => {

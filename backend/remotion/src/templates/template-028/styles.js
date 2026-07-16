@@ -1,0 +1,61 @@
+export const styles = {
+  container: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    padding: '60px 80px',
+    boxSizing: 'border-box',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 42,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  subtitle: {
+    color: '#60a5fa',
+    fontSize: 22,
+    fontWeight: 500,
+    marginBottom: 30,
+  },
+  table: {
+    display: 'flex',
+    flexDirection: 'column',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  row: {
+    display: 'flex',
+    flexDirection: 'row',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+  },
+  header: {
+    backgroundColor: 'rgba(96,165,250,0.1)',
+    fontWeight: 600,
+    color: '#60a5fa',
+  },
+  cell: {
+    flex: 1,
+    padding: '14px 20px',
+    color: '#e2e8f0',
+    fontSize: 22,
+    lineHeight: 1.3,
+  },
+  cellAlt: {
+    color: '#94a3b8',
+  },
+  note: {
+    marginTop: 20,
+    color: '#94a3b8',
+    fontSize: 18,
+    fontStyle: 'italic',
+    padding: '12px 20px',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 8,
+  },
+};

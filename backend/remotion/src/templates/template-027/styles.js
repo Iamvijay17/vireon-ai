@@ -1,0 +1,50 @@
+export const styles = {
+  container: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    padding: '60px 80px',
+    boxSizing: 'border-box',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 44,
+    fontWeight: 'bold',
+    marginBottom: 40,
+  },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  },
+  item: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+    padding: '16px 24px',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 12,
+    border: '1px solid rgba(255,255,255,0.06)',
+  },
+  check: {
+    fontSize: 24,
+    color: '#34d399',
+    minWidth: 32,
+    marginTop: 2,
+  },
+  itemText: {
+    color: '#e2e8f0',
+    fontSize: 24,
+    lineHeight: 1.4,
+    flex: 1,
+  },
+  highlight: {
+    color: '#fbbf24',
+    fontWeight: 600,
+  },
+};

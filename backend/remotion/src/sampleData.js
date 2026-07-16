@@ -373,4 +373,248 @@ export const sampleScenes = {
     },
     duration: 8,
   },
+
+  'template-026': {
+    templateId: 'template-026',
+    elements: {
+      term: 'AI',
+      title: 'Artificial Intelligence',
+      definition: 'The simulation of human intelligence in machines that are programmed to think, learn, and problem-solve like humans.',
+      example: 'ChatGPT, Midjourney, and self-driving cars are all examples of AI in action today.',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-027': {
+    templateId: 'template-027',
+    elements: {
+      title: 'Why Choose Us',
+      points: [
+        { text: 'Proven track record with 500+ successful projects delivered', icon: '\u2713' },
+        { text: '24/7 dedicated support team available worldwide', icon: '\u2713' },
+        { text: 'Enterprise-grade security with end-to-end encryption', icon: '\u2713' },
+        { text: 'Scalable solutions that grow with your business', icon: '\u2713' },
+        { text: '99.9% uptime guaranteed with SLA backing', icon: '\u2713' },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-028': {
+    templateId: 'template-028',
+    elements: {
+      title: 'Plan Comparison',
+      subtitle: 'Find the perfect plan for your needs',
+      headers: ['Feature', 'Starter', 'Pro', 'Enterprise'],
+      rows: [
+        { cells: ['Users', 'Up to 5', 'Up to 50', 'Unlimited'] },
+        { cells: ['Storage', '10 GB', '100 GB', '1 TB'] },
+        { cells: ['Support', 'Email', 'Priority', '24/7 Dedicated'] },
+        { cells: ['Analytics', 'Basic', 'Advanced', 'Custom'] },
+        { cells: ['API Access', 'No', 'Yes', 'Yes + SDK'] },
+      ],
+      note: 'All plans include a 14-day free trial. No credit card required.',
+      backgroundColor: '#0f172a',
+    },
+    duration: 10,
+  },
+
+  'template-029': {
+    templateId: 'template-029',
+    elements: {
+      title: 'Did You Know?',
+      subtitle: 'Fascinating facts that will surprise you',
+      facts: [
+        { icon: 'brain', title: 'Brain Power', description: 'The human brain processes 70,000 thoughts per day on average.' },
+        { icon: 'globe', title: 'Internet Reach', description: 'Over 5.4 billion people use the internet worldwide as of 2024.' },
+        { icon: 'cloud', title: 'Cloud Storage', description: 'Over 60% of corporate data is stored in the cloud today.' },
+        { icon: 'mobile', title: 'Mobile First', description: 'Mobile devices account for 59% of global web traffic.' },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-030': {
+    templateId: 'template-030',
+    elements: {
+      badge: 'Featured Report',
+      title: 'State of Digital Transformation 2024',
+      body: 'Organizations that embrace digital transformation see 45% higher revenue growth and 3x better customer satisfaction scores.',
+      stats: [
+        { value: '78%', label: 'Adoption Rate' },
+        { value: '3.2x', label: 'ROI Increase' },
+        { value: '92%', label: 'Satisfaction' },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-031': {
+    templateId: 'template-031',
+    elements: {
+      title: 'Expert Insight',
+      meta: 'From our research team',
+      quote: 'The most successful companies are not just adopting technology - they are reimagining their entire business model around digital capabilities.',
+      author: 'Dr. Sarah Mitchell',
+      source: 'Digital Transformation Report 2024',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-032': {
+    templateId: 'template-032',
+    elements: {
+      title: 'Getting Started Guide',
+      subtitle: 'Follow these simple steps to begin',
+      steps: [
+        { num: 1, title: 'Create Account', description: 'Sign up in under 2 minutes with your email' },
+        { num: 2, title: 'Set Up Profile', description: 'Configure your preferences and team settings' },
+        { num: 3, title: 'Connect Tools', description: 'Integrate with your existing workflow tools' },
+        { num: 4, title: 'Launch & Monitor', description: 'Go live and track performance in real-time' },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 10,
+  },
+
+  'template-033': {
+    templateId: 'template-033',
+    elements: {
+      title: 'Key Benefits',
+      subtitle: 'Why industry leaders choose our platform',
+      items: [
+        { icon: 'zap', title: 'Lightning Fast', description: '10x faster processing than competitors' },
+        { icon: 'lock', title: 'Bank-Grade Security', description: 'SOC 2 Type II certified encryption' },
+        { icon: 'tool', title: 'Easy Integration', description: 'Connect with 200+ tools in minutes' },
+        { icon: 'chart', title: 'Real-Time Analytics', description: 'Live dashboards with actionable insights' },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-034': {
+    templateId: 'template-034',
+    elements: {
+      title: 'Learning Paths',
+      items: [
+        { level: 'Beginner', title: 'Fundamentals', description: 'Core concepts and basic skills', tags: ['Basics', 'Theory', 'Practice'] },
+        { level: 'Intermediate', title: 'Advanced Topics', description: 'Deep dive into complex subjects', tags: ['Workshops', 'Projects', 'Mentorship'] },
+        { level: 'Expert', title: 'Master Class', description: 'Cutting-edge techniques and research', tags: ['Research', 'Innovation', 'Leadership'] },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-035': {
+    templateId: 'template-035',
+    elements: {
+      title: 'Technology Stack',
+      subtitle: 'Built with modern, reliable technologies',
+      items: [
+        { text: 'React & Next.js', icon: 'atom' },
+        { text: 'Node.js & Python', icon: 'node' },
+        { text: 'TypeScript', icon: 'ts' },
+        { text: 'PostgreSQL', icon: 'db' },
+        { text: 'Docker & K8s', icon: 'docker' },
+        { text: 'GraphQL', icon: 'gql' },
+        { text: 'AWS Cloud', icon: 'cloud' },
+        { text: 'Redis Cache', icon: 'bolt' },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-036': {
+    templateId: 'template-036',
+    elements: {
+      label: 'Case Study',
+      title: 'How Acme Corp Scaled 10x',
+      body: 'By leveraging our platform, Acme Corp automated their workflow, reduced costs by 40%, and scaled their operations from 50 to 500 employees in just 6 months.',
+      image: 'https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=800&h=600&fit=crop',
+      stat: '40% cost reduction | 10x growth | 99.9% uptime',
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-037': {
+    templateId: 'template-037',
+    elements: {
+      title: 'Company Milestones',
+      sub: 'Our journey from startup to industry leader',
+      items: [
+        { year: '2019', title: 'Founded', description: 'Started with a team of 3 in a small garage' },
+        { year: '2020', title: 'First 100 Customers', description: 'Reached product-market fit and began scaling' },
+        { year: '2021', title: 'Series A Funding', description: 'Raised $10M to accelerate growth' },
+        { year: '2022', title: 'Global Expansion', description: 'Opened offices in 12 countries worldwide' },
+        { year: '2023', title: '1M Users', description: 'Crossed the million user milestone' },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 10,
+  },
+
+  'template-038': {
+    templateId: 'template-038',
+    elements: {
+      title: 'Core Metrics',
+      items: [
+        { icon: 'rocket', title: 'Performance', description: '99.9% uptime SLA' },
+        { icon: 'lock', title: 'Security', description: 'SOC 2 Type II certified' },
+        { icon: 'chart', title: 'Analytics', description: 'Real-time dashboards' },
+        { icon: 'globe', title: 'Global Reach', description: '12 data centers' },
+        { icon: 'team', title: 'Team', description: '200+ experts' },
+        { icon: 'award', title: 'Awards', description: '15 industry awards' },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-039': {
+    templateId: 'template-039',
+    elements: {
+      name: 'Alexandra Chen',
+      role: 'CEO & Co-Founder',
+      bio: 'A visionary leader with 20+ years of experience in technology and innovation. Passionate about building products that make a difference.',
+      image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=400&fit=crop&crop=face',
+      stats: [
+        { value: '20+', label: 'Years Exp' },
+        { value: '500+', label: 'Projects' },
+        { value: '50+', label: 'Awards' },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
+
+  'template-040': {
+    templateId: 'template-040',
+    elements: {
+      title: 'Skills & Expertise',
+      subtitle: 'Technologies we work with daily',
+      items: [
+        { text: 'React', icon: 'atom' },
+        { text: 'Python', icon: 'python' },
+        { text: 'AWS', icon: 'cloud' },
+        { text: 'Docker', icon: 'docker' },
+        { text: 'GraphQL', icon: 'gql' },
+        { text: 'TypeScript', icon: 'ts' },
+        { text: 'Node.js', icon: 'node' },
+        { text: 'PostgreSQL', icon: 'db' },
+        { text: 'Redis', icon: 'bolt' },
+        { text: 'Kubernetes', icon: 'k8s' },
+      ],
+      backgroundColor: '#0f172a',
+    },
+    duration: 8,
+  },
 };

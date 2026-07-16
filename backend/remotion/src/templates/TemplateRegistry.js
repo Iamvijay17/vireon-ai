@@ -38,6 +38,21 @@ const Template022 = lazy(() => import('./template-022'));
 const Template023 = lazy(() => import('./template-023'));
 const Template024 = lazy(() => import('./template-024'));
 const Template025 = lazy(() => import('./template-025'));
+const Template026 = lazy(() => import('./template-026'));
+const Template027 = lazy(() => import('./template-027'));
+const Template028 = lazy(() => import('./template-028'));
+const Template029 = lazy(() => import('./template-029'));
+const Template030 = lazy(() => import('./template-030'));
+const Template031 = lazy(() => import('./template-031'));
+const Template032 = lazy(() => import('./template-032'));
+const Template033 = lazy(() => import('./template-033'));
+const Template034 = lazy(() => import('./template-034'));
+const Template035 = lazy(() => import('./template-035'));
+const Template036 = lazy(() => import('./template-036'));
+const Template037 = lazy(() => import('./template-037'));
+const Template038 = lazy(() => import('./template-038'));
+const Template039 = lazy(() => import('./template-039'));
+const Template040 = lazy(() => import('./template-040'));
 
 /**
  * Template registry object.
@@ -70,6 +85,21 @@ const TemplateRegistry = {
   'template-023': Template023,
   'template-024': Template024,
   'template-025': Template025,
+  'template-026': Template026,
+  'template-027': Template027,
+  'template-028': Template028,
+  'template-029': Template029,
+  'template-030': Template030,
+  'template-031': Template031,
+  'template-032': Template032,
+  'template-033': Template033,
+  'template-034': Template034,
+  'template-035': Template035,
+  'template-036': Template036,
+  'template-037': Template037,
+  'template-038': Template038,
+  'template-039': Template039,
+  'template-040': Template040,
 };
 
 export default TemplateRegistry;
