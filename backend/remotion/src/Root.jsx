@@ -100,6 +100,21 @@ const templateNames = {
   'template-043': 'Template-043-News',
   'template-044': 'Template-044-Social-Media',
   'template-045': 'Template-045-Cinematic',
+  'template-046': 'Template-046-Tech-Review',
+  'template-047': 'Template-047-Motivational',
+  'template-048': 'Template-048-Interview',
+  'template-049': 'Template-049-Tutorial',
+  'template-050': 'Template-050-Gaming',
+  'template-051': 'Template-051-Fitness',
+  'template-052': 'Template-052-Cooking',
+  'template-053': 'Template-053-Travel',
+  'template-054': 'Template-054-Educational',
+  'template-055': 'Template-055-Corporate',
+  'template-056': 'Template-056-Music',
+  'template-057': 'Template-057-Science',
+  'template-058': 'Template-058-Storytelling',
+  'template-059': 'Template-059-Event',
+  'template-060': 'Template-060-Comedy',
 };
 
 const templateDurations = {
