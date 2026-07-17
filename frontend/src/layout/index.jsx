@@ -6,6 +6,7 @@ import AppNavbar from "./navbar";
 import Dashboard from "../pages/dashboard";
 import Wizard from "../pages/wizard";
 import RenderPage from "../pages/render";
+import StudioPage from "../pages/studio";
 import PlaceholderPage from "../pages/placeholder";
 import { getColors, typography } from "../shared/theme";
 import { ThemeContext } from "../shared/ThemeContext";
@@ -74,6 +75,7 @@ const AppLayout = () => {
             <Route path="/" element={<Dashboard />} />
             <Route path="/wizard" element={<Wizard />} />
             <Route path="/render" element={<RenderPage />} />
+            <Route path="/studio" element={<StudioPage />} />
             <Route path="/projects" element={<PlaceholderPage title="Projects" description="Manage your AI projects, create new ones, and organize your work." />} />
             <Route path="/analytics" element={<PlaceholderPage title="Analytics" description="View usage analytics and performance metrics for your renders." />} />
             <Route path="/settings" element={<PlaceholderPage title="Settings" description="Configure your preferences and application settings." />} />

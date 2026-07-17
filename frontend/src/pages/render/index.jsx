@@ -6,7 +6,7 @@ import {
 import {
   ArrowLeftOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined,
   ClockCircleOutlined, FileTextOutlined, AudioOutlined, VideoCameraOutlined,
-  CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined, RedoOutlined, DownloadOutlined
+  CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined, RedoOutlined, DownloadOutlined, EditOutlined
 } from "@ant-design/icons";
 import { getVideoJob, restartVideoJob, rerenderVideoJob } from "../../services/api";
 import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, onDisconnect, requestJobStatus, onJobStatus, isConnected } from "../../services/socket";
@@ -228,14 +228,23 @@ const RenderPage = () => {
           </Button>
         )}
         {isComplete && (
-          <Button 
-            icon={<RedoOutlined />} 
-            type="primary"
-            onClick={handleRerender} 
-            loading={rerenderLoading}
-          >
-            Re-render
-          </Button>
+          <>
+            <Button 
+              icon={<EditOutlined />} 
+              type="primary"
+              onClick={() => navigate(`/studio?id=${jobId}`)}
+            >
+              Studio Editor
+            </Button>
+            <Button 
+              icon={<RedoOutlined />} 
+              type="primary"
+              onClick={handleRerender} 
+              loading={rerenderLoading}
+            >
+              Re-render
+            </Button>
+          </>
         )}
       </Space>
 
