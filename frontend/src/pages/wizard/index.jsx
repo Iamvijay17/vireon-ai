@@ -47,13 +47,7 @@ const VOICES = [
 ];
 
 const LANGUAGES = [
-  { value: "english", label: "English" },
-  { value: "hindi", label: "Hindi" },
-  { value: "spanish", label: "Spanish" },
-  { value: "french", label: "French" },
-  { value: "german", label: "German" },
-  { value: "japanese", label: "Japanese" },
-  { value: "korean", label: "Korean" },
+  { value: "english", label: "English" }
 ];
 
 const STEPS = [
