@@ -154,17 +154,39 @@ const worker = new Worker(
 
         LoggerService.info('Starting image generation via ComfyUI', {
           jobId,
+          type: videoJob.type,
           scenes: script.scenes.length,
           pendingScenes: scenesWithoutImages.length,
         });
 
-        const scenesWithImages = await ImageService.generateAllImages(jobId, script.scenes);
+        // For podcast/business types, generate a SINGLE background image used by all scenes
+        // For other types, generate per-scene images
+        const isSingleImageType = ['podcast', 'business'].includes(videoJob.type);
 
-        // Update scenes with generated image URLs
-        for (const updatedScene of scenesWithImages) {
-          await VideoService.updateSceneImage(jobId, updatedScene.sceneNumber, {
-            imageUrl: updatedScene.imageUrl,
+        if (isSingleImageType) {
+          // Generate just ONE image from the first scene's prompt, use as background for all
+          LoggerService.info('Single-image mode: generating one background image for all scenes', {
+            jobId,
+            type: videoJob.type,
           });
+          const scenesWithImages = await ImageService.generateAllImages(jobId, script.scenes, { singleImage: true });
+
+          // Update ALL scenes with the same image URL
+          for (const updatedScene of scenesWithImages) {
+            await VideoService.updateSceneImage(jobId, updatedScene.sceneNumber, {
+              imageUrl: updatedScene.imageUrl,
+            });
+          }
+        } else {
+          // Generate per-scene images
+          const scenesWithImages = await ImageService.generateAllImages(jobId, script.scenes);
+
+          // Update scenes with generated image URLs
+          for (const updatedScene of scenesWithImages) {
+            await VideoService.updateSceneImage(jobId, updatedScene.sceneNumber, {
+              imageUrl: updatedScene.imageUrl,
+            });
+          }
         }
 
         // Re-fetch script with updated image URLs
@@ -175,7 +197,11 @@ const worker = new Worker(
         await VideoService.updateStatus(jobId, JOB_STATUS.IMAGE_COMPLETED, { progress: 60 });
         SocketService.emitJobProgress({ _id: jobId, progress: 60, status: JOB_STATUS.IMAGE_COMPLETED, currentStep: JOB_STATUS.IMAGE_COMPLETED, currentScene: script.scenes.length });
 
-        LoggerService.success('Image generation complete', { scenes: scenesWithImages.filter(s => s.imageUrl).length });
+        const scenesWithImageCount = script.scenes.filter(s => s.imageUrl).length;
+        LoggerService.success('Image generation complete', {
+          scenes: scenesWithImageCount,
+          mode: isSingleImageType ? 'single' : 'per-scene',
+        });
       } else {
         LoggerService.info('All images already generated, skipping image step');
       }

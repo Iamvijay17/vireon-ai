@@ -23,16 +23,31 @@ class ImageService {
    *
    * @param {string} jobId - The job ID
    * @param {Array} scenes - Array of scene objects with imagePrompt
+   * @param {Object} options - { singleImage: boolean }
+   *   If singleImage is true, only generates ONE image from the first scene
+   *   and uses it as the background for ALL scenes (useful for podcast, business types).
    * @returns {Promise<Array>} Scenes updated with imageUrl
    */
-  static async generateAllImages(jobId, scenes) {
+  static async generateAllImages(jobId, scenes, options = {}) {
     const imagesDir = path.resolve(__dirname, '../../jobs', jobId, 'images');
     await fs.mkdir(imagesDir, { recursive: true });
+    const port = config.port || 3000;
 
     const updatedScenes = [];
+    let backgroundImageUrl = null;
 
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
+
+      // In singleImage mode, all scenes use the same image generated from first scene
+      if (options.singleImage && i > 0 && backgroundImageUrl) {
+        updatedScenes.push({
+          ...scene,
+          imageUrl: backgroundImageUrl,
+        });
+        continue;
+      }
+
       const imagePrompt = scene.imagePrompt || '';
 
       if (!imagePrompt) {
@@ -48,6 +63,7 @@ class ImageService {
         LoggerService.info(`Generating image for scene ${scene.sceneNumber}`, {
           jobId,
           prompt: imagePrompt.substring(0, 100),
+          mode: options.singleImage ? 'single-background' : 'per-scene',
         });
 
         const imagePath = await ImageService.generateImage(
@@ -58,8 +74,11 @@ class ImageService {
         );
 
         // Generate HTTP-accessible URL via Express static middleware
-        const port = config.port || 3000;
         const imageUrl = `http://localhost:${port}/public/${jobId}/images/scene${scene.sceneNumber}.png`;
+
+        if (options.singleImage) {
+          backgroundImageUrl = imageUrl;
+        }
 
         updatedScenes.push({
           ...scene,
@@ -71,6 +90,7 @@ class ImageService {
           jobId,
           path: imagePath,
           url: imageUrl,
+          mode: options.singleImage ? 'single-background' : 'per-scene',
         });
       } catch (err) {
         LoggerService.error(`Failed to generate image for scene ${scene.sceneNumber}`, {
