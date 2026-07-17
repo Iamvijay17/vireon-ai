@@ -1,10 +1,27 @@
 import React, { useState } from "react";
 import {
-  Typography, Card, Form, Input, Select, Button, Steps, Result, Descriptions, Tag, Spin, message
+  Typography,
+  Card,
+  Form,
+  Input,
+  Select,
+  Button,
+  Steps,
+  Result,
+  Descriptions,
+  Tag,
+  Spin,
+  message,
 } from "antd";
 import {
-  VideoCameraOutlined, AudioOutlined, FileTextOutlined, CheckCircleOutlined,
-  RocketOutlined, ArrowLeftOutlined, ArrowRightOutlined, SendOutlined
+  VideoCameraOutlined,
+  AudioOutlined,
+  FileTextOutlined,
+  CheckCircleOutlined,
+  RocketOutlined,
+  ArrowLeftOutlined,
+  ArrowRightOutlined,
+  SendOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { createVideoJob } from "../../services/api";
@@ -46,8 +63,14 @@ const VOICES = [
   { value: "neutral-1", label: "Neutral Voice" },
 ];
 
-const LANGUAGES = [
-  { value: "english", label: "English" }
+const LANGUAGES = [{ value: "english", label: "English" }];
+
+const SCENE_COUNTS = [
+  { value: "5-10", label: "5 to 10 scenes" },
+  { value: "10-15", label: "10 to 15 scenes" },
+  { value: "15-20", label: "15 to 20 scenes" },
+  { value: "20-25", label: "20 to 25 scenes" },
+  { value: "25-30", label: "25 to 30 scenes" },
 ];
 
 const STEPS = [
@@ -70,7 +93,7 @@ const Wizard = () => {
     try {
       const fieldsToValidate = [];
       if (current === 0) {
-        fieldsToValidate.push("topic", "type", "language");
+        fieldsToValidate.push("topic", "type", "sceneCount", "language");
       } else if (current === 1) {
         fieldsToValidate.push("voice");
       } else if (current === 2) {
@@ -105,7 +128,10 @@ const Wizard = () => {
       message.success("Video job created! Processing started.");
       setCurrent(3);
     } catch (err) {
-      const errMsg = err?.response?.data?.error || err?.response?.data?.details?.[0]?.message || "Failed to create job";
+      const errMsg =
+        err?.response?.data?.error ||
+        err?.response?.data?.details?.[0]?.message ||
+        "Failed to create job";
       message.error(errMsg);
     } finally {
       setLoading(false);
@@ -137,8 +163,16 @@ const Wizard = () => {
             }}
           >
             {/* ── Step 1: Topic & Type ──────────────────────────────────────── */}
-            <div style={{ maxWidth: 560, margin: "0 auto", display: current === 0 ? "block" : "none" }}>
-              <Title level={5} style={{ marginBottom: 24 }}>What do you want to create?</Title>
+            <div
+              style={{
+                maxWidth: 560,
+                margin: "0 auto",
+                display: current === 0 ? "block" : "none",
+              }}
+            >
+              <Title level={5} style={{ marginBottom: 24 }}>
+                What do you want to create?
+              </Title>
 
               <Form.Item
                 name="topic"
@@ -159,41 +193,95 @@ const Wizard = () => {
                 label="Video Type"
                 rules={[{ required: true, message: "Please select a type" }]}
               >
-                <Select placeholder="Select video type" options={VIDEO_TYPES} showSearch />
+                <Select
+                  placeholder="Select video type"
+                  options={VIDEO_TYPES}
+                  showSearch
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="sceneCount"
+                label="Number of Scenes"
+                rules={[
+                  { required: true, message: "Please select scene count" },
+                ]}
+              >
+                <Select
+                  placeholder="Select scene count"
+                  options={SCENE_COUNTS}
+                  defaultValue={"5-10"}
+                />
               </Form.Item>
 
               <Form.Item name="language" label="Language">
                 <Select options={LANGUAGES} />
               </Form.Item>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 32 }}>
-                <Button type="primary" onClick={handleNext} icon={<ArrowRightOutlined />}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: 32,
+                }}
+              >
+                <Button
+                  type="primary"
+                  onClick={handleNext}
+                  icon={<ArrowRightOutlined />}
+                >
                   Next
                 </Button>
               </div>
             </div>
 
             {/* ── Step 2: Voice & Language ──────────────────────────────────── */}
-            <div style={{ maxWidth: 560, margin: "0 auto", display: current === 1 ? "block" : "none" }}>
-              <Title level={5} style={{ marginBottom: 24 }}>Configure audio settings</Title>
+            <div
+              style={{
+                maxWidth: 560,
+                margin: "0 auto",
+                display: current === 1 ? "block" : "none",
+              }}
+            >
+              <Title level={5} style={{ marginBottom: 24 }}>
+                Configure audio settings
+              </Title>
 
               <Form.Item name="voice" label="Voice">
                 <Select options={VOICES} />
               </Form.Item>
 
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: 32,
+                }}
+              >
                 <Button onClick={handleBack} icon={<ArrowLeftOutlined />}>
                   Back
                 </Button>
-                <Button type="primary" onClick={handleNext} icon={<ArrowRightOutlined />}>
+                <Button
+                  type="primary"
+                  onClick={handleNext}
+                  icon={<ArrowRightOutlined />}
+                >
                   Next
                 </Button>
               </div>
             </div>
 
             {/* ── Step 3: Resolution ─────────────────────────────────────────── */}
-            <div style={{ maxWidth: 560, margin: "0 auto", display: current === 2 ? "block" : "none" }}>
-              <Title level={5} style={{ marginBottom: 24 }}>Choose output quality</Title>
+            <div
+              style={{
+                maxWidth: 560,
+                margin: "0 auto",
+                display: current === 2 ? "block" : "none",
+              }}
+            >
+              <Title level={5} style={{ marginBottom: 24 }}>
+                Choose output quality
+              </Title>
 
               <Form.Item name="resolution" label="Resolution">
                 <Select options={RESOLUTIONS} />
@@ -203,7 +291,13 @@ const Wizard = () => {
                 <Select options={ASPECT_RATIOS} />
               </Form.Item>
 
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: 32,
+                }}
+              >
                 <Button onClick={handleBack} icon={<ArrowLeftOutlined />}>
                   Back
                 </Button>
@@ -228,10 +322,22 @@ const Wizard = () => {
             title="Video Job Created!"
             subTitle="Your video has been queued for processing. You can monitor its progress in real-time."
             extra={[
-              <Button type="primary" key="view" onClick={() => navigate(`/render?id=${result.jobId}`)}>
+              <Button
+                type="primary"
+                key="view"
+                onClick={() => navigate(`/render?id=${result.jobId}`)}
+              >
                 View Progress
               </Button>,
-              <Button key="new" onClick={() => { setResult(null); setCurrent(0); form.resetFields(); setFieldValues({}); }}>
+              <Button
+                key="new"
+                onClick={() => {
+                  setResult(null);
+                  setCurrent(0);
+                  form.resetFields();
+                  setFieldValues({});
+                }}
+              >
                 Create Another
               </Button>,
               <Button key="dashboard" onClick={() => navigate("/")}>
@@ -239,12 +345,19 @@ const Wizard = () => {
               </Button>,
             ]}
           >
-            <Descriptions column={1} bordered size="small" style={{ maxWidth: 400, margin: "24px auto 0" }}>
+            <Descriptions
+              column={1}
+              bordered
+              size="small"
+              style={{ maxWidth: 400, margin: "24px auto 0" }}
+            >
               <Descriptions.Item label="Job ID">
                 <Text copyable>{result.jobId}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="Status">
-                <Tag icon={<RocketOutlined />} color="processing">{result.status}</Tag>
+                <Tag icon={<RocketOutlined />} color="processing">
+                  {result.status}
+                </Tag>
               </Descriptions.Item>
             </Descriptions>
           </Result>
@@ -253,7 +366,9 @@ const Wizard = () => {
         {current === 3 && !result && (
           <div style={{ textAlign: "center", padding: 80 }}>
             <Spin size="large" />
-            <div style={{ marginTop: 16, color: colors.textSecondary }}>Creating your video job...</div>
+            <div style={{ marginTop: 16, color: colors.textSecondary }}>
+              Creating your video job...
+            </div>
           </div>
         )}
       </Card>

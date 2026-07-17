@@ -76,11 +76,40 @@ const worker = new Worker(
 
         LoggerService.info('Starting script generation', { topic: videoJob.topic, type: videoJob.type });
 
+        // ── Step 2: Calculate total video duration based on scene count range
+        const getTotalDuration = (sceneCount) => {
+          switch (sceneCount) {
+            case '5-10': return 60;   // 10 scenes × 6 sec = 60s
+            case '10-15': return 120; // 15 scenes × 8 sec = 120s
+            case '15-20': return 180; // 20 scenes × 9 sec = 180s
+            case '20-25': return 240; // 25 scenes × 9.6 sec = 240s
+            case '25-30': return 300; // 30 scenes × 10 sec = 300s
+            default: return 60;
+          }
+        };
+
+        const getSceneDuration = (sceneCount) => {
+          switch (sceneCount) {
+            case '5-10': return 6;
+            case '10-15': return 8;
+            case '15-20': return 9;
+            case '20-25': return 10;
+            case '25-30': return 10;
+            default: return 6;
+          }
+        };
+
+        const totalDuration = getTotalDuration(videoJob.sceneCount);
+        const sceneDuration = getSceneDuration(videoJob.sceneCount || '5-10');
+        const sceneCount = videoJob.sceneCount || '5-10';
+
         // ── Step 2: Render prompt template
         const prompt = PromptService.render(videoJob.type, {
           topic: videoJob.topic,
           language: videoJob.language,
-          duration: '60',
+          duration: totalDuration.toString(),
+          sceneCount: sceneCount,
+          sceneDuration: sceneDuration,
         });
 
         // ── Step 3: Call LM Studio
@@ -227,7 +256,7 @@ const worker = new Worker(
         type: videoJob.type,
       });
 
-      LoggerService.success('Assets prepared', { path: assetsPath });
+      LoggerService.success('Assets prepared');
 
       // ── Step 7: Render Video (skip if already exists)
       const hasRender = await renderExists(jobId);
