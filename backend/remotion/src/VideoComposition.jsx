@@ -70,21 +70,8 @@ const TemplateLoadingFallback = () => (
   <AbsoluteFill
     style={{
       backgroundColor: "#1a1a2e",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
     }}
-  >
-    <div
-      style={{
-        color: "#94a3b8",
-        fontSize: 24,
-        textAlign: "center",
-      }}
-    >
-      Loading template...
-    </div>
-  </AbsoluteFill>
+  />
 );
 
 /**
