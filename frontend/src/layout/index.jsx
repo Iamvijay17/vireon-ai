@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import { Layout } from "antd";
 import { Routes, Route } from "react-router-dom";
 import AppSidebar from "./sidebar";
@@ -7,7 +7,8 @@ import Dashboard from "../pages/dashboard";
 import Wizard from "../pages/wizard";
 import RenderPage from "../pages/render";
 import PlaceholderPage from "../pages/placeholder";
-import { colors, typography } from "../shared/theme";
+import { getColors, typography } from "../shared/theme";
+import { ThemeContext } from "../shared/ThemeContext";
 
 const { Content, Footer } = Layout;
 
@@ -16,6 +17,9 @@ const LARGE_BREAKPOINT = 992; // matches antd "lg"
 
 // ─── Main Layout Component ───────────────────────────────────────────────────
 const AppLayout = () => {
+  const { theme } = useContext(ThemeContext);
+  const dynamicColors = getColors(theme);
+  
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window !== "undefined") {
       return window.innerWidth < LARGE_BREAKPOINT;
@@ -42,7 +46,7 @@ const AppLayout = () => {
   }, []);
 
   return (
-    <Layout style={{ minHeight: "100vh", background: colors.bg }}>
+    <Layout style={{ minHeight: "100vh", background: dynamicColors.bg }}>
       {/* ── Sidebar (fixed) ───────────────────────────────────────────── */}
       <AppSidebar collapsed={collapsed} onCollapse={setCollapsed} />
 
@@ -51,7 +55,7 @@ const AppLayout = () => {
         style={{
           marginLeft: collapsed ? 64 : 240,
           transition: "margin-left 0.2s ease",
-          background: colors.bg,
+          background: dynamicColors.bg,
           minHeight: "100vh",
         }}
       >
@@ -63,7 +67,7 @@ const AppLayout = () => {
           style={{
             padding: 24,
             minHeight: "calc(100vh - 64px - 56px)",
-            background: colors.bg,
+            background: dynamicColors.bg,
           }}
         >
           <Routes>
@@ -81,10 +85,10 @@ const AppLayout = () => {
         <Footer
           style={{
             textAlign: "center",
-            color: colors.textTertiary,
+            color: dynamicColors.textTertiary,
             fontSize: typography.fontSize.sm,
-            borderTop: `1px solid ${colors.borderLight}`,
-            background: colors.surface,
+            borderTop: `1px solid ${dynamicColors.borderLight}`,
+            background: dynamicColors.surface,
             padding: "16px 24px",
           }}
         >

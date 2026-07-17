@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 import { Layout, Menu } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -12,7 +12,8 @@ import {
   BarChartOutlined,
   RocketOutlined,
 } from "@ant-design/icons";
-import { colors } from "../../shared/theme";
+import { colors, getColors } from "../../shared/theme";
+import { ThemeContext } from "../../shared/ThemeContext";
 
 const { Sider } = Layout;
 
@@ -61,6 +62,8 @@ const AppSidebar = ({ collapsed, onCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const currentKey = ROUTE_MAP[location.pathname] || "dashboard";
+  const { theme } = useContext(ThemeContext);
+  const dynamicColors = getColors(theme);
 
   const handleMenuClick = ({ key }) => {
     const route = findRoute(menuItems, key);
@@ -83,7 +86,7 @@ const AppSidebar = ({ collapsed, onCollapse }) => {
         top: 0,
         bottom: 0,
         zIndex: 100,
-        borderRight: `1px solid ${colors.border}`,
+        borderRight: `1px solid ${dynamicColors.border}`,
       }}
     >
       {/* ── Logo Area ─────────────────────────────────────────────────── */}
@@ -122,7 +125,7 @@ const AppSidebar = ({ collapsed, onCollapse }) => {
           <span
             style={{
               marginLeft: 12,
-              color: "#f1f5f9",
+              color: dynamicColors.textPrimary,
               fontSize: 18,
               fontWeight: 700,
               whiteSpace: "nowrap",
@@ -136,7 +139,6 @@ const AppSidebar = ({ collapsed, onCollapse }) => {
 
       {/* ── Navigation Menu ────────────────────────────────────────────── */}
       <Menu
-        theme="dark"
         mode="inline"
         selectedKeys={[currentKey]}
         defaultOpenKeys={["sub1"]}

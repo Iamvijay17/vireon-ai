@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 import { Layout, Button, Avatar, Dropdown, Space, Badge, Input } from "antd";
 import {
   MenuFoldOutlined,
@@ -10,8 +10,11 @@ import {
   LogoutOutlined,
   SettingOutlined,
   ProfileOutlined,
+  SunOutlined,
+  MoonOutlined,
 } from "@ant-design/icons";
-import { colors, shadows, typography } from "../../shared/theme";
+import { colors, shadows, typography, getColors } from "../../shared/theme";
+import { ThemeContext } from "../../shared/ThemeContext";
 
 const { Header } = Layout;
 
@@ -38,6 +41,9 @@ const userMenuItems = [
 
 // ─── Navbar Component ────────────────────────────────────────────────────────
 const AppNavbar = ({ collapsed, onToggle }) => {
+  const { theme, toggleTheme } = React.useContext(ThemeContext);
+  const dynamicColors = getColors(theme);
+  
   return (
     <Header
       style={{
@@ -93,11 +99,20 @@ const AppNavbar = ({ collapsed, onToggle }) => {
 
       {/* ── Right: Actions & User ──────────────────────────────────────── */}
       <Space size={12} align="center">
+      {/* Theme Toggle */}
+        <Button
+          type="text"
+          icon={theme === "dark" ? <SunOutlined /> : <MoonOutlined />}
+          onClick={toggleTheme}
+          style={{ color: colors.textSecondary, fontSize: 18 }}
+          size="large"
+        />
+
         {/* Help */}
         <Button
           type="text"
           icon={<QuestionCircleOutlined />}
-          style={{ color: colors.textSecondary, fontSize: 18 }}
+          style={{ color: dynamicColors.textSecondary, fontSize: 18 }}
           size="large"
         />
 
@@ -106,20 +121,20 @@ const AppNavbar = ({ collapsed, onToggle }) => {
           <Button
             type="text"
             icon={<BellOutlined />}
-            style={{ color: colors.textSecondary, fontSize: 18 }}
+            style={{ color: dynamicColors.textSecondary, fontSize: 18 }}
             size="large"
           />
         </Badge>
 
         {/* User Avatar / Dropdown */}
         <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={["click"]}>
-          <Space
+        <Space
             style={{ cursor: "pointer", padding: "4px 4px 4px 12px", borderRadius: 8 }}
             className="user-menu-trigger"
           >
             <span
               style={{
-                color: colors.textPrimary,
+                color: dynamicColors.textPrimary,
                 fontSize: typography.fontSize.sm,
                 fontWeight: 500,
                 lineHeight: 1,

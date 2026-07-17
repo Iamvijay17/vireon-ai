@@ -1,10 +1,10 @@
 /**
  * Vireon-AI Theme Configuration
- * Centralized theme tokens for Ant Design v6 compatibility
+ * Centralized theme tokens for Ant Design v6 compatibility with light/dark mode
  */
 
-// ─── Color Palette ───────────────────────────────────────────────────────────
-export const colors = {
+// ─── Base Colors ─────────────────────────────────────────────────────────────
+export const lightColors = {
   // Primary
   primary: "#6366f1",
   primaryLight: "#818cf8",
@@ -18,7 +18,6 @@ export const colors = {
 
   // Background
   bg: "#f8fafc",
-  bgDark: "#0f172a",
 
   // Sidebar
   sidebarBg: "#1e293b",
@@ -43,6 +42,50 @@ export const colors = {
   error: "#ef4444",
   info: "#3b82f6",
 };
+
+export const darkColors = {
+  // Primary
+  primary: "#818cf8",
+  primaryLight: "#a5b4fc",
+  primaryDark: "#6366f1",
+  primaryBg: "#312e81",
+
+  // Surface
+  surface: "#1e293b",
+  surfaceHover: "#334155",
+  surfaceActive: "#475569",
+
+  // Background
+  bg: "#0f172a",
+
+  // Sidebar
+  sidebarBg: "#020617",
+  sidebarText: "#94a3b8",
+  sidebarActive: "#818cf8",
+  sidebarActiveBg: "rgba(129, 140, 248, 0.15)",
+  sidebarHoverBg: "rgba(255, 255, 255, 0.08)",
+
+  // Text
+  textPrimary: "#f1f5f9",
+  textSecondary: "#cbd5e1",
+  textTertiary: "#94a3b8",
+  textInverse: "#0f172a",
+
+  // Border
+  border: "#334155",
+  borderLight: "#1e293b",
+
+  // Status
+  success: "#4ade80",
+  warning: "#fbbf24",
+  error: "#f87171",
+  info: "#60a5fa",
+};
+
+// ─── Theme-aware color getter ────────────────────────────────────────────────
+export const getColors = (theme) => (theme === "dark" ? darkColors : lightColors);
+
+export const colors = lightColors; // default
 
 // ─── Spacing Scale ───────────────────────────────────────────────────────────
 export const spacing = {
@@ -85,49 +128,52 @@ export const shadows = {
   xl: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
 };
 
-// ─── Ant Design Theme Token Overrides ────────────────────────────────────────
-export const antdTheme = {
-  token: {
-    colorPrimary: colors.primary,
-    colorSuccess: colors.success,
-    colorWarning: colors.warning,
-    colorError: colors.error,
-    colorInfo: colors.info,
-    colorBgBase: colors.bg,
-    colorBgContainer: colors.surface,
-    colorTextBase: colors.textPrimary,
-    colorTextSecondary: colors.textSecondary,
-    colorTextTertiary: colors.textTertiary,
-    colorBorder: colors.border,
-    colorBorderSecondary: colors.borderLight,
-    borderRadius: 8,
-    fontFamily: typography.fontFamily,
-    fontSize: typography.fontSize.base,
-  },
-  components: {
-    Layout: {
-      headerBg: colors.surface,
-      headerHeight: 64,
-      bodyBg: colors.bg,
-      siderBg: colors.sidebarBg,
-      triggerBg: colors.sidebarBg,
-      triggerHeight: 48,
+// ─── Ant Design Theme Token Factory ──────────────────────────────────────────
+export const createAntdTheme = (theme) => {
+  const c = getColors(theme);
+  return {
+    token: {
+      colorPrimary: c.primary,
+      colorSuccess: c.success,
+      colorWarning: c.warning,
+      colorError: c.error,
+      colorInfo: c.info,
+      colorBgBase: c.bg,
+      colorBgContainer: c.surface,
+      colorTextBase: c.textPrimary,
+      colorTextSecondary: c.textSecondary,
+      colorTextTertiary: c.textTertiary,
+      colorBorder: c.border,
+      colorBorderSecondary: c.borderLight,
+      borderRadius: 8,
+      fontFamily: typography.fontFamily,
+      fontSize: typography.fontSize.base,
     },
-    Menu: {
-      itemBg: "transparent",
-      itemColor: colors.sidebarText,
-      itemHoverBg: colors.sidebarHoverBg,
-      itemHoverColor: colors.textInverse,
-      itemSelectedBg: colors.sidebarActiveBg,
-      itemSelectedColor: colors.sidebarActive,
-      subMenuItemBg: "transparent",
-      groupTitleColor: colors.textTertiary,
-      collapsedWidth: 64,
+    components: {
+      Layout: {
+        headerBg: c.surface,
+        headerHeight: 64,
+        bodyBg: c.bg,
+        siderBg: c.sidebarBg,
+        triggerBg: c.sidebarBg,
+        triggerHeight: 48,
+      },
+      Menu: {
+        itemBg: "transparent",
+        itemColor: c.sidebarText,
+        itemHoverBg: c.sidebarHoverBg,
+        itemHoverColor: c.textInverse,
+        itemSelectedBg: c.sidebarActiveBg,
+        itemSelectedColor: c.sidebarActive,
+        subMenuItemBg: "transparent",
+        groupTitleColor: c.textTertiary,
+        collapsedWidth: 64,
+      },
+      Button: {
+        primaryShadow: shadows.sm,
+      },
     },
-    Button: {
-      primaryShadow: shadows.sm,
-    },
-  },
+  };
 };
 
-export default antdTheme;
+export default createAntdTheme;
