@@ -85,7 +85,8 @@ const worker = new Worker(
 
         // ── Step 3: Call LM Studio
         const rawScript = await LMStudioService.generateScript(prompt);
-        script = ScriptParserService.validate(rawScript);
+        // Pass the video type so ScriptParserService can assign default templates
+        script = ScriptParserService.validate(rawScript, videoJob.type);
 
         // Save script to disk
         await ScriptParserService.saveScript(jobId, script);
@@ -144,10 +145,12 @@ const worker = new Worker(
 
       LoggerService.success('Audio generation complete', { files: script.scenes.length });
 
-      // ── Step 5: Image Generation via ComfyUI
-      // Check if images already exist (skip if all scenes have imageUrl)
-      const scenesWithoutImages = script.scenes.filter(s => !s.imageUrl);
-      if (scenesWithoutImages.length > 0) {
+        // ── Step 5: Image Generation via ComfyUI
+      // Only generate images for scenes with sceneType === "image"
+      const imageScenes = script.scenes.filter(s => s.sceneType === 'image' && !s.imageUrl);
+      const nonImageScenes = script.scenes.filter(s => s.sceneType !== 'image');
+
+      if (imageScenes.length > 0) {
         currentStep = JOB_STATUS.GENERATING_IMAGES;
         await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_IMAGES, { progress: 55 });
         SocketService.emitJobProgress({ _id: jobId, progress: 55, status: JOB_STATUS.GENERATING_IMAGES, currentStep: JOB_STATUS.GENERATING_IMAGES, currentScene: 0 });
@@ -155,31 +158,32 @@ const worker = new Worker(
         LoggerService.info('Starting image generation via ComfyUI', {
           jobId,
           type: videoJob.type,
-          scenes: script.scenes.length,
-          pendingScenes: scenesWithoutImages.length,
+          totalScenes: script.scenes.length,
+          imageScenes: imageScenes.length,
+          skippedScenes: nonImageScenes.length,
         });
 
-        // For podcast/business types, generate a SINGLE background image used by all scenes
+        // For podcast/business types with image scenes, generate a SINGLE background image used by all image scenes
         // For other types, generate per-scene images
         const isSingleImageType = ['podcast', 'business'].includes(videoJob.type);
 
-        if (isSingleImageType) {
-          // Generate just ONE image from the first scene's prompt, use as background for all
-          LoggerService.info('Single-image mode: generating one background image for all scenes', {
+        if (isSingleImageType && imageScenes.length > 0) {
+          // Generate just ONE image from the first image scene's prompt, use as background for all images scenes
+          LoggerService.info('Single-image mode: generating one background image for all image scenes', {
             jobId,
             type: videoJob.type,
           });
-          const scenesWithImages = await ImageService.generateAllImages(jobId, script.scenes, { singleImage: true });
+          const scenesWithImages = await ImageService.generateAllImages(jobId, imageScenes, { singleImage: true });
 
-          // Update ALL scenes with the same image URL
+          // Update ALL image scenes with the same image URL
           for (const updatedScene of scenesWithImages) {
             await VideoService.updateSceneImage(jobId, updatedScene.sceneNumber, {
               imageUrl: updatedScene.imageUrl,
             });
           }
         } else {
-          // Generate per-scene images
-          const scenesWithImages = await ImageService.generateAllImages(jobId, script.scenes);
+          // Generate per-scene images for image scenes only
+          const scenesWithImages = await ImageService.generateAllImages(jobId, imageScenes);
 
           // Update scenes with generated image URLs
           for (const updatedScene of scenesWithImages) {
@@ -203,7 +207,7 @@ const worker = new Worker(
           mode: isSingleImageType ? 'single' : 'per-scene',
         });
       } else {
-        LoggerService.info('All images already generated, skipping image step');
+        LoggerService.info('No image scenes found or all images generated, skipping image step');
       }
 
       // ── Step 6: Prepare Assets (always regenerate to include latest imageUrl and templateId)
