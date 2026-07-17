@@ -31,21 +31,6 @@ const connection = {
 };
 
 /**
- * Check if assets.json exists on disk for a job.
- */
-async function assetsExist(jobId) {
-  const fs = require('fs').promises;
-  const path = require('path');
-  const assetsPath = path.resolve(__dirname, '../../jobs', jobId, 'assets.json');
-  try {
-    await fs.access(assetsPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Check if render output exists on disk for a job.
  */
 async function renderExists(jobId) {
@@ -62,7 +47,7 @@ async function renderExists(jobId) {
 
 /**
  * Video rendering worker.
- * Processes jobs from the BullMQ queue through the 8-step pipeline.
+ * Processes jobs from the BullMQ queue through the 9-step pipeline.
  * Never crashes - all errors are caught and logged.
  * Supports resuming from failed steps.
  */
@@ -160,51 +145,59 @@ const worker = new Worker(
       LoggerService.success('Audio generation complete', { files: script.scenes.length });
 
       // ── Step 5: Image Generation via ComfyUI
-      currentStep = JOB_STATUS.GENERATING_IMAGES;
-      await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_IMAGES, { progress: 55 });
-      SocketService.emitJobProgress({ _id: jobId, progress: 55, status: JOB_STATUS.GENERATING_IMAGES, currentStep: JOB_STATUS.GENERATING_IMAGES, currentScene: 0 });
+      // Check if images already exist (skip if all scenes have imageUrl)
+      const scenesWithoutImages = script.scenes.filter(s => !s.imageUrl);
+      if (scenesWithoutImages.length > 0) {
+        currentStep = JOB_STATUS.GENERATING_IMAGES;
+        await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_IMAGES, { progress: 55 });
+        SocketService.emitJobProgress({ _id: jobId, progress: 55, status: JOB_STATUS.GENERATING_IMAGES, currentStep: JOB_STATUS.GENERATING_IMAGES, currentScene: 0 });
 
-      LoggerService.info('Starting image generation via ComfyUI', {
-        jobId,
-        scenes: script.scenes.length,
+        LoggerService.info('Starting image generation via ComfyUI', {
+          jobId,
+          scenes: script.scenes.length,
+          pendingScenes: scenesWithoutImages.length,
+        });
+
+        const scenesWithImages = await ImageService.generateAllImages(jobId, script.scenes);
+
+        // Update scenes with generated image URLs
+        for (const updatedScene of scenesWithImages) {
+          await VideoService.updateSceneImage(jobId, updatedScene.sceneNumber, {
+            imageUrl: updatedScene.imageUrl,
+          });
+        }
+
+        // Re-fetch script with updated image URLs
+        const jobWithImages = await VideoService.getById(jobId);
+        script = jobWithImages.script;
+
+        // Mark image generation complete
+        await VideoService.updateStatus(jobId, JOB_STATUS.IMAGE_COMPLETED, { progress: 60 });
+        SocketService.emitJobProgress({ _id: jobId, progress: 60, status: JOB_STATUS.IMAGE_COMPLETED, currentStep: JOB_STATUS.IMAGE_COMPLETED, currentScene: script.scenes.length });
+
+        LoggerService.success('Image generation complete', { scenes: scenesWithImages.filter(s => s.imageUrl).length });
+      } else {
+        LoggerService.info('All images already generated, skipping image step');
+      }
+
+      // ── Step 6: Prepare Assets (always regenerate to include latest imageUrl and templateId)
+      // Delete old assets.json if it exists to force regeneration with updated data
+      const fs = require('fs').promises;
+      const path = require('path');
+      const oldAssetsPath = path.resolve(__dirname, '../../jobs', jobId, 'assets.json');
+      try { await fs.unlink(oldAssetsPath); } catch {}
+
+      currentStep = JOB_STATUS.PREPARING_ASSETS;
+      await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS, { progress: 70 });
+      SocketService.emitJobProgress({ _id: jobId, progress: 70, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
+
+      const assetsPath = await RemotionService.prepareAssets(jobId, script, {
+        resolution: videoJob.resolution,
+        aspectRatio: videoJob.aspectRatio,
+        type: videoJob.type,
       });
 
-      const scenesWithImages = await ImageService.generateAllImages(jobId, script.scenes);
-
-      // Update scenes with generated image URLs
-      for (const updatedScene of scenesWithImages) {
-        await VideoService.updateSceneImage(jobId, updatedScene.sceneNumber, {
-          imageUrl: updatedScene.imageUrl,
-        });
-      }
-
-      // Re-fetch script with updated image URLs
-      const jobWithImages = await VideoService.getById(jobId);
-      script = jobWithImages.script;
-
-      // Mark image generation complete
-      await VideoService.updateStatus(jobId, JOB_STATUS.IMAGE_COMPLETED, { progress: 60 });
-      SocketService.emitJobProgress({ _id: jobId, progress: 60, status: JOB_STATUS.IMAGE_COMPLETED, currentStep: JOB_STATUS.IMAGE_COMPLETED, currentScene: script.scenes.length });
-
-      LoggerService.success('Image generation complete', { scenes: scenesWithImages.filter(s => s.imageUrl).length });
-
-      // ── Step 6: Prepare Assets (skip if already exists)
-      const hasAssets = await assetsExist(jobId);
-      if (!hasAssets) {
-        currentStep = JOB_STATUS.PREPARING_ASSETS;
-        await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS, { progress: 70 });
-        SocketService.emitJobProgress({ _id: jobId, progress: 70, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
-
-        const assetsPath = await RemotionService.prepareAssets(jobId, script, {
-          resolution: videoJob.resolution,
-          aspectRatio: videoJob.aspectRatio,
-          type: videoJob.type,
-        });
-
-        LoggerService.success('Assets prepared', { path: assetsPath });
-      } else {
-        LoggerService.info('Assets already prepared, skipping');
-      }
+      LoggerService.success('Assets prepared', { path: assetsPath });
 
       // ── Step 7: Render Video (skip if already exists)
       const hasRender = await renderExists(jobId);

@@ -102,7 +102,7 @@ class ImageService {
     const timeout = config.comfyui?.timeout || 120000;
 
     // Step 1: Get the ComfyUI workflow with our prompt injected
-    const workflow = ImageService._buildWorkflow(prompt);
+    const workflow = await ImageService._buildWorkflow(prompt);
 
     // Step 2: Submit the prompt to ComfyUI
     LoggerService.debug(`Submitting prompt to ComfyUI`, {
@@ -138,71 +138,209 @@ class ImageService {
   }
 
   /**
-   * Build a ComfyUI workflow with the given prompt.
-   * This uses a default txt2img workflow.
-   * Users can customize this to match their ComfyUI setup.
+   * Fetch available ComfyUI node options for a given node and input.
+   * @returns {Promise<string[]>} Array of available option names
    */
-  static _buildWorkflow(prompt) {
-    // Default txt2img workflow compatible with SDXL / SD 1.5
-    // This is a minimal workflow - users can override with their own
+  static async _getNodeOptions(nodeType, inputName) {
+    const comfyUrl = config.comfyui?.url || 'http://localhost:8188';
+    const axios = require('axios');
+
+    try {
+      const resp = await axios.get(`${comfyUrl}/object_info/${nodeType}`, { timeout: 5000 });
+      const req = resp.data[nodeType]?.input?.required;
+      if (req && req[inputName] && Array.isArray(req[inputName][0])) {
+        return req[inputName][0].filter(name => name && !name.startsWith('put_'));
+      }
+    } catch {}
+
+    return [];
+  }
+
+  /**
+   * Known widget-to-input-name mappings for ComfyUI node types.
+   * In saved workflows, `widgets_values` is an ordered array.
+   * This maps each position to the correct API input name.
+   */
+  static _WIDGET_MAP = {
+    'UNETLoader': ['unet_name', 'weight_dtype'],
+    'CLIPLoader': ['clip_name', 'type', 'device'],
+    'VAELoader': ['vae_name'],
+    'CLIPTextEncode': ['text'],
+    'KSampler': ['seed', 'control_after_generate', 'steps', 'cfg', 'sampler_name', 'scheduler', 'denoise'],
+    'EmptySD3LatentImage': ['width', 'height', 'batch_size'],
+    'ModelSamplingAuraFlow': ['shift'],
+    'SaveImage': ['filename_prefix'],
+    'VAEDecode': [],
+  };
+
+  /**
+   * Convert a ComfyUI saved workflow (nodes array format) to API format.
+   * The saved format has `{ nodes: [{ id, type, inputs, outputs, widgets_values }] }`.
+   * The API format needs `{ "nodeId": { class_type, inputs } }`.
+   * 
+   * IMPORTANT: In saved format, `inputs` only contains graph connection inputs
+   * (like "clip", "model", "positive"). Widget values are purely positional
+   * in `widgets_values` and must be mapped by position using _WIDGET_MAP.
+   */
+  static _convertSaveFormatToAPI(saved) {
+    const nodes = saved.nodes || [];
+    const links = saved.links || [];
+    const apiWorkflow = {};
+    
+    // Build a lookup for links: linkId -> [fromNode, fromSlot, toNode, toSlot]
+    const linkMap = {};
+    for (const link of links) {
+      // link format: [id, fromNode, fromSlot, toNode, toSlot, type]
+      linkMap[link[0]] = { fromNode: link[1], toNode: link[3], toSlot: link[4] };
+    }
+
+    for (const node of nodes) {
+      const nodeId = String(node.id);
+      const apiNode = {
+        class_type: node.type,
+        inputs: {},
+      };
+
+      // Step 1: Process graph connections (inputs that link to other nodes)
+      const nodeInputs = node.inputs || [];
+      for (const input of nodeInputs) {
+        if (input.link !== null && input.link !== undefined && linkMap[input.link]) {
+          const linkInfo = linkMap[input.link];
+          apiNode.inputs[input.name] = [String(linkInfo.fromNode), 0];
+        }
+      }
+
+      // Step 2: Map widget values by position using the known widget map.
+      // The `inputs` array in saved format does NOT contain widget entries,
+      // so we map widgets_values directly by position.
+      const wv = node.widgets_values || [];
+      const widgetNames = ImageService._WIDGET_MAP[node.type] || [];
+      
+      for (let i = 0; i < wv.length && i < widgetNames.length; i++) {
+        const wName = widgetNames[i];
+        // Only set if not already set by a graph connection
+        if (apiNode.inputs[wName] === undefined) {
+          apiNode.inputs[wName] = wv[i];
+        }
+      }
+
+      apiWorkflow[nodeId] = apiNode;
+    }
+
+    return apiWorkflow;
+  }
+
+  /**
+   * Load the user's ComfyUI workflow template from disk.
+   * The workflow file should be exported from ComfyUI UI (Save button).
+   * Only the prompt text in CLIPTextEncode nodes gets replaced.
+   * All other settings (steps, samplers, CFG, etc.) are preserved exactly as configured.
+   */
+  static _loadWorkflowTemplate() {
+    const fs = require('fs');
+    const path = require('path');
+    const workflowPath = path.resolve(__dirname, '../../comfyui-workflow.json');
+
+    if (fs.existsSync(workflowPath)) {
+      try {
+        const raw = fs.readFileSync(workflowPath, 'utf-8');
+        const saved = JSON.parse(raw);
+        
+        // Check if it's saved format (has "nodes" array) or already API format
+        if (saved.nodes) {
+          const apiFormat = ImageService._convertSaveFormatToAPI(saved);
+          LoggerService.info('Converted saved ComfyUI workflow to API format', {
+            path: workflowPath,
+            nodeCount: saved.nodes.length,
+          });
+          return apiFormat;
+        }
+        
+        // Already in API format
+        LoggerService.info('Loaded ComfyUI workflow template (API format)', { path: workflowPath });
+        return saved;
+      } catch (err) {
+        LoggerService.warn('Failed to load ComfyUI workflow template, falling back to default', {
+          error: err.message,
+        });
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Build a ComfyUI workflow with the given prompt.
+   * 
+   * If the user has a comfyui-workflow.json file, it loads that as a template
+   * and only replaces the prompt text in CLIPTextEncode nodes.
+   * 
+   * Otherwise falls back to a hardcoded Qwen-Image workflow.
+   */
+  static async _buildWorkflow(prompt) {
+    const template = ImageService._loadWorkflowTemplate();
+
+    if (template) {
+      // Use user's workflow — only replace prompt text in CLIPTextEncode nodes
+      const modified = JSON.parse(JSON.stringify(template)); // deep clone
+      const seed = Math.floor(Math.random() * 1000000000);
+
+      let positiveReplaced = false;
+      for (const [nodeId, node] of Object.entries(modified)) {
+        // Replace prompt in CLIPTextEncode nodes (first found = positive prompt)
+        if (node.class_type === 'CLIPTextEncode') {
+          if (node.inputs && typeof node.inputs.text === 'string') {
+            if (!positiveReplaced) {
+              // First CLIPTextEncode = positive prompt
+              node.inputs.text = prompt;
+              positiveReplaced = true;
+              LoggerService.debug(`Injected prompt into CLIPTextEncode node ${nodeId}`);
+            } else {
+              // Second CLIPTextEncode = negative prompt, leave as-is
+              LoggerService.debug(`Kept negative prompt in CLIPTextEncode node ${nodeId}`);
+            }
+          }
+        }
+        // Replace seed in KSampler nodes for variety
+        if (node.class_type === 'KSampler' || node.class_type === 'RandomNoise') {
+          if (node.inputs && node.inputs.seed !== undefined) {
+            node.inputs.seed = seed;
+            LoggerService.debug(`Replaced seed in ${node.class_type} node ${nodeId}: ${seed}`);
+          }
+        }
+      }
+
+      LoggerService.info('Using user workflow template with prompt injected', {
+        promptPreview: prompt.substring(0, 80),
+        seed,
+      });
+
+      return modified;
+    }
+
+    // Fallback: hardcoded Qwen-Image workflow (keeps original quality settings)
+    LoggerService.info('No workflow template found, using default Qwen-Image workflow');
+
+    const unetModels = await ImageService._getNodeOptions('UNETLoader', 'unet_name');
+    const clipModels = await ImageService._getNodeOptions('CLIPLoader', 'clip_name');
+    const vaeModels = await ImageService._getNodeOptions('VAELoader', 'vae_name');
+
+    const unetName = unetModels[0] || 'z_image_turbo_bf16.safetensors';
+    const clipName = clipModels[0] || 'qwen_3_4b.safetensors';
+    const vaeName = vaeModels[0] || 'ae.safetensors';
+    const seed = Math.floor(Math.random() * 1000000000);
+
     return {
-      "3": {
-        "class_type": "KSampler",
-        "inputs": {
-          "seed": Math.floor(Math.random() * 1000000000),
-          "steps": 20,
-          "cfg": 7,
-          "sampler_name": "euler",
-          "scheduler": "normal",
-          "denoise": 1,
-          "model": ["4", 0],
-          "positive": ["6", 0],
-          "negative": ["7", 0],
-          "latent_image": ["5", 0],
-        },
-      },
-      "4": {
-        "class_type": "CheckpointLoaderSimple",
-        "inputs": {
-          "ckpt_name": "sd_xl_base_1.0.safetensors",
-        },
-      },
-      "5": {
-        "class_type": "EmptyLatentImage",
-        "inputs": {
-          "width": 1024,
-          "height": 1024,
-          "batch_size": 1,
-        },
-      },
-      "6": {
-        "class_type": "CLIPTextEncode",
-        "inputs": {
-          "text": prompt,
-          "clip": ["4", 1],
-        },
-      },
-      "7": {
-        "class_type": "CLIPTextEncode",
-        "inputs": {
-          "text": "blurry, low quality, distorted, ugly, bad anatomy, watermark, text, signature",
-          "clip": ["4", 1],
-        },
-      },
-      "8": {
-        "class_type": "VAEDecode",
-        "inputs": {
-          "samples": ["3", 0],
-          "vae": ["4", 2],
-        },
-      },
-      "9": {
-        "class_type": "SaveImage",
-        "inputs": {
-          "filename_prefix": "vireon_",
-          "images": ["8", 0],
-        },
-      },
+      "37": { "class_type": "UNETLoader", "inputs": { "unet_name": unetName, "weight_dtype": "default" } },
+      "38": { "class_type": "CLIPLoader", "inputs": { "clip_name": clipName, "type": "qwen_image", "device": "default" } },
+      "39": { "class_type": "VAELoader", "inputs": { "vae_name": vaeName } },
+      "58": { "class_type": "EmptySD3LatentImage", "inputs": { "width": 1024, "height": 1024, "batch_size": 1 } },
+      "6":  { "class_type": "CLIPTextEncode", "inputs": { "text": prompt, "clip": ["38", 0] } },
+      "7":  { "class_type": "CLIPTextEncode", "inputs": { "text": "blurry, low quality, distorted, ugly, bad anatomy, watermark, text, signature", "clip": ["38", 0] } },
+      "66": { "class_type": "ModelSamplingAuraFlow", "inputs": { "model": ["37", 0], "shift": 3.1 } },
+      "3":  { "class_type": "KSampler", "inputs": { "seed": seed, "steps": 8, "cfg": 3.5, "sampler_name": "euler", "scheduler": "sgm_uniform", "denoise": 1, "model": ["66", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["58", 0] } },
+      "8":  { "class_type": "VAEDecode", "inputs": { "samples": ["3", 0], "vae": ["39", 0] } },
+      "9":  { "class_type": "SaveImage", "inputs": { "filename_prefix": "vireon_", "images": ["8", 0] } },
     };
   }
 
