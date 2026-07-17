@@ -80,6 +80,7 @@ async function startServer() {
     const { connectDatabase } = require('./config/database');
     await connectDatabase();
     SocketService.init(server);
+    SocketService.initRedis();
 
     server.listen(config.port, () => {
       LoggerService.border('🚀 VIREON AI SERVER STARTING', 'event');

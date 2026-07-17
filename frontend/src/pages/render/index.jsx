@@ -6,10 +6,10 @@ import {
 import {
   ArrowLeftOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined,
   ClockCircleOutlined, FileTextOutlined, AudioOutlined, VideoCameraOutlined,
-  CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined, RedoOutlined
+  CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined, RedoOutlined, DownloadOutlined
 } from "@ant-design/icons";
 import { getVideoJob, restartVideoJob, rerenderVideoJob } from "../../services/api";
-import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, requestJobStatus, onJobStatus } from "../../services/socket";
+import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, onDisconnect, requestJobStatus, onJobStatus, isConnected } from "../../services/socket";
 import { colors } from "../../shared/theme";
 
 const { Title, Text } = Typography;
@@ -36,9 +36,11 @@ const RenderPage = () => {
   const [error, setError] = useState(null);
   const [restartLoading, setRestartLoading] = useState(false);
   const [rerenderLoading, setRerenderLoading] = useState(false);
+  const [socketStatus, setSocketStatus] = useState(() => isConnected() ? "connected" : "disconnected");
 
   // Store unsubscribe functions for cleanup
   const unsubscribesRef = useRef([]);
+  const videoRef = useRef(null);
 
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
@@ -134,12 +136,19 @@ const RenderPage = () => {
 
     // Reconnection handler - re-join room and get status
     const unsubConnect = onConnect(() => {
+      setSocketStatus("connected");
       if (jobId) {
         joinJobRoom(jobId);
         requestJobStatus(jobId);
       }
     });
     unsubscribesRef.current.push(unsubConnect);
+
+    // Disconnection handler
+    const unsubDisconnect = onDisconnect((reason) => {
+      setSocketStatus(reason === "io client disconnect" ? "disconnected" : "reconnecting");
+    });
+    unsubscribesRef.current.push(unsubDisconnect);
   }, [cleanup, jobId]);
 
   useEffect(() => {
@@ -159,6 +168,9 @@ const RenderPage = () => {
 
     // Join room - server will immediately send jobStatus with current state
     joinJobRoom(jobId);
+
+    // Set initial socket connection status (check synchronously)
+    setSocketStatus(isConnected() ? "connected" : "disconnected");
 
     // Cleanup on unmount or jobId change
     return () => {
@@ -226,9 +238,34 @@ const RenderPage = () => {
         )}
       </Space>
 
-      <Title level={4} style={{ color: colors.textPrimary, marginBottom: 8 }}>
-        {job?.topic || "Render Progress"}
-      </Title>
+      <Space style={{ marginBottom: 16 }} align="center">
+        <Title level={4} style={{ color: colors.textPrimary, marginBottom: 0 }}>
+          {job?.topic || "Render Progress"}
+        </Title>
+        <Tag
+          color={
+            socketStatus === "connected" ? "green" :
+            socketStatus === "reconnecting" ? "orange" : "default"
+          }
+          style={{ fontSize: 11, padding: "0 8px", lineHeight: "20px" }}
+        >
+          <Space size={4}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                backgroundColor:
+                  socketStatus === "connected" ? "#22c55e" :
+                  socketStatus === "reconnecting" ? "#f59e0b" : "#94a3b8",
+              }}
+            />
+            {socketStatus === "connected" ? "Live" :
+             socketStatus === "reconnecting" ? "Reconnecting..." : "Offline"}
+          </Space>
+        </Tag>
+      </Space>
 
       {/* Overall Progress */}
       <Card style={{ borderRadius: 12, marginBottom: 24 }}>
@@ -336,16 +373,73 @@ const RenderPage = () => {
         )}
       </Card>
 
-      {/* Video / Download section */}
+      {/* Video / Player section */}
       {isComplete && job?.videoUrl && (
-        <Card title="Output" style={{ borderRadius: 12 }} headStyle={{ fontWeight: 600 }}>
+        <Card
+          title={
+            <Space>
+              <PlayCircleOutlined style={{ color: colors.primary }} />
+              <span>Output Video</span>
+            </Space>
+          }
+          style={{ borderRadius: 12 }}
+          headStyle={{ fontWeight: 600 }}
+        >
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <Alert
-              message="Video is stored on GitHub"
-              description={job.videoUrl}
-              type="success"
-              showIcon
-              action={
+            {/* HTML5 Video Player */}
+            <div
+              style={{
+                width: "100%",
+                maxWidth: 720,
+                margin: "0 auto",
+                borderRadius: 12,
+                overflow: "hidden",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
+                background: "#000",
+              }}
+            >
+              <video
+                ref={videoRef}
+                src={job.videoUrl}
+                controls
+                autoPlay
+                style={{
+                  width: "100%",
+                  display: "block",
+                  aspectRatio: job?.resolution === "9:16" ? "9/16" : "16/9",
+                  objectFit: "contain",
+                }}
+                poster={job.thumbnailUrl || undefined}
+              >
+                Your browser does not support the video tag.
+              </video>
+            </div>
+
+            {/* Video info and download */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 12,
+                padding: "4px 0",
+              }}
+            >
+              <Space size={16}>
+                {job.resolution && (
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    Resolution: <Text strong>{job.resolution}</Text>
+                  </Text>
+                )}
+                {job.duration && (
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    Duration: <Text strong>{job.duration}s</Text>
+                  </Text>
+                )}
+              </Space>
+
+              <Space>
                 <Button
                   type="primary"
                   icon={<PlayCircleOutlined />}
@@ -353,22 +447,19 @@ const RenderPage = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Download Video
+                  Open in new tab
                 </Button>
-              }
-            />
-            {job.thumbnailUrl && (
-              <div>
-                <Text strong>Thumbnail:</Text>
-                <div style={{ marginTop: 8 }}>
-                  <img
-                    src={job.thumbnailUrl}
-                    alt="Video thumbnail"
-                    style={{ maxWidth: 300, borderRadius: 8, border: `1px solid ${colors.border}` }}
-                  />
-                </div>
-              </div>
-            )}
+                <Button
+                  icon={<DownloadOutlined />}
+                  href={job.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download
+                >
+                  Download
+                </Button>
+              </Space>
+            </div>
           </Space>
         </Card>
       )}
