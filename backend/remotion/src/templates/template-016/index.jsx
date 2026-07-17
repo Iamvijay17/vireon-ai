@@ -21,11 +21,15 @@ const Template016 = React.memo(({ scene }) => {
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
         <div style={styles.grid}>
-          {images.slice(0, 4).map((img, index) => (
-            <div key={index} style={{ ...anim.getImageAnim(index), borderRadius: 12, overflow: 'hidden' }}>
-              <Img src={typeof img === 'string' ? img : img.url || img.src} style={styles.gridImage} />
-            </div>
-          ))}
+          {images.slice(0, 4).map((img, index) => {
+            const imgSrc = typeof img === 'string' ? img : img.url || img.src;
+            if (!imgSrc) return null;
+            return (
+              <div key={index} style={{ ...anim.getImageAnim(index), borderRadius: 12, overflow: 'hidden' }}>
+                <Img src={imgSrc} style={styles.gridImage} />
+              </div>
+            );
+          })}
         </div>
         <div style={{ ...styles.overlay, ...anim.overlayStyle }}>
           {caption && <div style={{ ...styles.caption, ...anim.captionStyle }}>{caption}</div>}

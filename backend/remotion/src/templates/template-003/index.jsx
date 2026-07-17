@@ -44,6 +44,11 @@ const Template003 = React.memo(({ scene }) => {
           {image && (
             <Img src={image} style={styles.image} />
           )}
+          {!image && (
+            <div style={{ ...styles.image, backgroundColor: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 18 }}>No Image</span>
+            </div>
+          )}
         </div>
 
         {/* Gradient Overlay */}

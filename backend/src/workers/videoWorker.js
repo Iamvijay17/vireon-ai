@@ -69,7 +69,9 @@ const worker = new Worker(
 
     try {
       // ── Step 1: Script Generation (only if starting fresh or restarting from QUEUED)
-      if (!script?.scenes?.length || currentStatus === JOB_STATUS.QUEUED) {
+      const needsScriptGeneration = !script?.scenes?.length || currentStatus === JOB_STATUS.QUEUED;
+
+      if (needsScriptGeneration) {
         currentStep = JOB_STATUS.SCRIPT_GENERATION;
         await VideoService.updateStatus(jobId, JOB_STATUS.SCRIPT_GENERATION, { progress: 10 });
         SocketService.emitJobProgress({ _id: jobId, progress: 10, status: JOB_STATUS.SCRIPT_GENERATION, currentStep: JOB_STATUS.SCRIPT_GENERATION, currentScene: 0 });
@@ -79,28 +81,16 @@ const worker = new Worker(
         // ── Step 2: Calculate total video duration based on scene count range
         const getTotalDuration = (sceneCount) => {
           switch (sceneCount) {
-            case '5-10': return 60;   // 10 scenes × 6 sec = 60s
-            case '10-15': return 120; // 15 scenes × 8 sec = 120s
-            case '15-20': return 180; // 20 scenes × 9 sec = 180s
-            case '20-25': return 240; // 25 scenes × 9.6 sec = 240s
-            case '25-30': return 300; // 30 scenes × 10 sec = 300s
+            case '5-10': return 60;
+            case '10-15': return 120;
+            case '15-20': return 180;
+            case '20-25': return 240;
+            case '25-30': return 300;
             default: return 60;
           }
         };
 
-        const getSceneDuration = (sceneCount) => {
-          switch (sceneCount) {
-            case '5-10': return 6;
-            case '10-15': return 8;
-            case '15-20': return 9;
-            case '20-25': return 10;
-            case '25-30': return 10;
-            default: return 6;
-          }
-        };
-
         const totalDuration = getTotalDuration(videoJob.sceneCount);
-        const sceneDuration = getSceneDuration(videoJob.sceneCount || '5-10');
         const sceneCount = videoJob.sceneCount || '5-10';
 
         // ── Step 2: Render prompt template
@@ -109,12 +99,11 @@ const worker = new Worker(
           language: videoJob.language,
           duration: totalDuration.toString(),
           sceneCount: sceneCount,
-          sceneDuration: sceneDuration,
+          sceneDuration: "8",
         });
 
         // ── Step 3: Call LM Studio
         const rawScript = await LMStudioService.generateScript(prompt);
-        // Pass the video type so ScriptParserService can assign default templates
         script = ScriptParserService.validate(rawScript, videoJob.type);
 
         // Save script to disk
@@ -136,7 +125,7 @@ const worker = new Worker(
         });
       }
 
-      // ── Step 4: Audio Generation (skip if all scenes have audio)
+      // ── Step 4: Audio Generation (skip if all scenes have audio files)
       const scenesWithAudio = script.scenes.filter(s => s.audio?.file);
       const needsAudioGeneration = scenesWithAudio.length < script.scenes.length;
 
@@ -174,7 +163,7 @@ const worker = new Worker(
 
       LoggerService.success('Audio generation complete', { files: script.scenes.length });
 
-        // ── Step 5: Image Generation via ComfyUI
+      // ── Step 5: Image Generation via ComfyUI
       // Only generate images for scenes with sceneType === "image"
       const imageScenes = script.scenes.filter(s => s.sceneType === 'image' && !s.imageUrl);
       const nonImageScenes = script.scenes.filter(s => s.sceneType !== 'image');
@@ -258,19 +247,20 @@ const worker = new Worker(
 
       LoggerService.success('Assets prepared');
 
-      // ── Step 7: Render Video (skip if already exists)
-      const hasRender = await renderExists(jobId);
-      if (!hasRender) {
-        currentStep = JOB_STATUS.RENDERING;
-        await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING, { progress: 80 });
-        SocketService.emitJobProgress({ _id: jobId, progress: 80, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
+      // ── Step 7: Render Video
+      // Always re-render to ensure we have a valid, complete render
+      // Remove old render if it exists to force clean re-render
+      const renderPath = path.resolve(__dirname, '../../jobs', jobId, 'render', 'video.mp4');
+      try { await fs.rm(renderPath, { recursive: true, force: true }); } catch {}
+      try { await fs.rm(path.resolve(__dirname, '../../jobs', jobId, 'render'), { recursive: true, force: true }); } catch {}
 
-        const renderResult = await RemotionService.renderVideo(jobId);
+      currentStep = JOB_STATUS.RENDERING;
+      await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING, { progress: 80 });
+      SocketService.emitJobProgress({ _id: jobId, progress: 80, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
 
-        LoggerService.success('Video rendered', renderResult);
-      } else {
-        LoggerService.info('Video already rendered, skipping');
-      }
+      const renderResult = await RemotionService.renderVideo(jobId);
+
+      LoggerService.success('Video rendered', renderResult);
 
       // ── Step 8: Upload to GitHub
       currentStep = JOB_STATUS.UPLOADING;
@@ -329,7 +319,9 @@ const worker = new Worker(
   {
     connection,
     concurrency: 3, // Process up to 3 jobs concurrently
-    lockDuration: 600_000, // 10 minutes - extended to cover long video pipelines
+    lockDuration: 3_600_000, // 60 minutes - video rendering can take a long time
+    stalledInterval: 60_000, // Check for stalled jobs every 60 seconds
+    maxStalledCount: 3, // Allow up to 3 stalled checks before failing
     limiter: {
       max: 10, // Max 10 jobs per second
       duration: 1000,
