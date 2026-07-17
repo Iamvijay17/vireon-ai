@@ -120,6 +120,22 @@ class VideoService {
   }
 
   /**
+   * Update scene image URL.
+   */
+  static async updateSceneImage(jobId, sceneNumber, imageData) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) throw { status: 404, message: 'Job not found' };
+
+    const scene = job.script.scenes.find((s) => s.sceneNumber === sceneNumber);
+    if (scene) {
+      scene.imageUrl = imageData.imageUrl;
+    }
+
+    await job.save();
+    return job;
+  }
+
+  /**
    * Update scene audio data.
    */
   static async updateSceneAudio(jobId, sceneNumber, audioData) {

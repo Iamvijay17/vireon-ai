@@ -18,6 +18,7 @@ const PIPELINE_STEPS = [
   { title: "Queued", status: "QUEUED", icon: <ClockCircleOutlined /> },
   { title: "Script", status: "SCRIPT_GENERATION", icon: <FileTextOutlined /> },
   { title: "Audio", status: "GENERATING_AUDIO", icon: <AudioOutlined /> },
+  { title: "Images", status: "GENERATING_IMAGES", icon: <FileTextOutlined /> },
   { title: "Assets", status: "PREPARING_ASSETS", icon: <ThunderboltOutlined /> },
   { title: "Render", status: "RENDERING", icon: <VideoCameraOutlined /> },
   { title: "Upload", status: "UPLOADING", icon: <CloudUploadOutlined /> },

@@ -22,6 +22,7 @@ const RemotionService = require('../services/RemotionService');
 const StorageService = require('../services/StorageService');
 const GitHubService = require('../services/GitHubService');
 const SocketService = require('../services/SocketService');
+const ImageService = require('../services/ImageService');
 const { JOB_STATUS } = require('../constants');
 
 const connection = {
@@ -158,12 +159,41 @@ const worker = new Worker(
 
       LoggerService.success('Audio generation complete', { files: script.scenes.length });
 
-      // ── Step 5: Prepare Assets (skip if already exists)
+      // ── Step 5: Image Generation via ComfyUI
+      currentStep = JOB_STATUS.GENERATING_IMAGES;
+      await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_IMAGES, { progress: 55 });
+      SocketService.emitJobProgress({ _id: jobId, progress: 55, status: JOB_STATUS.GENERATING_IMAGES, currentStep: JOB_STATUS.GENERATING_IMAGES, currentScene: 0 });
+
+      LoggerService.info('Starting image generation via ComfyUI', {
+        jobId,
+        scenes: script.scenes.length,
+      });
+
+      const scenesWithImages = await ImageService.generateAllImages(jobId, script.scenes);
+
+      // Update scenes with generated image URLs
+      for (const updatedScene of scenesWithImages) {
+        await VideoService.updateSceneImage(jobId, updatedScene.sceneNumber, {
+          imageUrl: updatedScene.imageUrl,
+        });
+      }
+
+      // Re-fetch script with updated image URLs
+      const jobWithImages = await VideoService.getById(jobId);
+      script = jobWithImages.script;
+
+      // Mark image generation complete
+      await VideoService.updateStatus(jobId, JOB_STATUS.IMAGE_COMPLETED, { progress: 60 });
+      SocketService.emitJobProgress({ _id: jobId, progress: 60, status: JOB_STATUS.IMAGE_COMPLETED, currentStep: JOB_STATUS.IMAGE_COMPLETED, currentScene: script.scenes.length });
+
+      LoggerService.success('Image generation complete', { scenes: scenesWithImages.filter(s => s.imageUrl).length });
+
+      // ── Step 6: Prepare Assets (skip if already exists)
       const hasAssets = await assetsExist(jobId);
       if (!hasAssets) {
         currentStep = JOB_STATUS.PREPARING_ASSETS;
-        await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS, { progress: 60 });
-        SocketService.emitJobProgress({ _id: jobId, progress: 60, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
+        await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS, { progress: 70 });
+        SocketService.emitJobProgress({ _id: jobId, progress: 70, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
 
         const assetsPath = await RemotionService.prepareAssets(jobId, script, {
           resolution: videoJob.resolution,
@@ -176,7 +206,7 @@ const worker = new Worker(
         LoggerService.info('Assets already prepared, skipping');
       }
 
-      // ── Step 6: Render Video (skip if already exists)
+      // ── Step 7: Render Video (skip if already exists)
       const hasRender = await renderExists(jobId);
       if (!hasRender) {
         currentStep = JOB_STATUS.RENDERING;
@@ -190,10 +220,10 @@ const worker = new Worker(
         LoggerService.info('Video already rendered, skipping');
       }
 
-      // ── Step 7: Upload to GitHub
+      // ── Step 8: Upload to GitHub
       currentStep = JOB_STATUS.UPLOADING;
-      await VideoService.updateStatus(jobId, JOB_STATUS.UPLOADING, { progress: 90 });
-      SocketService.emitJobProgress({ _id: jobId, progress: 90, status: JOB_STATUS.UPLOADING, currentStep: JOB_STATUS.UPLOADING, currentScene: 0 });
+      await VideoService.updateStatus(jobId, JOB_STATUS.UPLOADING, { progress: 95 });
+      SocketService.emitJobProgress({ _id: jobId, progress: 95, status: JOB_STATUS.UPLOADING, currentStep: JOB_STATUS.UPLOADING, currentScene: 0 });
 
       const uploadFiles = await StorageService.getUploadFiles(jobId);
       const uploaded = await GitHubService.uploadJobAssets(jobId, uploadFiles);
@@ -204,7 +234,7 @@ const worker = new Worker(
         render: uploaded.render?.length || 0,
       });
 
-      // ── Step 8: Complete Job
+      // ── Step 9: Complete Job
       const completedJob = await VideoService.complete(jobId, {
         videoUrl: uploaded.render?.[0] || '',
         thumbnailUrl: uploaded.render?.[1] || '',

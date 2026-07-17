@@ -51,6 +51,12 @@ const config = Object.freeze({
     uploadRetries: parseInt(process.env.GITHUB_UPLOAD_RETRIES, 10) || 3,
   },
 
+  comfyui: {
+    url: process.env.COMFYUI_URL || 'http://localhost:8188',
+    timeout: parseInt(process.env.COMFYUI_TIMEOUT, 10) || 120000,
+    maxRetries: parseInt(process.env.COMFYUI_MAX_RETRIES, 10) || 3,
+  },
+
   cors: {
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   },
