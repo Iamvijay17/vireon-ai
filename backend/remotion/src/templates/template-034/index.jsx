@@ -15,29 +15,37 @@ const s = {
   tags: { display: 'flex', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 4 },
 };
 
+const CardItem = ({ item, index, fo }) => {
+  const cardSlide = useSlideUp({ startAt: fo + 12 + index * 8, distance: 60 });
+  return (
+    <div style={{ ...s.card, ...cardSlide }}>
+      {item.level && <div style={s.level}>{item.level}</div>}
+      <div style={s.title2}>{item.title}</div>
+      <div style={s.desc}>{item.description || item.text}</div>
+      {item.tags && <div style={s.tags}>{item.tags.map((tag, ti) => <span key={ti} style={s.tag}>{tag}</span>)}</div>}
+    </div>
+  );
+};
+
 const useA = ({ fo = 0 } = {}) => {
   const bg = useFadeInOut({ fadeIn: fo, fadeInDuration: 10 });
   const tS = useSlideUp({ startAt: fo + 5, distance: 40 });
-  const gCA = (i) => useSlideUp({ startAt: fo + 12 + i * 8, distance: 60 });
-  return { bgS: { opacity: bg }, tS, gCA };
+  return { bgS: { opacity: bg }, tS, fo };
 };
 
 const T = React.memo(({ scene }) => {
   const e = scene?.elements || {};
-  const t = e.title || ''; const items = e.items || e.cards || [];
-  const bc = e.backgroundColor || backgroundColors.dark; const a = useA({ fo: 0 });
+  const items = e.items || e.cards || [];
+  const t = e.title || '';
+  const bc = e.backgroundColor || backgroundColors.dark;
+  const { bgS, tS, fo } = useA({ fo: 0 });
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
-      <div style={{ ...s.container, ...a.bgS }}>
-        {t && <h1 style={{ ...s.title, ...a.tS }}>{t}</h1>}
+      <div style={{ ...s.container, ...bgS }}>
+        {t && <h1 style={{ ...s.title, ...tS }}>{t}</h1>}
         <div style={s.row}>
           {items.map((item, i) => (
-            <div key={i} style={{ ...s.card, ...a.gCA(i) }}>
-              <div style={s.level}>{item.level || ''}</div>
-              <div style={s.title2}>{item.title}</div>
-              <div style={s.desc}>{item.description || item.text}</div>
-              {item.tags && <div style={s.tags}>{item.tags.map((tag, ti) => <span key={ti} style={s.tag}>{tag}</span>)}</div>}
-            </div>
+            <CardItem key={i} item={item} index={i} fo={fo} />
           ))}
         </div>
       </div>

@@ -14,31 +14,38 @@ const s = {
   subtitle: { color: '#60a5fa', fontSize: 20, marginBottom: 30 },
 };
 
+const StepItem = ({ step, index, fo }) => {
+  const stepSlide = useSlideLeft({ startAt: fo + 15 + index * 6, distance: 60 });
+  return (
+    <div style={{ ...s.stepRow, ...stepSlide }}>
+      <div style={s.numBadge}>{step.num || (index + 1)}</div>
+      <div style={s.content}>
+        <div style={s.stepTitle}>{step.title}</div>
+        {step.description && <div style={s.stepDesc}>{step.description}</div>}
+      </div>
+    </div>
+  );
+};
+
 const useA = ({ fo = 0 } = {}) => {
   const bg = useFadeInOut({ fadeIn: fo, fadeInDuration: 10 });
   const tS = useSlideLeft({ startAt: fo + 5, distance: 40 });
   const subS = useSlideLeft({ startAt: fo + 10, distance: 30 });
-  const gSA = (i) => useSlideLeft({ startAt: fo + 15 + i * 6, distance: 60 });
-  return { bgS: { opacity: bg }, tS, subS, gSA };
+  return { bgS: { opacity: bg }, tS, subS, fo };
 };
 
 const T = React.memo(({ scene }) => {
   const e = scene?.elements || {};
   const t = e.title || ''; const sub = e.subtitle || ''; const steps = e.steps || e.items || [];
-  const bc = e.backgroundColor || backgroundColors.dark; const a = useA({ fo: 0 });
+  const bc = e.backgroundColor || backgroundColors.dark;
+  const { bgS, tS, subS, fo } = useA({ fo: 0 });
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
-      <div style={{ ...s.container, ...a.bgS }}>
-        {t && <h1 style={{ ...s.title, ...a.tS }}>{t}</h1>}
-        {sub && <div style={{ ...s.subtitle, ...a.subS }}>{sub}</div>}
+      <div style={{ ...s.container, ...bgS }}>
+        {t && <h1 style={{ ...s.title, ...tS }}>{t}</h1>}
+        {sub && <div style={{ ...s.subtitle, ...subS }}>{sub}</div>}
         {steps.map((st, i) => (
-          <div key={i} style={{ ...s.stepRow, ...a.gSA(i) }}>
-            <div style={s.numBadge}>{st.num || (i + 1)}</div>
-            <div style={s.content}>
-              <div style={s.stepTitle}>{st.title}</div>
-              {st.description && <div style={s.stepDesc}>{st.description}</div>}
-            </div>
-          </div>
+          <StepItem key={i} step={st} index={i} fo={fo} />
         ))}
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

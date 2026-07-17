@@ -100,10 +100,11 @@ const resolveTemplate = (templateId) => {
     return DefaultTemplate;
   }
 
-  const Template = TemplateRegistry[templateId];
-
+  // Normalize templateId: trim whitespace and lowercase for case-insensitive matching
+  const normalizedId = String(templateId).trim().toLowerCase();
+  const Template = TemplateRegistry[normalizedId];
   if (!Template) {
-    console.warn(`Unknown template: "${templateId}" — using DefaultTemplate`);
+    console.warn(`Unknown template: "${templateId}" (normalized: "${normalizedId}") — using DefaultTemplate`);
     return DefaultTemplate;
   }
 

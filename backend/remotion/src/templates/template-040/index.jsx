@@ -16,27 +16,34 @@ const useA = ({ fo = 0 } = {}) => {
   const bg = useFadeInOut({ fadeIn: fo, fadeInDuration: 10 });
   const tS = useSlideLeft({ startAt: fo + 5, distance: 40 });
   const subS = useSlideLeft({ startAt: fo + 10, distance: 30 });
-  const gCA = (i) => useSlideUp({ startAt: fo + 15 + i * 4, distance: 40 });
-  return { bgS: { opacity: bg }, tS, subS, gCA };
+  return { bgS: { opacity: bg }, tS, subS, fo };
 };
 
 const chColors = ['#60a5fa22', '#34d39922', '#a78bfa22', '#fb923c22', '#f472b622', '#fbbf2422', '#22d3ee22'];
 
+const ChipItem = ({ item, index, fo, color }) => {
+  const itemSlide = useSlideUp({ startAt: fo + 15 + index * 4, distance: 40 });
+  return (
+    <div style={{ ...s.chip, ...itemSlide, backgroundColor: color, border: `1px solid ${color.replace('22', '55')}` }}>
+      {item.icon && <span style={s.chipIcon}>{item.icon}</span>}
+      <span style={{ color: '#e2e8f0' }}>{item.text || item.title || ''}</span>
+    </div>
+  );
+};
+
 const T = React.memo(({ scene }) => {
   const e = scene?.elements || {};
   const t = e.title || ''; const sub = e.subtitle || ''; const items = e.items || e.chips || [];
-  const bc = e.backgroundColor || backgroundColors.navy; const a = useA({ fo: 0 });
+  const bc = e.backgroundColor || backgroundColors.navy;
+  const { bgS, tS, subS, fo } = useA({ fo: 0 });
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
-      <div style={{ ...s.container, ...a.bgS }}>
-        {t && <h1 style={{ ...s.title, ...a.tS }}>{t}</h1>}
-        {sub && <div style={{ ...s.sub, ...a.subS }}>{sub}</div>}
-        <div style={s.row}>
+      <div style={{ ...s.container, ...bgS }}>
+        {t && <h1 style={{ ...s.title, ...tS }}>{t}</h1>}
+        {sub && <div style={{ ...s.sub, ...subS }}>{sub}</div>}
+      <div style={s.row}>
           {items.map((item, i) => (
-            <div key={i} style={{ ...s.chip, ...a.gCA(i), backgroundColor: chColors[i % chColors.length], border: `1px solid ${chColors[i % chColors.length].replace('22', '55')}` }}>
-              {item.icon && <span style={s.chipIcon}>{item.icon}</span>}
-              <span style={{ color: '#e2e8f0' }}>{item.text || item}</span>
-            </div>
+            <ChipItem key={i} item={item} index={i} fo={fo} color={chColors[i % chColors.length]} />
           ))}
         </div>
       </div>

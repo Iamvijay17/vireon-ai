@@ -34,7 +34,7 @@ const Template008 = React.memo(({ scene }) => {
               }}
             >
               {item.icon && <span style={{ marginRight: 8 }}>{item.icon}</span>}
-              {item.text || item}
+              {item.text || item.title || ''}
             </div>
           ))}
         </div>

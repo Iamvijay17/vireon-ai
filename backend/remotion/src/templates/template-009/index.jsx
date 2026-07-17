@@ -25,7 +25,7 @@ const Template009 = React.memo(({ scene }) => {
           {items.map((item, index) => (
             <div key={index} style={{ ...styles.listItem, ...anim.getItemAnim(index) }}>
               <div style={styles.bulletIcon}>{item.icon || icons[index % icons.length]}</div>
-              <div style={styles.bulletText}>{item.text || item}</div>
+              <div style={styles.bulletText}>{item.text || item.title || ''}</div>
             </div>
           ))}
         </div>

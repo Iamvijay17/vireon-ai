@@ -14,12 +14,24 @@ const s = {
   cardContent: { flex: 1 },
 };
 
+const CardItem = ({ item, index, fo }) => {
+  const cardSlide = useSlideLeft({ startAt: fo + 15 + index * 5, distance: 60 });
+  return (
+    <div style={{ ...s.card, ...cardSlide }}>
+      <div style={{ ...s.iconBox, backgroundColor: colors[index % colors.length] }}>{item.icon || icons[index % icons.length]}</div>
+      <div style={s.cardContent}>
+        <div style={s.cardTitle}>{item.title}</div>
+        <div style={s.cardDesc}>{item.description || item.text}</div>
+      </div>
+    </div>
+  );
+};
+
 const useA = ({ fo = 0 } = {}) => {
   const bg = useFadeInOut({ fadeIn: fo, fadeInDuration: 10 });
   const tS = useSlideLeft({ startAt: fo + 5, distance: 40 });
   const subS = useSlideLeft({ startAt: fo + 10, distance: 30 });
-  const gCA = (i) => useSlideLeft({ startAt: fo + 15 + i * 5, distance: 60 });
-  return { bgS: { opacity: bg }, tS, subS, gCA };
+  return { bgS: { opacity: bg }, tS, subS, fo };
 };
 
 const icons = ['\uD83D\uDCA1', '\uD83D\uDD0D', '\uD83D\uDE80', '\uD83D\uDEE0', '\uD83D\uDD12', '\uD83D\uDCC8', '\u2699', '\uD83C\uDF10'];
@@ -28,20 +40,15 @@ const colors = ['#60a5fa33', '#34d39933', '#a78bfa33', '#fb923c33', '#f472b633',
 const T = React.memo(({ scene }) => {
   const e = scene?.elements || {};
   const t = e.title || ''; const sub = e.subtitle || ''; const items = e.items || e.cards || [];
-  const bc = e.backgroundColor || backgroundColors.slate; const a = useA({ fo: 0 });
+  const bc = e.backgroundColor || backgroundColors.slate;
+  const { bgS, tS, subS, fo } = useA({ fo: 0 });
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
-      <div style={{ ...s.container, ...a.bgS }}>
-        {t && <h1 style={{ ...s.title, ...a.tS }}>{t}</h1>}
-        {sub && <div style={{ ...s.subtitle, ...a.subS }}>{sub}</div>}
+      <div style={{ ...s.container, ...bgS }}>
+        {t && <h1 style={{ ...s.title, ...tS }}>{t}</h1>}
+        {sub && <div style={{ ...s.subtitle, ...subS }}>{sub}</div>}
         {items.map((item, i) => (
-          <div key={i} style={{ ...s.card, ...a.gCA(i) }}>
-            <div style={{ ...s.iconBox, backgroundColor: colors[i % colors.length] }}>{item.icon || icons[i % icons.length]}</div>
-            <div style={s.cardContent}>
-              <div style={s.cardTitle}>{item.title}</div>
-              <div style={s.cardDesc}>{item.description || item.text}</div>
-            </div>
-          </div>
+          <CardItem key={i} item={item} index={i} fo={fo} />
         ))}
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

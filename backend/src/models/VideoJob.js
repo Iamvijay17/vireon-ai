@@ -4,6 +4,7 @@ const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, VOICES, LANGUAGES }
 const sceneSchema = new mongoose.Schema(
   {
     sceneNumber: { type: Number, required: true },
+    sceneType: { type: String, default: 'content' },
     title: { type: String, default: '' },
     subtitle: { type: String, default: '' },
     duration: { type: Number, default: 8 },
@@ -12,6 +13,9 @@ const sceneSchema = new mongoose.Schema(
     imagePrompt: { type: String, default: '' },
     cameraMotion: { type: String, default: 'static' },
     animation: { type: String, default: '' },
+    imageUrl: { type: String, default: '' },
+    templateId: { type: String, default: '' },
+    elements: { type: mongoose.Schema.Types.Mixed, default: null },
     audio: {
       text: { type: String, default: '' },
       file: { type: String, default: '' },
