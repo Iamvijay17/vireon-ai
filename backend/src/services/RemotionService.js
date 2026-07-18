@@ -126,19 +126,29 @@ class RemotionService {
         const propsJson = JSON.stringify({ assets: assetsFile, jobId });
         await fs.writeFile(propsPath, propsJson, 'utf-8');
 
+        // Verify assets.json and props.json exist before running Remotion
+        const assetsExists = await fs.stat(assetsPath).then(() => true).catch(() => false);
+        const propsExists = await fs.stat(propsPath).then(() => true).catch(() => false);
+        if (!assetsExists) throw new Error(`assets.json not found at ${assetsPath}`);
+        if (!propsExists) throw new Error(`render-props.json not found at ${propsPath}`);
+
         // Use shell: true to properly handle paths with spaces on Windows
         const binaryPath = path.join(remotionRoot, 'node_modules', '@remotion', 'cli', 'remotion-cli.js');
         const outputPath = path.join(renderDir, 'video.mp4');
 
-        // Build command arguments for array syntax (handles spaces correctly)
+        // Check if remotion binary exists
+        const binaryExists = await fs.stat(binaryPath).then(() => true).catch(() => false);
+        if (!binaryExists) {
+          throw new Error(`Remotion CLI not found at ${binaryPath}. Run 'npm install' in ${remotionRoot}`);
+        }
+
+        // Build command arguments for Remotion 4.x CLI
+        // Use --props=path format to avoid Windows path escaping issues
         const args = [
           'render',
           'VideoComposition',
           outputPath,
-          '--props',
-          propsPath,
-          '--duration-in-frames',
-          String(totalDuration * 30),
+          `--props=${propsPath}`,
           '--width',
           String(width),
           '--height',
@@ -149,12 +159,17 @@ class RemotionService {
 
         LoggerService.render('Remotion command args', { args });
 
-        execSync(`node "${binaryPath}" ${args.map(a => `"${a}"`).join(' ')}`, {
+        const command = `node "${binaryPath}" ${args.map(a => `"${a}"`).join(' ')}`;
+        LoggerService.render('Executing Remotion command', { command: command.substring(0, 300) });
+
+        const stdout = execSync(command, {
           cwd: remotionRoot,
           timeout: config.remotion.timeout,
           stdio: ['pipe', 'pipe', 'pipe'],
-          shell: true, // Use shell to handle paths with spaces on Windows
+          shell: true,
         });
+
+        LoggerService.render('Remotion stdout', { stdout: stdout.toString().substring(0, 1000) });
 
         // Verify output exists
         const videoPath = path.join(renderDir, 'video.mp4');
@@ -178,8 +193,10 @@ class RemotionService {
         // Log more detailed error
         const errorDetails = {
           message: err.message,
-          stdout: err.stdout?.toString(),
-          stderr: err.stderr?.toString(),
+          stdout: err.stdout?.toString().substring(0, 500),
+          stderr: err.stderr?.toString().substring(0, 500),
+          code: err.code,
+          status: err.status,
         };
 
         LoggerService.warn(

@@ -52,10 +52,9 @@ const courseVideoWorker = new Worker(
   {
     connection,
     concurrency: 2,
-    limiter: {
-      max: 5,
-      duration: 1000,
-    },
+    lockDuration: 3_600_000, // 60 minutes - video rendering can take a long time
+    stalledInterval: 60_000,  // Check for stalled jobs every 60 seconds
+    maxStalledCount: 3,       // Allow up to 3 stalled checks before failing
   }
 );
 

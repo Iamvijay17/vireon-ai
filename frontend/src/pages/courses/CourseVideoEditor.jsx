@@ -12,7 +12,6 @@ import {
   Spin,
   Steps,
   Descriptions,
-  Divider,
   Alert,
   Input,
   Progress,
@@ -20,6 +19,8 @@ import {
   Empty,
   Result,
   Timeline,
+  List,
+  Collapse,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -35,13 +36,13 @@ import {
   LoadingOutlined,
   RobotOutlined,
   AudioOutlined,
+  StepForwardOutlined,
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ThemeContext } from '../../shared/ThemeContext';
-import { getColors, typography } from '../../shared/theme';
+import { getColors } from '../../shared/theme';
 import {
   getCourseVideo,
-  updateCourseVideo,
   generateCourseVideoScript,
   approveCourseVideoScript,
   updateCourseVideoScript,
@@ -53,14 +54,6 @@ import {
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
-
-const videoStatusSteps = [
-  { title: 'Draft', status: 'wait' },
-  { title: 'Script', status: 'wait' },
-  { title: 'Audio', status: 'wait' },
-  { title: 'Render', status: 'wait' },
-  { title: 'Complete', status: 'wait' },
-];
 
 const getCurrentStep = (status) => {
   const stepMap = {
@@ -91,17 +84,36 @@ const CourseVideoEditor = () => {
 
   const [video, setVideo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState({});
   const [editingScript, setEditingScript] = useState(false);
   const [scriptText, setScriptText] = useState('');
   const [activityLog, setActivityLog] = useState([]);
+  const [parsedScript, setParsedScript] = useState(null);
+
+  const setStepLoading = (step, val) => {
+    setActionLoading((prev) => ({ ...prev, [step]: val }));
+  };
 
   const fetchVideo = useCallback(async () => {
     try {
       const res = await getCourseVideo(videoId);
-      setVideo(res.data.video);
-      setScriptText(res.data.video.script || '');
-      addActivity(`Status: ${res.data.video.status}`, res.data.video.updatedAt);
+      const v = res.data.video;
+      setVideo(v);
+      setScriptText(v.script || '');
+
+      // Parse script to extract scenes
+      if (v.script) {
+        try {
+          const parsed = JSON.parse(v.script);
+          setParsedScript(parsed);
+        } catch {
+          setParsedScript(null);
+        }
+      } else {
+        setParsedScript(null);
+      }
+
+      addActivity(`Status: ${v.status}`, v.updatedAt);
     } catch (err) {
       message.error('Failed to load video');
       navigate(`/courses/${courseId}`);
@@ -126,7 +138,7 @@ const CourseVideoEditor = () => {
     ]);
   };
 
-  const startPolling = () => {
+  const startPolling = (step) => {
     if (pollingRef.current) clearInterval(pollingRef.current);
     pollingRef.current = setInterval(async () => {
       try {
@@ -135,11 +147,20 @@ const CourseVideoEditor = () => {
         setVideo(updated);
         setScriptText(updated.script || '');
 
+        if (updated.script) {
+          try {
+            const parsed = JSON.parse(updated.script);
+            setParsedScript(parsed);
+          } catch {
+            setParsedScript(null);
+          }
+        }
+
         // Stop polling when terminal state reached
         if (['Completed', 'Failed', 'Script Generated', 'Audio Generated'].includes(updated.status)) {
           clearInterval(pollingRef.current);
           pollingRef.current = null;
-          setActionLoading(false);
+          setStepLoading(step, false);
           addActivity(`Status updated: ${updated.status}`, updated.updatedAt);
         }
       } catch {
@@ -149,20 +170,20 @@ const CourseVideoEditor = () => {
   };
 
   const handleGenerateScript = async () => {
-    setActionLoading(true);
+    setStepLoading('script', true);
     try {
       await generateCourseVideoScript(videoId);
       message.info('Script generation started');
       addActivity('Script generation started');
-      startPolling();
+      startPolling('script');
     } catch (err) {
       message.error(err.response?.data?.message || 'Failed to start script generation');
-      setActionLoading(false);
+      setStepLoading('script', false);
     }
   };
 
   const handleApproveScript = async () => {
-    setActionLoading(true);
+    setStepLoading('approve', true);
     try {
       await approveCourseVideoScript(videoId);
       message.success('Script approved');
@@ -171,12 +192,12 @@ const CourseVideoEditor = () => {
     } catch (err) {
       message.error(err.response?.data?.message || 'Failed to approve script');
     } finally {
-      setActionLoading(false);
+      setStepLoading('approve', false);
     }
   };
 
   const handleSaveScript = async () => {
-    setActionLoading(true);
+    setStepLoading('save', true);
     try {
       await updateCourseVideoScript(videoId, scriptText);
       message.success('Script updated');
@@ -186,7 +207,7 @@ const CourseVideoEditor = () => {
     } catch (err) {
       message.error(err.response?.data?.message || 'Failed to save script');
     } finally {
-      setActionLoading(false);
+      setStepLoading('save', false);
     }
   };
 
@@ -195,59 +216,99 @@ const CourseVideoEditor = () => {
       title: 'Regenerate Script',
       content: 'This will replace the current script. Are you sure?',
       onOk: async () => {
-        setActionLoading(true);
+        setStepLoading('script', true);
         try {
           await regenerateCourseVideoScript(videoId);
           message.info('Script regeneration started');
           addActivity('Script regeneration started');
-          startPolling();
+          startPolling('script');
         } catch (err) {
           message.error(err.response?.data?.message || 'Failed to regenerate script');
-          setActionLoading(false);
+          setStepLoading('script', false);
         }
       },
     });
   };
 
   const handleGenerateAudio = async () => {
-    setActionLoading(true);
+    setStepLoading('audio', true);
     try {
       await generateCourseVideoAudio(videoId);
       message.info('Audio generation started');
       addActivity('Audio generation started');
-      startPolling();
+      startPolling('audio');
     } catch (err) {
       message.error(err.response?.data?.message || 'Failed to start audio generation');
-      setActionLoading(false);
+      setStepLoading('audio', false);
     }
   };
 
+  const handleRegenerateAudio = async () => {
+    Modal.confirm({
+      title: 'Regenerate Audio',
+      content: 'This will regenerate all audio for this video. Are you sure?',
+      onOk: async () => {
+        setStepLoading('audio', true);
+        try {
+          await generateCourseVideoAudio(videoId);
+          message.info('Audio regeneration started');
+          addActivity('Audio regeneration started');
+          startPolling('audio');
+        } catch (err) {
+          message.error(err.response?.data?.message || 'Failed to regenerate audio');
+          setStepLoading('audio', false);
+        }
+      },
+    });
+  };
+
   const handleRender = async () => {
-    setActionLoading(true);
+    setStepLoading('render', true);
     try {
       await renderCourseVideo(videoId);
       message.info('Rendering started');
       addActivity('Rendering started');
-      startPolling();
+      startPolling('render');
     } catch (err) {
       message.error(err.response?.data?.message || 'Failed to start rendering');
-      setActionLoading(false);
+      setStepLoading('render', false);
     }
+  };
+
+  const handleReRender = async () => {
+    Modal.confirm({
+      title: 'Re-Render Video',
+      content: 'This will re-render the video from scratch. Are you sure?',
+      onOk: async () => {
+        setStepLoading('render', true);
+        try {
+          await renderCourseVideo(videoId);
+          message.info('Re-rendering started');
+          addActivity('Re-rendering started');
+          startPolling('render');
+        } catch (err) {
+          message.error(err.response?.data?.message || 'Failed to re-render');
+          setStepLoading('render', false);
+        }
+      },
+    });
   };
 
   const handleRetry = async () => {
-    setActionLoading(true);
+    const failedStep = video?.error?.step || 'Script Generation';
+    setStepLoading('retry', true);
     try {
       await retryCourseVideo(videoId);
-      message.info('Retry started');
-      addActivity('Retry started');
-      startPolling();
+      message.info(`Retrying ${failedStep}...`);
+      addActivity(`Retrying ${failedStep}...`);
+      startPolling('retry');
     } catch (err) {
       message.error(err.response?.data?.message || 'Failed to retry');
-      setActionLoading(false);
+      setStepLoading('retry', false);
     }
   };
 
+  // Compute derived state
   const isProcessing = ['Generating Script', 'Generating Audio', 'Rendering Video', 'Generating Scenes', 'Generating Images'].includes(video?.status);
   const isFailed = video?.status === 'Failed';
   const isCompleted = video?.status === 'Completed';
@@ -255,6 +316,10 @@ const CourseVideoEditor = () => {
   const isApproved = video?.approved;
   const hasAudio = video?.audioUrl && video.audioUrl.length > 0;
   const hasRender = video?.renderUrl && video.renderUrl.length > 0;
+  const scenes = parsedScript?.scenes || [];
+
+  // Compute audio URL base
+  const audioBaseUrl = video?._id ? `/public/${video._id}/audio` : null;
 
   if (loading) {
     return (
@@ -307,7 +372,7 @@ const CourseVideoEditor = () => {
               <Button
                 icon={<ReloadOutlined />}
                 onClick={handleRetry}
-                loading={actionLoading}
+                loading={actionLoading['retry']}
               >
                 Retry
               </Button>
@@ -339,10 +404,28 @@ const CourseVideoEditor = () => {
           status={isFailed ? 'error' : 'process'}
           items={[
             { title: 'Draft', icon: <FileTextOutlined /> },
-            { title: 'Script', icon: <RobotOutlined />, status: currentStep >= 1 ? 'finish' : 'wait' },
-            { title: 'Audio', icon: <AudioOutlined />, status: currentStep >= 2 ? 'finish' : 'wait' },
-            { title: 'Render', icon: <VideoCameraOutlined />, status: currentStep >= 3 ? 'finish' : 'wait' },
-            { title: 'Complete', icon: <CheckCircleOutlined />, status: currentStep >= 4 ? 'finish' : 'wait' },
+            {
+              title: 'Script',
+              icon: <RobotOutlined />,
+              status: currentStep >= 1 ? 'finish' : 'wait',
+              subTitle: isApproved ? 'Approved' : hasScript ? 'Ready' : '',
+            },
+            {
+              title: 'Audio',
+              icon: <AudioOutlined />,
+              status: currentStep >= 2 ? 'finish' : 'wait',
+              subTitle: hasAudio ? `${Math.round(video.audioDuration)}s` : '',
+            },
+            {
+              title: 'Render',
+              icon: <VideoCameraOutlined />,
+              status: currentStep >= 3 ? 'finish' : 'wait',
+            },
+            {
+              title: 'Complete',
+              icon: <CheckCircleOutlined />,
+              status: currentStep >= 4 ? 'finish' : 'wait',
+            },
           ]}
         />
       </Card>
@@ -384,7 +467,7 @@ const CourseVideoEditor = () => {
           closable
           style={{ marginBottom: 16 }}
           action={
-            <Button size="small" onClick={handleRetry} loading={actionLoading}>
+            <Button size="small" onClick={handleRetry} loading={actionLoading['retry']}>
               Retry
             </Button>
           }
@@ -413,19 +496,22 @@ const CourseVideoEditor = () => {
       )}
 
       <Row gutter={16}>
-        {/* Left Column - Script Editor */}
+        {/* Left Column */}
         <Col span={16}>
-          {/* Script Section */}
+          {/* ── STEP 1: SCRIPT ─────────────────────────────────────────── */}
           <Card
             title={
               <Space>
-                <FileTextOutlined />
-                <span>Script</span>
+                <StepForwardOutlined />
+                <span>Step 1: Script Generation</span>
                 {hasScript && !isApproved && (
                   <Tag color="warning">Needs Approval</Tag>
                 )}
                 {isApproved && (
                   <Tag icon={<CheckCircleOutlined />} color="success">Approved</Tag>
+                )}
+                {isCompleted && (
+                  <Tag icon={<CheckCircleOutlined />} color="success">Done</Tag>
                 )}
               </Space>
             }
@@ -441,7 +527,7 @@ const CourseVideoEditor = () => {
                     type="primary"
                     icon={<ThunderboltOutlined />}
                     onClick={handleGenerateScript}
-                    loading={actionLoading}
+                    loading={actionLoading['script']}
                   >
                     Generate Script
                   </Button>
@@ -458,14 +544,14 @@ const CourseVideoEditor = () => {
                       type="primary"
                       icon={<CheckCircleOutlined />}
                       onClick={handleApproveScript}
-                      loading={actionLoading}
+                      loading={actionLoading['approve']}
                     >
                       Approve Script
                     </Button>
                     <Button
                       icon={<ReloadOutlined />}
                       onClick={handleRegenerateScript}
-                      loading={actionLoading}
+                      loading={actionLoading['script']}
                     >
                       Regenerate
                     </Button>
@@ -475,9 +561,9 @@ const CourseVideoEditor = () => {
                   <Button
                     icon={<ReloadOutlined />}
                     onClick={handleRegenerateScript}
-                    loading={actionLoading}
+                    loading={actionLoading['script']}
                   >
-                    Regenerate
+                    Regenerate Script
                   </Button>
                 )}
               </Space>
@@ -492,13 +578,13 @@ const CourseVideoEditor = () => {
                   type="primary"
                   icon={<ThunderboltOutlined />}
                   onClick={handleGenerateScript}
-                  loading={actionLoading}
+                  loading={actionLoading['script']}
                 >
                   Generate Script with AI
                 </Button>
               </Empty>
             )}
-            {!hasScript && isProcessing && (
+            {!hasScript && video?.status === 'Generating Script' && (
               <div style={{ textAlign: 'center', padding: 40 }}>
                 <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} />} />
                 <div style={{ marginTop: 16 }}>
@@ -507,30 +593,41 @@ const CourseVideoEditor = () => {
               </div>
             )}
             {hasScript && !editingScript && (
-              <pre
-                style={{
-                  background: dynamicColors.bg,
-                  padding: 16,
-                  borderRadius: 8,
-                  maxHeight: 400,
-                  overflow: 'auto',
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                  color: dynamicColors.text,
-                  border: `1px solid ${dynamicColors.borderLight}`,
-                  whiteSpace: 'pre-wrap',
-                  fontFamily: 'monospace',
-                }}
-              >
-                {(() => {
-                  try {
-                    const parsed = JSON.parse(video.script);
-                    return JSON.stringify(parsed, null, 2);
-                  } catch {
-                    return video.script;
-                  }
-                })()}
-              </pre>
+              <Collapse
+                defaultActiveKey={['preview']}
+                items={[
+                  {
+                    key: 'preview',
+                    label: `Script Preview (${scenes.length} scenes)`,
+                    children: (
+                      <pre
+                        style={{
+                          background: dynamicColors.bg,
+                          padding: 16,
+                          borderRadius: 8,
+                          maxHeight: 400,
+                          overflow: 'auto',
+                          fontSize: 13,
+                          lineHeight: 1.6,
+                          color: dynamicColors.text,
+                          border: `1px solid ${dynamicColors.borderLight}`,
+                          whiteSpace: 'pre-wrap',
+                          fontFamily: 'monospace',
+                        }}
+                      >
+                        {(() => {
+                          try {
+                            const parsed = JSON.parse(video.script);
+                            return JSON.stringify(parsed, null, 2);
+                          } catch {
+                            return video.script;
+                          }
+                        })()}
+                      </pre>
+                    ),
+                  },
+                ]}
+              />
             )}
             {hasScript && editingScript && (
               <div>
@@ -557,7 +654,7 @@ const CourseVideoEditor = () => {
                     <Button
                       type="primary"
                       onClick={handleSaveScript}
-                      loading={actionLoading}
+                      loading={actionLoading['save']}
                     >
                       Save Script
                     </Button>
@@ -567,14 +664,14 @@ const CourseVideoEditor = () => {
             )}
           </Card>
 
-          {/* Audio Section */}
+          {/* ── STEP 2: AUDIO ──────────────────────────────────────────── */}
           <Card
             title={
               <Space>
-                <SoundOutlined />
-                <span>Audio</span>
+                <StepForwardOutlined />
+                <span>Step 2: Audio Generation</span>
                 {hasAudio && (
-                  <Tag icon={<CheckCircleOutlined />} color="success">Generated</Tag>
+                  <Tag icon={<CheckCircleOutlined />} color="success">Generated ({Math.round(video.audioDuration)}s)</Tag>
                 )}
               </Space>
             }
@@ -584,16 +681,27 @@ const CourseVideoEditor = () => {
               borderColor: dynamicColors.borderLight,
             }}
             extra={
-              isApproved && !hasAudio && !isProcessing && (
-                <Button
-                  type="primary"
-                  icon={<ThunderboltOutlined />}
-                  onClick={handleGenerateAudio}
-                  loading={actionLoading}
-                >
-                  Generate Audio
-                </Button>
-              )
+              <Space>
+                {isApproved && !hasAudio && !isProcessing && (
+                  <Button
+                    type="primary"
+                    icon={<ThunderboltOutlined />}
+                    onClick={handleGenerateAudio}
+                    loading={actionLoading['audio']}
+                  >
+                    Generate Audio
+                  </Button>
+                )}
+                {hasAudio && !isProcessing && (
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={handleRegenerateAudio}
+                    loading={actionLoading['audio']}
+                  >
+                    Regenerate Audio
+                  </Button>
+                )}
+              </Space>
             }
           >
             {!isApproved && !hasAudio && (
@@ -611,13 +719,13 @@ const CourseVideoEditor = () => {
                   type="primary"
                   icon={<ThunderboltOutlined />}
                   onClick={handleGenerateAudio}
-                  loading={actionLoading}
+                  loading={actionLoading['audio']}
                 >
                   Generate Audio
                 </Button>
               </Empty>
             )}
-            {isApproved && !hasAudio && video.status === 'Generating Audio' && (
+            {video?.status === 'Generating Audio' && (
               <div style={{ textAlign: 'center', padding: 40 }}>
                 <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} />} />
                 <div style={{ marginTop: 16 }}>
@@ -625,10 +733,56 @@ const CourseVideoEditor = () => {
                 </div>
               </div>
             )}
-            {hasAudio && (
+            {hasAudio && scenes.length > 0 && (
+              <div>
+                <Text strong style={{ marginBottom: 12, display: 'block' }}>
+                  Per-Scene Audio ({scenes.length} scenes)
+                </Text>
+                <List
+                  dataSource={scenes}
+                  renderItem={(scene, idx) => {
+                    const sceneNum = scene.sceneNumber || idx + 1;
+                    const sceneAudioUrl = `${audioBaseUrl}/scene${sceneNum}.mp3`;
+                    const narrationText = scene.audio?.text || scene.title || '';
+                    const sceneTitle = scene.title || `Scene ${sceneNum}`;
+                    const sceneType = scene.sceneType || 'content';
+
+                    return (
+                      <List.Item
+                        style={{
+                          borderColor: dynamicColors.borderLight,
+                          padding: '12px 0',
+                        }}
+                      >
+                        <div style={{ width: '100%' }}>
+                          <Space style={{ marginBottom: 8 }}>
+                            <Tag>{sceneType}</Tag>
+                            <Text strong>{sceneNum}. {sceneTitle}</Text>
+                          </Space>
+                          <div style={{ marginBottom: 8 }}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              {narrationText.substring(0, 120)}{narrationText.length > 120 ? '...' : ''}
+                            </Text>
+                          </div>
+                          <audio
+                            controls
+                            style={{ width: '100%', height: 36 }}
+                            preload="none"
+                          >
+                            <source src={sceneAudioUrl} type="audio/mpeg" />
+                            Your browser does not support the audio element.
+                          </audio>
+                        </div>
+                      </List.Item>
+                    );
+                  }}
+                />
+              </div>
+            )}
+            {hasAudio && scenes.length === 0 && (
               <div>
                 <Descriptions size="small" column={2}>
-                  <Descriptions.Item label="Duration">
+                  <Descriptions.Item label="Total Duration">
                     {Math.round(video.audioDuration)} seconds
                   </Descriptions.Item>
                   <Descriptions.Item label="Generated">
@@ -637,11 +791,7 @@ const CourseVideoEditor = () => {
                 </Descriptions>
                 {video.audioUrl && (
                   <div style={{ marginTop: 12 }}>
-                    <audio
-                      controls
-                      style={{ width: '100%' }}
-                      src={video.audioUrl}
-                    >
+                    <audio controls style={{ width: '100%' }} src={video.audioUrl}>
                       Your browser does not support the audio element.
                     </audio>
                   </div>
@@ -650,12 +800,12 @@ const CourseVideoEditor = () => {
             )}
           </Card>
 
-          {/* Render Section */}
+          {/* ── STEP 3: RENDER ─────────────────────────────────────────── */}
           <Card
             title={
               <Space>
-                <VideoCameraOutlined />
-                <span>Render</span>
+                <StepForwardOutlined />
+                <span>Step 3: Video Render</span>
                 {isCompleted && (
                   <Tag icon={<CheckCircleOutlined />} color="success">Completed</Tag>
                 )}
@@ -667,16 +817,27 @@ const CourseVideoEditor = () => {
               borderColor: dynamicColors.borderLight,
             }}
             extra={
-              hasAudio && !isCompleted && !isProcessing && (
-                <Button
-                  type="primary"
-                  icon={<ThunderboltOutlined />}
-                  onClick={handleRender}
-                  loading={actionLoading}
-                >
-                  Render Video
-                </Button>
-              )
+              <Space>
+                {hasAudio && !isCompleted && !isProcessing && (
+                  <Button
+                    type="primary"
+                    icon={<ThunderboltOutlined />}
+                    onClick={handleRender}
+                    loading={actionLoading['render']}
+                  >
+                    Render Video
+                  </Button>
+                )}
+                {isCompleted && !isProcessing && (
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={handleReRender}
+                    loading={actionLoading['render']}
+                  >
+                    Re-Render
+                  </Button>
+                )}
+              </Space>
             }
           >
             {!hasAudio && !isCompleted && (
@@ -694,13 +855,13 @@ const CourseVideoEditor = () => {
                   type="primary"
                   icon={<ThunderboltOutlined />}
                   onClick={handleRender}
-                  loading={actionLoading}
+                  loading={actionLoading['render']}
                 >
                   Render Video
                 </Button>
               </Empty>
             )}
-            {video.status === 'Rendering Video' && (
+            {video?.status === 'Rendering Video' && (
               <div style={{ textAlign: 'center', padding: 40 }}>
                 <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} />} />
                 <div style={{ marginTop: 16 }}>
@@ -729,6 +890,14 @@ const CourseVideoEditor = () => {
                     </Button>
                   ),
                   <Button
+                    key="rerender"
+                    icon={<ReloadOutlined />}
+                    onClick={handleReRender}
+                    loading={actionLoading['render']}
+                  >
+                    Re-Render
+                  </Button>,
+                  <Button
                     key="back"
                     onClick={() => navigate(`/courses/${courseId}`)}
                   >
@@ -750,7 +919,7 @@ const CourseVideoEditor = () => {
             }}
           >
             <Timeline
-              items={activityLog.slice(0, 20).map((entry, i) => ({
+              items={activityLog.slice(0, 20).map((entry) => ({
                 children: (
                   <div>
                     <Text style={{ color: dynamicColors.text }}>{entry.text}</Text>

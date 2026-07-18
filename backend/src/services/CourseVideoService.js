@@ -4,6 +4,7 @@ const LoggerService = require('./LoggerService');
 const SocketService = require('./SocketService');
 const LMStudioService = require('./LMStudioService');
 const AudioService = require('./TTS/audioService');
+const RemotionService = require('./RemotionService');
 const { VIDEO_STATUS, SOCKET_EVENTS } = require('../constants');
 
 /**
@@ -195,43 +196,45 @@ class CourseVideoService {
 
   /**
    * Build the prompt for LM Studio script generation.
+   * Uses a concise prompt to reduce generation time on slower models.
    */
   static buildScriptPrompt(video) {
     const durationMinutes = video.duration;
+    const wordCount = durationMinutes * 130;
 
-    return `You are an expert educational content creator. Create a detailed video script for the following topic.
+    return `Create a ${durationMinutes}min educational video script about "${video.topic}".
 
-Topic: ${video.topic}
-Title: ${video.title}
-Style: ${video.style}
-Duration: ${durationMinutes} minutes
-Additional Instructions: ${video.additionalInstructions || 'None'}
+Return ONLY valid JSON with this structure:
+{
+  "title": "${video.title}",
+  "description": "Brief description",
+  "tags": ["tag1", "tag2"],
+  "thumbnailPrompt": "image generation prompt",
+  "scenes": [
+    {
+      "sceneNumber": 1,
+      "sceneType": "intro|content|summary",
+      "title": "Scene title",
+      "subtitle": "Supporting text",
+      "duration": 10,
+      "backgroundColor": "#1a1a2e",
+      "transition": "fade",
+      "cameraMotion": "static",
+      "animation": "",
+      "audio": { "text": "Narration text here (~${Math.round(wordCount / 5)} words per scene)" }
+    }
+  ]
+}
 
-Generate a complete video script in JSON format with:
-- title: The video title
-- description: A brief description
-- tags: Array of relevant tags
-- thumbnailPrompt: A prompt for generating a thumbnail image
-- scenes: Array of scene objects, each with:
-  - sceneNumber: Sequential number
-  - sceneType: "intro", "content", or "summary"
-  - title: Scene title
-  - subtitle: Scene subtitle or supporting text
-  - duration: Duration in seconds (aim for 8-15 seconds per scene)
-  - backgroundColor: A hex color suitable for the scene
-  - transition: "fade", "slide", "zoom", "dissolve", "wipe", or "none"
-  - imagePrompt: A detailed prompt for generating an image for this scene
-  - cameraMotion: "static", "pan-left", "pan-right", "zoom-in", "zoom-out", or "tracking"
-  - animation: Any specific animation for text elements
-  - audio.text: The narration text for this scene (written in a conversational, engaging tone)
-  - audio.voice: Leave empty
-
-The total narration across all scenes should be approximately ${durationMinutes} minutes long (roughly ${durationMinutes * 130} words total).
-Make the content educational, engaging, and suitable for beginners.
-Include examples and clear explanations.
-End with a call to action in the summary scene.
-
-Return ONLY valid JSON, no markdown formatting.`;
+Rules:
+- Total narration: ~${wordCount} words across all scenes
+- 5-8 scenes total: 1 intro, 3-5 content, 1 summary
+- Scene duration: 8-15 seconds each
+- Only include "imagePrompt" field when sceneType is "image"
+- Make it beginner-friendly with examples
+- End with a call to action
+- ${video.additionalInstructions ? `Additional: ${video.additionalInstructions}` : ''}
+- Return ONLY valid JSON, no markdown, no code blocks`;
   }
 
   /**
@@ -351,8 +354,8 @@ Return ONLY valid JSON, no markdown formatting.`;
         duration: s.duration || 8,
       }));
 
-      // Generate audio for all scenes
-      const jobId = `course-${video.courseId}-video-${video._id}`;
+      // Generate audio for all scenes - use videoId as job directory
+      const jobId = video._id.toString();
       const audioResults = await AudioService.generateAllAudio(jobId, audioScenes, video.voice);
 
       // Store audio URL (first scene's audio for preview, or full path)
@@ -401,7 +404,9 @@ Return ONLY valid JSON, no markdown formatting.`;
   }
 
   /**
-   * Re-render a video (render using Remotion).
+   * Render a video using the actual Remotion pipeline.
+   * Prepares assets, then calls RemotionService to render.
+   * Falls back to a placeholder if Remotion is unavailable.
    */
   static async renderVideo(videoId) {
     const video = await CourseVideo.findById(videoId);
@@ -417,29 +422,79 @@ Return ONLY valid JSON, no markdown formatting.`;
       videoId: video._id,
       status: VIDEO_STATUS.RENDERING_VIDEO,
       progress: 0,
-      message: 'Starting render...',
+      message: 'Preparing assets for rendering...',
     });
 
     try {
-      // For now, simulate rendering progress
-      // In production, this would call the Remotion render pipeline
-      const totalSteps = 10;
-      for (let step = 1; step <= totalSteps; step++) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const progress = Math.round((step / totalSteps) * 100);
-        video.renderProgress = progress;
-        await video.save();
-
-        SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_PROGRESS, {
-          videoId: video._id,
-          status: VIDEO_STATUS.RENDERING_VIDEO,
-          progress,
-          message: `Rendering... ${progress}%`,
-        });
+      // Parse the script to get scene data
+      let scriptData;
+      try {
+        scriptData = JSON.parse(video.script);
+      } catch {
+        throw new Error('Invalid script JSON - cannot render');
       }
 
-      // Set a placeholder render URL
-      video.renderUrl = `/public/course-${video.courseId}/video-${video._id}/output.mp4`;
+      const scenes = scriptData.scenes || [];
+      if (scenes.length === 0) {
+        throw new Error('No scenes found in script');
+      }
+
+      // Map audio files to scenes - use videoId as job directory
+      const jobId = video._id.toString();
+      const scenesWithAudio = scenes.map((scene) => {
+        const sceneNum = scene.sceneNumber || 1;
+        return {
+          ...scene,
+          audio: {
+            ...scene.audio,
+            file: `scene${sceneNum}.mp3`,
+            duration: scene.duration || 8,
+          },
+        };
+      });
+
+      // Build the script object for Remotion
+      const remotionScript = {
+        title: scriptData.title || video.title,
+        description: scriptData.description || '',
+        scenes: scenesWithAudio,
+      };
+
+      // Job config
+      const jobConfig = {
+        resolution: '1920x1080',
+        aspectRatio: '16:9',
+        type: video.style || 'educational',
+      };
+
+      // Prepare assets for Remotion
+      SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_PROGRESS, {
+        videoId: video._id,
+        status: VIDEO_STATUS.RENDERING_VIDEO,
+        progress: 10,
+        message: 'Preparing assets...',
+      });
+
+      await RemotionService.prepareAssets(jobId, remotionScript, jobConfig);
+
+      // Update progress
+      video.renderProgress = 20;
+      await video.save();
+
+      SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_PROGRESS, {
+        videoId: video._id,
+        status: VIDEO_STATUS.RENDERING_VIDEO,
+        progress: 20,
+        message: 'Assets ready, starting Remotion render...',
+      });
+
+      // Try Remotion render - throw error if it fails
+      const renderResult = await RemotionService.renderVideo(jobId);
+      const renderUrl = `/public/${jobId}/render/video.mp4`;
+      LoggerService.info('Course video rendered via Remotion', { videoId, renderUrl });
+
+      // Set the render URL
+      video.renderUrl = renderUrl;
       video.status = VIDEO_STATUS.COMPLETED;
       video.renderedAt = new Date();
       video.renderProgress = 100;
@@ -448,15 +503,16 @@ Return ONLY valid JSON, no markdown formatting.`;
       // Update course status
       await CourseService.recalculateStatus(video.courseId);
 
-      LoggerService.info('Course video rendered', {
+      LoggerService.info('Course video render completed', {
         videoId,
         courseId: video.courseId,
+        renderUrl,
       });
 
       SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_RENDER_READY, {
         videoId: video._id,
         status: VIDEO_STATUS.COMPLETED,
-        renderUrl: video.renderUrl,
+        renderUrl,
         message: 'Video completed!',
       });
 
