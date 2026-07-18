@@ -1,0 +1,11 @@
+{
+  "title": "Definition Glossary",
+  "description": "Term definition display with highlighted terms and descriptions.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Glossary title",
+      "Term items with term and definition"
+    ]
+  }
+}

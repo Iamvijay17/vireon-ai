@@ -1,0 +1,8 @@
+{
+  "title": "Educational Card",
+  "description": "Clean educational layout with title, subtitle, and optional image. Perfect for introducing concepts or lessons.",
+  "scene_meta": {
+    "sceneType": "intro",
+    "content": ["Main title text", "Supporting subtitle text", "Optional image URL"]
+  }
+}

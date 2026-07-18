@@ -1,0 +1,11 @@
+{
+  "title": "Skills Chips",
+  "description": "Interactive skill chips with staggered reveal animation.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Skills title",
+      "Skill chip items with icon and text"
+    ]
+  }
+}

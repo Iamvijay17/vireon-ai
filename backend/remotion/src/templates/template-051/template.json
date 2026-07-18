@@ -1,0 +1,12 @@
+{
+  "title": "Fitness",
+  "description": "Energetic fitness-focused layout with workout stats and motivational elements.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Fitness title",
+      "Workout details",
+      "Stat values"
+    ]
+  }
+}

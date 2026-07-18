@@ -1,0 +1,13 @@
+{
+  "title": "Parallax Hero",
+  "description": "Full-bleed parallax image with overlaid title, subtitle, and call-to-action.",
+  "scene_meta": {
+    "sceneType": "hero",
+    "content": [
+      "Hero title",
+      "Hero subtitle",
+      "Call-to-action text",
+      "Background image URL"
+    ]
+  }
+}

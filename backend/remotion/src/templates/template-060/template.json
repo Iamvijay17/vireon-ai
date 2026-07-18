@@ -1,0 +1,13 @@
+{
+  "title": "Comedy",
+  "description": "Fun and entertaining layout with playful animations and emoji reactions.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Comedy title",
+      "Joke or punchline",
+      "Emoji reaction",
+      "Caption text"
+    ]
+  }
+}

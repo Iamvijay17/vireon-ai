@@ -1,0 +1,11 @@
+{
+  "title": "Step Guide",
+  "description": "Numbered guide layout with step circles and connecting lines.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Guide title",
+      "Step items with titles and descriptions"
+    ]
+  }
+}

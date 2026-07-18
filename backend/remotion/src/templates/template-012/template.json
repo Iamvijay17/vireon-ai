@@ -1,0 +1,12 @@
+{
+  "title": "Countdown",
+  "description": "Large countdown timer with time blocks and optional message. Perfect for event countdowns.",
+  "scene_meta": {
+    "sceneType": "countdown",
+    "content": [
+      "Countdown title",
+      "Time values for days, hours, minutes, seconds",
+      "Message text"
+    ]
+  }
+}

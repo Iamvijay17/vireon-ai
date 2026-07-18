@@ -1,0 +1,13 @@
+{
+  "title": "Expert Quote",
+  "description": "Expert citation display with quote badge and author highlight.",
+  "scene_meta": {
+    "sceneType": "quote",
+    "content": [
+      "Quote text",
+      "Expert name",
+      "Expert title",
+      "Expert image URL"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "title": "Curtain Reveal",
+  "description": "Animated curtain-style image reveal with vertical divider.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Reveal title",
+      "Image URL",
+      "Subtitle text"
+    ]
+  }
+}

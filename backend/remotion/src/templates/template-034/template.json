@@ -1,0 +1,11 @@
+{
+  "title": "Learning Paths",
+  "description": "Educational path flow visualization with connected steps.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Path title",
+      "Step items with numbers and descriptions"
+    ]
+  }
+}

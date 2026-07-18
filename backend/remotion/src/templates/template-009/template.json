@@ -1,0 +1,11 @@
+{
+  "title": "Bullet List",
+  "description": "Animated bullet-point list with emoji icons. Clean presentation of key points or features.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "List title",
+      "Bullet point items with icons"
+    ]
+  }
+}

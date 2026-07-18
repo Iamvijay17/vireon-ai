@@ -1,0 +1,11 @@
+{
+  "title": "Pill Tags",
+  "description": "Floating pill/tag bubbles with staggered entrance animation. Great for keywords or features.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Section title",
+      "Tag items with optional icons"
+    ]
+  }
+}

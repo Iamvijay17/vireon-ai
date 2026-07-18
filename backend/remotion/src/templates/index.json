@@ -1,0 +1,542 @@
+[
+  {
+    "templateId": "template-001",
+    "title": "Educational Card",
+    "description": "Clean educational layout with title, subtitle, and optional image. Perfect for introducing concepts or lessons.",
+    "scene_meta": {
+      "sceneType": "intro",
+      "content": ["Main title text", "Supporting subtitle text", "Optional image URL"]
+    }
+  },
+  {
+    "templateId": "template-002",
+    "title": "Question & Answer",
+    "description": "Interactive Q&A format with question card sliding in followed by answer card. Great for educational dialogues.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Question text", "Answer text", "Question icon emoji", "Answer icon emoji"]
+    }
+  },
+  {
+    "templateId": "template-003",
+    "title": "Image Focus",
+    "description": "Full-screen image with zoom and blur reveal effect, featuring a caption at the bottom.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Image URL", "Caption text", "Label text"]
+    }
+  },
+  {
+    "templateId": "template-004",
+    "title": "Timeline",
+    "description": "Vertical timeline with alternating left and right cards showing chronological events or milestones.",
+    "scene_meta": {
+      "sceneType": "timeline",
+      "content": ["Timeline title", "Event dates and descriptions"]
+    }
+  },
+  {
+    "templateId": "template-005",
+    "title": "Comparison",
+    "description": "Side-by-side comparison layout with two cards separated by a VS badge. Ideal for product comparisons.",
+    "scene_meta": {
+      "sceneType": "comparison",
+      "content": ["Comparison header", "Left card title and body", "Right card title and body"]
+    }
+  },
+  {
+    "templateId": "template-006",
+    "title": "Quote Testimonial",
+    "description": "Elegant quote display with large quotation marks and author badge at the bottom.",
+    "scene_meta": {
+      "sceneType": "quote",
+      "content": ["Quote text", "Author name", "Author title", "Author image URL"]
+    }
+  },
+  {
+    "templateId": "template-007",
+    "title": "Stats Dashboard",
+    "description": "Grid-based statistics display with large numbers and labels. Perfect for showcasing metrics.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Stats title", "Stat values and labels with icons"]
+    }
+  },
+  {
+    "templateId": "template-008",
+    "title": "Pill Tags",
+    "description": "Floating pill/tag bubbles with staggered entrance animation. Great for keywords or features.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Section title", "Tag items with optional icons"]
+    }
+  },
+  {
+    "templateId": "template-009",
+    "title": "Bullet List",
+    "description": "Animated bullet-point list with emoji icons. Clean presentation of key points or features.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["List title", "Bullet point items with icons"]
+    }
+  },
+  {
+    "templateId": "template-010",
+    "title": "Split Hero",
+    "description": "Split-screen hero layout with diagonal overlay and stats panel. Bold and impactful.",
+    "scene_meta": {
+      "sceneType": "intro",
+      "content": ["Hero title", "Hero subtitle", "Stat values and labels"]
+    }
+  },
+  {
+    "templateId": "template-011",
+    "title": "Team Profiles",
+    "description": "Horizontal profile cards showcasing team members with avatars, names, roles, and bios.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Team section title", "Member profiles with name, role, bio, avatar"]
+    }
+  },
+  {
+    "templateId": "template-012",
+    "title": "Countdown",
+    "description": "Large countdown timer with time blocks and optional message. Perfect for event countdowns.",
+    "scene_meta": {
+      "sceneType": "countdown",
+      "content": ["Countdown title", "Time values for days, hours, minutes, seconds", "Message text"]
+    }
+  },
+  {
+    "templateId": "template-013",
+    "title": "Steps How-To",
+    "description": "Numbered step-by-step guide with emoji header. Clear instructional content layout.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Steps title", "Step items with titles and descriptions"]
+    }
+  },
+  {
+    "templateId": "template-014",
+    "title": "Bar Chart",
+    "description": "Data visualization with animated bar chart and labels. Ideal for presenting metrics.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Chart title", "Bar data items with labels and values"]
+    }
+  },
+  {
+    "templateId": "template-015",
+    "title": "Feature Grid",
+    "description": "Two-column grid of feature cards with icons, titles, and descriptions.",
+    "scene_meta": {
+      "sceneType": "feature_list",
+      "content": ["Features title", "Feature items with icon, title, description"]
+    }
+  },
+  {
+    "templateId": "template-016",
+    "title": "Image Collage Grid",
+    "description": "Four-image grid layout with staggered zoom-in animations. Great for photo galleries.",
+    "scene_meta": {
+      "sceneType": "image",
+      "content": ["Four image URLs", "Caption text", "Subtitle text"]
+    }
+  },
+  {
+    "templateId": "template-017",
+    "title": "Story Image Text",
+    "description": "Split layout with left image panel and right text panel with badge.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Story title", "Story body text", "Image URL", "Badge/label text"]
+    }
+  },
+  {
+    "templateId": "template-018",
+    "title": "Masonry Wall",
+    "description": "Pinterest-style masonry layout with staggered image reveals.",
+    "scene_meta": {
+      "sceneType": "image",
+      "content": ["Multiple image URLs", "Caption text overlay"]
+    }
+  },
+  {
+    "templateId": "template-019",
+    "title": "Parallax Hero",
+    "description": "Full-bleed parallax image with overlaid title, subtitle, and call-to-action.",
+    "scene_meta": {
+      "sceneType": "hero",
+      "content": ["Hero title", "Hero subtitle", "Call-to-action text", "Background image URL"]
+    }
+  },
+  {
+    "templateId": "template-020",
+    "title": "Image Card Story",
+    "description": "Vertical card layout with top image and bottom text panel with label divider.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Story title", "Story body text", "Image URL", "Label text"]
+    }
+  },
+  {
+    "templateId": "template-021",
+    "title": "Vignette Story",
+    "description": "Cinematic vignette-style story presentation with dark borders and centered content.",
+    "scene_meta": {
+      "sceneType": "story",
+      "content": ["Story paragraphs array"]
+    }
+  },
+  {
+    "templateId": "template-022",
+    "title": "Polaroid Collage",
+    "description": "Polaroid-style photo collage with tilted images and bottom captions.",
+    "scene_meta": {
+      "sceneType": "image",
+      "content": ["Multiple image captions", "Image URLs"]
+    }
+  },
+  {
+    "templateId": "template-023",
+    "title": "Story Cards",
+    "description": "Horizontal carousel-style cards with images and content.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Carousel title", "Card items with image, title, description"]
+    }
+  },
+  {
+    "templateId": "template-024",
+    "title": "Split Reveal",
+    "description": "Top/bottom image split with center divider and text overlay.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Split title", "Top image URL", "Bottom image URL", "Label text"]
+    }
+  },
+  {
+    "templateId": "template-025",
+    "title": "Curtain Reveal",
+    "description": "Animated curtain-style image reveal with vertical divider.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Reveal title", "Image URL", "Subtitle text"]
+    }
+  },
+  {
+    "templateId": "template-026",
+    "title": "Definition Glossary",
+    "description": "Term definition display with highlighted terms and descriptions.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Glossary title", "Term items with term and definition"]
+    }
+  },
+  {
+    "templateId": "template-027",
+    "title": "Checklist Points",
+    "description": "Interactive checklist-style content with animated checkmarks.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Checklist title", "Checklist items with text"]
+    }
+  },
+  {
+    "templateId": "template-028",
+    "title": "Comparison Table",
+    "description": "Side-by-side comparison with header and feature rows.",
+    "scene_meta": {
+      "sceneType": "comparison",
+      "content": ["Table title", "Comparison items with left and right content"]
+    }
+  },
+  {
+    "templateId": "template-029",
+    "title": "Did You Know",
+    "description": "Fact or insight display with lightbulb icon and bold text.",
+    "scene_meta": {
+      "sceneType": "fact",
+      "content": ["Fact title", "Fact body text"]
+    }
+  },
+  {
+    "templateId": "template-030",
+    "title": "Report Summary",
+    "description": "Professional summary layout with badge, title, body, and stats row.",
+    "scene_meta": {
+      "sceneType": "outro",
+      "content": ["Report badge", "Summary title", "Summary body text", "Stat values and labels"]
+    }
+  },
+  {
+    "templateId": "template-031",
+    "title": "Expert Quote",
+    "description": "Expert citation display with quote badge and author highlight.",
+    "scene_meta": {
+      "sceneType": "quote",
+      "content": ["Quote text", "Expert name", "Expert title", "Expert image URL"]
+    }
+  },
+  {
+    "templateId": "template-032",
+    "title": "Step Guide",
+    "description": "Numbered guide layout with step circles and connecting lines.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Guide title", "Step items with titles and descriptions"]
+    }
+  },
+  {
+    "templateId": "template-033",
+    "title": "Benefits Row",
+    "description": "Horizontal row of benefit highlights with emoji icons.",
+    "scene_meta": {
+      "sceneType": "feature_list",
+      "content": ["Benefits title", "Benefit items with icon and text"]
+    }
+  },
+  {
+    "templateId": "template-034",
+    "title": "Learning Paths",
+    "description": "Educational path flow visualization with connected steps.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Path title", "Step items with numbers and descriptions"]
+    }
+  },
+  {
+    "templateId": "template-035",
+    "title": "Tech Tags",
+    "description": "Technology skill tags with icons in a clean layout.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Tags title", "Tag items with icon and text"]
+    }
+  },
+  {
+    "templateId": "template-036",
+    "title": "Case Study",
+    "description": "Professional case study layout with challenge, solution, and results sections.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Case study title", "Challenge text", "Solution text", "Result text"]
+    }
+  },
+  {
+    "templateId": "template-037",
+    "title": "Milestones",
+    "description": "Milestone progress visualization with vertical timeline and achievement markers.",
+    "scene_meta": {
+      "sceneType": "timeline",
+      "content": ["Milestones title", "Milestone items with dates and descriptions"]
+    }
+  },
+  {
+    "templateId": "template-038",
+    "title": "Metrics Grid",
+    "description": "Business metrics grid with large stat values and trend indicators.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Metrics title", "Metric items with value, label, and trend"]
+    }
+  },
+  {
+    "templateId": "template-039",
+    "title": "Profile Spotlight",
+    "description": "Speaker or person spotlight with avatar and detailed information.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Speaker name", "Speaker role", "Speaker bio", "Avatar URL"]
+    }
+  },
+  {
+    "templateId": "template-040",
+    "title": "Skills Chips",
+    "description": "Interactive skill chips with staggered reveal animation.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Skills title", "Skill chip items with icon and text"]
+    }
+  },
+  {
+    "templateId": "template-041",
+    "title": "Modern Minimal",
+    "description": "Clean, minimalist design with gradient background and elegant typography.",
+    "scene_meta": {
+      "sceneType": "outro",
+      "content": ["Minimal title", "Subtitle text", "Caption text"]
+    }
+  },
+  {
+    "templateId": "template-042",
+    "title": "Podcast",
+    "description": "Dedicated podcast layout with dual host avatars and conversation elements.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Podcast title", "Host avatars and names", "Episode info"]
+    }
+  },
+  {
+    "templateId": "template-043",
+    "title": "News",
+    "description": "News-style layout with headline, byline, and article-style content.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["News headline", "Subheading text", "News body paragraphs"]
+    }
+  },
+  {
+    "templateId": "template-044",
+    "title": "Social Media",
+    "description": "Social media optimized layout with vertical video format and captions.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Social title", "Body text", "Caption text"]
+    }
+  },
+  {
+    "templateId": "template-045",
+    "title": "Cinematic",
+    "description": "Cinematic layout with film-style overlays and text positioning.",
+    "scene_meta": {
+      "sceneType": "image",
+      "content": ["Background image URL", "Title text", "Body text"]
+    }
+  },
+  {
+    "templateId": "template-046",
+    "title": "Tech Review",
+    "description": "Tech-focused review layout with device mockup and specification chips.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Review title", "Subtitle text", "Device image URL", "Spec chips array"]
+    }
+  },
+  {
+    "templateId": "template-047",
+    "title": "Motivational",
+    "description": "Inspirational layout with bold message and call to action.",
+    "scene_meta": {
+      "sceneType": "call_to_action",
+      "content": ["Motivational title", "Inspirational body text"]
+    }
+  },
+  {
+    "templateId": "template-048",
+    "title": "Interview",
+    "description": "Interview-style split screen with question and answer sections.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Interviewer question", "Guest answer", "Interviewee names or avatars"]
+    }
+  },
+  {
+    "templateId": "template-049",
+    "title": "Tutorial",
+    "description": "Step-by-step tutorial layout with numbered instructions and tips.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Tutorial title", "Tutorial steps array"]
+    }
+  },
+  {
+    "templateId": "template-050",
+    "title": "Gaming",
+    "description": "Vibrant gaming aesthetic with neon effects, scanlines, and energetic animations.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Game title", "Subtitle text", "Emoji or image", "Caption text"]
+    }
+  },
+  {
+    "templateId": "template-051",
+    "title": "Fitness",
+    "description": "Energetic fitness-focused layout with workout stats and motivational elements.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Fitness title", "Workout details", "Stat values"]
+    }
+  },
+  {
+    "templateId": "template-052",
+    "title": "Cooking",
+    "description": "How-to cooking layout with recipe steps and ingredient highlights.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Recipe title", "Cooking instructions", "Ingredient list"]
+    }
+  },
+  {
+    "templateId": "template-053",
+    "title": "Travel",
+    "description": "Travel-variety content layout with destination highlights and tips.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Destination title", "Travel tips or highlights", "Location info"]
+    }
+  },
+  {
+    "templateId": "template-054",
+    "title": "Educational",
+    "description": "Dedicated educational layout with learning-focused content presentation.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Lesson title", "Learning content", "Key points array"]
+    }
+  },
+  {
+    "templateId": "template-055",
+    "title": "Corporate",
+    "description": "Professional corporate layout for business presentations and reports.",
+    "scene_meta": {
+      "sceneType": "outro",
+      "content": ["Corporate title", "Company message", "Contact or summary"]
+    }
+  },
+  {
+    "templateId": "template-056",
+    "title": "Music",
+    "description": "Audio-focused music layout with audio visualization elements.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Track title", "Artist name", "Album or genre info"]
+    }
+  },
+  {
+    "templateId": "template-057",
+    "title": "Science",
+    "description": "Scientific layout with formula display and research-focused content.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Science title", "Research summary", "Formula or data text"]
+    }
+  },
+  {
+    "templateId": "template-058",
+    "title": "Storytelling",
+    "description": "Narrative-focused layout optimized for storytelling sequences.",
+    "scene_meta": {
+      "sceneType": "story",
+      "content": ["Story title", "Narrative paragraphs", "Character names"]
+    }
+  },
+  {
+    "templateId": "template-059",
+    "title": "Event",
+    "description": "Event highlights layout with date, location, and key moments.",
+    "scene_meta": {
+      "sceneType": "intro",
+      "content": ["Event title", "Date and location", "Highlight moments"]
+    }
+  },
+  {
+    "templateId": "template-060",
+    "title": "Comedy",
+    "description": "Fun and entertaining layout with playful animations and emoji reactions.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Comedy title", "Joke or punchline", "Emoji reaction", "Caption text"]
+    }
+  }
+]

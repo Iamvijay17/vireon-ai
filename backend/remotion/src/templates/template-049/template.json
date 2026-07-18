@@ -1,0 +1,11 @@
+{
+  "title": "Tutorial",
+  "description": "Step-by-step tutorial layout with numbered instructions and tips.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Tutorial title",
+      "Tutorial steps array"
+    ]
+  }
+}

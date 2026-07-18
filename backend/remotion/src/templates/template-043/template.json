@@ -1,0 +1,12 @@
+{
+  "title": "News",
+  "description": "News-style layout with headline, byline, and article-style content.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "News headline",
+      "Subheading text",
+      "News body paragraphs"
+    ]
+  }
+}

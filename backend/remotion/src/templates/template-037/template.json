@@ -1,0 +1,11 @@
+{
+  "title": "Milestones",
+  "description": "Milestone progress visualization with vertical timeline and achievement markers.",
+  "scene_meta": {
+    "sceneType": "timeline",
+    "content": [
+      "Milestones title",
+      "Milestone items with dates and descriptions"
+    ]
+  }
+}

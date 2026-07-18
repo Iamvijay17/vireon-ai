@@ -1,0 +1,13 @@
+{
+  "title": "Profile Spotlight",
+  "description": "Speaker or person spotlight with avatar and detailed information.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Speaker name",
+      "Speaker role",
+      "Speaker bio",
+      "Avatar URL"
+    ]
+  }
+}

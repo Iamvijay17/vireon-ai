@@ -12,6 +12,8 @@
  * - "end": Closing/summary/end cards
  */
 
+import TemplateMetadata from './index.json';
+
 export const SceneTypeCategories = {
   /**
    * Title scenes: Opening/intro scenes with titles, headlines, or hooks
@@ -335,6 +337,28 @@ export const getAllSceneTypeHints = () => {
       return `Scene Type "${sceneType}" (${descriptions[sceneType]}):\n      ${templateList}`;
     })
     .join('\n\n');
+};
+
+/**
+ * Template metadata accessor.
+ * Loads template information from the index.json file.
+ */
+
+/**
+ * Get template metadata by template ID.
+ * @param {string} templateId - The template ID (e.g., "template-001")
+ * @returns {object|null} Template metadata or null if not found
+ */
+export const getTemplateMetadata = (templateId) => {
+  return TemplateMetadata.find(t => t.templateId === templateId) || null;
+};
+
+/**
+ * Get all template metadata.
+ * @returns {object[]} Array of all template metadata
+ */
+export const getAllTemplateMetadata = () => {
+  return TemplateMetadata;
 };
 
 export default SceneTypeCategories;

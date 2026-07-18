@@ -1,0 +1,13 @@
+{
+  "title": "Story Image Text",
+  "description": "Split layout with left image panel and right text panel with badge.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Story title",
+      "Story body text",
+      "Image URL",
+      "Badge/label text"
+    ]
+  }
+}

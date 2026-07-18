@@ -1,0 +1,12 @@
+{
+  "title": "Comparison",
+  "description": "Side-by-side comparison layout with two cards separated by a VS badge. Ideal for product comparisons.",
+  "scene_meta": {
+    "sceneType": "comparison",
+    "content": [
+      "Comparison header",
+      "Left card title and body",
+      "Right card title and body"
+    ]
+  }
+}

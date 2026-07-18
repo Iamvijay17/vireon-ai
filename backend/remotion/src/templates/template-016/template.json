@@ -1,0 +1,12 @@
+{
+  "title": "Image Collage Grid",
+  "description": "Four-image grid layout with staggered zoom-in animations. Great for photo galleries.",
+  "scene_meta": {
+    "sceneType": "image",
+    "content": [
+      "Four image URLs",
+      "Caption text",
+      "Subtitle text"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "title": "Music",
+  "description": "Audio-focused music layout with audio visualization elements.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Track title",
+      "Artist name",
+      "Album or genre info"
+    ]
+  }
+}

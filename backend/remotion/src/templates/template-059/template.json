@@ -1,0 +1,12 @@
+{
+  "title": "Event",
+  "description": "Event highlights layout with date, location, and key moments.",
+  "scene_meta": {
+    "sceneType": "intro",
+    "content": [
+      "Event title",
+      "Date and location",
+      "Highlight moments"
+    ]
+  }
+}

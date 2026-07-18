@@ -1,0 +1,11 @@
+{
+  "title": "Steps How-To",
+  "description": "Numbered step-by-step guide with emoji header. Clear instructional content layout.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Steps title",
+      "Step items with titles and descriptions"
+    ]
+  }
+}

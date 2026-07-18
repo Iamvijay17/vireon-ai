@@ -1,0 +1,12 @@
+{
+  "title": "Cooking",
+  "description": "How-to cooking layout with recipe steps and ingredient highlights.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Recipe title",
+      "Cooking instructions",
+      "Ingredient list"
+    ]
+  }
+}

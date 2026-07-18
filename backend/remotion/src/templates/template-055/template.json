@@ -1,0 +1,12 @@
+{
+  "title": "Corporate",
+  "description": "Professional corporate layout for business presentations and reports.",
+  "scene_meta": {
+    "sceneType": "outro",
+    "content": [
+      "Corporate title",
+      "Company message",
+      "Contact or summary"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "title": "Gaming",
+  "description": "Vibrant gaming aesthetic with neon effects, scanlines, and energetic animations.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Game title",
+      "Subtitle text",
+      "Emoji or image",
+      "Caption text"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Masonry Wall",
+  "description": "Pinterest-style masonry layout with staggered image reveals.",
+  "scene_meta": {
+    "sceneType": "image",
+    "content": [
+      "Multiple image URLs",
+      "Caption text overlay"
+    ]
+  }
+}

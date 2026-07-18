@@ -1,0 +1,12 @@
+{
+  "title": "Podcast",
+  "description": "Dedicated podcast layout with dual host avatars and conversation elements.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Podcast title",
+      "Host avatars and names",
+      "Episode info"
+    ]
+  }
+}

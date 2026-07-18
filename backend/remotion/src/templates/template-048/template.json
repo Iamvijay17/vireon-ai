@@ -1,0 +1,12 @@
+{
+  "title": "Interview",
+  "description": "Interview-style split screen with question and answer sections.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Interviewer question",
+      "Guest answer",
+      "Interviewee names or avatars"
+    ]
+  }
+}

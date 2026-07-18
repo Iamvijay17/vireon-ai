@@ -1,0 +1,12 @@
+{
+  "title": "Social Media",
+  "description": "Social media optimized layout with vertical video format and captions.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Social title",
+      "Body text",
+      "Caption text"
+    ]
+  }
+}

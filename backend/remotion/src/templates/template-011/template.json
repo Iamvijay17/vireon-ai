@@ -1,0 +1,11 @@
+{
+  "title": "Team Profiles",
+  "description": "Horizontal profile cards showcasing team members with avatars, names, roles, and bios.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Team section title",
+      "Member profiles with name, role, bio, avatar"
+    ]
+  }
+}

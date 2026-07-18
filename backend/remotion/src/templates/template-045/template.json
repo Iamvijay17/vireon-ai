@@ -1,0 +1,12 @@
+{
+  "title": "Cinematic",
+  "description": "Cinematic layout with film-style overlays and text positioning.",
+  "scene_meta": {
+    "sceneType": "image",
+    "content": [
+      "Background image URL",
+      "Title text",
+      "Body text"
+    ]
+  }
+}

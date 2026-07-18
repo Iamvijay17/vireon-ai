@@ -1,0 +1,10 @@
+{
+  "title": "Vignette Story",
+  "description": "Cinematic vignette-style story presentation with dark borders and centered content.",
+  "scene_meta": {
+    "sceneType": "story",
+    "content": [
+      "Story paragraphs array"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "title": "Educational",
+  "description": "Dedicated educational layout with learning-focused content presentation.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Lesson title",
+      "Learning content",
+      "Key points array"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "title": "Tech Review",
+  "description": "Tech-focused review layout with device mockup and specification chips.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Review title",
+      "Subtitle text",
+      "Device image URL",
+      "Spec chips array"
+    ]
+  }
+}

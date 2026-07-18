@@ -1,0 +1,11 @@
+{
+  "title": "Timeline",
+  "description": "Vertical timeline with alternating left and right cards showing chronological events or milestones.",
+  "scene_meta": {
+    "sceneType": "timeline",
+    "content": [
+      "Timeline title",
+      "Event dates and descriptions"
+    ]
+  }
+}

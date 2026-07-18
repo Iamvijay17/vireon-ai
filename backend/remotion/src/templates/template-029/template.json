@@ -1,0 +1,11 @@
+{
+  "title": "Did You Know",
+  "description": "Fact or insight display with lightbulb icon and bold text.",
+  "scene_meta": {
+    "sceneType": "fact",
+    "content": [
+      "Fact title",
+      "Fact body text"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "title": "Quote Testimonial",
+  "description": "Elegant quote display with large quotation marks and author badge at the bottom.",
+  "scene_meta": {
+    "sceneType": "quote",
+    "content": [
+      "Quote text",
+      "Author name",
+      "Author title",
+      "Author image URL"
+    ]
+  }
+}

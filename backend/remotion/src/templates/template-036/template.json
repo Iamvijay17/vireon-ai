@@ -1,0 +1,13 @@
+{
+  "title": "Case Study",
+  "description": "Professional case study layout with challenge, solution, and results sections.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Case study title",
+      "Challenge text",
+      "Solution text",
+      "Result text"
+    ]
+  }
+}

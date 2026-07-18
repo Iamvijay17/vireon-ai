@@ -1,0 +1,12 @@
+{
+  "title": "Image Focus",
+  "description": "Full-screen image with zoom and blur reveal effect, featuring a caption at the bottom.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Image URL",
+      "Caption text",
+      "Label text"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "title": "Storytelling",
+  "description": "Narrative-focused layout optimized for storytelling sequences.",
+  "scene_meta": {
+    "sceneType": "story",
+    "content": [
+      "Story title",
+      "Narrative paragraphs",
+      "Character names"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Comparison Table",
+  "description": "Side-by-side comparison with header and feature rows.",
+  "scene_meta": {
+    "sceneType": "comparison",
+    "content": [
+      "Table title",
+      "Comparison items with left and right content"
+    ]
+  }
+}

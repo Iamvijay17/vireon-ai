@@ -1,0 +1,11 @@
+{
+  "title": "Motivational",
+  "description": "Inspirational layout with bold message and call to action.",
+  "scene_meta": {
+    "sceneType": "call_to_action",
+    "content": [
+      "Motivational title",
+      "Inspirational body text"
+    ]
+  }
+}

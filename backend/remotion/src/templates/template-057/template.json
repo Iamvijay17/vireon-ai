@@ -1,0 +1,12 @@
+{
+  "title": "Science",
+  "description": "Scientific layout with formula display and research-focused content.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Science title",
+      "Research summary",
+      "Formula or data text"
+    ]
+  }
+}

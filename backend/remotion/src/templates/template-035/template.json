@@ -1,0 +1,11 @@
+{
+  "title": "Tech Tags",
+  "description": "Technology skill tags with icons in a clean layout.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Tags title",
+      "Tag items with icon and text"
+    ]
+  }
+}

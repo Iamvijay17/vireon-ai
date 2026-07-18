@@ -1,0 +1,13 @@
+{
+  "title": "Image Card Story",
+  "description": "Vertical card layout with top image and bottom text panel with label divider.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Story title",
+      "Story body text",
+      "Image URL",
+      "Label text"
+    ]
+  }
+}

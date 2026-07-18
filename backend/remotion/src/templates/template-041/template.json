@@ -1,0 +1,12 @@
+{
+  "title": "Modern Minimal",
+  "description": "Clean, minimalist design with gradient background and elegant typography.",
+  "scene_meta": {
+    "sceneType": "outro",
+    "content": [
+      "Minimal title",
+      "Subtitle text",
+      "Caption text"
+    ]
+  }
+}

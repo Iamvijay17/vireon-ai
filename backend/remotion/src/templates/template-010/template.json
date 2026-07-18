@@ -1,0 +1,12 @@
+{
+  "title": "Split Hero",
+  "description": "Split-screen hero layout with diagonal overlay and stats panel. Bold and impactful.",
+  "scene_meta": {
+    "sceneType": "intro",
+    "content": [
+      "Hero title",
+      "Hero subtitle",
+      "Stat values and labels"
+    ]
+  }
+}

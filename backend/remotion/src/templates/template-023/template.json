@@ -1,0 +1,11 @@
+{
+  "title": "Story Cards",
+  "description": "Horizontal carousel-style cards with images and content.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Carousel title",
+      "Card items with image, title, description"
+    ]
+  }
+}

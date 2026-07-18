@@ -1,0 +1,13 @@
+{
+  "title": "Split Reveal",
+  "description": "Top/bottom image split with center divider and text overlay.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Split title",
+      "Top image URL",
+      "Bottom image URL",
+      "Label text"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Polaroid Collage",
+  "description": "Polaroid-style photo collage with tilted images and bottom captions.",
+  "scene_meta": {
+    "sceneType": "image",
+    "content": [
+      "Multiple image captions",
+      "Image URLs"
+    ]
+  }
+}

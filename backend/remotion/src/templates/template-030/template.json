@@ -1,0 +1,13 @@
+{
+  "title": "Report Summary",
+  "description": "Professional summary layout with badge, title, body, and stats row.",
+  "scene_meta": {
+    "sceneType": "outro",
+    "content": [
+      "Report badge",
+      "Summary title",
+      "Summary body text",
+      "Stat values and labels"
+    ]
+  }
+}

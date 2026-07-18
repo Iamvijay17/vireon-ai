@@ -1,0 +1,11 @@
+{
+  "title": "Bar Chart",
+  "description": "Data visualization with animated bar chart and labels. Ideal for presenting metrics.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Chart title",
+      "Bar data items with labels and values"
+    ]
+  }
+}

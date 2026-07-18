@@ -1,0 +1,11 @@
+{
+  "title": "Checklist Points",
+  "description": "Interactive checklist-style content with animated checkmarks.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Checklist title",
+      "Checklist items with text"
+    ]
+  }
+}

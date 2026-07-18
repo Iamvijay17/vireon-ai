@@ -1,0 +1,11 @@
+{
+  "title": "Feature Grid",
+  "description": "Two-column grid of feature cards with icons, titles, and descriptions.",
+  "scene_meta": {
+    "sceneType": "feature_list",
+    "content": [
+      "Features title",
+      "Feature items with icon, title, description"
+    ]
+  }
+}

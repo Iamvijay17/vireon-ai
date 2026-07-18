@@ -1,0 +1,11 @@
+{
+  "title": "Metrics Grid",
+  "description": "Business metrics grid with large stat values and trend indicators.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Metrics title",
+      "Metric items with value, label, and trend"
+    ]
+  }
+}

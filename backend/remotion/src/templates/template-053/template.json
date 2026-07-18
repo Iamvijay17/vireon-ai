@@ -1,0 +1,12 @@
+{
+  "title": "Travel",
+  "description": "Travel-variety content layout with destination highlights and tips.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Destination title",
+      "Travel tips or highlights",
+      "Location info"
+    ]
+  }
+}

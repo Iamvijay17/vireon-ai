@@ -1,0 +1,11 @@
+{
+  "title": "Stats Dashboard",
+  "description": "Grid-based statistics display with large numbers and labels. Perfect for showcasing metrics.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Stats title",
+      "Stat values and labels with icons"
+    ]
+  }
+}
