@@ -97,9 +97,7 @@ const worker = new Worker(
         const prompt = PromptService.render(videoJob.type, {
           topic: videoJob.topic,
           language: videoJob.language,
-          duration: totalDuration.toString(),
           sceneCount: sceneCount,
-          sceneDuration: "8",
         });
 
         // ── Step 3: Call LM Studio

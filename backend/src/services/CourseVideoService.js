@@ -152,6 +152,10 @@ class CourseVideoService {
       video.script = JSON.stringify(scriptData, null, 2);
       video.status = VIDEO_STATUS.SCRIPT_GENERATED;
       video.scriptGeneratedAt = new Date();
+
+      // Save script to disk for Remotion pipeline
+      const ScriptParserService = require('./ScriptParserService');
+      await ScriptParserService.saveScript(video._id.toString(), scriptData);
       await video.save();
 
       LoggerService.info('Course video script generated', {
@@ -161,8 +165,8 @@ class CourseVideoService {
         scriptLength: video.script.length,
       });
 
-       // Emit socket event
-       SocketService.emitCourseVideoScriptReady(video, 'Script generated successfully. Please review and approve.');
+      // Emit socket event
+      SocketService.emitCourseVideoScriptReady(video, 'Script generated successfully. Please review and approve.');
 
       return video;
     } catch (err) {
@@ -202,7 +206,6 @@ Return ONLY valid JSON with this structure:
       "sceneType": "intro|content|summary",
       "title": "Scene title",
       "subtitle": "Supporting text",
-      "duration": 10,
       "backgroundColor": "#1a1a2e",
       "transition": "fade",
       "cameraMotion": "static",
@@ -343,13 +346,35 @@ Rules:
           audio: {
             text: s.audio?.text || s.title || '',
           },
-          duration: s.duration || 8,
         };
       });
 
       // Generate audio for all scenes - use videoId as job directory
       const jobId = video._id.toString();
       const audioResults = await AudioService.generateAllAudio(jobId, audioScenes, video.voice);
+
+      // Update each scene with actual audio duration
+      for (const result of audioResults) {
+        // Extract scene number from the result - either from sceneNumber property or from filename
+        const sceneNum = result.sceneNumber || (typeof result.file === 'string' ? parseInt(result.file.match(/\d+/)?.[0], 10) : null);
+        const scene = scriptData.scenes.find(s => s.sceneNumber === sceneNum);
+        if (scene && result.duration) {
+          scene.audio = {
+            ...scene.audio,
+            file: result.file,
+            duration: result.duration,
+          };
+          // Update scene duration to match actual audio duration
+          scene.duration = result.duration;
+        }
+      }
+
+      // Save updated script with audio durations back to database and disk
+      video.script = JSON.stringify(scriptData, null, 2);
+      
+      // Also save updated script to disk for Remotion pipeline
+      const ScriptParserService = require('./ScriptParserService');
+      await ScriptParserService.saveScript(video._id.toString(), scriptData);
 
       // Store audio URL (first scene's audio for preview, or full path)
       if (audioResults.length > 0) {
@@ -417,27 +442,40 @@ Rules:
         throw new Error('No scenes found in script');
       }
 
-      // Map audio files to scenes - use videoId as job directory
-      const jobId = video._id.toString();
-      const scenesWithAudio = scenes.map((scene) => {
-        const sceneNum = scene.sceneNumber || 1;
-        // Determine sceneType if not present (based on position)
-        let sceneType = scene.sceneType;
-        if (!sceneType) {
-          if (sceneNum === 1) sceneType = 'intro';
-          else if (scenes.length > 0 && sceneNum === scenes.length) sceneType = 'summary';
-          else sceneType = 'content';
-        }
-        return {
-          ...scene,
-          sceneType,
-          audio: {
-            ...scene.audio,
-            file: `scene${sceneNum}.mp3`,
-            duration: scene.duration || 8,
-          },
-        };
-      });
+       // Map audio files to scenes - use videoId as job directory
+       const jobId = video._id.toString();
+       const scenesWithAudio = scenes.map((scene) => {
+         const sceneNum = scene.sceneNumber || 1;
+         // Determine sceneType if not present (based on position)
+         let sceneType = scene.sceneType;
+         if (!sceneType) {
+           if (sceneNum === 1) sceneType = 'intro';
+           else if (scenes.length > 0 && sceneNum === scenes.length) sceneType = 'summary';
+           else sceneType = 'content';
+         }
+         // Use audio duration if available (set during generateAudio), otherwise use scene duration
+         const audioDuration = scene.audio?.duration || scene.duration || 8;
+         
+         // Also update the scene duration to match the audio duration for proper rendering
+         return {
+           ...scene,
+           sceneType,
+           duration: audioDuration, // Update scene duration to match audio
+           audio: {
+             ...scene.audio,
+             file: `scene${sceneNum}.mp3`,
+             duration: audioDuration,
+           },
+         };
+       });
+       
+       // Log the scene durations for debugging
+       const totalSceneDuration = scenesWithAudio.reduce((sum, s) => sum + (s.duration || 8), 0);
+       LoggerService.info('Scene durations mapped for video rendering', {
+         videoId,
+         sceneDurations: scenesWithAudio.map(s => ({ sceneNumber: s.sceneNumber, duration: s.duration, audioDuration: s.audio?.duration })),
+         totalDuration: totalSceneDuration,
+       });
 
       // Build the script object for Remotion
       const remotionScript = {

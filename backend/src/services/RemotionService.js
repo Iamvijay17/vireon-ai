@@ -38,40 +38,52 @@ class RemotionService {
       description: script.description,
       resolution: jobConfig.resolution || '1920x1080',
       aspectRatio: jobConfig.aspectRatio || '16:9',
-      scenes: script.scenes.map((scene) => ({
-        sceneNumber: scene.sceneNumber,
-        sceneType: scene.sceneType || 'content',
-        title: scene.title,
-        subtitle: scene.subtitle,
-        duration: scene.duration || 8,
-        backgroundColor: scene.backgroundColor,
-        transition: scene.transition,
-        imagePrompt: scene.imagePrompt,
-        cameraMotion: scene.cameraMotion,
-        animation: scene.animation,
-        // Generated image URL from ComfyUI
-        imageUrl: scene.imageUrl || '',
-        // Template-based rendering fields
-        templateId: scene.templateId || '',
-        elements: scene.elements || null,
-        audio: {
-          // Use HTTP URL served by Express static middleware
-          // e.g. http://localhost:{port}/public/{jobId}/audio/scene{N}.mp3
-          // This avoids the Remotion webpack public dir caching issue where dynamic files are not available.
-          // The Express server serves the jobs directory at /public via express.static
-          file: `http://localhost:${config.port || 3000}/public/${jobId}/audio/scene${scene.sceneNumber}.mp3`,
-          duration: scene.audio?.duration || 0,
-        },
-        fonts: {
-          primary: 'Inter',
-          secondary: 'Roboto',
-        },
-        theme: {
-          type: jobConfig.type || 'educational',
-          textColor: '#ffffff',
-          accentColor: '#6c63ff',
-        },
-      })),
+      scenes: script.scenes.map((scene, index) => {
+        // Determine sceneType based on position if not explicitly provided
+        let sceneType = scene.sceneType;
+        if (!sceneType) {
+          const sceneNum = scene.sceneNumber || (index + 1);
+          if (sceneNum === 1) sceneType = 'intro';
+          else if (script.scenes.length > 0 && sceneNum === script.scenes.length) sceneType = 'summary';
+          else sceneType = 'content';
+        }
+       return {
+           sceneNumber: scene.sceneNumber,
+           sceneType,
+           title: scene.title,
+           subtitle: scene.subtitle,
+           // Use audio duration if available (from audio generation), otherwise use scene duration
+           // This ensures the scene duration matches the actual audio file duration
+           duration: scene.audio?.duration || scene.duration || 8,
+           backgroundColor: scene.backgroundColor,
+           transition: scene.transition,
+           imagePrompt: scene.imagePrompt,
+           cameraMotion: scene.cameraMotion,
+           animation: scene.animation,
+           // Generated image URL from ComfyUI
+           imageUrl: scene.imageUrl || '',
+           // Template-based rendering fields
+           templateId: scene.templateId || '',
+           elements: scene.elements || null,
+           audio: {
+             // Use HTTP URL served by Express static middleware
+             // e.g. http://localhost:{port}/public/{jobId}/audio/scene{N}.mp3
+             // This avoids the Remotion webpack public dir caching issue where dynamic files are not available.
+             // The Express server serves the jobs directory at /public via express.static
+             file: `http://localhost:${config.port || 3000}/public/${jobId}/audio/scene${scene.sceneNumber}.mp3`,
+             duration: scene.audio?.duration || 0,
+           },
+           fonts: {
+             primary: 'Inter',
+             secondary: 'Roboto',
+           },
+           theme: {
+             type: jobConfig.type || 'educational',
+             textColor: '#ffffff',
+             accentColor: '#6c63ff',
+           },
+         };
+       }),
       output: {
         video: `./render/video.mp4`,
         thumbnail: `./render/thumbnail.png`,
@@ -101,23 +113,40 @@ class RemotionService {
 
     await fs.mkdir(renderDir, { recursive: true });
 
-    // Read assets.json for duration calculation
-    const assetsFile = assets || JSON.parse(await fs.readFile(assetsPath, 'utf-8'));
-    const totalDuration = assetsFile.scenes.reduce(
-      (sum, scene) => sum + (scene.duration || 8),
-      0
-    );
+     // Read assets.json for duration calculation
+     const assetsFile = assets || JSON.parse(await fs.readFile(assetsPath, 'utf-8'));
+     
+     // Calculate total duration from scene durations (which should now include audio durations)
+     const totalDuration = assetsFile.scenes.reduce(
+       (sum, scene) => {
+         const sceneDuration = scene.duration || 8;
+         const audioDuration = scene.audio?.duration || 0;
+         LoggerService.debug('Scene duration calculation', {
+           sceneNumber: scene.sceneNumber,
+           sceneDuration,
+           audioDuration,
+         });
+         return sum + sceneDuration;
+       },
+       0
+     );
 
-    let lastError = null;
+     LoggerService.render('Total video duration calculated', {
+       jobId,
+       totalDuration,
+       sceneCount: assetsFile.scenes.length,
+     });
 
-    for (let attempt = 1; attempt <= config.remotion.maxRetries; attempt++) {
-      try {
-        LoggerService.render(`Rendering video (attempt ${attempt}/${config.remotion.maxRetries})`, {
-          jobId,
-          remotionRoot,
-          assetsPath,
-          duration: totalDuration,
-        });
+     let lastError = null;
+
+     for (let attempt = 1; attempt <= config.remotion.maxRetries; attempt++) {
+       try {
+         LoggerService.render(`Rendering video (attempt ${attempt}/${config.remotion.maxRetries})`, {
+           jobId,
+           remotionRoot,
+           assetsPath,
+           totalDuration,
+         });
 
         // Calculate dimensions from resolution
         const [width, height] = (assetsFile.resolution || '1920x1080').split('x').map(Number);

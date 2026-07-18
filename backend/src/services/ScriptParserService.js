@@ -2,7 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
-const { DEFAULT_SCENE_DURATION, VIDEO_TYPES } = require('../constants');
+const { VIDEO_TYPES } = require('../constants');
 
 /**
  * Service for parsing, validating and saving generated scripts.
@@ -11,8 +11,7 @@ const { DEFAULT_SCENE_DURATION, VIDEO_TYPES } = require('../constants');
 class ScriptParserService {
   /**
    * Validate the structure of a generated script.
-   */
-  /**
+   *
    * Valid scene types.
    * Each scene can be one of:
    *   - "title":    Opening title card (text only, no image)
@@ -81,7 +80,7 @@ class ScriptParserService {
         sceneType,
         title: scene.title || '',
         subtitle: scene.subtitle || '',
-        duration: scene.duration || DEFAULT_SCENE_DURATION,
+        duration: scene.duration || 0, // No default duration - will be set after audio generation
         backgroundColor: scene.backgroundColor || '#1a1a2e',
         transition: scene.transition || 'fade',
         imagePrompt,
@@ -93,7 +92,7 @@ class ScriptParserService {
         audio: {
           text: scene.audio?.text || '',
           file: '',
-          duration: 0,
+          duration: 0, // No duration until audio is generated
           voice: scene.audio?.voice || '',
         },
       };
