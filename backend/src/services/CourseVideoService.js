@@ -139,12 +139,7 @@ class CourseVideoService {
     video.status = VIDEO_STATUS.GENERATING_SCRIPT;
     await video.save();
 
-    // Emit progress
-    SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_PROGRESS, {
-      videoId: video._id,
-      status: VIDEO_STATUS.GENERATING_SCRIPT,
-      message: 'Generating script...',
-    });
+    SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_SCRIPT, 10, 'Generating script...');
 
     try {
       // Build prompt for LM Studio
@@ -166,13 +161,8 @@ class CourseVideoService {
         scriptLength: video.script.length,
       });
 
-      // Emit socket event
-      SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_SCRIPT_READY, {
-        videoId: video._id,
-        status: VIDEO_STATUS.SCRIPT_GENERATED,
-        script: video.script,
-        message: 'Script generated successfully. Please review and approve.',
-      });
+       // Emit socket event
+       SocketService.emitCourseVideoScriptReady(video, 'Script generated successfully. Please review and approve.');
 
       return video;
     } catch (err) {
@@ -184,11 +174,7 @@ class CourseVideoService {
       };
       await video.save();
 
-      SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.JOB_FAILED, {
-        videoId: video._id,
-        error: err.message,
-        step: 'Script Generation',
-      });
+      SocketService.emitCourseVideoFailed(video, err.message, 'Script Generation');
 
       throw err;
     }
@@ -314,11 +300,7 @@ Rules:
     video.status = VIDEO_STATUS.GENERATING_AUDIO;
     await video.save();
 
-    SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_PROGRESS, {
-      videoId: video._id,
-      status: VIDEO_STATUS.GENERATING_AUDIO,
-      message: 'Generating audio...',
-    });
+    SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_AUDIO, 40, 'Generating audio...');
 
     try {
       // Parse script to extract scenes
@@ -375,13 +357,7 @@ Rules:
         totalDuration: video.audioDuration,
       });
 
-      SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_AUDIO_READY, {
-        videoId: video._id,
-        status: VIDEO_STATUS.AUDIO_GENERATED,
-        audioUrl: video.audioUrl,
-        audioDuration: video.audioDuration,
-        message: 'Audio generated successfully.',
-      });
+      SocketService.emitCourseVideoAudioReady(video, 'Audio generated successfully.');
 
       return video;
     } catch (err) {
@@ -393,11 +369,7 @@ Rules:
       };
       await video.save();
 
-      SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.JOB_FAILED, {
-        videoId: video._id,
-        error: err.message,
-        step: 'Audio Generation',
-      });
+      SocketService.emitCourseVideoFailed(video, err.message, 'Audio Generation');
 
       throw err;
     }
@@ -418,12 +390,7 @@ Rules:
     video.renderProgress = 0;
     await video.save();
 
-    SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_PROGRESS, {
-      videoId: video._id,
-      status: VIDEO_STATUS.RENDERING_VIDEO,
-      progress: 0,
-      message: 'Preparing assets for rendering...',
-    });
+    SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 60, 'Preparing assets for rendering...');
 
     try {
       // Parse the script to get scene data
@@ -468,25 +435,15 @@ Rules:
       };
 
       // Prepare assets for Remotion
-      SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_PROGRESS, {
-        videoId: video._id,
-        status: VIDEO_STATUS.RENDERING_VIDEO,
-        progress: 10,
-        message: 'Preparing assets...',
-      });
+      SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.PREPARING_ASSETS, 65, 'Preparing assets...');
 
       await RemotionService.prepareAssets(jobId, remotionScript, jobConfig);
 
       // Update progress
-      video.renderProgress = 20;
+      video.renderProgress = 70;
       await video.save();
 
-      SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_PROGRESS, {
-        videoId: video._id,
-        status: VIDEO_STATUS.RENDERING_VIDEO,
-        progress: 20,
-        message: 'Assets ready, starting Remotion render...',
-      });
+      SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 80, 'Rendering video...');
 
       // Try Remotion render - throw error if it fails
       const renderResult = await RemotionService.renderVideo(jobId);
@@ -509,12 +466,7 @@ Rules:
         renderUrl,
       });
 
-      SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.COURSE_VIDEO_RENDER_READY, {
-        videoId: video._id,
-        status: VIDEO_STATUS.COMPLETED,
-        renderUrl,
-        message: 'Video completed!',
-      });
+      SocketService.emitCourseVideoRenderReady(video, 'Video completed!');
 
       return video;
     } catch (err) {
@@ -526,11 +478,7 @@ Rules:
       };
       await video.save();
 
-      SocketService.emitToCourse(video.courseId.toString(), SOCKET_EVENTS.JOB_FAILED, {
-        videoId: video._id,
-        error: err.message,
-        step: 'Rendering',
-      });
+      SocketService.emitCourseVideoFailed(video, err.message, 'Rendering');
 
       throw err;
     }

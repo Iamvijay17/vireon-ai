@@ -35,6 +35,14 @@ export const leaveJobRoom = (jobId) => {
   socket.emit('leave', jobId);
 };
 
+export const joinCourseRoom = (courseId) => {
+  socket.emit('joinCourse', courseId);
+};
+
+export const leaveCourseRoom = (courseId) => {
+  socket.emit('leaveCourse', courseId);
+};
+
 // ─── Event Listeners ───────────────────────────────────────────────────────────
 
 export const onJobCreated = (callback) => {
@@ -55,6 +63,28 @@ export const onJobCompleted = (callback) => {
 export const onJobFailed = (callback) => {
   socket.on('jobFailed', callback);
   return () => socket.off('jobFailed', callback);
+};
+
+// ─── Course Video Event Listeners ────────────────────────────────────────────────
+
+export const onCourseVideoProgress = (callback) => {
+  socket.on('courseVideoProgress', callback);
+  return () => socket.off('courseVideoProgress', callback);
+};
+
+export const onCourseVideoScriptReady = (callback) => {
+  socket.on('courseVideoScriptReady', callback);
+  return () => socket.off('courseVideoScriptReady', callback);
+};
+
+export const onCourseVideoAudioReady = (callback) => {
+  socket.on('courseVideoAudioReady', callback);
+  return () => socket.off('courseVideoAudioReady', callback);
+};
+
+export const onCourseVideoRenderReady = (callback) => {
+  socket.on('courseVideoRenderReady', callback);
+  return () => socket.off('courseVideoRenderReady', callback);
 };
 
 // ─── Connection Status ─────────────────────────────────────────────────────────

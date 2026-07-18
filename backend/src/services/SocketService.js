@@ -2,7 +2,7 @@ const { Server } = require('socket.io');
 const Redis = require('ioredis');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
-const { SOCKET_EVENTS } = require('../constants');
+const { SOCKET_EVENTS, VIDEO_STATUS } = require('../constants');
 const VideoService = require('./VideoService');
 
 let io = null;
@@ -55,6 +55,23 @@ class SocketService {
         }
       });
 
+      // Join a course room for course video events
+      socket.on('joinCourse', async (courseId, callback) => {
+        try {
+          await socket.join(`course:${courseId}`);
+          LoggerService.debug(`Socket ${socket.id} joined course:${courseId}`);
+          
+          if (callback && typeof callback === 'function') {
+            callback({ status: 'ok', courseId });
+          }
+        } catch (err) {
+          LoggerService.error('Error joining course room', { error: err.message, courseId });
+          if (callback && typeof callback === 'function') {
+            callback({ status: 'error', error: err.message });
+          }
+        }
+      });
+
       socket.on('getStatus', async (jobId) => {
         SocketService.sendJobStatus(jobId, socket);
       });
@@ -62,6 +79,12 @@ class SocketService {
       socket.on(SOCKET_EVENTS.LEAVE, (jobId) => {
         socket.leave(`job:${jobId}`);
         LoggerService.debug(`Socket ${socket.id} left job:${jobId}`);
+      });
+
+      // Leave course room
+      socket.on('leaveCourse', (courseId) => {
+        socket.leave(`course:${courseId}`);
+        LoggerService.debug(`Socket ${socket.id} left course:${courseId}`);
       });
 
       socket.on(SOCKET_EVENTS.DISCONNECT, () => {
@@ -122,7 +145,7 @@ class SocketService {
   static _forwardEvent(event) {
     if (!io) return;
 
-    const { type, jobId, data } = event;
+    const { type, jobId, courseId, data } = event;
 
     switch (type) {
       case 'jobProgress':
@@ -136,6 +159,27 @@ class SocketService {
         break;
       case 'jobCreated':
         io.emit(SOCKET_EVENTS.JOB_CREATED, data);
+        break;
+      // Course video events
+      case 'courseVideoProgress':
+        if (courseId) {
+          io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_PROGRESS, data);
+        }
+        break;
+      case 'courseVideoScriptReady':
+        if (courseId) {
+          io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_SCRIPT_READY, data);
+        }
+        break;
+      case 'courseVideoAudioReady':
+        if (courseId) {
+          io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_AUDIO_READY, data);
+        }
+        break;
+      case 'courseVideoRenderReady':
+        if (courseId) {
+          io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_RENDER_READY, data);
+        }
         break;
       default:
         LoggerService.warn('Unknown event type from Redis pub/sub', { type });
@@ -292,11 +336,138 @@ class SocketService {
   }
 
   /**
+   * Publish an event to Redis pub/sub for cross-process communication.
+   * Used by the worker process to communicate with the server process.
+   */
+  static publishToCourse(courseId, event, data) {
+    const publisher = SocketService._getPublisher();
+    if (!publisher) return;
+
+    const message = JSON.stringify({ type: event, courseId, data });
+    publisher.publish(REDIS_CHANNEL, message).catch((err) => {
+      LoggerService.error('Failed to publish Redis pub/sub message for course', { error: err.message });
+    });
+  }
+
+  /**
    * Emit event to a specific course room.
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
    */
   static emitToCourse(courseId, event, data) {
+    // Add videoId/courseId to data for forwarding
+    const eventData = {
+      ...data,
+      courseId,
+    };
+
     if (io) {
-      io.to(`course:${courseId}`).emit(event, data);
+      io.to(`course:${courseId}`).emit(event, eventData);
+    } else {
+      // We're in the worker process - publish via Redis
+      SocketService.publishToCourse(courseId, event, eventData);
+    }
+  }
+
+  /**
+   * Emit course video progress update.
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitCourseVideoProgress(video, status, progress, message) {
+    const data = {
+      videoId: video._id,
+      status,
+      progress,
+      currentStep: status,
+      message,
+    };
+
+    if (io) {
+      io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_PROGRESS, data);
+    } else {
+      SocketService.publishToCourse(video.courseId.toString(), 'courseVideoProgress', data);
+    }
+  }
+
+  /**
+   * Emit course video script ready event.
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitCourseVideoScriptReady(video, message) {
+    const data = {
+      videoId: video._id,
+      status: video.status,
+      script: video.script,
+      message,
+    };
+
+    if (io) {
+      io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_SCRIPT_READY, data);
+    } else {
+      SocketService.publishToCourse(video.courseId.toString(), 'courseVideoScriptReady', data);
+    }
+  }
+
+  /**
+   * Emit course video audio ready event.
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitCourseVideoAudioReady(video, message) {
+    const data = {
+      videoId: video._id,
+      status: video.status,
+      audioUrl: video.audioUrl,
+      audioDuration: video.audioDuration,
+      message,
+    };
+
+    if (io) {
+      io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_AUDIO_READY, data);
+    } else {
+      SocketService.publishToCourse(video.courseId.toString(), 'courseVideoAudioReady', data);
+    }
+  }
+
+  /**
+   * Emit course video render ready event.
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitCourseVideoRenderReady(video, message) {
+    const data = {
+      videoId: video._id,
+      status: video.status,
+      renderUrl: video.renderUrl,
+      message,
+    };
+
+    if (io) {
+      io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_RENDER_READY, data);
+    } else {
+      SocketService.publishToCourse(video.courseId.toString(), 'courseVideoRenderReady', data);
+    }
+  }
+
+  /**
+   * Emit course video failed event.
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitCourseVideoFailed(video, error, step) {
+    const data = {
+      videoId: video._id,
+      status: VIDEO_STATUS.FAILED,
+      error: error || video.error?.message,
+      step,
+    };
+
+    if (io) {
+      io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.JOB_FAILED, data);
+    } else {
+      SocketService.publishToCourse(video.courseId.toString(), 'jobFailed', data);
     }
   }
 
