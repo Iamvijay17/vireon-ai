@@ -203,7 +203,7 @@ Return ONLY valid JSON with this structure:
   "scenes": [
     {
       "sceneNumber": 1,
-      "sceneType": "intro|content|summary",
+      "sceneType": "intro|content|image",
       "title": "Scene title",
       "subtitle": "Supporting text",
       "backgroundColor": "#1a1a2e",

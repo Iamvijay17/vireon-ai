@@ -14,12 +14,11 @@ class ScriptParserService {
    *
    * Valid scene types.
    * Each scene can be one of:
-   *   - "title":    Opening title card (text only, no image)
+   *   - "intro":    Opening title card (text only, no image)
    *   - "content":  Informational/educational content (text only, no image)
    *   - "image":    Visual scene with image generation (requires imagePrompt)
-   *   - "end":      Closing/ending scene (text only, no image)
    */
-  static VALID_SCENE_TYPES = ['title', 'content', 'image', 'end'];
+  static VALID_SCENE_TYPES = ['intro', 'content', 'image'];
 
   static validate(scriptData, videoType = 'educational') {
     const errors = [];
