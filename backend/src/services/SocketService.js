@@ -292,6 +292,24 @@ class SocketService {
   }
 
   /**
+   * Emit event to a specific course room.
+   */
+  static emitToCourse(courseId, event, data) {
+    if (io) {
+      io.to(`course:${courseId}`).emit(event, data);
+    }
+  }
+
+  /**
+   * Emit event to all connected clients.
+   */
+  static emitToAll(event, data) {
+    if (io) {
+      io.emit(event, data);
+    }
+  }
+
+  /**
    * Get the Socket.IO server instance.
    */
   static getIO() {

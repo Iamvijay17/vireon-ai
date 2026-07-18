@@ -13,6 +13,30 @@ const JOB_STATUS = Object.freeze({
   FAILED: 'FAILED',
 });
 
+const COURSE_STATUS = Object.freeze({
+  DRAFT: 'Draft',
+  IN_PROGRESS: 'In Progress',
+  COMPLETED: 'Completed',
+  ARCHIVED: 'Archived',
+});
+
+const VIDEO_STATUS = Object.freeze({
+  DRAFT: 'Draft',
+  GENERATING_SCRIPT: 'Generating Script',
+  SCRIPT_GENERATED: 'Script Generated',
+  WAITING_FOR_APPROVAL: 'Waiting for Approval',
+  APPROVED: 'Approved',
+  GENERATING_AUDIO: 'Generating Audio',
+  AUDIO_GENERATED: 'Audio Generated',
+  GENERATING_SCENES: 'Generating Scenes',
+  SCENES_GENERATED: 'Scenes Generated',
+  GENERATING_IMAGES: 'Generating Images',
+  IMAGES_GENERATED: 'Images Generated',
+  RENDERING_VIDEO: 'Rendering Video',
+  COMPLETED: 'Completed',
+  FAILED: 'Failed',
+});
+
 const JOB_STEPS = Object.freeze({
   [JOB_STATUS.SCRIPT_GENERATION]: { progress: 10, order: 1 },
   [JOB_STATUS.SCRIPT_COMPLETED]: { progress: 20, order: 2 },
@@ -109,12 +133,44 @@ const SOCKET_EVENTS = Object.freeze({
   DISCONNECT: 'disconnect',
   JOIN: 'join',
   LEAVE: 'leave',
+  // Course events
+  COURSE_UPDATED: 'courseUpdated',
+  COURSE_DELETED: 'courseDeleted',
+  COURSE_VIDEO_CREATED: 'courseVideoCreated',
+  COURSE_VIDEO_UPDATED: 'courseVideoUpdated',
+  COURSE_VIDEO_DELETED: 'courseVideoDeleted',
+  COURSE_VIDEO_PROGRESS: 'courseVideoProgress',
+  COURSE_VIDEO_SCRIPT_READY: 'courseVideoScriptReady',
+  COURSE_VIDEO_AUDIO_READY: 'courseVideoAudioReady',
+  COURSE_VIDEO_RENDER_READY: 'courseVideoRenderReady',
 });
 
 const DEFAULT_SCENE_DURATION = 8;
 
+const VIDEO_DURATIONS = Object.freeze([5, 10, 15]);
+
+const CATEGORIES = Object.freeze([
+  'Web Development',
+  'Mobile Development',
+  'Data Science',
+  'Machine Learning',
+  'DevOps',
+  'Design',
+  'Business',
+  'Marketing',
+  'Other',
+]);
+
+const DIFFICULTIES = Object.freeze([
+  'Beginner',
+  'Intermediate',
+  'Advanced',
+]);
+
 module.exports = {
   JOB_STATUS,
+  COURSE_STATUS,
+  VIDEO_STATUS,
   JOB_STEPS,
   VIDEO_TYPES,
   VIDEO_TYPES_LABEL,
@@ -126,4 +182,7 @@ module.exports = {
   CAMERA_MOTIONS,
   SOCKET_EVENTS,
   DEFAULT_SCENE_DURATION,
+  VIDEO_DURATIONS,
+  CATEGORIES,
+  DIFFICULTIES,
 };

@@ -1,0 +1,425 @@
+{
+  "course": {
+    "title": "React Basics: Build Your First Modern Web App",
+    "subtitle": "A Beginner-Friendly React Course with Hands-On Projects and Practical Examples",
+    "slug": "react-basics-build-your-first-modern-web-app",
+    "category": "Development",
+    "subCategory": "Web Development",
+    "level": "Beginner",
+    "language": "English",
+    "estimatedHours": 1,
+    "shortDescription": "Learn the fundamentals of React from scratch. Build reusable components, understand JSX, props, state, events, and create your first React application in just one hour.",
+    "fullDescription": "Start your React journey with this practical beginner-friendly course. You will learn what React is, why developers love it, and how to build interactive user interfaces using reusable components. Through simple explanations, real-world examples, hands-on coding, quizzes, and a final project, you'll gain the confidence to build your own React applications. No prior React experience is required. By the end of this course, you will have created a small interactive React application and understand the core concepts needed to continue learning advanced React topics.",
+    "learningObjectives": [
+      "Understand what React is and why it is used.",
+      "Set up a React development environment.",
+      "Create and use React components.",
+      "Write JSX confidently.",
+      "Pass data using props.",
+      "Manage component state with useState.",
+      "Handle user events.",
+      "Render lists dynamically.",
+      "Build a small interactive React application.",
+      "Prepare for intermediate React concepts."
+    ],
+    "requirements": [
+      "Basic knowledge of HTML.",
+      "Basic knowledge of CSS.",
+      "Basic JavaScript fundamentals.",
+      "A computer with internet access.",
+      "Node.js installed."
+    ],
+    "targetAudience": [
+      "Complete beginners learning React.",
+      "Students interested in frontend development.",
+      "Web developers transitioning from HTML and JavaScript.",
+      "Anyone wanting to build interactive web applications."
+    ],
+    "courseTags": [
+      "React",
+      "React JS",
+      "JavaScript",
+      "Frontend",
+      "Web Development",
+      "JSX",
+      "Components",
+      "Hooks",
+      "Beginner React",
+      "React Tutorial"
+    ],
+    "seo": {
+      "title": "React Basics Course for Beginners | Learn React Step by Step",
+      "description": "Learn React from scratch with hands-on examples. Master JSX, components, props, state, events, and build your first React project.",
+      "keywords": [
+        "react course",
+        "learn react",
+        "react tutorial",
+        "react for beginners",
+        "jsx",
+        "react hooks",
+        "frontend development",
+        "web development",
+        "react js"
+      ]
+    },
+    "thumbnail": {
+      "title": "React Basics",
+      "subtitle": "Build Your First App",
+      "style": "Modern tech illustration with bold typography",
+      "colors": ["#20232A", "#61DAFB", "#FFFFFF", "#0F172A"],
+      "iconIdeas": [
+        "React logo",
+        "Code brackets",
+        "Laptop",
+        "Component blocks",
+        "Lightning icon"
+      ],
+      "textPosition": "Center",
+      "imagePrompt": "Create a premium Udemy course thumbnail for a beginner React course. Large bold title 'React Basics'. Subtitle 'Build Your First App'. Modern blue and dark theme with glowing React logo, laptop displaying code, floating UI cards, clean typography, high contrast, minimal distractions, professional educational style, 16:9 composition."
+    },
+    "promoVideo": {
+      "duration": 60,
+      "script": "Welcome! Have you ever wanted to build modern websites with React? In this beginner-friendly course, you'll learn React step by step using simple English and practical examples. We'll cover JSX, components, props, state, events, and build a real mini project together. No React experience is needed. By the end of this course, you'll understand the core concepts and be ready to build your own applications. Let's start coding together!",
+      "imagePrompt": "Modern developer workspace with React logo, coding editor, vibrant blue lighting, friendly instructor atmosphere, cinematic educational scene.",
+      "voiceStyle": "Friendly and energetic",
+      "backgroundMusic": "Light upbeat technology background music"
+    },
+    "sections": [
+      {
+        "title": "Getting Started with React",
+        "description": "Learn the basics of React and prepare your development environment.",
+        "lectures": [
+          {
+            "title": "Introduction to React",
+            "durationMinutes": 8,
+            "summary": "Learn what React is and why developers use it.",
+            "learningGoal": "Understand the purpose of React.",
+            "script": "Welcome to the course. React is a JavaScript library used to build user interfaces. Instead of creating large HTML pages manually, React lets us build reusable components. Companies like Facebook and many startups use React because it is fast, flexible, and easy to maintain. Throughout this course, we will build small examples to understand every concept.",
+            "demo": "Show a static HTML page, then the same page built with React components.",
+            "exercise": "Search three popular websites that use React.",
+            "quiz": [
+              {
+                "question": "What is React mainly used for?",
+                "options": [
+                  "Building user interfaces",
+                  "Managing databases",
+                  "Creating operating systems",
+                  "Editing images"
+                ],
+                "answer": "Building user interfaces"
+              }
+            ],
+            "resources": [
+              {
+                "type": "Link",
+                "title": "React Official Website",
+                "content": "[https://react.dev"
+              }
+            ],
+            "slides": [
+              {
+                "title": "What](https://react.dev%22}],%22slides%22:[{%22title%22:%22What) is React?",
+                "bulletPoints": [
+                  "JavaScript library",
+                  "Reusable components",
+                  "Interactive UI",
+                  "Popular framework ecosystem"
+                ],
+                "speakerNotes": "Introduce React in simple terms."
+              }
+            ],
+            "video": {
+              "sceneStyle": "Modern coding studio",
+              "cameraStyle": "Screen recording with face overlay",
+              "background": "Dark developer workspace",
+              "backgroundMusic": "Soft tech ambient",
+              "voiceTone": "Friendly",
+              "captionStyle": "Animated subtitles",
+              "animationStyle": "Smooth zoom and highlights",
+              "bRollSuggestions": ["Developer coding", "React logo animation"],
+              "thumbnailPrompt": "React introduction with glowing React logo and code editor",
+              "imagePrompt": "Modern coding workspace with React logo and code editor",
+              "videoPrompt": "Educational coding tutorial introducing React fundamentals."
+            }
+          },
+          {
+            "title": "Setting Up React",
+            "durationMinutes": 7,
+            "summary": "Install Node.js and create a React project using Vite.",
+            "learningGoal": "Create a working React project.",
+            "script": "Install Node.js. Open your terminal. Use npm create vite to generate a React project. Install dependencies and run the development server. Open the project in Visual Studio Code and explore the folder structure.",
+            "demo": "Create a new Vite React project.",
+            "exercise": "Install Node.js and successfully run your first React application.",
+            "quiz": [
+              {
+                "question": "Which command installs project dependencies?",
+                "options": [
+                  "npm install",
+                  "npm react",
+                  "npm start install",
+                  "node install"
+                ],
+                "answer": "npm install"
+              }
+            ],
+            "resources": [
+              {
+                "type": "Code",
+                "title": "Create Project",
+                "content": "npm create vite@latest my-app -- --template react"
+              }
+            ],
+            "slides": [
+              {
+                "title": "Project Setup",
+                "bulletPoints": [
+                  "Install Node.js",
+                  "Create project",
+                  "Install packages",
+                  "Run development server"
+                ],
+                "speakerNotes": "Explain each command carefully."
+              }
+            ],
+            "video": {
+              "sceneStyle": "Desktop tutorial",
+              "cameraStyle": "Screen recording",
+              "background": "Code editor",
+              "backgroundMusic": "Light ambient",
+              "voiceTone": "Clear",
+              "captionStyle": "Modern captions",
+              "animationStyle": "Cursor highlights",
+              "bRollSuggestions": ["Terminal commands"],
+              "thumbnailPrompt": "React setup tutorial",
+              "imagePrompt": "Terminal and VS Code with React project",
+              "videoPrompt": "Guide viewers through creating a React project."
+            }
+          }
+        ]
+      },
+      {
+        "title": "Core React Concepts",
+        "description": "Understand JSX, components, props, state, and events.",
+        "lectures": [
+          {
+            "title": "JSX and Components",
+            "durationMinutes": 10,
+            "summary": "Learn JSX syntax and reusable components.",
+            "learningGoal": "Create reusable UI components.",
+            "script": "JSX allows us to write HTML-like syntax inside JavaScript. Components are reusable pieces of UI. We'll create a Header component and reuse it in our application.",
+            "demo": "Create Header and Footer components.",
+            "exercise": "Create your own Welcome component.",
+            "quiz": [
+              {
+                "question": "What does JSX look like?",
+                "options": ["HTML inside JavaScript", "SQL", "CSS", "Python"],
+                "answer": "HTML inside JavaScript"
+              }
+            ],
+            "resources": [
+              {
+                "type": "Code",
+                "title": "Simple Component",
+                "content": "function Header(){ return <h1>Hello</h1>; }"
+              }
+            ],
+            "slides": [
+              {
+                "title": "JSX",
+                "bulletPoints": [
+                  "Looks like HTML",
+                  "Compiled to JavaScript",
+                  "Easy to read"
+                ],
+                "speakerNotes": "Explain JSX simply."
+              }
+            ],
+            "video": {
+              "sceneStyle": "Coding tutorial",
+              "cameraStyle": "Screen recording",
+              "background": "VS Code",
+              "backgroundMusic": "Light electronic",
+              "voiceTone": "Friendly",
+              "captionStyle": "Modern",
+              "animationStyle": "Code highlight",
+              "bRollSuggestions": ["Typing code"],
+              "thumbnailPrompt": "JSX explained visually",
+              "imagePrompt": "Code editor showing JSX",
+              "videoPrompt": "Explain JSX and components with live coding."
+            }
+          },
+          {
+            "title": "Props and State",
+            "durationMinutes": 10,
+            "summary": "Learn data flow in React.",
+            "learningGoal": "Use props and state confidently.",
+            "script": "Props allow parent components to send data to child components. State stores information that changes over time. We'll use the useState hook to build a simple counter.",
+            "demo": "Build a counter application.",
+            "exercise": "Display your name using props and create a click counter.",
+            "quiz": [
+              {
+                "question": "Which hook creates state?",
+                "options": ["useState", "useFetch", "useData", "useHTML"],
+                "answer": "useState"
+              }
+            ],
+            "resources": [
+              {
+                "type": "Code",
+                "title": "useState Example",
+                "content": "const [count,setCount]=useState(0);"
+              }
+            ],
+            "slides": [
+              {
+                "title": "Props vs State",
+                "bulletPoints": [
+                  "Props are read-only",
+                  "State changes",
+                  "State updates UI"
+                ],
+                "speakerNotes": "Compare props and state."
+              }
+            ],
+            "video": {
+              "sceneStyle": "Live coding",
+              "cameraStyle": "Screen recording",
+              "background": "Developer workspace",
+              "backgroundMusic": "Soft ambient",
+              "voiceTone": "Encouraging",
+              "captionStyle": "Animated",
+              "animationStyle": "Code zoom",
+              "bRollSuggestions": ["Counter animation"],
+              "thumbnailPrompt": "React props and state",
+              "imagePrompt": "Interactive counter app",
+              "videoPrompt": "Build a React counter using useState."
+            }
+          },
+          {
+            "title": "Handling Events and Lists",
+            "durationMinutes": 10,
+            "summary": "Respond to user actions and display collections.",
+            "learningGoal": "Handle clicks and render arrays.",
+            "script": "React makes event handling simple using onClick and other event handlers. We can also render lists using map and assign unique keys.",
+            "demo": "Todo list example.",
+            "exercise": "Display five favorite fruits from an array.",
+            "quiz": [
+              {
+                "question": "Which JavaScript function is commonly used to render lists?",
+                "options": ["map", "filter", "reduce", "push"],
+                "answer": "map"
+              }
+            ],
+            "resources": [
+              {
+                "type": "Code",
+                "title": "List Rendering",
+                "content": "items.map(item => <li key={item.id}>{item.name}</li>)"
+              }
+            ],
+            "slides": [
+              {
+                "title": "Events and Lists",
+                "bulletPoints": ["onClick", "map()", "Unique key"],
+                "speakerNotes": "Explain dynamic rendering."
+              }
+            ],
+            "video": {
+              "sceneStyle": "Interactive coding",
+              "cameraStyle": "Screen recording",
+              "background": "Modern IDE",
+              "backgroundMusic": "Soft electronic",
+              "voiceTone": "Friendly",
+              "captionStyle": "Modern",
+              "animationStyle": "Highlight interactions",
+              "bRollSuggestions": ["Todo animation"],
+              "thumbnailPrompt": "React events tutorial",
+              "imagePrompt": "Todo app interface",
+              "videoPrompt": "Teach event handling and list rendering."
+            }
+          }
+        ]
+      },
+      {
+        "title": "Mini Project",
+        "description": "Build a complete beginner React application.",
+        "lectures": [
+          {
+            "title": "Build a Simple Profile Card App",
+            "durationMinutes": 15,
+            "summary": "Combine everything learned into one project.",
+            "learningGoal": "Build a complete React application.",
+            "script": "Create reusable components for ProfileCard, Button, and App. Pass data using props. Use state to track likes. Handle button clicks and display dynamic information.",
+            "demo": "Build a profile card with Like button.",
+            "exercise": "Customize the profile with your own information and add another button.",
+            "quiz": [
+              {
+                "question": "What concept updates the like counter?",
+                "options": ["State", "Props", "CSS", "HTML"],
+                "answer": "State"
+              }
+            ],
+            "resources": [
+              {
+                "type": "Project",
+                "title": "Starter Files",
+                "content": "Profile Card starter template"
+              }
+            ],
+            "slides": [
+              {
+                "title": "Mini Project",
+                "bulletPoints": ["Components", "Props", "State", "Events"],
+                "speakerNotes": "Bring all concepts together."
+              }
+            ],
+            "video": {
+              "sceneStyle": "Project build",
+              "cameraStyle": "Screen recording",
+              "background": "Professional IDE",
+              "backgroundMusic": "Motivational ambient",
+              "voiceTone": "Confident",
+              "captionStyle": "Animated",
+              "animationStyle": "Step-by-step highlights",
+              "bRollSuggestions": ["Finished application demo"],
+              "thumbnailPrompt": "React profile card project",
+              "imagePrompt": "Modern profile card React application",
+              "videoPrompt": "Build a complete beginner React project from scratch."
+            }
+          }
+        ]
+      }
+    ],
+    "finalProject": {
+      "title": "Personal Profile Card",
+      "description": "Build a responsive React profile card using components, props, state, and event handling.",
+      "deliverables": [
+        "GitHub repository",
+        "Screenshot of application",
+        "Short explanation of components used"
+      ]
+    },
+    "certificateProject": {
+      "title": "React Beginner Portfolio Project",
+      "description": "Submit a completed React profile card application demonstrating components, props, state, and events."
+    },
+    "faq": [
+      {
+        "question": "Do I need JavaScript before learning React?",
+        "answer": "Yes. Basic JavaScript knowledge is recommended."
+      },
+      {
+        "question": "Is this course suitable for complete beginners?",
+        "answer": "Yes. Everything is explained step by step."
+      },
+      {
+        "question": "Will I build a project?",
+        "answer": "Yes. You'll build a practical React profile card application."
+      },
+      {
+        "question": "What should I learn after this course?",
+        "answer": "React Router, Hooks, Forms, APIs, Context API, and state management."
+      }
+    ]
+  }
+}

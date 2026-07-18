@@ -11,6 +11,7 @@ import {
   CodeOutlined,
   BarChartOutlined,
   RocketOutlined,
+  BookOutlined,
 } from "@ant-design/icons";
 import { colors, getColors } from "../../shared/theme";
 import { ThemeContext } from "../../shared/ThemeContext";
@@ -20,6 +21,7 @@ const { Sider } = Layout;
 // Route mapping for menu keys
 const ROUTE_MAP = {
   "/": "dashboard",
+  "/courses": "courses",
   "/projects": "projects",
   "/wizard": "wizard",
   "/render": "render",
@@ -30,6 +32,7 @@ const ROUTE_MAP = {
 
 const menuItems = [
   { key: "dashboard", icon: <DashboardOutlined />, label: "Dashboard", route: "/" },
+  { key: "courses", icon: <BookOutlined />, label: "Courses", route: "/courses" },
   { key: "projects", icon: <ProjectOutlined />, label: "Projects", route: "/projects" },
   { key: "render", icon: <RocketOutlined />, label: "Render", route: "/render" },
   {
@@ -68,6 +71,13 @@ const AppSidebar = ({ collapsed, onCollapse }) => {
   const handleMenuClick = ({ key }) => {
     const route = findRoute(menuItems, key);
     if (route) navigate(route);
+  };
+
+  // Determine selected keys based on current path
+  const getSelectedKeys = () => {
+    const path = location.pathname;
+    if (path.startsWith('/courses')) return ['courses'];
+    return [currentKey];
   };
 
   return (
@@ -140,7 +150,7 @@ const AppSidebar = ({ collapsed, onCollapse }) => {
       {/* ── Navigation Menu ────────────────────────────────────────────── */}
       <Menu
         mode="inline"
-        selectedKeys={[currentKey]}
+        selectedKeys={getSelectedKeys()}
         defaultOpenKeys={["sub1"]}
         items={menuItems}
         onClick={handleMenuClick}

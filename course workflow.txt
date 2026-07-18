@@ -1,0 +1,442 @@
+# AI Course Creation Workflow Prompt
+
+You are an expert Product Designer, UX Designer, and Full Stack Software Architect.
+
+Design a complete AI-powered Course Creation workflow for an application similar to Vireon AI.
+
+## Goal
+
+The system allows instructors to create an online course consisting of multiple videos. Each video is generated independently using AI.
+
+The workflow should be simple, scalable, and asynchronous.
+
+---
+
+# Course Structure
+
+A Course is the top-level object.
+
+Example:
+
+Course
+
+* React Basics
+
+  * Introduction to React
+  * Installing React
+  * JSX Fundamentals
+  * Components
+  * Props
+  * State
+  * Events
+  * Hooks
+  * Mini Project
+  * Course Summary
+
+Each course contains unlimited videos.
+
+Each video has its own generation pipeline.
+
+---
+
+# User Workflow
+
+## Step 1
+
+User clicks
+
+Create Course
+
+User enters
+
+* Course Name
+* Description
+* Category
+* Difficulty
+* Language
+* Thumbnail (optional)
+
+Example
+
+Course Name
+
+React Basics
+
+Save Course
+
+Course status becomes
+
+Draft
+
+---
+
+## Step 2
+
+Inside the course
+
+User clicks
+
+Create Video
+
+User enters
+
+* Video Title
+* Topic
+* Duration (5 / 10 / 15 min)
+* Voice
+* Style
+* Additional Instructions (optional)
+
+Example
+
+Video Title
+
+What is React?
+
+Topic
+
+Explain React from scratch for beginners.
+
+---
+
+## Step 3
+
+Generate Script
+
+Backend sends the topic to the existing LM Studio integration.
+
+LM Studio generates
+
+* Full narration
+* Introduction
+* Main explanation
+* Examples
+* Summary
+* Call to action
+
+Store the generated script.
+
+Video status becomes
+
+Script Generated
+
+---
+
+## Step 4
+
+Approval
+
+Show the script inside a script editor.
+
+Display
+
+✅ Script is ready.
+
+Buttons
+
+Approve Script
+
+Edit Script
+
+Regenerate Script
+
+The user must approve before continuing.
+
+---
+
+## Step 5
+
+Generate Audio
+
+After approval
+
+Generate narration using the existing TTS pipeline.
+
+Show progress.
+
+Examples
+
+Generating audio...
+
+20%
+
+45%
+
+80%
+
+100%
+
+After completion
+
+Show
+
+✅ Audio Generated Successfully
+
+Store
+
+* audio url
+* duration
+* waveform
+* metadata
+
+Video status becomes
+
+Audio Generated
+
+---
+
+## Step 6 (Future)
+
+Generate Scenes
+
+Generate scene JSON from the approved script.
+
+Store scene data.
+
+Status
+
+Scenes Generated
+
+---
+
+## Step 7 (Future)
+
+Generate Images
+
+Generate images for every scene.
+
+Status
+
+Images Generated
+
+---
+
+## Step 8 (Future)
+
+Generate Video
+
+Render using Remotion.
+
+Status
+
+Rendering
+
+Finished
+
+Video Ready
+
+---
+
+# Video Status Flow
+
+Draft
+
+↓
+
+Generating Script
+
+↓
+
+Script Generated
+
+↓
+
+Waiting for Approval
+
+↓
+
+Approved
+
+↓
+
+Generating Audio
+
+↓
+
+Audio Generated
+
+↓
+
+Generating Scenes
+
+↓
+
+Scenes Generated
+
+↓
+
+Generating Images
+
+↓
+
+Images Generated
+
+↓
+
+Rendering Video
+
+↓
+
+Completed
+
+---
+
+# Course Dashboard
+
+React Basics
+
+Status
+
+In Progress
+
+Progress
+
+4 / 10 Videos Completed
+
+Videos
+
+1. Introduction to React
+   Status: Completed
+
+2. Installing React
+   Status: Audio Generated
+
+3. JSX Basics
+   Status: Waiting for Approval
+
+4. Components
+   Status: Script Generated
+
+5. Props
+   Status: Draft
+
+---
+
+# Video Card
+
+Each video card should display
+
+* Video Title
+* Topic
+* Duration
+* Current Status
+* Created Date
+* Last Updated
+* Script Button
+* Audio Button
+* Edit Button
+* Delete Button
+
+---
+
+# Background Jobs
+
+Long-running tasks must execute asynchronously.
+
+Jobs include
+
+* Generate Script
+* Generate Audio
+* Generate Scenes
+* Generate Images
+* Render Video
+
+Each job should report
+
+* Pending
+* Running
+* Success
+* Failed
+
+Support retry functionality.
+
+---
+
+# Notifications
+
+Display real-time notifications such as
+
+Generating script...
+
+Script generated successfully.
+
+Please review and approve the script.
+
+Generating narration...
+
+Narration generated successfully.
+
+Rendering video...
+
+Video completed.
+
+---
+
+# Database Structure
+
+Course
+
+* id
+* title
+* description
+* category
+* difficulty
+* language
+* thumbnail
+* status
+* createdAt
+* updatedAt
+
+Video
+
+* id
+* courseId
+* title
+* topic
+* script
+* approved
+* audioUrl
+* audioDuration
+* sceneJson
+* renderUrl
+* status
+* createdAt
+* updatedAt
+
+---
+
+# UI Requirements
+
+The interface should be clean, modern, and beginner-friendly.
+
+The Course page should include
+
+* Course Information
+* Progress Bar
+* Video List
+* Create Video button
+* Search Videos
+* Filter by Status
+
+The Video page should include
+
+* Video Details
+* Script Editor
+* Audio Preview
+* Generation Timeline
+* Job Status
+* Activity Log
+
+---
+
+# Technical Requirements
+
+* Existing LM Studio integration must be reused for script generation.
+* Existing TTS pipeline must be reused for audio generation.
+* All generation steps should be asynchronous using background jobs.
+* Every step should be resumable if interrupted.
+* Users can regenerate only the failed step without restarting the entire workflow.
+* Store all generated assets (scripts, audio, scenes, images, and videos) for future editing.
+* Every generation action should update the UI in real time with progress indicators and status changes.
+
+Design this workflow as a production-ready system that can scale to thousands of courses and videos while providing a smooth user experience.

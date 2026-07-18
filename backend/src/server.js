@@ -10,6 +10,8 @@ const LoggerService = require('./services/LoggerService');
 const SocketService = require('./services/SocketService');
 const errorHandler = require('./middleware/errorHandler');
 const videoRoutes = require('./routes/videos');
+const courseRoutes = require('./routes/courses');
+const courseVideoRoutes = require('./routes/courseVideos');
 
 const app = express();
 const server = http.createServer(app);
@@ -65,6 +67,8 @@ app.get('/health', (req, res) => {
 
 // ── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/videos', videoRoutes);
+app.use('/api/courses', courseRoutes);
+app.use('/api/course-videos', courseVideoRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

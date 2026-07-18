@@ -8,6 +8,7 @@ import Wizard from "../pages/wizard";
 import RenderPage from "../pages/render";
 import StudioPage from "../pages/studio";
 import PlaceholderPage from "../pages/placeholder";
+import { CoursesList, CourseDetail, CourseVideoEditor } from "../pages/courses";
 import { getColors, typography } from "../shared/theme";
 import { ThemeContext } from "../shared/ThemeContext";
 
@@ -80,6 +81,9 @@ const AppLayout = () => {
             <Route path="/analytics" element={<PlaceholderPage title="Analytics" description="View usage analytics and performance metrics for your renders." />} />
             <Route path="/settings" element={<PlaceholderPage title="Settings" description="Configure your preferences and application settings." />} />
             <Route path="/editor/complete" element={<PlaceholderPage title="Complete" description="View your completed renders and download the final outputs." />} />
+            <Route path="/courses" element={<CoursesList />} />
+            <Route path="/courses/:id" element={<CourseDetail />} />
+            <Route path="/courses/:courseId/videos/:videoId" element={<CourseVideoEditor />} />
           </Routes>
         </Content>
 
