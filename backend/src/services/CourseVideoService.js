@@ -328,13 +328,24 @@ Rules:
       }
 
       // Convert scenes to the format expected by AudioService
-      const audioScenes = scenes.map((s) => ({
-        sceneNumber: s.sceneNumber || 1,
-        audio: {
-          text: s.audio?.text || s.title || '',
-        },
-        duration: s.duration || 8,
-      }));
+      // Ensure sceneType is included in the audio scenes
+      const audioScenes = scenes.map((s, index) => {
+        let sceneType = s.sceneType;
+        if (!sceneType) {
+          const sceneNum = s.sceneNumber || (index + 1);
+          if (sceneNum === 1) sceneType = 'intro';
+          else if (scenes.length > 0 && sceneNum === scenes.length) sceneType = 'summary';
+          else sceneType = 'content';
+        }
+        return {
+          sceneNumber: s.sceneNumber || (index + 1),
+          sceneType,
+          audio: {
+            text: s.audio?.text || s.title || '',
+          },
+          duration: s.duration || 8,
+        };
+      });
 
       // Generate audio for all scenes - use videoId as job directory
       const jobId = video._id.toString();
@@ -410,8 +421,16 @@ Rules:
       const jobId = video._id.toString();
       const scenesWithAudio = scenes.map((scene) => {
         const sceneNum = scene.sceneNumber || 1;
+        // Determine sceneType if not present (based on position)
+        let sceneType = scene.sceneType;
+        if (!sceneType) {
+          if (sceneNum === 1) sceneType = 'intro';
+          else if (scenes.length > 0 && sceneNum === scenes.length) sceneType = 'summary';
+          else sceneType = 'content';
+        }
         return {
           ...scene,
+          sceneType,
           audio: {
             ...scene.audio,
             file: `scene${sceneNum}.mp3`,

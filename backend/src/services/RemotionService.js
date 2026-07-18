@@ -40,6 +40,7 @@ class RemotionService {
       aspectRatio: jobConfig.aspectRatio || '16:9',
       scenes: script.scenes.map((scene) => ({
         sceneNumber: scene.sceneNumber,
+        sceneType: scene.sceneType || 'content',
         title: scene.title,
         subtitle: scene.subtitle,
         duration: scene.duration || 8,
