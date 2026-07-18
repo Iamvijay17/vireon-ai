@@ -1,16 +1,31 @@
-import React, { Suspense, useMemo } from "react";
+import React, { Suspense } from "react";
 import {
-  useCurrentFrame,
-  useVideoConfig,
   AbsoluteFill,
-  Audio,
   Sequence,
-  staticFile,
 } from "remotion";
 import TemplateRegistry from "./templates/TemplateRegistry";
 import DefaultTemplate from "./templates/DefaultTemplate";
 
 const Text = ({ children, style }) => <div style={style}>{children}</div>;
+
+/**
+ * Background layer that provides stable background during scene transitions
+ * Prevents flickering by ensuring there's always a background visible
+ */
+const BackgroundLayer = ({ backgroundColor }) => (
+  <AbsoluteFill style={{ backgroundColor: backgroundColor || "#1a1a2e" }} />
+);
+
+const SceneTransition = ({ children, backgroundColor }) => {
+  // Simple wrapper that provides stable background without conflicting animations
+  // Templates handle their own internal animations
+  return (
+    <>
+      <BackgroundLayer backgroundColor={backgroundColor} />
+      <AbsoluteFill>{children}</AbsoluteFill>
+    </>
+  );
+};
 
 /**
  * Get the audio source path for Remotion Audio component.
@@ -116,7 +131,7 @@ const Scene = React.memo(({ scene, jobId }) => {
 Scene.displayName = "Scene";
 
 export const VideoComposition = ({ assets, jobId }) => {
-  const { title, scenes } = assets || {};
+  const { scenes } = assets || {};
 
   if (!scenes || scenes.length === 0) {
     return (
@@ -135,16 +150,19 @@ export const VideoComposition = ({ assets, jobId }) => {
       {scenes.map((scene, index) => {
         const sceneDuration = scene.duration || 8; // seconds per scene, default 8
         const sceneStart = currentFrame;
-        const sceneEnd = currentFrame + sceneDuration * fps;
-        currentFrame = sceneEnd;
+        currentFrame += sceneDuration * fps;
 
+        const bgColor = scene.backgroundColor || "#1a1a2e";
+        
         return (
           <Sequence
             key={scene.sceneNumber || index}
             from={sceneStart}
             durationInFrames={sceneDuration * fps}
           >
-            <Scene scene={scene} jobId={jobId} />
+            <SceneTransition backgroundColor={bgColor}>
+              <Scene scene={scene} jobId={jobId} />
+            </SceneTransition>
           </Sequence>
         );
       })}

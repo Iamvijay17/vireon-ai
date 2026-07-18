@@ -26,11 +26,7 @@ const DefaultTemplate = React.memo(({ scene }) => {
         padding: 60,
       }}
     >
-      {sceneNumber && (
-        <p style={{ ...textStyles.label, marginBottom: 20 }}>
-          Scene {sceneNumber}
-        </p>
-      )}
+    
       {title && (
         <h1 style={textStyles.title}>{title}</h1>
       )}

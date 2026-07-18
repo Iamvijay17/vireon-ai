@@ -1,7 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, Audio } from 'remotion';
+import { AbsoluteFill, Audio, useCurrentFrame, useVideoConfig } from 'remotion';
 import { styles } from './styles';
-import { useTemplate027Animations } from './animations';
+import { useTemplate027Animations, getChecklistItemAnimation } from './animations';
 import { backgroundColors } from '../../styles';
 
 /**
@@ -14,6 +14,9 @@ const Template027 = React.memo(({ scene }) => {
   const points = elements.points || elements.items || [];
   const bgColor = elements.backgroundColor || backgroundColors.dark;
 
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  
   const anim = useTemplate027Animations({ frameOffset: 0 });
 
   return (
@@ -22,9 +25,9 @@ const Template027 = React.memo(({ scene }) => {
         {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
         <div style={styles.list}>
           {points.map((point, index) => (
-            <div key={index} style={{ ...styles.item, ...anim.getItemAnim(index) }}>
+            <div key={index} style={{ ...styles.item, ...getChecklistItemAnimation(frame, fps, 12 + index * 6) }}>
               <div style={styles.check}>{point.icon || '\u2713'}</div>
-              <div style={styles.itemText}>{point.text || point}</div>
+              <div style={styles.itemText}>{point.text || ''}</div>
             </div>
           ))}
         </div>

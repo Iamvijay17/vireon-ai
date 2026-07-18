@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
-import { AbsoluteFill, Audio, Sequence } from 'remotion';
+import React from 'react';
+import { AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import { styles } from './styles';
-import { useTimelineItemAnimations } from './animations';
+import { getTimelineItemAnimations } from './animations';
 import { backgroundColors, textStyles } from '../../styles';
 
 /**
@@ -29,12 +29,9 @@ const Template004 = React.memo(({ scene }) => {
   const items = elements.items || [];
   const bgColor = elements.backgroundColor || backgroundColors.slate;
 
-  const itemAnimations = useMemo(
-    () => items.map((_, index) => useTimelineItemAnimations(index)),
-    [items.length]
-  );
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
-  const fps = 30;
   const secondsPerItem = 3;
   const totalCardFrames = items.length * secondsPerItem * fps;
 
@@ -54,7 +51,7 @@ const Template004 = React.memo(({ scene }) => {
 
             {items.map((item, index) => {
               const itemStart = index * secondsPerItem * fps;
-              const { dotStyle, cardAnim } = itemAnimations[index];
+              const { dotStyle, cardAnim } = getTimelineItemAnimations(frame, fps, index);
               const isLeft = index % 2 === 0;
 
               return (

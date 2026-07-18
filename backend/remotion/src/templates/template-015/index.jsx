@@ -1,7 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, Audio } from 'remotion';
+import { AbsoluteFill, Audio, useCurrentFrame } from 'remotion';
 import { styles } from './styles';
-import { useTemplate015Animations } from './animations';
+import { useTemplate015Animations, getFeatureItemAnimation } from './animations';
 import { backgroundColors } from '../../styles';
 
 /**
@@ -14,6 +14,7 @@ const Template015 = React.memo(({ scene }) => {
   const features = elements.features || elements.items || [];
   const bgColor = elements.backgroundColor || backgroundColors.dark;
 
+  const frame = useCurrentFrame();
   const anim = useTemplate015Animations({ frameOffset: 0 });
 
   return (
@@ -22,7 +23,7 @@ const Template015 = React.memo(({ scene }) => {
         {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
         <div style={styles.grid}>
           {features.map((item, index) => (
-            <div key={index} style={{ ...styles.gridItem, ...anim.getItemAnim(index) }}>
+            <div key={index} style={{ ...styles.gridItem, ...getFeatureItemAnimation(frame, index) }}>
               {item.icon && <div style={styles.itemIcon}>{item.icon}</div>}
               <div style={styles.itemTitle}>{item.title}</div>
               {item.description && <div style={styles.itemDesc}>{item.description}</div>}

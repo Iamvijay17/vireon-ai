@@ -1,7 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, Audio } from 'remotion';
+import { AbsoluteFill, Audio, useCurrentFrame } from 'remotion';
 import { styles } from './styles';
-import { useTemplate009Animations } from './animations';
+import { useTemplate009Animations, getBulletItemAnimation } from './animations';
 import { backgroundColors } from '../../styles';
 
 /**
@@ -15,6 +15,8 @@ const Template009 = React.memo(({ scene }) => {
   const bgColor = elements.backgroundColor || backgroundColors.navy;
   const icons = ['🌟', '✅', '💡', '📌', '🔑', '🎯', '⚡', '🔥'];
 
+  const frame = useCurrentFrame();
+  
   const anim = useTemplate009Animations({ frameOffset: 0 });
 
   return (
@@ -23,7 +25,7 @@ const Template009 = React.memo(({ scene }) => {
         {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
         <div style={styles.list}>
           {items.map((item, index) => (
-            <div key={index} style={{ ...styles.listItem, ...anim.getItemAnim(index) }}>
+            <div key={index} style={{ ...styles.listItem, ...getBulletItemAnimation(frame, 15 + index * 6) }}>
               <div style={styles.bulletIcon}>{item.icon || icons[index % icons.length]}</div>
               <div style={styles.bulletText}>{item.text || item.title || ''}</div>
             </div>
