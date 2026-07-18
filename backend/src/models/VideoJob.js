@@ -14,9 +14,10 @@ const sceneSchema = new mongoose.Schema(
     cameraMotion: { type: String, default: 'static' },
     animation: { type: String, default: '' },
     imageUrl: { type: String, default: '' },
-    templateId: { type: String, default: '' },
-    elements: { type: mongoose.Schema.Types.Mixed, default: null },
-    audio: {
+     templateId: { type: String, default: '' },
+     elements: { type: mongoose.Schema.Types.Mixed, default: null },
+     scene_meta: { type: mongoose.Schema.Types.Mixed, default: null },
+     audio: {
       text: { type: String, default: '' },
       file: { type: String, default: '' },
       duration: { type: Number, default: 0 },

@@ -61,10 +61,11 @@ class RemotionService {
            animation: scene.animation,
            // Generated image URL from ComfyUI
            imageUrl: scene.imageUrl || '',
-           // Template-based rendering fields
-           templateId: scene.templateId || '',
-           elements: scene.elements || null,
-           audio: {
+            // Template-based rendering fields
+            templateId: scene.templateId || '',
+            elements: scene.elements || null,
+            scene_meta: scene.scene_meta || null,
+            audio: {
              // Use HTTP URL served by Express static middleware
              // e.g. http://localhost:{port}/public/{jobId}/audio/scene{N}.mp3
              // This avoids the Remotion webpack public dir caching issue where dynamic files are not available.

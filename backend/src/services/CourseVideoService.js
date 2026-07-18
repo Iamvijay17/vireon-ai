@@ -5,6 +5,7 @@ const SocketService = require('./SocketService');
 const LMStudioService = require('./LMStudioService');
 const AudioService = require('./TTS/audioService');
 const RemotionService = require('./RemotionService');
+const ScriptParserService = require('./ScriptParserService');
 const { VIDEO_STATUS, SOCKET_EVENTS } = require('../constants');
 
 /**
@@ -146,7 +147,10 @@ class CourseVideoService {
       const prompt = this.buildScriptPrompt(video);
 
       // Call LM Studio
-      const scriptData = await LMStudioService.generateScript(prompt);
+      const rawScriptData = await LMStudioService.generateScript(prompt);
+
+      // Parse and validate script to ensure scene_meta is generated and scene types are normalized
+      const scriptData = ScriptParserService.validate(rawScriptData, video.style || 'educational');
 
       // Store the generated script
       video.script = JSON.stringify(scriptData, null, 2);
@@ -154,7 +158,6 @@ class CourseVideoService {
       video.scriptGeneratedAt = new Date();
 
       // Save script to disk for Remotion pipeline
-      const ScriptParserService = require('./ScriptParserService');
       await ScriptParserService.saveScript(video._id.toString(), scriptData);
       await video.save();
 
@@ -210,6 +213,8 @@ Return ONLY valid JSON with this structure:
       "transition": "fade",
       "cameraMotion": "static",
       "animation": "",
+      "imagePrompt": "",
+      "scene_meta": { "content": ["", "", ""] },
       "audio": { "text": "Narration text here (~${Math.round(wordCount / 5)} words per scene)" }
     }
   ]
@@ -219,7 +224,12 @@ Rules:
 - Total narration: ~${wordCount} words across all scenes
 - 5-8 scenes total: 1 intro, 3-5 content, 1 summary
 - Scene duration: 8-15 seconds each
-- Only include "imagePrompt" field when sceneType is "image"
+- sceneType must be one of: "intro", "content", or "image"
+- Use "intro" for the opening scene
+- Use "content" for main educational content
+- Use "image" only for scenes requiring AI-generated background images
+- Only include "imagePrompt" when sceneType is "image"; leave it as empty string for other scene types
+- For every scene with sceneType "content", include a scene_meta object with a "content" array containing the narration text split into individual sentences
 - Make it beginner-friendly with examples
 - End with a call to action
 - ${video.additionalInstructions ? `Additional: ${video.additionalInstructions}` : ''}
@@ -373,7 +383,6 @@ Rules:
       video.script = JSON.stringify(scriptData, null, 2);
       
       // Also save updated script to disk for Remotion pipeline
-      const ScriptParserService = require('./ScriptParserService');
       await ScriptParserService.saveScript(video._id.toString(), scriptData);
 
       // Store audio URL (first scene's audio for preview, or full path)

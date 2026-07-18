@@ -34,6 +34,10 @@ class ScriptParserService {
         if (!scene.sceneNumber) errors.push(`Scene ${index}: missing sceneNumber`);
         if (!scene.audio?.text) errors.push(`Scene ${index}: missing audio text`);
 
+        // Normalize legacy scene types from old prompts
+        if (scene.sceneType === 'title') scene.sceneType = 'intro';
+        if (scene.sceneType === 'end') scene.sceneType = 'content';
+
         // Validate sceneType
         const sceneType = scene.sceneType || 'content';
         if (!ScriptParserService.VALID_SCENE_TYPES.includes(sceneType)) {
@@ -74,6 +78,21 @@ class ScriptParserService {
       // Only keep imagePrompt for "image" scenes; clear for others to skip generation
       const imagePrompt = sceneType === 'image' ? (scene.imagePrompt || '') : '';
 
+      // Build scene_meta for content scenes: preserve LLM output if valid, otherwise auto-generate
+      let scene_meta = null;
+      if (sceneType === 'content') {
+        const hasValidLLMMeta = scene.scene_meta && Array.isArray(scene.scene_meta.content) && scene.scene_meta.content.length > 0;
+        if (hasValidLLMMeta) {
+          scene_meta = scene.scene_meta;
+        } else {
+          const audioText = scene.audio?.text || '';
+          const sentences = audioText.match(/[^\.!\?]+[\.!\?]+/g) || [audioText].filter(Boolean);
+          scene_meta = {
+            content: sentences.map((s) => s.trim()).filter((s) => s.length > 0),
+          };
+        }
+      }
+
       return {
         sceneNumber: scene.sceneNumber,
         sceneType,
@@ -88,6 +107,7 @@ class ScriptParserService {
         // Template-based rendering fields
         templateId,
         elements,
+        scene_meta,
         audio: {
           text: scene.audio?.text || '',
           file: '',
