@@ -1,22 +1,25 @@
 import { useState, useEffect, useCallback, useContext, useMemo, useRef } from "react";
-import { Modal, Input, List, Tag } from "antd";
+import { createPortal } from "react-dom";
 import {
-  DashboardOutlined,
-  PlusCircleOutlined,
-  BookOutlined,
-  EditOutlined,
-  PlayCircleOutlined,
-  BulbOutlined,
-  ProjectOutlined,
-  BarChartOutlined,
-  SettingOutlined,
-} from "@ant-design/icons";
+  LayoutDashboard,
+  PlusCircle,
+  BookOpen,
+  Pencil,
+  PlayCircle,
+  Lightbulb,
+  FolderKanban,
+  BarChart3,
+  Settings,
+  Search,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ThemeContext } from "../shared/themeContextValue";
+import { cn } from "../components/ui/cn";
+import { useEscapeKey, useLockBodyScroll } from "../components/ui/hooks";
 
 const CommandPalette = () => {
   const navigate = useNavigate();
-  const { theme, toggleTheme, colors } = useContext(ThemeContext);
+  const { theme, toggleTheme } = useContext(ThemeContext);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -24,18 +27,18 @@ const CommandPalette = () => {
 
   const commands = useMemo(
     () => [
-      { key: "dashboard", label: "Go to Dashboard", icon: <DashboardOutlined />, action: () => navigate("/") },
-      { key: "wizard", label: "Create New Video", icon: <PlusCircleOutlined />, action: () => navigate("/wizard") },
-      { key: "courses", label: "View Courses", icon: <BookOutlined />, action: () => navigate("/courses") },
-      { key: "studio", label: "Open Studio", icon: <EditOutlined />, action: () => navigate("/studio") },
-      { key: "render", label: "Render Progress", icon: <PlayCircleOutlined />, action: () => navigate("/render") },
-      { key: "projects", label: "Go to Projects", icon: <ProjectOutlined />, action: () => navigate("/projects") },
-      { key: "analytics", label: "Go to Analytics", icon: <BarChartOutlined />, action: () => navigate("/analytics") },
-      { key: "settings", label: "Go to Settings", icon: <SettingOutlined />, action: () => navigate("/settings") },
+      { key: "dashboard", label: "Go to Dashboard", icon: LayoutDashboard, action: () => navigate("/") },
+      { key: "wizard", label: "Create New Video", icon: PlusCircle, action: () => navigate("/wizard") },
+      { key: "courses", label: "View Courses", icon: BookOpen, action: () => navigate("/courses") },
+      { key: "studio", label: "Open Studio", icon: Pencil, action: () => navigate("/studio") },
+      { key: "render", label: "Render Progress", icon: PlayCircle, action: () => navigate("/render") },
+      { key: "projects", label: "Go to Projects", icon: FolderKanban, action: () => navigate("/projects") },
+      { key: "analytics", label: "Go to Analytics", icon: BarChart3, action: () => navigate("/analytics") },
+      { key: "settings", label: "Go to Settings", icon: Settings, action: () => navigate("/settings") },
       {
         key: "theme",
         label: theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode",
-        icon: <BulbOutlined />,
+        icon: Lightbulb,
         action: toggleTheme,
       },
     ],
@@ -48,16 +51,24 @@ const CommandPalette = () => {
     return commands.filter((c) => c.label.toLowerCase().includes(q));
   }, [commands, query]);
 
-  const runCommand = useCallback((command) => {
-    if (!command) return;
-    command.action();
+  const close = useCallback(() => {
     setOpen(false);
     setQuery("");
     setActiveIndex(0);
   }, []);
 
-  // Global ⌘K / Ctrl+K shortcut, plus a custom event so other UI (e.g. the
-  // navbar search box) can open the palette without prop-drilling state.
+  const runCommand = useCallback(
+    (command) => {
+      if (!command) return;
+      command.action();
+      close();
+    },
+    [close]
+  );
+
+  useEscapeKey(close, open);
+  useLockBodyScroll(open);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -78,6 +89,10 @@ const CommandPalette = () => {
     setActiveIndex(0);
   }, [query]);
 
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 0);
+  }, [open]);
+
   const handleInputKeyDown = (e) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -90,56 +105,62 @@ const CommandPalette = () => {
     }
   };
 
-  return (
-    <Modal
-      open={open}
-      onCancel={() => setOpen(false)}
-      footer={null}
-      closable={false}
-      width={520}
-      style={{ top: 120 }}
-      afterOpenChange={(visible) => visible && inputRef.current?.focus()}
-    >
-      <Input
-        ref={inputRef}
-        size="large"
-        placeholder="Type a command or search..."
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={handleInputKeyDown}
-        variant="borderless"
-        autoFocus
-      />
-      <div style={{ borderTop: `1px solid ${colors.borderLight}`, marginTop: 8, paddingTop: 8, maxHeight: 320, overflowY: "auto" }}>
-        <List
-          dataSource={filtered}
-          locale={{ emptyText: "No matching commands" }}
-          renderItem={(command, index) => (
-            <List.Item
-              onClick={() => runCommand(command)}
-              style={{
-                cursor: "pointer",
-                padding: "10px 12px",
-                borderRadius: 8,
-                background: index === activeIndex ? colors.surfaceActive : "transparent",
-                border: "none",
-              }}
-              onMouseEnter={() => setActiveIndex(index)}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 10, color: colors.textPrimary, width: "100%" }}>
-                <span style={{ color: colors.primary, fontSize: 16 }}>{command.icon}</span>
-                {command.label}
-              </span>
-            </List.Item>
+  if (!open) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-100 flex items-start justify-center px-4 pt-[15vh]">
+      <div className="absolute inset-0 animate-fade-in bg-black/40 backdrop-blur-[2px]" onClick={close} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        className="relative z-10 w-full max-w-xl animate-scale-in overflow-hidden rounded-2xl border border-border bg-surface shadow-xl"
+      >
+        <div className="flex items-center gap-3 border-b border-border-light px-4">
+          <Search className="size-4 shrink-0 text-text-tertiary" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleInputKeyDown}
+            placeholder="Type a command or search..."
+            className="h-12 w-full bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none"
+          />
+        </div>
+
+        <div className="max-h-80 overflow-y-auto p-2">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-6 text-center text-sm text-text-tertiary">No matching commands</p>
+          ) : (
+            filtered.map((command, index) => {
+              const Icon = command.icon;
+              return (
+                <button
+                  key={command.key}
+                  type="button"
+                  onClick={() => runCommand(command)}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition-colors",
+                    index === activeIndex ? "bg-surface-active text-text-primary" : "text-text-secondary"
+                  )}
+                >
+                  <Icon className="size-4 shrink-0 text-accent" />
+                  {command.label}
+                </button>
+              );
+            })
           )}
-        />
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-border-light px-4 py-2.5">
+          <kbd className="rounded border border-border px-1.5 py-0.5 text-[11px] text-text-tertiary">↑↓ navigate</kbd>
+          <kbd className="rounded border border-border px-1.5 py-0.5 text-[11px] text-text-tertiary">↵ select</kbd>
+          <kbd className="rounded border border-border px-1.5 py-0.5 text-[11px] text-text-tertiary">esc close</kbd>
+        </div>
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-        <Tag style={{ color: colors.textTertiary }}>&uarr; &darr; navigate</Tag>
-        <Tag style={{ color: colors.textTertiary }}>&crarr; select</Tag>
-        <Tag style={{ color: colors.textTertiary }}>esc close</Tag>
-      </div>
-    </Modal>
+    </div>,
+    document.body
   );
 };
 

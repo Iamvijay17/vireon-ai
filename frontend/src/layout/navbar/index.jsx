@@ -1,178 +1,98 @@
 import { useContext } from "react";
-import { Layout, Button, Avatar, Dropdown, Space, Badge } from "antd";
-import {
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  BellOutlined,
-  UserOutlined,
-  SearchOutlined,
-  QuestionCircleOutlined,
-  LogoutOutlined,
-  SettingOutlined,
-  ProfileOutlined,
-  SunOutlined,
-  MoonOutlined,
-} from "@ant-design/icons";
-import { shadows, typography } from "../../shared/theme";
+import { PanelLeftClose, PanelLeftOpen, Bell, User, Search, HelpCircle, Sun, Moon, LogOut, Settings, UserRound } from "lucide-react";
 import { ThemeContext } from "../../shared/themeContextValue";
+import { Dropdown, DropdownItem, DropdownDivider } from "../../components/ui/Dropdown";
+import { cn } from "../../components/ui/cn";
 
-const { Header } = Layout;
-
-// ─── User Dropdown Menu ─────────────────────────────────────────────────────
-const userMenuItems = [
-  {
-    key: "profile",
-    icon: <ProfileOutlined />,
-    label: "Profile",
-  },
-  {
-    key: "settings",
-    icon: <SettingOutlined />,
-    label: "Settings",
-  },
-  { type: "divider" },
-  {
-    key: "logout",
-    icon: <LogoutOutlined />,
-    label: "Logout",
-    danger: true,
-  },
-];
-
-// ─── Navbar Component ────────────────────────────────────────────────────────
 const AppNavbar = ({ collapsed, onToggle }) => {
-  const { theme, toggleTheme, colors } = useContext(ThemeContext);
+  const { theme, toggleTheme } = useContext(ThemeContext);
 
   return (
-    <Header
-      style={{
-        padding: "0 24px",
-        background: colors.surface,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        height: 64,
-        borderBottom: `1px solid ${colors.border}`,
-        boxShadow: shadows.sm,
-        position: "sticky",
-        top: 0,
-        zIndex: 99,
-        width: "100%",
-      }}
-    >
-      {/* ── Left: Collapse toggle + Search ────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, flex: 1 }}>
-        <Button
-          type="text"
-          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border bg-surface/80 px-6 backdrop-blur-md">
+      {/* Left: collapse toggle + search */}
+      <div className="flex flex-1 items-center gap-4">
+        <button
+          type="button"
           onClick={onToggle}
-          style={{
-            fontSize: 18,
-            width: 40,
-            height: 40,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: colors.textSecondary,
-            flexShrink: 0,
-          }}
-        />
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+        >
+          {collapsed ? <PanelLeftOpen className="size-[18px]" /> : <PanelLeftClose className="size-[18px]" />}
+        </button>
 
-        {/* Command palette trigger, styled as a search bar */}
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent("vireon:open-command-palette"))}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            maxWidth: 380,
-            width: "100%",
-            height: 36,
-            padding: "0 12px",
-            borderRadius: 8,
-            border: `1px solid ${colors.border}`,
-            background: colors.bg,
-            color: colors.textTertiary,
-            fontSize: typography.fontSize.sm,
-            fontFamily: typography.fontFamily,
-            cursor: "pointer",
-            textAlign: "left",
-          }}
+          className="flex h-9 w-full max-w-96 items-center gap-2 rounded-lg border border-border bg-bg px-3 text-left text-sm text-text-tertiary transition-colors hover:border-neutral-300 dark:hover:border-neutral-700"
         >
-          <SearchOutlined />
-          <span style={{ flex: 1 }}>Search or jump to...</span>
-          <span
-            style={{
-              fontSize: 11,
-              padding: "1px 6px",
-              borderRadius: 4,
-              border: `1px solid ${colors.border}`,
-              color: colors.textTertiary,
-            }}
-          >
-            ⌘K
-          </span>
+          <Search className="size-4 shrink-0" />
+          <span className="flex-1 truncate">Search or jump to...</span>
+          <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[11px] text-text-tertiary">⌘K</span>
         </button>
       </div>
 
-      {/* ── Right: Actions & User ──────────────────────────────────────── */}
-      <Space size={12} align="center">
-      {/* Theme Toggle */}
-        <Button
-          type="text"
-          icon={theme === "dark" ? <SunOutlined /> : <MoonOutlined />}
+      {/* Right: actions + user */}
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          type="button"
           onClick={toggleTheme}
-          style={{ color: colors.textSecondary, fontSize: 18 }}
-          size="large"
-        />
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          className="flex size-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+        >
+          {theme === "dark" ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
+        </button>
 
-        {/* Help */}
-        <Button
-          type="text"
-          icon={<QuestionCircleOutlined />}
-          style={{ color: colors.textSecondary, fontSize: 18 }}
-          size="large"
-        />
+        <button
+          type="button"
+          aria-label="Help"
+          className="flex size-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+        >
+          <HelpCircle className="size-[18px]" />
+        </button>
 
-        {/* Notifications */}
-        <Badge count={3} size="small" offset={[-2, 2]}>
-          <Button
-            type="text"
-            icon={<BellOutlined />}
-            style={{ color: colors.textSecondary, fontSize: 18 }}
-            size="large"
-          />
-        </Badge>
+        <button
+          type="button"
+          aria-label="Notifications"
+          className="relative flex size-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+        >
+          <Bell className="size-[18px]" />
+          <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-accent text-[10px] font-semibold text-white">
+            3
+          </span>
+        </button>
 
-        {/* User Avatar / Dropdown */}
-        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={["click"]}>
-        <Space
-            style={{ cursor: "pointer", padding: "4px 4px 4px 12px", borderRadius: 8 }}
-            className="user-menu-trigger"
-          >
-            <span
-              style={{
-                color: colors.textPrimary,
-                fontSize: typography.fontSize.sm,
-                fontWeight: 500,
-                lineHeight: 1,
-              }}
+        <Dropdown
+          align="end"
+          trigger={({ toggle, open }) => (
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label="Account menu"
+              className={cn(
+                "user-menu-trigger ml-1 flex items-center gap-2.5 rounded-lg py-1 pl-3 pr-1 transition-colors",
+                open && "bg-surface-hover"
+              )}
             >
-              Vijay
-            </span>
-            <Avatar
-              size={36}
-              icon={<UserOutlined />}
-              style={{
-                background: `linear-gradient(135deg, ${colors.primary}, ${colors.primaryLight})`,
-                cursor: "pointer",
-              }}
-            />
-          </Space>
+              <span className="text-[13px] font-medium text-text-primary">Vijay</span>
+              <span className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-accent-400 to-accent-600 text-white">
+                <User className="size-4" />
+              </span>
+            </button>
+          )}
+        >
+          {() => (
+            <>
+              <DropdownItem icon={<UserRound className="size-4" />}>Profile</DropdownItem>
+              <DropdownItem icon={<Settings className="size-4" />}>Settings</DropdownItem>
+              <DropdownDivider />
+              <DropdownItem danger icon={<LogOut className="size-4" />}>
+                Logout
+              </DropdownItem>
+            </>
+          )}
         </Dropdown>
-      </Space>
-    </Header>
+      </div>
+    </header>
   );
 };
 

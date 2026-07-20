@@ -1,45 +1,31 @@
-import { useState, useEffect, useCallback, useContext, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Card,
-  Button,
-  Space,
-  Tag,
-  Modal,
-  message,
-  Typography,
-  Row,
-  Col,
-  Spin,
-  Steps,
-  Descriptions,
-  Alert,
-  Input,
-  Progress,
-  Empty,
-  Result,
-  Timeline,
-  List,
-  Collapse,
-} from 'antd';
-import {
-  ArrowLeftOutlined,
-  FileTextOutlined,
-  VideoCameraOutlined,
-  CheckCircleOutlined,
-  ReloadOutlined,
-  PlayCircleOutlined,
-  EditOutlined,
-  ThunderboltOutlined,
-  LoadingOutlined,
-  RobotOutlined,
-  AudioOutlined,
-  StepForwardOutlined,
-} from '@ant-design/icons';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ThemeContext } from "../../shared/themeContextValue";
-import { getColors } from '../../shared/theme';
-import { LoadingState } from '../../components';
-import { useSetBreadcrumbLabel } from '../../shared/breadcrumbContextValue';
+  ArrowLeft,
+  CheckCircle2,
+  RotateCw,
+  PlayCircle,
+  Pencil,
+  Zap,
+  Loader2,
+  StepForward,
+  Inbox,
+} from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import { LoadingState } from "../../components";
+import { useSetBreadcrumbLabel } from "../../shared/breadcrumbContextValue";
+import { Card, CardHeader } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Alert } from "../../components/ui/Alert";
+import { Steps } from "../../components/ui/Steps";
+import { DescriptionList } from "../../components/ui/DescriptionList";
+import { Progress } from "../../components/ui/Progress";
+import { Timeline } from "../../components/ui/Timeline";
+import { AccordionItem } from "../../components/ui/Accordion";
+import { Textarea } from "../../components/ui/Input";
+import { Spinner } from "../../components/ui/Spinner";
+import { toast } from "../../components/ui/toastBus";
+import { confirmDialog } from "../../components/ui/confirmBus";
 import {
   getCourseVideo,
   generateCourseVideoScript,
@@ -49,34 +35,46 @@ import {
   generateCourseVideoAudio,
   renderCourseVideo,
   retryCourseVideo,
-} from '../../services/api';
-
-const { Title, Text } = Typography;
-const { TextArea } = Input;
+} from "../../services/api";
 
 const getCurrentStep = (status) => {
   const stepMap = {
-    'Draft': 0,
-    'Generating Script': 0,
-    'Script Generated': 1,
-    'Waiting for Approval': 1,
-    'Approved': 1,
-    'Generating Audio': 2,
-    'Audio Generated': 2,
-    'Generating Scenes': 2,
-    'Scenes Generated': 2,
-    'Generating Images': 2,
-    'Images Generated': 2,
-    'Rendering Video': 3,
-    'Completed': 4,
-    'Failed': -1,
+    Draft: 0,
+    "Generating Script": 0,
+    "Script Generated": 1,
+    "Waiting for Approval": 1,
+    Approved: 1,
+    "Generating Audio": 2,
+    "Audio Generated": 2,
+    "Generating Scenes": 2,
+    "Scenes Generated": 2,
+    "Generating Images": 2,
+    "Images Generated": 2,
+    "Rendering Video": 3,
+    Completed: 4,
+    Failed: -1,
   };
   return stepMap[status] ?? 0;
 };
 
+const InlineEmpty = ({ description, children }) => (
+  <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+    <div className="flex size-11 items-center justify-center rounded-2xl bg-surface-hover text-text-tertiary">
+      <Inbox className="size-5" />
+    </div>
+    <p className="max-w-xs text-sm text-text-tertiary">{description}</p>
+    {children}
+  </div>
+);
+
+const InlineSpinner = ({ label }) => (
+  <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+    <Spinner size="lg" />
+    <p className="text-sm text-text-secondary">{label}</p>
+  </div>
+);
+
 const CourseVideoEditor = () => {
-  const { theme } = useContext(ThemeContext);
-  const dynamicColors = getColors(theme);
   const { courseId, videoId } = useParams();
   const navigate = useNavigate();
   const pollingRef = useRef(null);
@@ -86,13 +84,11 @@ const CourseVideoEditor = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState({});
   const [editingScript, setEditingScript] = useState(false);
-  const [scriptText, setScriptText] = useState('');
+  const [scriptText, setScriptText] = useState("");
   const [activityLog, setActivityLog] = useState([]);
   const [parsedScript, setParsedScript] = useState(null);
 
-  const setStepLoading = (step, val) => {
-    setActionLoading((prev) => ({ ...prev, [step]: val }));
-  };
+  const setStepLoading = (step, val) => setActionLoading((prev) => ({ ...prev, [step]: val }));
 
   const addActivity = (text, timestamp) => {
     setActivityLog((prev) => [
@@ -106,13 +102,11 @@ const CourseVideoEditor = () => {
       const res = await getCourseVideo(videoId);
       const v = res.data.video;
       setVideo(v);
-      setScriptText(v.script || '');
+      setScriptText(v.script || "");
 
-      // Parse script to extract scenes
       if (v.script) {
         try {
-          const parsed = JSON.parse(v.script);
-          setParsedScript(parsed);
+          setParsedScript(JSON.parse(v.script));
         } catch {
           setParsedScript(null);
         }
@@ -122,7 +116,7 @@ const CourseVideoEditor = () => {
 
       addActivity(`Status: ${v.status}`, v.updatedAt);
     } catch (err) {
-      message.error(err.response?.data?.error || 'Failed to load video');
+      toast.error(err.response?.data?.error || "Failed to load video");
       navigate(`/courses/${courseId}`);
     } finally {
       setLoading(false);
@@ -132,9 +126,7 @@ const CourseVideoEditor = () => {
   useEffect(() => {
     fetchVideo();
     return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-      }
+      if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [fetchVideo]);
 
@@ -145,19 +137,17 @@ const CourseVideoEditor = () => {
         const res = await getCourseVideo(videoId);
         const updated = res.data.video;
         setVideo(updated);
-        setScriptText(updated.script || '');
+        setScriptText(updated.script || "");
 
         if (updated.script) {
           try {
-            const parsed = JSON.parse(updated.script);
-            setParsedScript(parsed);
+            setParsedScript(JSON.parse(updated.script));
           } catch {
             setParsedScript(null);
           }
         }
 
-        // Stop polling when terminal state reached
-        if (['Completed', 'Failed', 'Script Generated', 'Audio Generated'].includes(updated.status)) {
+        if (["Completed", "Failed", "Script Generated", "Audio Generated"].includes(updated.status)) {
           clearInterval(pollingRef.current);
           pollingRef.current = null;
           setStepLoading(step, false);
@@ -170,285 +160,215 @@ const CourseVideoEditor = () => {
   };
 
   const handleGenerateScript = async () => {
-    setStepLoading('script', true);
+    setStepLoading("script", true);
     try {
       await generateCourseVideoScript(videoId);
-      message.info('Script generation started');
-      addActivity('Script generation started');
-      startPolling('script');
+      toast.info("Script generation started");
+      addActivity("Script generation started");
+      startPolling("script");
     } catch (err) {
-      message.error(err.response?.data?.message || 'Failed to start script generation');
-      setStepLoading('script', false);
+      toast.error(err.response?.data?.message || "Failed to start script generation");
+      setStepLoading("script", false);
     }
   };
 
   const handleApproveScript = async () => {
-    setStepLoading('approve', true);
+    setStepLoading("approve", true);
     try {
       await approveCourseVideoScript(videoId);
-      message.success('Script approved');
-      addActivity('Script approved');
+      toast.success("Script approved");
+      addActivity("Script approved");
       fetchVideo();
     } catch (err) {
-      message.error(err.response?.data?.message || 'Failed to approve script');
+      toast.error(err.response?.data?.message || "Failed to approve script");
     } finally {
-      setStepLoading('approve', false);
+      setStepLoading("approve", false);
     }
   };
 
   const handleSaveScript = async () => {
-    setStepLoading('save', true);
+    setStepLoading("save", true);
     try {
       await updateCourseVideoScript(videoId, scriptText);
-      message.success('Script updated');
+      toast.success("Script updated");
       setEditingScript(false);
-      addActivity('Script edited and saved');
+      addActivity("Script edited and saved");
       fetchVideo();
     } catch (err) {
-      message.error(err.response?.data?.message || 'Failed to save script');
+      toast.error(err.response?.data?.message || "Failed to save script");
     } finally {
-      setStepLoading('save', false);
+      setStepLoading("save", false);
     }
   };
 
   const handleRegenerateScript = async () => {
-    Modal.confirm({
-      title: 'Regenerate Script',
-      content: 'This will replace the current script. Are you sure?',
-      onOk: async () => {
-        setStepLoading('script', true);
-        try {
-          await regenerateCourseVideoScript(videoId);
-          message.info('Script regeneration started');
-          addActivity('Script regeneration started');
-          startPolling('script');
-        } catch (err) {
-          message.error(err.response?.data?.message || 'Failed to regenerate script');
-          setStepLoading('script', false);
-        }
-      },
-    });
+    const ok = await confirmDialog({ title: "Regenerate Script", content: "This will replace the current script. Are you sure?" });
+    if (!ok) return;
+    setStepLoading("script", true);
+    try {
+      await regenerateCourseVideoScript(videoId);
+      toast.info("Script regeneration started");
+      addActivity("Script regeneration started");
+      startPolling("script");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to regenerate script");
+      setStepLoading("script", false);
+    }
   };
 
   const handleGenerateAudio = async () => {
-    setStepLoading('audio', true);
+    setStepLoading("audio", true);
     try {
       await generateCourseVideoAudio(videoId);
-      message.info('Audio generation started');
-      addActivity('Audio generation started');
-      startPolling('audio');
+      toast.info("Audio generation started");
+      addActivity("Audio generation started");
+      startPolling("audio");
     } catch (err) {
-      message.error(err.response?.data?.message || 'Failed to start audio generation');
-      setStepLoading('audio', false);
+      toast.error(err.response?.data?.message || "Failed to start audio generation");
+      setStepLoading("audio", false);
     }
   };
 
   const handleRegenerateAudio = async () => {
-    Modal.confirm({
-      title: 'Regenerate Audio',
-      content: 'This will regenerate all audio for this video. Are you sure?',
-      onOk: async () => {
-        setStepLoading('audio', true);
-        try {
-          await generateCourseVideoAudio(videoId);
-          message.info('Audio regeneration started');
-          addActivity('Audio regeneration started');
-          startPolling('audio');
-        } catch (err) {
-          message.error(err.response?.data?.message || 'Failed to regenerate audio');
-          setStepLoading('audio', false);
-        }
-      },
-    });
+    const ok = await confirmDialog({ title: "Regenerate Audio", content: "This will regenerate all audio for this video. Are you sure?" });
+    if (!ok) return;
+    setStepLoading("audio", true);
+    try {
+      await generateCourseVideoAudio(videoId);
+      toast.info("Audio regeneration started");
+      addActivity("Audio regeneration started");
+      startPolling("audio");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to regenerate audio");
+      setStepLoading("audio", false);
+    }
   };
 
   const handleRender = async () => {
-    setStepLoading('render', true);
+    setStepLoading("render", true);
     try {
       await renderCourseVideo(videoId);
-      message.info('Rendering started');
-      addActivity('Rendering started');
-      startPolling('render');
+      toast.info("Rendering started");
+      addActivity("Rendering started");
+      startPolling("render");
     } catch (err) {
-      message.error(err.response?.data?.message || 'Failed to start rendering');
-      setStepLoading('render', false);
+      toast.error(err.response?.data?.message || "Failed to start rendering");
+      setStepLoading("render", false);
     }
   };
 
   const handleReRender = async () => {
-    Modal.confirm({
-      title: 'Re-Render Video',
-      content: 'This will re-render the video from scratch. Are you sure?',
-      onOk: async () => {
-        setStepLoading('render', true);
-        try {
-          await renderCourseVideo(videoId);
-          message.info('Re-rendering started');
-          addActivity('Re-rendering started');
-          startPolling('render');
-        } catch (err) {
-          message.error(err.response?.data?.message || 'Failed to re-render');
-          setStepLoading('render', false);
-        }
-      },
-    });
-  };
-
-  const handleRetry = async () => {
-    const failedStep = video?.error?.step || 'Script Generation';
-    setStepLoading('retry', true);
+    const ok = await confirmDialog({ title: "Re-Render Video", content: "This will re-render the video from scratch. Are you sure?" });
+    if (!ok) return;
+    setStepLoading("render", true);
     try {
-      await retryCourseVideo(videoId);
-      message.info(`Retrying ${failedStep}...`);
-      addActivity(`Retrying ${failedStep}...`);
-      startPolling('retry');
+      await renderCourseVideo(videoId);
+      toast.info("Re-rendering started");
+      addActivity("Re-rendering started");
+      startPolling("render");
     } catch (err) {
-      message.error(err.response?.data?.message || 'Failed to retry');
-      setStepLoading('retry', false);
+      toast.error(err.response?.data?.message || "Failed to re-render");
+      setStepLoading("render", false);
     }
   };
 
-  // Compute derived state
-  const isProcessing = ['Generating Script', 'Generating Audio', 'Rendering Video', 'Generating Scenes', 'Generating Images'].includes(video?.status);
-  const isFailed = video?.status === 'Failed';
-  const isCompleted = video?.status === 'Completed';
+  const handleRetry = async () => {
+    const failedStep = video?.error?.step || "Script Generation";
+    setStepLoading("retry", true);
+    try {
+      await retryCourseVideo(videoId);
+      toast.info(`Retrying ${failedStep}...`);
+      addActivity(`Retrying ${failedStep}...`);
+      startPolling("retry");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to retry");
+      setStepLoading("retry", false);
+    }
+  };
+
+  const isProcessing = ["Generating Script", "Generating Audio", "Rendering Video", "Generating Scenes", "Generating Images"].includes(video?.status);
+  const isFailed = video?.status === "Failed";
+  const isCompleted = video?.status === "Completed";
   const hasScript = video?.script && video.script.length > 0;
   const isApproved = video?.approved;
   const hasAudio = video?.audioUrl && video.audioUrl.length > 0;
   const scenes = parsedScript?.scenes || [];
-
-  // Compute audio URL base
   const audioBaseUrl = video?._id ? `/public/${video._id}/audio` : null;
 
-  if (loading) {
-    return <LoadingState label="Loading video..." />;
-  }
+  if (loading) return <LoadingState label="Loading video..." />;
 
   if (!video) {
     return (
-      <Result
-        status="404"
-        title="Video not found"
-        extra={
-          <Button type="primary" onClick={() => navigate(`/courses/${courseId}`)}>
-            Back to Course
-          </Button>
-        }
-      />
+      <div className="flex flex-col items-center gap-4 py-20 text-center">
+        <h2 className="text-lg font-semibold text-text-primary">Video not found</h2>
+        <Button variant="primary" onClick={() => navigate(`/courses/${courseId}`)}>
+          Back to Course
+        </Button>
+      </div>
     );
   }
 
   const currentStep = getCurrentStep(video.status);
+  const stepItems = [
+    { title: "Draft" },
+    { title: "Script", description: isApproved ? "Approved" : hasScript ? "Ready" : undefined },
+    { title: "Audio", description: hasAudio ? `${Math.round(video.audioDuration)}s` : undefined },
+    { title: "Render" },
+    { title: "Complete" },
+  ];
+
+  const infoItems = [
+    { label: "Duration", value: `${video.duration} min` },
+    { label: "Voice", value: video.voice },
+    { label: "Style", value: video.style },
+    {
+      label: "Status",
+      value: (
+        <Badge variant={isCompleted ? "success" : isFailed ? "danger" : isProcessing ? "accent" : "neutral"}>{video.status}</Badge>
+      ),
+    },
+  ];
 
   return (
     <div>
       {/* Header */}
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
-        <Col>
-          <Space>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => navigate(`/courses/${courseId}`)}
-              type="text"
-            />
-            <div>
-              <Title level={3} style={{ margin: 0, color: dynamicColors.textPrimary }}>
-                {video.title}
-              </Title>
-              <Text style={{ color: dynamicColors.textSecondary }}>
-                {video.topic}
-              </Text>
-            </div>
-          </Space>
-        </Col>
-        <Col>
-          <Space>
-            {isFailed && (
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={handleRetry}
-                loading={actionLoading['retry']}
-              >
-                Retry
-              </Button>
-            )}
-            {isProcessing && (
-              <Tag icon={<LoadingOutlined />} color="processing">
-                {video.status}
-              </Tag>
-            )}
-            {isCompleted && (
-              <Tag icon={<CheckCircleOutlined />} color="success">
-                Completed
-              </Tag>
-            )}
-          </Space>
-        </Col>
-      </Row>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <Button variant="ghost" size="md" iconOnly aria-label="Back to course" onClick={() => navigate(`/courses/${courseId}`)} icon={<ArrowLeft className="size-4" />} />
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-text-primary">{video.title}</h1>
+            <p className="mt-1 text-sm text-text-secondary">{video.topic}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {isFailed && (
+            <Button variant="danger" icon={<RotateCw className="size-4" />} loading={actionLoading.retry} onClick={handleRetry}>
+              Retry
+            </Button>
+          )}
+          {isProcessing && (
+            <Badge variant="accent" icon={<Loader2 className="size-3 animate-spin" />}>
+              {video.status}
+            </Badge>
+          )}
+          {isCompleted && (
+            <Badge variant="success" icon={<CheckCircle2 className="size-3" />}>
+              Completed
+            </Badge>
+          )}
+        </div>
+      </div>
 
       {/* Progress Steps */}
-      <Card
-        style={{
-          marginBottom: 16,
-          background: dynamicColors.surface,
-          borderColor: dynamicColors.borderLight,
-        }}
-      >
-        <Steps
-          current={currentStep}
-          status={isFailed ? 'error' : 'process'}
-          items={[
-            { title: 'Draft', icon: <FileTextOutlined /> },
-            {
-              title: 'Script',
-              icon: <RobotOutlined />,
-              status: currentStep >= 1 ? 'finish' : 'wait',
-              subTitle: isApproved ? 'Approved' : hasScript ? 'Ready' : '',
-            },
-            {
-              title: 'Audio',
-              icon: <AudioOutlined />,
-              status: currentStep >= 2 ? 'finish' : 'wait',
-              subTitle: hasAudio ? `${Math.round(video.audioDuration)}s` : '',
-            },
-            {
-              title: 'Render',
-              icon: <VideoCameraOutlined />,
-              status: currentStep >= 3 ? 'finish' : 'wait',
-            },
-            {
-              title: 'Complete',
-              icon: <CheckCircleOutlined />,
-              status: currentStep >= 4 ? 'finish' : 'wait',
-            },
-          ]}
-        />
+      <Card className="mb-4 p-6">
+        <Steps items={stepItems} current={Math.max(currentStep, 0)} status={isFailed ? "error" : "process"} />
       </Card>
 
       {/* Video Info */}
-      <Card
-        style={{
-          marginBottom: 16,
-          background: dynamicColors.surface,
-          borderColor: dynamicColors.borderLight,
-        }}
-      >
-        <Descriptions column={4} size="small">
-          <Descriptions.Item label="Duration">{video.duration} min</Descriptions.Item>
-          <Descriptions.Item label="Voice">{video.voice}</Descriptions.Item>
-          <Descriptions.Item label="Style">{video.style}</Descriptions.Item>
-          <Descriptions.Item label="Status">
-            <Tag color={
-              isCompleted ? 'success' : isFailed ? 'error' : isProcessing ? 'processing' : 'default'
-            }>
-              {video.status}
-            </Tag>
-          </Descriptions.Item>
-        </Descriptions>
+      <Card className="mb-4 p-5">
+        <DescriptionList items={infoItems} columns={4} />
         {video.additionalInstructions && (
-          <div style={{ marginTop: 8 }}>
-            <Text type="secondary">Instructions: {video.additionalInstructions}</Text>
-          </div>
+          <p className="mt-3 text-[13px] text-text-secondary">Instructions: {video.additionalInstructions}</p>
         )}
       </Card>
 
@@ -456,483 +376,332 @@ const CourseVideoEditor = () => {
       {isFailed && video.error?.message && (
         <Alert
           type="error"
-          message={`Failed at: ${video.error.step || 'Unknown'}`}
-          description={video.error.message}
-          showIcon
-          closable
-          style={{ marginBottom: 16 }}
+          title={`Failed at: ${video.error.step || "Unknown"}`}
+          className="mb-4"
           action={
-            <Button size="small" onClick={handleRetry} loading={actionLoading['retry']}>
+            <Button size="sm" loading={actionLoading.retry} onClick={handleRetry}>
               Retry
             </Button>
           }
-        />
+        >
+          {video.error.message}
+        </Alert>
       )}
 
       {/* Processing Progress */}
       {isProcessing && (
-        <Card
-          style={{
-            marginBottom: 16,
-            background: dynamicColors.surface,
-            borderColor: dynamicColors.borderLight,
-          }}
-        >
-          <Space>
-            <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} />} />
-            <div>
-              <Text strong>{video.status}</Text>
-              {video.renderProgress > 0 && (
-                <Progress percent={video.renderProgress} size="small" style={{ width: 200 }} />
-              )}
+        <Card className="mb-4 p-5">
+          <div className="flex items-center gap-4">
+            <Spinner size="lg" />
+            <div className="flex-1">
+              <p className="font-semibold text-text-primary">{video.status}</p>
+              {video.renderProgress > 0 && <Progress percent={video.renderProgress} className="mt-2 max-w-52" />}
             </div>
-          </Space>
+          </div>
         </Card>
       )}
 
-      <Row gutter={16}>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         {/* Left Column */}
-        <Col span={16}>
-          {/* ── STEP 1: SCRIPT ─────────────────────────────────────────── */}
-          <Card
-            title={
-              <Space>
-                <StepForwardOutlined />
-                <span>Step 1: Script Generation</span>
-                {hasScript && !isApproved && (
-                  <Tag color="warning">Needs Approval</Tag>
-                )}
-                {isApproved && (
-                  <Tag icon={<CheckCircleOutlined />} color="success">Approved</Tag>
-                )}
-                {isCompleted && (
-                  <Tag icon={<CheckCircleOutlined />} color="success">Done</Tag>
-                )}
-              </Space>
-            }
-            style={{
-              marginBottom: 16,
-              background: dynamicColors.surface,
-              borderColor: dynamicColors.borderLight,
-            }}
-            extra={
-              <Space>
-                {!hasScript && !isProcessing && (
-                  <Button
-                    type="primary"
-                    icon={<ThunderboltOutlined />}
-                    onClick={handleGenerateScript}
-                    loading={actionLoading['script']}
-                  >
-                    Generate Script
+        <div className="space-y-4">
+          {/* STEP 1: SCRIPT */}
+          <Card>
+            <CardHeader
+              title={
+                <span className="flex flex-wrap items-center gap-2">
+                  <StepForward className="size-4 text-text-tertiary" />
+                  Step 1: Script Generation
+                  {hasScript && !isApproved && <Badge variant="warning">Needs Approval</Badge>}
+                  {isApproved && <Badge variant="success" icon={<CheckCircle2 className="size-3" />}>Approved</Badge>}
+                  {isCompleted && <Badge variant="success" icon={<CheckCircle2 className="size-3" />}>Done</Badge>}
+                </span>
+              }
+              extra={
+                <>
+                  {!hasScript && !isProcessing && (
+                    <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.script} onClick={handleGenerateScript}>
+                      Generate Script
+                    </Button>
+                  )}
+                  {hasScript && !isApproved && !isProcessing && (
+                    <>
+                      <Button variant="secondary" size="sm" icon={<Pencil className="size-3.5" />} onClick={() => setEditingScript((v) => !v)}>
+                        {editingScript ? "Cancel" : "Edit"}
+                      </Button>
+                      <Button variant="primary" size="sm" icon={<CheckCircle2 className="size-3.5" />} loading={actionLoading.approve} onClick={handleApproveScript}>
+                        Approve Script
+                      </Button>
+                      <Button variant="secondary" size="sm" icon={<RotateCw className="size-3.5" />} loading={actionLoading.script} onClick={handleRegenerateScript}>
+                        Regenerate
+                      </Button>
+                    </>
+                  )}
+                  {isApproved && !isProcessing && (
+                    <Button variant="secondary" size="sm" icon={<RotateCw className="size-3.5" />} loading={actionLoading.script} onClick={handleRegenerateScript}>
+                      Regenerate Script
+                    </Button>
+                  )}
+                </>
+              }
+            />
+            <div className="p-5">
+              {!hasScript && !isProcessing && (
+                <InlineEmpty description="No script yet">
+                  <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.script} onClick={handleGenerateScript} className="mt-1">
+                    Generate Script with AI
                   </Button>
-                )}
-                {hasScript && !isApproved && !isProcessing && (
-                  <>
-                    <Button
-                      icon={<EditOutlined />}
-                      onClick={() => setEditingScript(!editingScript)}
-                    >
-                      {editingScript ? 'Cancel' : 'Edit'}
-                    </Button>
-                    <Button
-                      type="primary"
-                      icon={<CheckCircleOutlined />}
-                      onClick={handleApproveScript}
-                      loading={actionLoading['approve']}
-                    >
-                      Approve Script
-                    </Button>
-                    <Button
-                      icon={<ReloadOutlined />}
-                      onClick={handleRegenerateScript}
-                      loading={actionLoading['script']}
-                    >
-                      Regenerate
-                    </Button>
-                  </>
-                )}
-                {isApproved && !isProcessing && (
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={handleRegenerateScript}
-                    loading={actionLoading['script']}
-                  >
-                    Regenerate Script
-                  </Button>
-                )}
-              </Space>
-            }
-          >
-            {!hasScript && !isProcessing && (
-              <Empty
-                description="No script yet"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              >
-                <Button
-                  type="primary"
-                  icon={<ThunderboltOutlined />}
-                  onClick={handleGenerateScript}
-                  loading={actionLoading['script']}
-                >
-                  Generate Script with AI
-                </Button>
-              </Empty>
-            )}
-            {!hasScript && video?.status === 'Generating Script' && (
-              <div style={{ textAlign: 'center', padding: 40 }}>
-                <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} />} />
-                <div style={{ marginTop: 16 }}>
-                  <Text>Generating script using AI...</Text>
+                </InlineEmpty>
+              )}
+              {!hasScript && video?.status === "Generating Script" && <InlineSpinner label="Generating script using AI..." />}
+              {hasScript && !editingScript && (
+                <div>
+                  {scenes.length > 0 ? (
+                    <div className="flex flex-col gap-2.5">
+                      {scenes.map((scene, i) => (
+                        <div
+                          key={i}
+                          className="animate-slide-up rounded-[10px] bg-surface-hover p-4"
+                          style={{ "--stagger-index": i }}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-2.5">
+                              <Badge variant="accent" className="mt-0.5 shrink-0">
+                                Scene {scene.sceneNumber || i + 1}
+                              </Badge>
+                              <div>
+                                <p className="font-semibold text-text-primary">{scene.title || "Untitled scene"}</p>
+                                {scene.subtitle && <p className="text-[13px] text-text-secondary">{scene.subtitle}</p>}
+                                {(scene.audio?.text || scene.narration) && (
+                                  <p className="mt-1 max-w-lg text-[13px] text-text-tertiary">
+                                    &ldquo;{scene.audio?.text || scene.narration}&rdquo;
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 flex-col items-end gap-1">
+                              {scene.sceneType && <Badge>{scene.sceneType}</Badge>}
+                              {scene.duration && <span className="text-xs text-text-tertiary">{scene.duration}s</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <InlineEmpty description="Script has no scenes" />
+                  )}
+
+                  <AccordionItem title={<span className="text-[13px] text-text-tertiary">View raw script JSON</span>} ghost className="mt-3">
+                    <pre className="max-h-96 overflow-auto rounded-lg border border-border-light bg-bg p-4 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-text-primary">
+                      {(() => {
+                        try {
+                          return JSON.stringify(JSON.parse(video.script), null, 2);
+                        } catch {
+                          return video.script;
+                        }
+                      })()}
+                    </pre>
+                  </AccordionItem>
                 </div>
-              </div>
-            )}
-            {hasScript && !editingScript && (
-              <Collapse
-                defaultActiveKey={['preview']}
-                items={[
-                  {
-                    key: 'preview',
-                    label: `Script Preview (${scenes.length} scenes)`,
-                    children: (
-                      <pre
-                        style={{
-                          background: dynamicColors.bg,
-                          padding: 16,
-                          borderRadius: 8,
-                          maxHeight: 400,
-                          overflow: 'auto',
-                          fontSize: 13,
-                          lineHeight: 1.6,
-                          color: dynamicColors.textPrimary,
-                          border: `1px solid ${dynamicColors.borderLight}`,
-                          whiteSpace: 'pre-wrap',
-                          fontFamily: 'monospace',
-                        }}
-                      >
-                        {(() => {
-                          try {
-                            const parsed = JSON.parse(video.script);
-                            return JSON.stringify(parsed, null, 2);
-                          } catch {
-                            return video.script;
-                          }
-                        })()}
-                      </pre>
-                    ),
-                  },
-                ]}
-              />
-            )}
-            {hasScript && editingScript && (
-              <div>
-                <TextArea
-                  rows={15}
-                  value={scriptText}
-                  onChange={(e) => setScriptText(e.target.value)}
-                  style={{
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    background: dynamicColors.bg,
-                    color: dynamicColors.textPrimary,
-                    borderColor: dynamicColors.borderLight,
-                  }}
-                />
-                <div style={{ marginTop: 12, textAlign: 'right' }}>
-                  <Space>
-                    <Button onClick={() => {
-                      setEditingScript(false);
-                      setScriptText(video.script);
-                    }}>
+              )}
+              {hasScript && editingScript && (
+                <div>
+                  <Textarea
+                    rows={15}
+                    value={scriptText}
+                    onChange={(e) => setScriptText(e.target.value)}
+                    className="bg-bg font-mono text-[13px]"
+                  />
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setEditingScript(false);
+                        setScriptText(video.script);
+                      }}
+                    >
                       Cancel
                     </Button>
-                    <Button
-                      type="primary"
-                      onClick={handleSaveScript}
-                      loading={actionLoading['save']}
-                    >
+                    <Button variant="primary" loading={actionLoading.save} onClick={handleSaveScript}>
                       Save Script
                     </Button>
-                  </Space>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </Card>
 
-          {/* ── STEP 2: AUDIO ──────────────────────────────────────────── */}
-          <Card
-            title={
-              <Space>
-                <StepForwardOutlined />
-                <span>Step 2: Audio Generation</span>
-                {hasAudio && (
-                  <Tag icon={<CheckCircleOutlined />} color="success">Generated ({Math.round(video.audioDuration)}s)</Tag>
-                )}
-              </Space>
-            }
-            style={{
-              marginBottom: 16,
-              background: dynamicColors.surface,
-              borderColor: dynamicColors.borderLight,
-            }}
-            extra={
-              <Space>
-                {isApproved && !hasAudio && !isProcessing && (
-                  <Button
-                    type="primary"
-                    icon={<ThunderboltOutlined />}
-                    onClick={handleGenerateAudio}
-                    loading={actionLoading['audio']}
-                  >
+          {/* STEP 2: AUDIO */}
+          <Card>
+            <CardHeader
+              title={
+                <span className="flex flex-wrap items-center gap-2">
+                  <StepForward className="size-4 text-text-tertiary" />
+                  Step 2: Audio Generation
+                  {hasAudio && (
+                    <Badge variant="success" icon={<CheckCircle2 className="size-3" />}>
+                      Generated ({Math.round(video.audioDuration)}s)
+                    </Badge>
+                  )}
+                </span>
+              }
+              extra={
+                <>
+                  {isApproved && !hasAudio && !isProcessing && (
+                    <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.audio} onClick={handleGenerateAudio}>
+                      Generate Audio
+                    </Button>
+                  )}
+                  {hasAudio && !isProcessing && (
+                    <Button variant="secondary" size="sm" icon={<RotateCw className="size-3.5" />} loading={actionLoading.audio} onClick={handleRegenerateAudio}>
+                      Regenerate Audio
+                    </Button>
+                  )}
+                </>
+              }
+            />
+            <div className="p-5">
+              {!isApproved && !hasAudio && <InlineEmpty description="Approve the script first to generate audio" />}
+              {isApproved && !hasAudio && !isProcessing && (
+                <InlineEmpty description="Audio not yet generated">
+                  <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.audio} onClick={handleGenerateAudio} className="mt-1">
                     Generate Audio
                   </Button>
-                )}
-                {hasAudio && !isProcessing && (
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={handleRegenerateAudio}
-                    loading={actionLoading['audio']}
-                  >
-                    Regenerate Audio
-                  </Button>
-                )}
-              </Space>
-            }
-          >
-            {!isApproved && !hasAudio && (
-              <Empty
-                description="Approve the script first to generate audio"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              />
-            )}
-            {isApproved && !hasAudio && !isProcessing && (
-              <Empty
-                description="Audio not yet generated"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              >
-                <Button
-                  type="primary"
-                  icon={<ThunderboltOutlined />}
-                  onClick={handleGenerateAudio}
-                  loading={actionLoading['audio']}
-                >
-                  Generate Audio
-                </Button>
-              </Empty>
-            )}
-            {video?.status === 'Generating Audio' && (
-              <div style={{ textAlign: 'center', padding: 40 }}>
-                <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} />} />
-                <div style={{ marginTop: 16 }}>
-                  <Text>Generating audio narration...</Text>
-                </div>
-              </div>
-            )}
-            {hasAudio && scenes.length > 0 && (
-              <div>
-                <Text strong style={{ marginBottom: 12, display: 'block' }}>
-                  Per-Scene Audio ({scenes.length} scenes)
-                </Text>
-                <List
-                  dataSource={scenes}
-                  renderItem={(scene, idx) => {
-                    const sceneNum = scene.sceneNumber || idx + 1;
-                    const sceneAudioUrl = `${audioBaseUrl}/scene${sceneNum}.mp3`;
-                    const narrationText = scene.audio?.text || scene.title || '';
-                    const sceneTitle = scene.title || `Scene ${sceneNum}`;
-                    const sceneType = scene.sceneType || 'content';
-
-                    return (
-                      <List.Item
-                        style={{
-                          borderColor: dynamicColors.borderLight,
-                          padding: '12px 0',
-                        }}
-                      >
-                        <div style={{ width: '100%' }}>
-                          <Space style={{ marginBottom: 8 }}>
-                            <Tag>{sceneType}</Tag>
-                            <Text strong>{sceneNum}. {sceneTitle}</Text>
-                          </Space>
-                          <div style={{ marginBottom: 8 }}>
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                              {narrationText.substring(0, 120)}{narrationText.length > 120 ? '...' : ''}
-                            </Text>
+                </InlineEmpty>
+              )}
+              {video?.status === "Generating Audio" && <InlineSpinner label="Generating audio narration..." />}
+              {hasAudio && scenes.length > 0 && (
+                <div>
+                  <p className="mb-3 font-semibold text-text-primary">Per-Scene Audio ({scenes.length} scenes)</p>
+                  <ul className="divide-y divide-border-light">
+                    {scenes.map((scene, idx) => {
+                      const sceneNum = scene.sceneNumber || idx + 1;
+                      const sceneAudioUrl = `${audioBaseUrl}/scene${sceneNum}.mp3`;
+                      const narrationText = scene.audio?.text || scene.title || "";
+                      const sceneTitle = scene.title || `Scene ${sceneNum}`;
+                      const sceneType = scene.sceneType || "content";
+                      return (
+                        <li key={idx} className="py-3 first:pt-0 last:pb-0">
+                          <div className="mb-2 flex items-center gap-2">
+                            <Badge>{sceneType}</Badge>
+                            <span className="font-semibold text-text-primary">
+                              {sceneNum}. {sceneTitle}
+                            </span>
                           </div>
-                          <audio
-                            controls
-                            style={{ width: '100%', height: 36 }}
-                            preload="none"
-                          >
+                          <p className="mb-2 text-xs text-text-tertiary">
+                            {narrationText.substring(0, 120)}
+                            {narrationText.length > 120 ? "..." : ""}
+                          </p>
+                          <audio controls preload="none" className="h-9 w-full">
                             <source src={sceneAudioUrl} type="audio/mpeg" />
                             Your browser does not support the audio element.
                           </audio>
-                        </div>
-                      </List.Item>
-                    );
-                  }}
-                />
-              </div>
-            )}
-            {hasAudio && scenes.length === 0 && (
-              <div>
-                <Descriptions size="small" column={2}>
-                  <Descriptions.Item label="Total Duration">
-                    {Math.round(video.audioDuration)} seconds
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Generated">
-                    {video.audioGeneratedAt ? new Date(video.audioGeneratedAt).toLocaleString() : 'N/A'}
-                  </Descriptions.Item>
-                </Descriptions>
-                {video.audioUrl && (
-                  <div style={{ marginTop: 12 }}>
-                    <audio controls style={{ width: '100%' }} src={video.audioUrl}>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {hasAudio && scenes.length === 0 && (
+                <div>
+                  <DescriptionList
+                    items={[
+                      { label: "Total Duration", value: `${Math.round(video.audioDuration)} seconds` },
+                      { label: "Generated", value: video.audioGeneratedAt ? new Date(video.audioGeneratedAt).toLocaleString() : "N/A" },
+                    ]}
+                  />
+                  {video.audioUrl && (
+                    <audio controls className="mt-3 w-full" src={video.audioUrl}>
                       Your browser does not support the audio element.
                     </audio>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
           </Card>
 
-          {/* ── STEP 3: RENDER ─────────────────────────────────────────── */}
-          <Card
-            title={
-              <Space>
-                <StepForwardOutlined />
-                <span>Step 3: Video Render</span>
-                {isCompleted && (
-                  <Tag icon={<CheckCircleOutlined />} color="success">Completed</Tag>
-                )}
-              </Space>
-            }
-            style={{
-              marginBottom: 16,
-              background: dynamicColors.surface,
-              borderColor: dynamicColors.borderLight,
-            }}
-            extra={
-              <Space>
-                {hasAudio && !isCompleted && !isProcessing && (
-                  <Button
-                    type="primary"
-                    icon={<ThunderboltOutlined />}
-                    onClick={handleRender}
-                    loading={actionLoading['render']}
-                  >
+          {/* STEP 3: RENDER */}
+          <Card>
+            <CardHeader
+              title={
+                <span className="flex flex-wrap items-center gap-2">
+                  <StepForward className="size-4 text-text-tertiary" />
+                  Step 3: Video Render
+                  {isCompleted && <Badge variant="success" icon={<CheckCircle2 className="size-3" />}>Completed</Badge>}
+                </span>
+              }
+              extra={
+                <>
+                  {hasAudio && !isCompleted && !isProcessing && (
+                    <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.render} onClick={handleRender}>
+                      Render Video
+                    </Button>
+                  )}
+                  {isCompleted && !isProcessing && (
+                    <Button variant="secondary" size="sm" icon={<RotateCw className="size-3.5" />} loading={actionLoading.render} onClick={handleReRender}>
+                      Re-Render
+                    </Button>
+                  )}
+                </>
+              }
+            />
+            <div className="p-5">
+              {!hasAudio && !isCompleted && <InlineEmpty description="Generate audio first to render the video" />}
+              {hasAudio && !isCompleted && !isProcessing && (
+                <InlineEmpty description="Ready to render">
+                  <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.render} onClick={handleRender} className="mt-1">
                     Render Video
                   </Button>
-                )}
-                {isCompleted && !isProcessing && (
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={handleReRender}
-                    loading={actionLoading['render']}
-                  >
-                    Re-Render
-                  </Button>
-                )}
-              </Space>
-            }
-          >
-            {!hasAudio && !isCompleted && (
-              <Empty
-                description="Generate audio first to render the video"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              />
-            )}
-            {hasAudio && !isCompleted && !isProcessing && (
-              <Empty
-                description="Ready to render"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              >
-                <Button
-                  type="primary"
-                  icon={<ThunderboltOutlined />}
-                  onClick={handleRender}
-                  loading={actionLoading['render']}
-                >
-                  Render Video
-                </Button>
-              </Empty>
-            )}
-            {video?.status === 'Rendering Video' && (
-              <div style={{ textAlign: 'center', padding: 40 }}>
-                <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} />} />
-                <div style={{ marginTop: 16 }}>
-                  <Text>Rendering video...</Text>
+                </InlineEmpty>
+              )}
+              {video?.status === "Rendering Video" && (
+                <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+                  <Spinner size="lg" />
+                  <p className="text-sm text-text-secondary">Rendering video...</p>
+                  {video.renderProgress > 0 && <Progress percent={video.renderProgress} className="mt-1 w-full max-w-sm" />}
                 </div>
-                {video.renderProgress > 0 && (
-                  <Progress percent={video.renderProgress} style={{ marginTop: 16, maxWidth: 400 }} />
-                )}
-              </div>
-            )}
-            {isCompleted && (
-              <Result
-                status="success"
-                title="Video Completed!"
-                subTitle={`Rendered at: ${video.renderedAt ? new Date(video.renderedAt).toLocaleString() : 'N/A'}`}
-                extra={[
-                  video.renderUrl && (
-                    <Button
-                      key="watch"
-                      type="primary"
-                      icon={<PlayCircleOutlined />}
-                      href={video.renderUrl}
-                      target="_blank"
-                    >
-                      Watch Video
+              )}
+              {isCompleted && (
+                <div className="flex flex-col items-center py-6 text-center">
+                  <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-success-500/10 text-success-500">
+                    <CheckCircle2 className="size-7" />
+                  </div>
+                  <h3 className="text-base font-semibold text-text-primary">Video Completed!</h3>
+                  <p className="mt-1 text-sm text-text-secondary">
+                    Rendered at: {video.renderedAt ? new Date(video.renderedAt).toLocaleString() : "N/A"}
+                  </p>
+                  <div className="mt-5 flex flex-wrap justify-center gap-2">
+                    {video.renderUrl && (
+                      <Button href={video.renderUrl} target="_blank" rel="noopener noreferrer" variant="primary" icon={<PlayCircle className="size-4" />}>
+                        Watch Video
+                      </Button>
+                    )}
+                    <Button variant="secondary" icon={<RotateCw className="size-4" />} loading={actionLoading.render} onClick={handleReRender}>
+                      Re-Render
                     </Button>
-                  ),
-                  <Button
-                    key="rerender"
-                    icon={<ReloadOutlined />}
-                    onClick={handleReRender}
-                    loading={actionLoading['render']}
-                  >
-                    Re-Render
-                  </Button>,
-                  <Button
-                    key="back"
-                    onClick={() => navigate(`/courses/${courseId}`)}
-                  >
-                    Back to Course
-                  </Button>,
-                ]}
-              />
-            )}
+                    <Button variant="ghost" onClick={() => navigate(`/courses/${courseId}`)}>
+                      Back to Course
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </Card>
-        </Col>
+        </div>
 
         {/* Right Column - Activity Log */}
-        <Col span={8}>
-          <Card
-            title="Activity Log"
-            style={{
-              background: dynamicColors.surface,
-              borderColor: dynamicColors.borderLight,
-            }}
-          >
-            <Timeline
-              items={activityLog.slice(0, 20).map((entry) => ({
-                children: (
-                  <div>
-                    <Text style={{ color: dynamicColors.textPrimary }}>{entry.text}</Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: 12 }}>{entry.time}</Text>
-                  </div>
-                ),
-              }))}
-            />
-            {activityLog.length === 0 && (
-              <Empty
-                description="No activity yet"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
+        <Card className="h-fit">
+          <CardHeader title="Activity Log" />
+          <div className="p-5">
+            {activityLog.length === 0 ? (
+              <InlineEmpty description="No activity yet" />
+            ) : (
+              <Timeline
+                items={activityLog.slice(0, 20).map((entry) => ({ title: entry.text, timestamp: entry.time }))}
               />
             )}
-          </Card>
-        </Col>
-      </Row>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 };

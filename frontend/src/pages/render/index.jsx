@@ -1,29 +1,59 @@
-import { useState, useEffect, useRef, useCallback, useContext } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  Typography, Card, Row, Col, Progress, Tag, Descriptions, Button, Steps, Space, Alert, message
-} from "antd";
+  ArrowLeft,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  FileText,
+  AudioLines,
+  Video,
+  CloudUpload,
+  Zap,
+  Redo2,
+  PlayCircle,
+  Download,
+  Pencil,
+  Copy,
+} from "lucide-react";
 import {
-  ArrowLeftOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  ClockCircleOutlined, FileTextOutlined, AudioOutlined, VideoCameraOutlined,
-  CloudUploadOutlined, ThunderboltOutlined, ReloadOutlined, PlayCircleOutlined, RedoOutlined, DownloadOutlined, EditOutlined
-} from "@ant-design/icons";
-import { getVideoJob, restartVideoJob, rerenderVideoJob } from "../../services/api";
-import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, onDisconnect, requestJobStatus, onJobStatus, isConnected } from "../../services/socket";
-import { ThemeContext } from "../../shared/themeContextValue";
+  getVideoJob,
+  restartVideoJob,
+  rerenderVideoJob,
+} from "../../services/api";
+import {
+  connect,
+  joinJobRoom,
+  leaveJobRoom,
+  onJobProgress,
+  onJobCompleted,
+  onJobFailed,
+  onConnect,
+  onDisconnect,
+  requestJobStatus,
+  onJobStatus,
+  isConnected,
+} from "../../services/socket";
 import { LoadingState, EmptyState, ErrorState } from "../../components";
-
-const { Title, Text } = Typography;
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Alert } from "../../components/ui/Alert";
+import { Steps } from "../../components/ui/Steps";
+import { DescriptionList } from "../../components/ui/DescriptionList";
+import { CircularProgress } from "../../components/ui/CircularProgress";
+import { toast } from "../../components/ui/toastBus";
 
 const PIPELINE_STEPS = [
-  { title: "Queued", status: "QUEUED", icon: <ClockCircleOutlined /> },
-  { title: "Script", status: "SCRIPT_GENERATION", icon: <FileTextOutlined /> },
-  { title: "Audio", status: "GENERATING_AUDIO", icon: <AudioOutlined /> },
-  { title: "Images", status: "GENERATING_IMAGES", icon: <FileTextOutlined /> },
-  { title: "Assets", status: "PREPARING_ASSETS", icon: <ThunderboltOutlined /> },
-  { title: "Render", status: "RENDERING", icon: <VideoCameraOutlined /> },
-  { title: "Upload", status: "UPLOADING", icon: <CloudUploadOutlined /> },
-  { title: "Complete", status: "COMPLETED", icon: <CheckCircleOutlined /> },
+  { title: "Queued", status: "QUEUED", icon: Clock },
+  { title: "Script", status: "SCRIPT_GENERATION", icon: FileText },
+  { title: "Audio", status: "GENERATING_AUDIO", icon: AudioLines },
+  { title: "Images", status: "GENERATING_IMAGES", icon: FileText },
+  { title: "Assets", status: "PREPARING_ASSETS", icon: Zap },
+  { title: "Render", status: "RENDERING", icon: Video },
+  { title: "Upload", status: "UPLOADING", icon: CloudUpload },
+  { title: "Complete", status: "COMPLETED", icon: CheckCircle2 },
 ];
 
 const STEP_ORDER = PIPELINE_STEPS.map((s) => s.status);
@@ -31,7 +61,6 @@ const STEP_ORDER = PIPELINE_STEPS.map((s) => s.status);
 const RenderPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { colors } = useContext(ThemeContext);
   const jobId = searchParams.get("id");
 
   const [job, setJob] = useState(null);
@@ -39,9 +68,9 @@ const RenderPage = () => {
   const [error, setError] = useState(null);
   const [restartLoading, setRestartLoading] = useState(false);
   const [rerenderLoading, setRerenderLoading] = useState(false);
-  const [socketStatus, setSocketStatus] = useState(() => isConnected() ? "connected" : "disconnected");
+  const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
+  const [copied, setCopied] = useState(false);
 
-  // Store unsubscribe functions for cleanup
   const unsubscribesRef = useRef([]);
   const videoRef = useRef(null);
 
@@ -64,9 +93,9 @@ const RenderPage = () => {
     try {
       setRestartLoading(true);
       await restartVideoJob(jobId);
-      message.success("Job restarted successfully");
+      toast.success("Job restarted successfully");
     } catch (err) {
-      message.error(err.response?.data?.error || "Failed to restart job");
+      toast.error(err.response?.data?.error || "Failed to restart job");
     } finally {
       setRestartLoading(false);
     }
@@ -77,399 +106,272 @@ const RenderPage = () => {
     try {
       setRerenderLoading(true);
       await rerenderVideoJob(jobId);
-      message.success("Re-render started successfully");
+      toast.success("Re-render started successfully");
     } catch (err) {
-      message.error(err.response?.data?.error || "Failed to re-render job");
+      toast.error(err.response?.data?.error || "Failed to re-render job");
     } finally {
       setRerenderLoading(false);
     }
   };
 
-  // Cleanup previous event listeners
   const cleanup = useCallback(() => {
     unsubscribesRef.current.forEach((unsubscribe) => unsubscribe && unsubscribe());
     unsubscribesRef.current = [];
   }, []);
 
-  // Setup socket event listeners
-  const setupListeners = useCallback((currentJobId) => {
-    cleanup();
+  const setupListeners = useCallback(
+    (currentJobId) => {
+      cleanup();
 
-    // Progress updates
-    const unsubProgress = onJobProgress((data) => {
-      if (data.jobId === currentJobId) {
-        setJob((prev) => prev ? { ...prev, progress: data.progress, status: data.status, currentStep: data.currentStep, currentScene: data.currentScene } : prev);
-      }
-    });
-    unsubscribesRef.current.push(unsubProgress);
+      unsubscribesRef.current.push(
+        onJobProgress((data) => {
+          if (data.jobId === currentJobId) {
+            setJob((prev) =>
+              prev ? { ...prev, progress: data.progress, status: data.status, currentStep: data.currentStep, currentScene: data.currentScene } : prev
+            );
+          }
+        })
+      );
 
-    // Completion
-    const unsubCompleted = onJobCompleted((data) => {
-      if (data.jobId === currentJobId) {
-        setJob((prev) => prev ? { ...prev, progress: 100, status: "COMPLETED", videoUrl: data.videoUrl, thumbnailUrl: data.thumbnailUrl } : prev);
-        message.success("Video generation completed!");
-      }
-    });
-    unsubscribesRef.current.push(unsubCompleted);
+      unsubscribesRef.current.push(
+        onJobCompleted((data) => {
+          if (data.jobId === currentJobId) {
+            setJob((prev) => (prev ? { ...prev, progress: 100, status: "COMPLETED", videoUrl: data.videoUrl, thumbnailUrl: data.thumbnailUrl } : prev));
+            toast.success("Video generation completed!");
+          }
+        })
+      );
 
-    // Failure
-    const unsubFailed = onJobFailed((data) => {
-      if (data.jobId === currentJobId) {
-        setJob((prev) => prev ? { ...prev, status: "FAILED", error: data.error } : prev);
-        message.error("Video generation failed");
-      }
-    });
-    unsubscribesRef.current.push(unsubFailed);
+      unsubscribesRef.current.push(
+        onJobFailed((data) => {
+          if (data.jobId === currentJobId) {
+            setJob((prev) => (prev ? { ...prev, status: "FAILED", error: data.error } : prev));
+            toast.error("Video generation failed");
+          }
+        })
+      );
 
-    // Listen for initial job status after joining room
-    const unsubStatus = onJobStatus((data) => {
-      if (data.jobId === currentJobId) {
-        setJob((prev) => ({
-          ...(prev || {}),
-          progress: data.progress,
-          status: data.status,
-          currentStep: data.currentStep,
-          currentScene: data.currentScene,
-          videoUrl: data.videoUrl || prev?.videoUrl,
-          thumbnailUrl: data.thumbnailUrl || prev?.thumbnailUrl,
-        }));
-      }
-    });
-    unsubscribesRef.current.push(unsubStatus);
+      unsubscribesRef.current.push(
+        onJobStatus((data) => {
+          if (data.jobId === currentJobId) {
+            setJob((prev) => ({
+              ...(prev || {}),
+              progress: data.progress,
+              status: data.status,
+              currentStep: data.currentStep,
+              currentScene: data.currentScene,
+              videoUrl: data.videoUrl || prev?.videoUrl,
+              thumbnailUrl: data.thumbnailUrl || prev?.thumbnailUrl,
+            }));
+          }
+        })
+      );
 
-    // Reconnection handler - re-join room and get status
-    const unsubConnect = onConnect(() => {
-      setSocketStatus("connected");
-      if (jobId) {
-        joinJobRoom(jobId);
-        requestJobStatus(jobId);
-      }
-    });
-    unsubscribesRef.current.push(unsubConnect);
+      unsubscribesRef.current.push(
+        onConnect(() => {
+          setSocketStatus("connected");
+          if (jobId) {
+            joinJobRoom(jobId);
+            requestJobStatus(jobId);
+          }
+        })
+      );
 
-    // Disconnection handler
-    const unsubDisconnect = onDisconnect((reason) => {
-      setSocketStatus(reason === "io client disconnect" ? "disconnected" : "reconnecting");
-    });
-    unsubscribesRef.current.push(unsubDisconnect);
-  }, [cleanup, jobId]);
+      unsubscribesRef.current.push(
+        onDisconnect((reason) => {
+          setSocketStatus(reason === "io client disconnect" ? "disconnected" : "reconnecting");
+        })
+      );
+    },
+    [cleanup, jobId]
+  );
 
   useEffect(() => {
     if (!jobId) {
       setLoading(false);
-      return;
+      return undefined;
     }
 
-    // Initial fetch
     fetchJob();
-
-    // Connect socket if not connected
     connect();
-
-    // Setup event listeners
     setupListeners(jobId);
-
-    // Join room - server will immediately send jobStatus with current state
     joinJobRoom(jobId);
-
-    // Set initial socket connection status (check synchronously)
     setSocketStatus(isConnected() ? "connected" : "disconnected");
 
-    // Cleanup on unmount or jobId change
     return () => {
       leaveJobRoom(jobId);
     };
   }, [jobId, fetchJob, setupListeners]);
 
-  if (loading) {
-    return <LoadingState label="Loading job details..." />;
-  }
+  if (loading) return <LoadingState label="Loading job details..." />;
 
   if (!jobId) {
-    return (
-      <EmptyState
-        description="No job ID specified"
-        actionLabel="Back to Dashboard"
-        onAction={() => navigate("/")}
-      />
-    );
+    return <EmptyState description="No job ID specified" actionLabel="Back to Dashboard" onAction={() => navigate("/")} />;
   }
 
   if (error && !job) {
     return (
-      <div style={{ textAlign: "center", padding: 48 }}>
+      <div className="mx-auto max-w-md py-12 text-center">
         <ErrorState message="Error" description={error} />
-        <Button style={{ marginTop: 16 }} onClick={() => navigate("/")}>Back to Dashboard</Button>
+        <Button className="mt-4" onClick={() => navigate("/")}>
+          Back to Dashboard
+        </Button>
       </div>
     );
   }
 
-  // Determine current step index for the pipeline
   const currentStepIndex = STEP_ORDER.indexOf(job?.status);
   const isComplete = job?.status === "COMPLETED";
   const isFailed = job?.status === "FAILED";
   const isActive = !isComplete && !isFailed;
 
+  const copyJobId = async () => {
+    await navigator.clipboard.writeText(job?._id || "");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const details = [
+    {
+      label: "Job ID",
+      value: (
+        <button onClick={copyJobId} className="flex items-center gap-1.5 font-mono text-xs hover:text-accent">
+          {job?._id}
+          <Copy className="size-3" />
+          {copied && <span className="text-[11px] text-accent">Copied</span>}
+        </button>
+      ),
+    },
+    { label: "Type", value: <Badge>{job?.type}</Badge> },
+    { label: "Resolution", value: job?.resolution || "—" },
+    { label: "Language", value: job?.language || "—" },
+    { label: "Voice", value: job?.voice || "—" },
+    { label: "Created", value: job?.createdAt ? new Date(job.createdAt).toLocaleString() : "—" },
+  ];
+
+  const socketDotCls = { connected: "bg-success-500", reconnecting: "bg-warning-500", disconnected: "bg-text-tertiary" };
+  const socketLabel = { connected: "Live", reconnecting: "Reconnecting...", disconnected: "Offline" };
+
   return (
     <div>
-      <Space style={{ marginBottom: 24 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/")}>Back</Button>
-        <Button icon={<ReloadOutlined />} onClick={fetchJob} loading={loading}>Refresh</Button>
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <Button variant="secondary" icon={<ArrowLeft className="size-4" />} onClick={() => navigate("/")}>
+          Back
+        </Button>
+        <Button variant="secondary" icon={<RefreshCw className="size-4" />} loading={loading} onClick={fetchJob}>
+          Refresh
+        </Button>
         {isFailed && (
-          <Button 
-            icon={<RedoOutlined />} 
-            type="primary" 
-            danger
-            onClick={handleRestart} 
-            loading={restartLoading}
-          >
+          <Button variant="danger" icon={<Redo2 className="size-4" />} loading={restartLoading} onClick={handleRestart}>
             Restart Job
           </Button>
         )}
         {isComplete && (
           <>
-            <Button 
-              icon={<EditOutlined />} 
-              type="primary"
-              onClick={() => navigate(`/studio?id=${jobId}`)}
-            >
+            <Button variant="primary" icon={<Pencil className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
               Studio Editor
             </Button>
-            <Button 
-              icon={<RedoOutlined />} 
-              type="primary"
-              onClick={handleRerender} 
-              loading={rerenderLoading}
-            >
+            <Button variant="primary" icon={<Redo2 className="size-4" />} loading={rerenderLoading} onClick={handleRerender}>
               Re-render
             </Button>
           </>
         )}
-      </Space>
+      </div>
 
-      <Space style={{ marginBottom: 16 }} align="center">
-        <Title level={4} style={{ color: colors.textPrimary, marginBottom: 0 }}>
-          {job?.topic || "Render Progress"}
-        </Title>
-        <Tag
-          color={
-            socketStatus === "connected" ? "green" :
-            socketStatus === "reconnecting" ? "orange" : "default"
-          }
-          style={{ fontSize: 11, padding: "0 8px", lineHeight: "20px" }}
-        >
-          <Space size={4}>
-            <span
-              style={{
-                display: "inline-block",
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                backgroundColor:
-                  socketStatus === "connected" ? colors.success :
-                  socketStatus === "reconnecting" ? colors.warning : colors.textTertiary,
-              }}
-            />
-            {socketStatus === "connected" ? "Live" :
-             socketStatus === "reconnecting" ? "Reconnecting..." : "Offline"}
-          </Space>
-        </Tag>
-      </Space>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <h1 className="text-xl font-semibold tracking-tight text-text-primary">{job?.topic || "Render Progress"}</h1>
+        <span className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-text-secondary">
+          <span className={`size-2 rounded-full ${socketDotCls[socketStatus]}`} />
+          {socketLabel[socketStatus]}
+        </span>
+      </div>
 
       {/* Overall Progress */}
-      <Card style={{ borderRadius: 12, marginBottom: 24 }}>
-        <Row gutter={24} align="middle">
-          <Col xs={24} md={8}>
-            <div style={{ textAlign: "center", padding: "16px 0" }}>
-              <Progress
-                type="circle"
-                percent={job?.progress || 0}
-                size={120}
-                strokeColor={isFailed ? colors.error : colors.primary}
-                status={isFailed ? "exception" : "active"}
-              />
-              <div style={{ marginTop: 8 }}>
-                <Tag
-                  color={isComplete ? "success" : isFailed ? "error" : "processing"}
-                  icon={isComplete ? <CheckCircleOutlined /> : isFailed ? <CloseCircleOutlined /> : <SyncOutlined spin />}
-                  style={{ fontSize: 13, padding: "4px 12px" }}
-                >
-                  {job?.status?.replace(/_/g, " ")}
-                </Tag>
-              </div>
-            </div>
-          </Col>
-          <Col xs={24} md={16}>
-            <Descriptions column={2} size="small" bordered>
-              <Descriptions.Item label="Job ID">
-                <Text copyable style={{ fontSize: 12 }}>{job?._id}</Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Type">
-                <Tag>{job?.type}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="Resolution">{job?.resolution}</Descriptions.Item>
-              <Descriptions.Item label="Language">{job?.language}</Descriptions.Item>
-              <Descriptions.Item label="Voice">{job?.voice}</Descriptions.Item>
-              <Descriptions.Item label="Created">
-                {job?.createdAt ? new Date(job.createdAt).toLocaleString() : "-"}
-              </Descriptions.Item>
-            </Descriptions>
-          </Col>
-        </Row>
+      <Card className="mb-6 animate-slide-up p-6">
+        <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[auto_1fr]">
+          <div className="flex flex-col items-center gap-3 py-2">
+            <CircularProgress percent={job?.progress || 0} error={isFailed} />
+            <Badge variant={isComplete ? "success" : isFailed ? "danger" : "accent"} icon={isComplete ? <CheckCircle2 className="size-3" /> : isFailed ? <XCircle className="size-3" /> : <RefreshCw className="size-3 animate-spin" />}>
+              {job?.status?.replace(/_/g, " ")}
+            </Badge>
+          </div>
+          <DescriptionList items={details} columns={2} />
+        </div>
       </Card>
 
       {/* Pipeline Steps */}
-      <Card title="Pipeline" style={{ borderRadius: 12, marginBottom: 24 }} headStyle={{ fontWeight: 600 }}>
+      <Card className="mb-6 animate-slide-up p-6" style={{ "--stagger-index": 1 }}>
+        <h3 className="mb-6 text-[15px] font-semibold text-text-primary">Pipeline</h3>
         <Steps
+          items={PIPELINE_STEPS}
           current={currentStepIndex >= 0 ? currentStepIndex : 0}
           status={isFailed ? "error" : isComplete ? "finish" : "process"}
-          direction="horizontal"
-          size="small"
-          style={{ marginTop: 8 }}
-        >
-          {PIPELINE_STEPS.map((step, idx) => (
-            <Steps.Step
-              key={step.status}
-              title={step.title}
-              icon={
-                idx < currentStepIndex ? <CheckCircleOutlined /> :
-                idx === currentStepIndex && isActive ? <SyncOutlined spin /> :
-                step.icon
-              }
-              status={
-                idx < currentStepIndex ? "finish" :
-                idx === currentStepIndex && isFailed ? "error" :
-                idx === currentStepIndex ? "process" : "wait"
-              }
-            />
-          ))}
-        </Steps>
+        />
 
         {isActive && job?.currentStep && (
-          <Alert
-            style={{ marginTop: 16, borderRadius: 8 }}
-            message={
-              <Space>
-                <SyncOutlined spin />
-                <span>
-                  {job?.currentStep?.replace(/_/g, " ")}
-                  {job?.currentScene ? ` — Scene ${job.currentScene}` : ""}
-                </span>
-              </Space>
-            }
-            type="info"
-            showIcon={false}
-          />
+          <Alert type="info" className="mt-5">
+            <span className="flex items-center gap-2">
+              <RefreshCw className="size-3.5 animate-spin" />
+              {job.currentStep.replace(/_/g, " ")}
+              {job.currentScene ? ` — Scene ${job.currentScene}` : ""}
+            </span>
+          </Alert>
         )}
 
         {isFailed && job?.error && (
-          <Alert
-            style={{ marginTop: 16, borderRadius: 8 }}
-            message={typeof job.error === 'string' ? job.error : job.error?.message || "An error occurred"}
-            type="error"
-            showIcon
-          />
+          <Alert type="error" className="mt-5">
+            {typeof job.error === "string" ? job.error : job.error?.message || "An error occurred"}
+          </Alert>
         )}
 
         {isComplete && (
-          <Alert
-            style={{ marginTop: 16, borderRadius: 8 }}
-            message="Video generation completed successfully!"
-            type="success"
-            showIcon
-            icon={<CheckCircleOutlined />}
-          />
+          <Alert type="success" title="Video generation completed successfully!" className="mt-5 animate-scale-in" />
         )}
       </Card>
 
       {/* Video / Player section */}
       {isComplete && job?.videoUrl && (
-        <Card
-          title={
-            <Space>
-              <PlayCircleOutlined style={{ color: colors.primary }} />
-              <span>Output Video</span>
-            </Space>
-          }
-          style={{ borderRadius: 12 }}
-          headStyle={{ fontWeight: 600 }}
-        >
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            {/* HTML5 Video Player */}
-            <div
-              style={{
-                width: "100%",
-                maxWidth: 720,
-                margin: "0 auto",
-                borderRadius: 12,
-                overflow: "hidden",
-                boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
-                background: "#000",
-              }}
-            >
-              <video
-                ref={videoRef}
-                src={job.videoUrl}
-                controls
-                autoPlay
-                style={{
-                  width: "100%",
-                  display: "block",
-                  aspectRatio: job?.resolution === "9:16" ? "9/16" : "16/9",
-                  objectFit: "contain",
-                }}
-                poster={job.thumbnailUrl || undefined}
-              >
-                Your browser does not support the video tag.
-              </video>
-            </div>
+        <Card className="animate-slide-up p-6" style={{ "--stagger-index": 2 }}>
+          <h3 className="mb-5 flex items-center gap-2 text-[15px] font-semibold text-text-primary">
+            <PlayCircle className="size-[18px] text-accent" /> Output Video
+          </h3>
 
-            {/* Video info and download */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: 12,
-                padding: "4px 0",
-              }}
+          <div className="mx-auto max-w-2xl overflow-hidden rounded-xl bg-black shadow-lg">
+            <video
+              ref={videoRef}
+              src={job.videoUrl}
+              controls
+              autoPlay
+              poster={job.thumbnailUrl || undefined}
+              className="block w-full object-contain"
+              style={{ aspectRatio: job?.resolution === "9:16" ? "9/16" : "16/9" }}
             >
-              <Space size={16}>
-                {job.resolution && (
-                  <Text type="secondary" style={{ fontSize: 13 }}>
-                    Resolution: <Text strong>{job.resolution}</Text>
-                  </Text>
-                )}
-                {job.duration && (
-                  <Text type="secondary" style={{ fontSize: 13 }}>
-                    Duration: <Text strong>{job.duration}s</Text>
-                  </Text>
-                )}
-              </Space>
+              Your browser does not support the video tag.
+            </video>
+          </div>
 
-              <Space>
-                <Button
-                  type="primary"
-                  icon={<PlayCircleOutlined />}
-                  href={job.videoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Open in new tab
-                </Button>
-                <Button
-                  icon={<DownloadOutlined />}
-                  href={job.videoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download
-                >
-                  Download
-                </Button>
-              </Space>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-4 text-[13px] text-text-secondary">
+              {job.resolution && (
+                <span>
+                  Resolution: <span className="font-semibold text-text-primary">{job.resolution}</span>
+                </span>
+              )}
+              {job.duration && (
+                <span>
+                  Duration: <span className="font-semibold text-text-primary">{job.duration}s</span>
+                </span>
+              )}
             </div>
-          </Space>
+            <div className="flex items-center gap-2">
+              <Button href={job.videoUrl} target="_blank" rel="noopener noreferrer" variant="primary" icon={<PlayCircle className="size-4" />}>
+                Open in new tab
+              </Button>
+              <Button href={job.videoUrl} target="_blank" rel="noopener noreferrer" download variant="secondary" icon={<Download className="size-4" />}>
+                Download
+              </Button>
+            </div>
+          </div>
         </Card>
       )}
     </div>

@@ -1,46 +1,19 @@
-import { useContext } from "react";
-import { Typography, Card } from "antd";
-import { RocketOutlined } from "@ant-design/icons";
-import { ThemeContext } from "../../shared/themeContextValue";
+import { Rocket } from "lucide-react";
+import { Card } from "../../components/ui/Card";
 
-const { Title, Paragraph } = Typography;
-
-const PlaceholderPage = ({ title, description }) => {
-  const { colors } = useContext(ThemeContext);
-
-  return (
-    <div>
-      <Title level={4} style={{ marginBottom: 16, color: colors.textPrimary }}>
-        {title}
-      </Title>
-      <Card style={{ borderRadius: 16, minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center", padding: 48, maxWidth: 360 }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: "50%",
-              background: colors.primaryBg,
-              color: colors.primary,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 24,
-              margin: "0 auto 16px",
-            }}
-          >
-            <RocketOutlined />
-          </div>
-          <Title level={5} style={{ color: colors.textPrimary, marginBottom: 8 }}>
-            Coming soon
-          </Title>
-          <Paragraph style={{ color: colors.textSecondary, fontSize: 15, marginBottom: 0 }}>
-            {description || `The ${title} page is coming soon.`}
-          </Paragraph>
+const PlaceholderPage = ({ title, description }) => (
+  <div>
+    <h1 className="mb-4 text-xl font-semibold tracking-tight text-text-primary">{title}</h1>
+    <Card className="flex min-h-80 items-center justify-center">
+      <div className="max-w-sm px-6 py-12 text-center">
+        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent-subtle text-accent">
+          <Rocket className="size-6" />
         </div>
-      </Card>
-    </div>
-  );
-};
+        <h2 className="mb-2 text-base font-semibold text-text-primary">Coming soon</h2>
+        <p className="text-[15px] text-text-secondary">{description || `The ${title} page is coming soon.`}</p>
+      </div>
+    </Card>
+  </div>
+);
 
 export default PlaceholderPage;

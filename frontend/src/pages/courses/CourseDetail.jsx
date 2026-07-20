@@ -1,86 +1,75 @@
-import { useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useCallback } from "react";
 import {
-  Card,
-  Button,
-  Input,
-  Select,
-  Space,
-  Tag,
-  Modal,
-  Form,
-  message,
-  Typography,
-  Row,
-  Col,
-  Progress,
-  Tooltip,
-  List,
-  Descriptions,
-  Badge,
-  Dropdown,
-} from 'antd';
-import {
-  PlusOutlined,
-  ArrowLeftOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  PlayCircleOutlined,
-  FileTextOutlined,
-  SoundOutlined,
-  VideoCameraOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  MoreOutlined,
-} from '@ant-design/icons';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ThemeContext } from "../../shared/themeContextValue";
-import { getColors } from '../../shared/theme';
-import { EmptyState, LoadingState } from '../../components';
-import { useSetBreadcrumbLabel } from '../../shared/breadcrumbContextValue';
-import {
-  getCourse,
-  deleteCourse,
-  getCourseVideos,
-  createCourseVideo,
-  deleteCourseVideo,
-} from '../../services/api';
+  Plus,
+  ArrowLeft,
+  Pencil,
+  Trash2,
+  PlayCircle,
+  FileText,
+  AudioLines,
+  Video,
+  CheckCircle2,
+  Clock,
+  MoreHorizontal,
+} from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import { EmptyState, LoadingState } from "../../components";
+import { useSetBreadcrumbLabel } from "../../shared/breadcrumbContextValue";
+import { Card, CardHeader } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Tooltip } from "../../components/ui/Tooltip";
+import { Modal } from "../../components/ui/Modal";
+import { Dropdown, DropdownItem } from "../../components/ui/Dropdown";
+import { DescriptionList } from "../../components/ui/DescriptionList";
+import { CircularProgress } from "../../components/ui/CircularProgress";
+import { Select } from "../../components/ui/Select";
+import { Input, Textarea, Label } from "../../components/ui/Input";
+import { toast } from "../../components/ui/toastBus";
+import { confirmDialog } from "../../components/ui/confirmBus";
+import { getCourse, deleteCourse, getCourseVideos, createCourseVideo, deleteCourseVideo } from "../../services/api";
 
-const { Title, Text } = Typography;
-const { TextArea } = Input;
-
-const videoStatusColors = {
-  'Draft': 'default',
-  'Generating Script': 'processing',
-  'Script Generated': 'blue',
-  'Waiting for Approval': 'warning',
-  'Approved': 'purple',
-  'Generating Audio': 'processing',
-  'Audio Generated': 'cyan',
-  'Generating Scenes': 'processing',
-  'Scenes Generated': 'geekblue',
-  'Generating Images': 'processing',
-  'Images Generated': 'orange',
-  'Rendering Video': 'processing',
-  'Completed': 'success',
-  'Failed': 'error',
+const VIDEO_STATUS = {
+  Draft: { variant: "neutral", icon: FileText },
+  "Generating Script": { variant: "accent", icon: FileText },
+  "Script Generated": { variant: "info", icon: FileText },
+  "Waiting for Approval": { variant: "warning", icon: FileText },
+  Approved: { variant: "accent", icon: CheckCircle2 },
+  "Generating Audio": { variant: "accent", icon: AudioLines },
+  "Audio Generated": { variant: "info", icon: AudioLines },
+  "Generating Scenes": { variant: "accent", icon: FileText },
+  "Scenes Generated": { variant: "info", icon: FileText },
+  "Generating Images": { variant: "accent", icon: FileText },
+  "Images Generated": { variant: "warning", icon: FileText },
+  "Rendering Video": { variant: "accent", icon: Video },
+  Completed: { variant: "success", icon: CheckCircle2 },
+  Failed: { variant: "danger", icon: Clock },
 };
 
-const videoStatusIcons = {
-  'Draft': <FileTextOutlined />,
-  'Generating Script': <FileTextOutlined />,
-  'Script Generated': <FileTextOutlined />,
-  'Waiting for Approval': <FileTextOutlined />,
-  'Approved': <CheckCircleOutlined />,
-  'Generating Audio': <SoundOutlined />,
-  'Audio Generated': <SoundOutlined />,
-  'Rendering Video': <VideoCameraOutlined />,
-  'Completed': <CheckCircleOutlined />,
-  'Failed': <ClockCircleOutlined />,
-};
+const DURATION_OPTIONS = [
+  { value: 5, label: "5 minutes" },
+  { value: 10, label: "10 minutes" },
+  { value: 15, label: "15 minutes" },
+];
+
+const VOICE_OPTIONS = [
+  { value: "male-1", label: "Male 1" },
+  { value: "male-2", label: "Male 2" },
+  { value: "female-1", label: "Female 1" },
+  { value: "female-2", label: "Female 2" },
+  { value: "neutral-1", label: "Neutral" },
+];
+
+const STYLE_OPTIONS = [
+  { value: "educational", label: "Educational" },
+  { value: "story", label: "Story" },
+  { value: "motivational", label: "Motivational" },
+  { value: "business", label: "Business" },
+];
+
+const EMPTY_FORM = { title: "", topic: "", duration: 5, voice: "female-1", style: "educational", additionalInstructions: "" };
 
 const CourseDetail = () => {
-  const { theme } = useContext(ThemeContext);
-  const dynamicColors = getColors(theme);
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -91,7 +80,8 @@ const CourseDetail = () => {
   const [loading, setLoading] = useState(true);
   const [videosLoading, setVideosLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
-  const [form] = Form.useForm();
+  const [formValues, setFormValues] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const fetchCourse = useCallback(async () => {
@@ -101,8 +91,8 @@ const CourseDetail = () => {
       setCourse(res.data.course);
       setVideoStatusSummary(res.data.videoStatusSummary || {});
     } catch (err) {
-      message.error(err.response?.data?.error || 'Failed to load course');
-      navigate('/courses');
+      toast.error(err.response?.data?.error || "Failed to load course");
+      navigate("/courses");
     } finally {
       setLoading(false);
     }
@@ -114,7 +104,7 @@ const CourseDetail = () => {
       const res = await getCourseVideos(id);
       setVideos(res.data.videos);
     } catch (err) {
-      message.error(err.response?.data?.error || 'Failed to load videos');
+      toast.error(err.response?.data?.error || "Failed to load videos");
     } finally {
       setVideosLoading(false);
     }
@@ -126,349 +116,271 @@ const CourseDetail = () => {
   }, [fetchCourse, fetchVideos]);
 
   const showCreateModal = () => {
-    form.resetFields();
+    setFormValues(EMPTY_FORM);
+    setFormError("");
     setModalVisible(true);
   };
 
   const handleCreateVideo = async () => {
+    if (!formValues.title.trim()) return setFormError("Please enter a video title");
+    if (!formValues.topic.trim()) return setFormError("Please enter a topic");
     try {
-      const values = await form.validateFields();
       setSubmitting(true);
-      await createCourseVideo(id, values);
-      message.success('Video created successfully');
+      await createCourseVideo(id, formValues);
+      toast.success("Video created successfully");
       setModalVisible(false);
-      form.resetFields();
       fetchVideos();
       fetchCourse();
     } catch (err) {
-      if (err.errorFields) return;
-      message.error(err.response?.data?.message || 'Failed to create video');
+      toast.error(err.response?.data?.message || "Failed to create video");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteVideo = (video) => {
-    Modal.confirm({
-      title: 'Delete Video',
-      content: `Are you sure you want to delete "${video.title}"?`,
-      okText: 'Delete',
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          await deleteCourseVideo(video._id);
-          message.success('Video deleted');
-          fetchVideos();
-          fetchCourse();
-        } catch (err) {
-          message.error(err.response?.data?.error || 'Failed to delete video');
-        }
-      },
-    });
+  const handleDeleteVideo = async (video) => {
+    const ok = await confirmDialog({ title: "Delete Video", content: `Are you sure you want to delete "${video.title}"?`, confirmText: "Delete", danger: true });
+    if (!ok) return;
+    try {
+      await deleteCourseVideo(video._id);
+      toast.success("Video deleted");
+      fetchVideos();
+      fetchCourse();
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to delete video");
+    }
   };
 
-  const handleDeleteCourse = () => {
-    Modal.confirm({
-      title: 'Delete Course',
+  const handleDeleteCourse = async () => {
+    const ok = await confirmDialog({
+      title: "Delete Course",
       content: `Are you sure you want to delete "${course?.title}"? All videos will be deleted.`,
-      okText: 'Delete',
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          await deleteCourse(id);
-          message.success('Course deleted');
-          navigate('/courses');
-        } catch (err) {
-          message.error(err.response?.data?.error || 'Failed to delete course');
-        }
-      },
+      confirmText: "Delete",
+      danger: true,
     });
+    if (!ok) return;
+    try {
+      await deleteCourse(id);
+      toast.success("Course deleted");
+      navigate("/courses");
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to delete course");
+    }
   };
 
   const totalVideos = course?.videoCount || 0;
   const completedVideos = course?.completedVideoCount || 0;
   const progressPercent = totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
 
-  if (loading) {
-    return <LoadingState label="Loading course..." />;
-  }
+  if (loading) return <LoadingState label="Loading course..." />;
+
+  const infoItems = [
+    { label: "Category", value: course?.category || "—" },
+    { label: "Difficulty", value: course?.difficulty || "—" },
+    { label: "Language", value: course?.language || "—" },
+    { label: "Status", value: <Badge>{course?.status}</Badge> },
+  ];
 
   return (
     <div>
       {/* Header */}
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
-        <Col>
-          <Space>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => navigate('/courses')}
-              type="text"
-            />
-            <div>
-              <Title level={3} style={{ margin: 0, color: dynamicColors.textPrimary }}>
-                {course?.title}
-              </Title>
-              <Text style={{ color: dynamicColors.textSecondary }}>
-                {course?.description || 'No description'}
-              </Text>
-            </div>
-          </Space>
-        </Col>
-        <Col>
-          <Space>
-            <Button icon={<PlusOutlined />} type="primary" onClick={showCreateModal}>
-              Create Video
-            </Button>
-            <Dropdown
-              menu={{
-                items: [
-                  {
-                    key: 'edit',
-                    icon: <EditOutlined />,
-                    label: 'Edit Course',
-                    onClick: () => navigate(`/courses/${id}/edit`),
-                  },
-                  {
-                    key: 'delete',
-                    icon: <DeleteOutlined />,
-                    label: 'Delete Course',
-                    danger: true,
-                    onClick: handleDeleteCourse,
-                  },
-                ],
-              }}
-            >
-              <Button icon={<MoreOutlined />} />
-            </Dropdown>
-          </Space>
-        </Col>
-      </Row>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <Button variant="ghost" size="md" iconOnly aria-label="Back to courses" onClick={() => navigate("/courses")} icon={<ArrowLeft className="size-4" />} />
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-text-primary">{course?.title}</h1>
+            <p className="mt-1 text-sm text-text-secondary">{course?.description || "No description"}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="primary" icon={<Plus className="size-4" />} onClick={showCreateModal}>
+            Create Video
+          </Button>
+          <Dropdown
+            trigger={({ toggle }) => (
+              <Button variant="secondary" iconOnly aria-label="More course actions" onClick={toggle} icon={<MoreHorizontal className="size-4" />} />
+            )}
+          >
+            {() => (
+              <>
+                <DropdownItem icon={<Pencil className="size-4" />} onClick={() => navigate(`/courses/${id}/edit`)}>
+                  Edit Course
+                </DropdownItem>
+                <DropdownItem danger icon={<Trash2 className="size-4" />} onClick={handleDeleteCourse}>
+                  Delete Course
+                </DropdownItem>
+              </>
+            )}
+          </Dropdown>
+        </div>
+      </div>
 
       {/* Course Info */}
-      <Card
-        style={{
-          marginBottom: 16,
-          background: dynamicColors.surface,
-          borderColor: dynamicColors.borderLight,
-        }}
-      >
-        <Row gutter={24} align="middle">
-          <Col span={12}>
-            <Descriptions column={2} size="small">
-              <Descriptions.Item label="Category">{course?.category}</Descriptions.Item>
-              <Descriptions.Item label="Difficulty">{course?.difficulty}</Descriptions.Item>
-              <Descriptions.Item label="Language">{course?.language}</Descriptions.Item>
-              <Descriptions.Item label="Status">
-                <Tag>{course?.status}</Tag>
-              </Descriptions.Item>
-            </Descriptions>
-          </Col>
-          <Col span={12}>
-            <div style={{ textAlign: 'center' }}>
-              <Progress
-                type="circle"
-                percent={progressPercent}
-                size={80}
-                format={() => `${completedVideos}/${totalVideos}`}
-              />
-              <div style={{ marginTop: 8 }}>
-                <Text style={{ color: dynamicColors.textSecondary }}>
-                  {completedVideos} of {totalVideos} videos completed
-                </Text>
-              </div>
-            </div>
-          </Col>
-        </Row>
+      <Card className="mb-4 p-6">
+        <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-2">
+          <DescriptionList items={infoItems} columns={2} />
+          <div className="flex flex-col items-center gap-2 justify-self-center">
+            <CircularProgress percent={progressPercent} size={80} stroke={7} label={`${completedVideos}/${totalVideos}`} />
+            <p className="text-[13px] text-text-secondary">
+              {completedVideos} of {totalVideos} videos completed
+            </p>
+          </div>
+        </div>
       </Card>
 
       {/* Video Status Summary */}
-      <Row gutter={[8, 8]} style={{ marginBottom: 16 }}>
-        {Object.entries(videoStatusSummary).map(([status, count]) => (
-          <Col key={status}>
-            <Badge
-              count={count}
-              style={{ backgroundColor: videoStatusColors[status] === 'processing' ? '#1890ff' : undefined }}
-            >
-              <Tag color={videoStatusColors[status]} style={{ padding: '4px 12px' }}>
-                {status}
-              </Tag>
+      {Object.keys(videoStatusSummary).length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {Object.entries(videoStatusSummary).map(([status, count]) => (
+            <Badge key={status} variant={VIDEO_STATUS[status]?.variant || "neutral"}>
+              {status} · {count}
             </Badge>
-          </Col>
-        ))}
-      </Row>
+          ))}
+        </div>
+      )}
 
       {/* Videos List */}
-      <Card
-        title={
-          <Space>
-            <VideoCameraOutlined />
-            <span>Videos</span>
-          </Space>
-        }
-        style={{
-          background: dynamicColors.surface,
-          borderColor: dynamicColors.borderLight,
-        }}
-      >
-        <List
-          loading={videosLoading}
-          dataSource={videos}
-          locale={{
-            emptyText: (
-              <EmptyState
-                description="No videos yet"
-                actionLabel="Create Your First Video"
-                onAction={showCreateModal}
-              />
-            ),
-          }}
-          renderItem={(video) => (
-            <List.Item
-              style={{
-                borderColor: dynamicColors.borderLight,
-                cursor: 'pointer',
-              }}
-              onClick={() => navigate(`/courses/${id}/videos/${video._id}`)}
-              actions={[
-                <Tooltip title="Open Video">
-                  <Button
-                    type="text"
-                    icon={<PlayCircleOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/courses/${id}/videos/${video._id}`);
-                    }}
-                  />
-                </Tooltip>,
-                <Tooltip title="Delete">
-                  <Button
-                    type="text"
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteVideo(video);
-                    }}
-                  />
-                </Tooltip>,
-              ]}
-            >
-              <List.Item.Meta
-                avatar={
-                  <Tag
-                    icon={videoStatusIcons[video.status]}
-                    color={videoStatusColors[video.status]}
-                    style={{ padding: '4px 8px', fontSize: 12 }}
-                  >
-                    {video.status}
-                  </Tag>
-                }
-                title={
-                  <Space>
-                    <Text strong style={{ color: dynamicColors.textPrimary }}>
-                      {video.order + 1}. {video.title}
-                    </Text>
-                  </Space>
-                }
-                description={
-                  <Space size="small" style={{ color: dynamicColors.textSecondary }}>
-                    <Text type="secondary">{video.duration} min</Text>
-                    <Text type="secondary">•</Text>
-                    <Text type="secondary">{video.topic?.substring(0, 60)}</Text>
-                    {video.audioDuration > 0 && (
-                      <>
-                        <Text type="secondary">•</Text>
-                        <Text type="secondary">{Math.round(video.audioDuration)}s audio</Text>
-                      </>
-                    )}
-                  </Space>
-                }
-              />
-            </List.Item>
-          )}
+      <Card>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <Video className="size-4 text-text-tertiary" /> Videos
+            </span>
+          }
         />
+        <div className="p-2">
+          {videosLoading ? (
+            <LoadingState label="Loading videos..." />
+          ) : videos.length === 0 ? (
+            <EmptyState description="No videos yet" actionLabel="Create Your First Video" onAction={showCreateModal} />
+          ) : (
+            <ul>
+              {videos.map((video) => {
+                const statusMeta = VIDEO_STATUS[video.status] || VIDEO_STATUS.Draft;
+                const StatusIcon = statusMeta.icon;
+                return (
+                  <li key={video._id}>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => navigate(`/courses/${id}/videos/${video._id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          navigate(`/courses/${id}/videos/${video._id}`);
+                        }
+                      }}
+                      className="flex w-full cursor-pointer items-center gap-4 rounded-lg border-b border-border-light px-3 py-3.5 text-left transition-colors last:border-0 hover:bg-surface-hover"
+                    >
+                      <Badge variant={statusMeta.variant} icon={<StatusIcon className="size-3" />} className="shrink-0">
+                        {video.status}
+                      </Badge>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-text-primary">
+                          {video.order + 1}. {video.title}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-text-tertiary">
+                          {video.duration} min • {video.topic?.substring(0, 60)}
+                          {video.audioDuration > 0 && ` • ${Math.round(video.audioDuration)}s audio`}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Tooltip content="Open Video">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            iconOnly
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/courses/${id}/videos/${video._id}`);
+                            }}
+                            icon={<PlayCircle className="size-4" />}
+                          />
+                        </Tooltip>
+                        <Tooltip content="Delete">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            iconOnly
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteVideo(video);
+                            }}
+                            icon={<Trash2 className="size-4 text-danger-500" />}
+                          />
+                        </Tooltip>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </Card>
 
       {/* Create Video Modal */}
       <Modal
-        title="Create Video"
         open={modalVisible}
-        onOk={handleCreateVideo}
-        onCancel={() => {
-          setModalVisible(false);
-          form.resetFields();
-        }}
-        confirmLoading={submitting}
-        width={600}
+        onClose={() => setModalVisible(false)}
+        title="Create Video"
+        width="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setModalVisible(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" loading={submitting} onClick={handleCreateVideo}>
+              Create Video
+            </Button>
+          </>
+        }
       >
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            duration: 5,
-            voice: 'female-1',
-            style: 'educational',
-          }}
-        >
-          <Form.Item
-            name="title"
-            label="Video Title"
-            rules={[{ required: true, message: 'Please enter a video title' }]}
-          >
-            <Input placeholder="e.g., Introduction to React" />
-          </Form.Item>
-          <Form.Item
-            name="topic"
-            label="Topic"
-            rules={[{ required: true, message: 'Please enter a topic' }]}
-          >
-            <TextArea
+        <div className="space-y-4">
+          <div>
+            <Label required>Video Title</Label>
+            <Input
+              placeholder="e.g., Introduction to React"
+              value={formValues.title}
+              onChange={(e) => setFormValues((prev) => ({ ...prev, title: e.target.value }))}
+              error={Boolean(formError) && !formValues.title.trim()}
+            />
+          </div>
+          <div>
+            <Label required>Topic</Label>
+            <Textarea
               rows={2}
               placeholder="e.g., Explain React from scratch for beginners."
+              value={formValues.topic}
+              onChange={(e) => setFormValues((prev) => ({ ...prev, topic: e.target.value }))}
+              error={Boolean(formError) && !formValues.topic.trim()}
             />
-          </Form.Item>
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="duration" label="Duration">
-                <Select
-                  options={[
-                    { value: 5, label: '5 minutes' },
-                    { value: 10, label: '10 minutes' },
-                    { value: 15, label: '15 minutes' },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="voice" label="Voice">
-                <Select
-                  options={[
-                    { value: 'male-1', label: 'Male 1' },
-                    { value: 'male-2', label: 'Male 2' },
-                    { value: 'female-1', label: 'Female 1' },
-                    { value: 'female-2', label: 'Female 2' },
-                    { value: 'neutral-1', label: 'Neutral' },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="style" label="Style">
-                <Select
-                  options={[
-                    { value: 'educational', label: 'Educational' },
-                    { value: 'story', label: 'Story' },
-                    { value: 'motivational', label: 'Motivational' },
-                    { value: 'business', label: 'Business' },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="additionalInstructions" label="Additional Instructions (optional)">
-            <TextArea rows={2} placeholder="Any specific instructions for the AI..." />
-          </Form.Item>
-        </Form>
+          </div>
+          {formError && <p className="text-xs text-danger-500">{formError}</p>}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label>Duration</Label>
+              <Select options={DURATION_OPTIONS} value={formValues.duration} onChange={(v) => setFormValues((prev) => ({ ...prev, duration: v }))} />
+            </div>
+            <div>
+              <Label>Voice</Label>
+              <Select options={VOICE_OPTIONS} value={formValues.voice} onChange={(v) => setFormValues((prev) => ({ ...prev, voice: v }))} />
+            </div>
+            <div>
+              <Label>Style</Label>
+              <Select options={STYLE_OPTIONS} value={formValues.style} onChange={(v) => setFormValues((prev) => ({ ...prev, style: v }))} />
+            </div>
+          </div>
+          <div>
+            <Label>Additional Instructions (optional)</Label>
+            <Textarea
+              rows={2}
+              placeholder="Any specific instructions for the AI..."
+              value={formValues.additionalInstructions}
+              onChange={(e) => setFormValues((prev) => ({ ...prev, additionalInstructions: e.target.value }))}
+            />
+          </div>
+        </div>
       </Modal>
     </div>
   );

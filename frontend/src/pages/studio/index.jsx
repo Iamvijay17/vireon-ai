@@ -1,18 +1,38 @@
-import { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  Typography, Card, Row, Col, Button, Form, Input, Select, Space, message, Divider, Tag, Collapse, InputNumber, Alert
-} from "antd";
-import {
-  ArrowLeftOutlined, SaveOutlined, RedoOutlined, SettingOutlined, EditOutlined, TranslationOutlined, PictureOutlined, RightOutlined
-} from "@ant-design/icons";
+  ArrowLeft,
+  Save,
+  Redo2,
+  Settings,
+  Pencil,
+  Languages,
+  Image as ImageIcon,
+  ChevronRight,
+} from "lucide-react";
 import { getVideoJob, updateVideoScenes, rerenderVideoJob } from "../../services/api";
-import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, onDisconnect, onJobStatus, isConnected } from "../../services/socket";
-import { ThemeContext } from "../../shared/themeContextValue";
+import {
+  connect,
+  joinJobRoom,
+  leaveJobRoom,
+  onJobProgress,
+  onJobCompleted,
+  onJobFailed,
+  onConnect,
+  onDisconnect,
+  onJobStatus,
+  isConnected,
+} from "../../services/socket";
 import { LoadingState, EmptyState } from "../../components";
-
-const { Title, Text } = Typography;
-const { TextArea } = Input;
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Alert } from "../../components/ui/Alert";
+import { AccordionItem } from "../../components/ui/Accordion";
+import { Select } from "../../components/ui/Select";
+import { Input, Textarea, NumberInput, Label } from "../../components/ui/Input";
+import { cn } from "../../components/ui/cn";
+import { toast } from "../../components/ui/toastBus";
 
 const SCENE_TYPE_OPTIONS = [
   { value: "title", label: "Title" },
@@ -35,24 +55,45 @@ const CAMERA_OPTIONS = [
   { value: "slide", label: "Slide" },
 ];
 
+const SECTION_TONE = {
+  accent: "bg-accent-subtle text-accent",
+  info: "bg-info-500/10 text-info-600 dark:text-info-500",
+  warning: "bg-warning-500/10 text-warning-600 dark:text-warning-500",
+  success: "bg-success-500/10 text-success-600 dark:text-success-500",
+};
+
+const SectionLabel = ({ icon: Icon, tone, children }) => (
+  <div className="mb-3 flex items-center gap-2">
+    <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-[7px]", SECTION_TONE[tone])}>
+      <Icon className="size-3.5" />
+    </span>
+    <h4 className="text-[13px] font-semibold text-text-primary">{children}</h4>
+  </div>
+);
+
+const Field = ({ label, children }) => (
+  <div>
+    <Label>{label}</Label>
+    {children}
+  </div>
+);
+
 const StudioPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { colors } = useContext(ThemeContext);
   const jobId = searchParams.get("id");
 
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rerendering, setRerendering] = useState(false);
-  const [socketStatus, setSocketStatus] = useState(() => isConnected() ? "connected" : "disconnected");
+  const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
   const [editedScenes, setEditedScenes] = useState([]);
   const [hasChanges, setHasChanges] = useState(false);
   const [selectedSceneIndex, setSelectedSceneIndex] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const videoRef = useRef(null);
 
-  // Calculate scene start times for navigation
   const sceneTimeline = useMemo(() => {
     return editedScenes.reduce((acc, scene) => {
       const start = acc.length ? acc[acc.length - 1].endTime : 0;
@@ -70,7 +111,7 @@ const StudioPage = () => {
       setJob(res.data.job);
       setEditedScenes(res.data.job.script?.scenes || []);
     } catch (err) {
-      message.error(err.response?.data?.error || "Failed to fetch job");
+      toast.error(err.response?.data?.error || "Failed to fetch job");
     } finally {
       setLoading(false);
     }
@@ -96,9 +137,9 @@ const StudioPage = () => {
       setSaving(true);
       await updateVideoScenes(jobId, editedScenes);
       setHasChanges(false);
-      message.success("Scenes saved successfully!");
+      toast.success("Scenes saved successfully!");
     } catch (err) {
-      message.error(err.response?.data?.error || "Failed to save scenes");
+      toast.error(err.response?.data?.error || "Failed to save scenes");
     } finally {
       setSaving(false);
     }
@@ -109,16 +150,15 @@ const StudioPage = () => {
     try {
       setRerendering(true);
       await rerenderVideoJob(jobId);
-      message.success("Re-render started!");
+      toast.success("Re-render started!");
       navigate(`/render?id=${jobId}`);
     } catch (err) {
-      message.error(err.response?.data?.error || "Failed to start re-render");
+      toast.error(err.response?.data?.error || "Failed to start re-render");
     } finally {
       setRerendering(false);
     }
   };
 
-  // Socket listeners
   useEffect(() => {
     if (!jobId) return;
     connect();
@@ -126,19 +166,19 @@ const StudioPage = () => {
 
     const unsubProgress = onJobProgress((data) => {
       if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, progress: data.progress, status: data.status } : prev);
+        setJob((prev) => (prev ? { ...prev, progress: data.progress, status: data.status } : prev));
       }
     });
     const unsubCompleted = onJobCompleted((data) => {
       if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, progress: 100, status: "COMPLETED" } : prev);
-        message.success("Re-render completed!");
+        setJob((prev) => (prev ? { ...prev, progress: 100, status: "COMPLETED" } : prev));
+        toast.success("Re-render completed!");
       }
     });
     const unsubFailed = onJobFailed((data) => {
       if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, status: "FAILED", error: data.error } : prev);
-        message.error("Re-render failed");
+        setJob((prev) => (prev ? { ...prev, status: "FAILED", error: data.error } : prev));
+        toast.error("Re-render failed");
       }
     });
     const unsubStatus = onJobStatus((data) => {
@@ -164,148 +204,124 @@ const StudioPage = () => {
     fetchJob();
   }, [fetchJob]);
 
-  if (loading) {
-    return <LoadingState label="Loading studio..." />;
-  }
+  if (loading) return <LoadingState label="Loading studio..." />;
 
   if (!job) {
-    return (
-      <EmptyState
-        description="Job not found"
-        actionLabel="Back to Dashboard"
-        onAction={() => navigate("/")}
-      />
-    );
+    return <EmptyState description="Job not found" actionLabel="Back to Dashboard" onAction={() => navigate("/")} />;
   }
 
   const canEdit = job.status === "COMPLETED" || job.status === "FAILED" || job.status === "SCRIPT_COMPLETED";
 
   return (
     <div>
-      <Space style={{ marginBottom: 24 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/")}>Back</Button>
-        <Title level={4} style={{ color: colors.textPrimary, marginBottom: 0 }}>
-          <EditOutlined /> Studio Editor — {job.topic}
-        </Title>
-        <Tag color={socketStatus === "connected" ? "green" : "default"}>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Button variant="secondary" icon={<ArrowLeft className="size-4" />} onClick={() => navigate("/")}>
+          Back
+        </Button>
+        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-text-primary">
+          <Pencil className="size-[18px] text-text-tertiary" /> Studio Editor — {job.topic}
+        </h1>
+        <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
           {socketStatus === "connected" ? "Live" : "Offline"}
-        </Tag>
-      </Space>
+        </Badge>
+      </div>
 
       {/* Action Bar */}
-      <Card style={{ borderRadius: 12, marginBottom: 24 }}>
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space>
-              <Text strong>Total Scenes: </Text>
-              <Tag color="blue">{editedScenes.length}</Tag>
-              <Text type="secondary">Job ID: {job._id}</Text>
-            </Space>
-          </Col>
-          <Col>
-            <Space>
-              <Button icon={<SaveOutlined />} onClick={handleSave} loading={saving} disabled={!hasChanges || !canEdit}>
-                Save Changes
-              </Button>
-              <Button type="primary" icon={<RedoOutlined />} onClick={handleRerender} loading={rerendering} disabled={!canEdit}>
-                Re-render
-              </Button>
-            </Space>
-          </Col>
-        </Row>
+      <Card className="mb-6 animate-slide-up p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 text-sm">
+            <span className="font-semibold text-text-primary">Total Scenes:</span>
+            <Badge variant="accent">{editedScenes.length}</Badge>
+            <span className="text-text-tertiary">Job ID: {job._id}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" icon={<Save className="size-4" />} onClick={handleSave} loading={saving} disabled={!hasChanges || !canEdit}>
+              Save Changes
+            </Button>
+            <Button variant="primary" icon={<Redo2 className="size-4" />} onClick={handleRerender} loading={rerendering} disabled={!canEdit}>
+              Re-render
+            </Button>
+          </div>
+        </div>
       </Card>
 
-      {/* Remotion-style Preview */}
+      {/* Preview */}
       {job?.videoUrl && (
-        <Card title="Preview" style={{ borderRadius: 12, marginBottom: 24 }} headStyle={{ fontWeight: 600 }}>
-          <div style={{ width: "100%", maxWidth: 800, margin: "0 auto" }}>
-            <video
-              ref={videoRef}
-              src={job.videoUrl}
-              controls
-              style={{
-                width: "100%",
-                display: "block",
-                borderRadius: 8,
-                background: "#000",
-              }}
-              onTimeUpdate={(e) => {
-                const time = e.target.currentTime;
-                setCurrentTime(time);
-                // Auto-select scene based on current time
-                const sceneIndex = sceneTimeline.findIndex(s => time >= s.startTime && time < s.endTime);
-                if (sceneIndex >= 0 && sceneIndex !== selectedSceneIndex) {
-                  setSelectedSceneIndex(sceneIndex);
-                }
-              }}
-            />
+        <Card className="mb-6">
+          <div className="border-b border-border-light px-5 py-4">
+            <h3 className="text-[15px] font-semibold text-text-primary">Preview</h3>
           </div>
+          <div className="p-5">
+            <div className="mx-auto w-full max-w-3xl">
+              <video
+                ref={videoRef}
+                src={job.videoUrl}
+                controls
+                className="block w-full rounded-lg bg-black"
+                onTimeUpdate={(e) => {
+                  const time = e.target.currentTime;
+                  setCurrentTime(time);
+                  const sceneIndex = sceneTimeline.findIndex((s) => time >= s.startTime && time < s.endTime);
+                  if (sceneIndex >= 0 && sceneIndex !== selectedSceneIndex) {
+                    setSelectedSceneIndex(sceneIndex);
+                  }
+                }}
+              />
+            </div>
 
-          {/* Scene Timeline / Navigation */}
-          <div style={{ marginTop: 20 }}>
-            <Title level={5} style={{ marginBottom: 14 }}>Scene Timeline</Title>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {sceneTimeline.map((scene, index) => {
-                const isActive = index === selectedSceneIndex;
-                const isPast = currentTime >= scene.endTime;
-                return (
-                  <Card
-                    key={index}
-                    size="small"
-                    onClick={() => {
-                      setSelectedSceneIndex(index);
-                      if (videoRef.current) {
-                        videoRef.current.currentTime = scene.startTime;
-                      }
-                    }}
-                    style={{
-                      flex: "1 1 150px",
-                      minWidth: 150,
-                      cursor: "pointer",
-                      border: isActive ? `2px solid ${colors.primary}` : undefined,
-                      backgroundColor: isActive ? colors.primaryBg : isPast ? colors.surfaceActive : undefined,
-                      opacity: isActive ? 1 : isPast ? 0.7 : 1,
-                      borderRadius: 8,
-                      transition: "all 0.3s ease",
-                    }}
-                    bodyStyle={{ padding: 12 }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        backgroundColor: isActive ? colors.primary : colors.borderLight,
-                        color: isActive ? colors.textInverse : colors.textSecondary,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 13,
-                        fontWeight: 600,
-                        flexShrink: 0,
-                      }}>
+            {/* Scene Timeline */}
+            <div className="mt-5">
+              <h4 className="mb-3.5 text-[13px] font-semibold text-text-primary">Scene Timeline</h4>
+              <div className="flex flex-wrap gap-2">
+                {sceneTimeline.map((scene, index) => {
+                  const isActive = index === selectedSceneIndex;
+                  const isPast = currentTime >= scene.endTime;
+                  const jump = () => {
+                    setSelectedSceneIndex(index);
+                    if (videoRef.current) videoRef.current.currentTime = scene.startTime;
+                  };
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      aria-pressed={isActive}
+                      aria-label={`Jump to scene ${scene.sceneNumber || index + 1}: ${scene.title || "Untitled"}`}
+                      onClick={jump}
+                      className={cn(
+                        "flex min-w-38 flex-1 items-center gap-2 rounded-lg border p-3 text-left transition-colors",
+                        isActive
+                          ? "border-accent bg-accent-subtle"
+                          : isPast
+                          ? "border-border bg-surface-active opacity-70"
+                          : "border-border bg-surface hover:bg-surface-hover"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex size-7 shrink-0 items-center justify-center rounded-lg text-[13px] font-semibold",
+                          isActive ? "bg-accent text-white" : "bg-border-light text-text-secondary"
+                        )}
+                      >
                         {scene.sceneNumber || index + 1}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize: 13,
-                          fontWeight: isActive ? 600 : 400,
-                          color: isActive ? colors.primary : colors.textPrimary,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={cn(
+                            "block truncate text-[13px]",
+                            isActive ? "font-semibold text-accent" : "font-normal text-text-primary"
+                          )}
+                        >
                           {scene.title || `Scene ${scene.sceneNumber || index + 1}`}
-                        </div>
-                        <div style={{ fontSize: 11, color: colors.textTertiary, marginTop: 2 }}>
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-text-tertiary">
                           {scene.duration}s • {scene.sceneType}
-                        </div>
-                      </div>
-                      {isActive && <RightOutlined style={{ color: colors.primary, flexShrink: 0 }} />}
-                    </div>
-                  </Card>
-                );
-              })}
+                        </span>
+                      </span>
+                      {isActive && <ChevronRight className="size-4 shrink-0 text-accent" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </Card>
@@ -313,124 +329,105 @@ const StudioPage = () => {
 
       {/* Scene Editor */}
       {!canEdit && (
-        <Alert
-          message="This job cannot be edited in its current state."
-          description="Only completed or failed jobs can be edited and re-rendered."
-          type="warning"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
+        <Alert type="warning" title="This job cannot be edited in its current state." className="mb-6">
+          Only completed or failed jobs can be edited and re-rendered.
+        </Alert>
       )}
 
       {editedScenes.length === 0 ? (
         <EmptyState description="No scenes found" />
       ) : (
-        <Collapse
-          accordion={false}
-          defaultActiveKey={editedScenes.map((_, i) => `scene-${i}`)}
-          style={{ borderRadius: 12 }}
-        >
+        <div className="space-y-3">
           {editedScenes.map((scene, index) => (
-            <Collapse.Panel
-              key={`scene-${index}`}
-              header={
-                <Space>
-                  <Tag color="blue">Scene {scene.sceneNumber || index + 1}</Tag>
-                  <Text strong>{scene.title || "Untitled Scene"}</Text>
-                  <Tag color={scene.sceneType === "title" ? "green" : scene.sceneType === "end" ? "red" : "default"}>
+            <AccordionItem
+              key={index}
+              defaultOpen
+              title={
+                <span className="flex flex-wrap items-center gap-2">
+                  <Badge variant="accent">Scene {scene.sceneNumber || index + 1}</Badge>
+                  <span className="font-semibold text-text-primary">{scene.title || "Untitled Scene"}</span>
+                  <Badge variant={scene.sceneType === "title" ? "success" : scene.sceneType === "end" ? "danger" : "neutral"}>
                     {scene.sceneType}
-                  </Tag>
-                  <Text type="secondary">{scene.duration}s</Text>
-                </Space>
+                  </Badge>
+                  <span className="text-text-tertiary">{scene.duration}s</span>
+                </span>
               }
             >
-              <Card size="small" style={{ background: colors.surfaceHover }}>
-                <Row gutter={16}>
-                  {/* Basic Info */}
-                  <Col span={24}>
-                    <Title level={5}><EditOutlined /> Basic Info</Title>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Scene Number" style={{ marginBottom: 12 }}>
-                      <InputNumber min={1} value={scene.sceneNumber} onChange={(val) => handleSceneChange(index, "sceneNumber", val)} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Scene Type" style={{ marginBottom: 12 }}>
-                      <Select value={scene.sceneType} onChange={(val) => handleSceneChange(index, "sceneType", val)} options={SCENE_TYPE_OPTIONS} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Title" style={{ marginBottom: 12 }}>
-                      <Input value={scene.title} onChange={(e) => handleSceneChange(index, "title", e.target.value)} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Subtitle" style={{ marginBottom: 12 }}>
-                      <Input value={scene.subtitle} onChange={(e) => handleSceneChange(index, "subtitle", e.target.value)} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Duration (seconds)" style={{ marginBottom: 12 }}>
-                      <InputNumber min={1} max={60} value={scene.duration} onChange={(val) => handleSceneChange(index, "duration", val)} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Background Color" style={{ marginBottom: 12 }}>
-                      <Input value={scene.backgroundColor} onChange={(e) => handleSceneChange(index, "backgroundColor", e.target.value)} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
+              <div className="space-y-5 rounded-xl bg-surface-hover p-4">
+                {/* Basic Info */}
+                <div>
+                  <SectionLabel icon={Pencil} tone="accent">
+                    Basic Info
+                  </SectionLabel>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field label="Scene Number">
+                      <NumberInput min={1} value={scene.sceneNumber} onChange={(e) => handleSceneChange(index, "sceneNumber", Number(e.target.value))} disabled={!canEdit} />
+                    </Field>
+                    <Field label="Scene Type">
+                      <Select value={scene.sceneType} onChange={(v) => handleSceneChange(index, "sceneType", v)} options={SCENE_TYPE_OPTIONS} disabled={!canEdit} />
+                    </Field>
+                    <Field label="Title">
+                      <Input value={scene.title || ""} onChange={(e) => handleSceneChange(index, "title", e.target.value)} disabled={!canEdit} />
+                    </Field>
+                    <Field label="Subtitle">
+                      <Input value={scene.subtitle || ""} onChange={(e) => handleSceneChange(index, "subtitle", e.target.value)} disabled={!canEdit} />
+                    </Field>
+                    <Field label="Duration (seconds)">
+                      <NumberInput min={1} max={60} value={scene.duration} onChange={(e) => handleSceneChange(index, "duration", Number(e.target.value))} disabled={!canEdit} />
+                    </Field>
+                    <Field label="Background Color">
+                      <Input value={scene.backgroundColor || ""} onChange={(e) => handleSceneChange(index, "backgroundColor", e.target.value)} disabled={!canEdit} />
+                    </Field>
+                  </div>
+                </div>
 
-                  <Divider style={{ margin: "16px 0" }} />
+                <div className="h-px bg-border-light" />
 
-                  {/* Animation */}
-                  <Col span={24}>
-                    <Title level={5}><SettingOutlined /> Animation</Title>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Form.Item label="Transition" style={{ marginBottom: 12 }}>
-                      <Select value={scene.transition} onChange={(val) => handleSceneChange(index, "transition", val)} options={TRANSITION_OPTIONS} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Form.Item label="Camera Motion" style={{ marginBottom: 12 }}>
-                      <Select value={scene.cameraMotion} onChange={(val) => handleSceneChange(index, "cameraMotion", val)} options={CAMERA_OPTIONS} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Form.Item label="Animation" style={{ marginBottom: 12 }}>
+                {/* Animation */}
+                <div>
+                  <SectionLabel icon={Settings} tone="info">
+                    Animation
+                  </SectionLabel>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <Field label="Transition">
+                      <Select value={scene.transition} onChange={(v) => handleSceneChange(index, "transition", v)} options={TRANSITION_OPTIONS} disabled={!canEdit} />
+                    </Field>
+                    <Field label="Camera Motion">
+                      <Select value={scene.cameraMotion} onChange={(v) => handleSceneChange(index, "cameraMotion", v)} options={CAMERA_OPTIONS} disabled={!canEdit} />
+                    </Field>
+                    <Field label="Animation">
                       <Input value={scene.animation || ""} onChange={(e) => handleSceneChange(index, "animation", e.target.value)} disabled={!canEdit} placeholder="e.g., fadeIn, slideUp" />
-                    </Form.Item>
-                  </Col>
+                    </Field>
+                  </div>
+                </div>
 
-                  <Divider style={{ margin: "16px 0" }} />
+                <div className="h-px bg-border-light" />
 
-                  {/* Image */}
-                  <Col span={24}>
-                    <Title level={5}><PictureOutlined /> Image</Title>
-                  </Col>
-                  <Col span={24}>
-                    <Form.Item label="Image Prompt" style={{ marginBottom: 12 }}>
-                      <TextArea rows={2} value={scene.imagePrompt} onChange={(e) => handleSceneChange(index, "imagePrompt", e.target.value)} disabled={!canEdit} placeholder="AI image generation prompt (only for image scenes)" />
-                    </Form.Item>
-                  </Col>
+                {/* Image */}
+                <div>
+                  <SectionLabel icon={ImageIcon} tone="warning">
+                    Image
+                  </SectionLabel>
+                  <Field label="Image Prompt">
+                    <Textarea rows={2} value={scene.imagePrompt || ""} onChange={(e) => handleSceneChange(index, "imagePrompt", e.target.value)} disabled={!canEdit} placeholder="AI image generation prompt (only for image scenes)" />
+                  </Field>
+                </div>
 
-                  <Divider style={{ margin: "16px 0" }} />
+                <div className="h-px bg-border-light" />
 
-                  {/* Audio */}
-                  <Col span={24}>
-                    <Title level={5}><TranslationOutlined /> Audio / Narration</Title>
-                  </Col>
-                  <Col span={24}>
-                    <Form.Item label="Narration Text" style={{ marginBottom: 12 }}>
-                      <TextArea rows={2} value={scene.audio?.text || ""} onChange={(e) => handleAudioTextChange(index, e.target.value)} disabled={!canEdit} placeholder="Text to speak in this scene" />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Card>
-            </Collapse.Panel>
+                {/* Audio */}
+                <div>
+                  <SectionLabel icon={Languages} tone="success">
+                    Audio / Narration
+                  </SectionLabel>
+                  <Field label="Narration Text">
+                    <Textarea rows={2} value={scene.audio?.text || ""} onChange={(e) => handleAudioTextChange(index, e.target.value)} disabled={!canEdit} placeholder="Text to speak in this scene" />
+                  </Field>
+                </div>
+              </div>
+            </AccordionItem>
           ))}
-        </Collapse>
+        </div>
       )}
     </div>
   );

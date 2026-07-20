@@ -1,23 +1,7 @@
 /* ─── Reset & Base ───────────────────────────────────────────────────────── */
-/* Global theme transitions */
 .app-theme-transition,
 .app-theme-transition * {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
-}
-
-/* Theme-aware CSS variables, mirroring shared/theme/index.js */
-.theme-light {
-  --scrollbar-thumb: #d6d2e6;
-  --scrollbar-thumb-hover: #b8b2d1;
-  --sider-trigger-bg: #17152b;
-  --user-menu-hover-bg: #f5f4fa;
-}
-
-.theme-dark {
-  --scrollbar-thumb: #322b55;
-  --scrollbar-thumb-hover: #453c73;
-  --sider-trigger-bg: #0a0916;
-  --user-menu-hover-bg: #262143;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 *,
@@ -34,13 +18,9 @@ html {
 body {
   margin: 0;
   padding: 0;
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
@@ -54,57 +34,20 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb, #d6d2e6);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover, #b8b2d1);
-}
-
-/* ─── Ant Design Overrides ───────────────────────────────────────────────── */
-.ant-layout-sider-trigger {
-  background: var(--sider-trigger-bg, #17152b) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.ant-menu-dark .ant-menu-item-selected {
-  font-weight: 500;
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* ─── User Menu Trigger Hover ────────────────────────────────────────────── */
 .user-menu-trigger:hover {
-  background: var(--user-menu-hover-bg, #f5f4fa);
+  background: var(--color-surface-hover);
 }
 
 /* ─── Motion Utilities ───────────────────────────────────────────────────── */
-@keyframes vireon-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes vireon-slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes vireon-scale-in {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.animate-fade-in {
-  animation: vireon-fade-in 200ms cubic-bezier(0, 0, 0.2, 1) both;
-}
-
-.animate-slide-up {
-  animation: vireon-slide-up 240ms cubic-bezier(0, 0, 0.2, 1) both;
-}
-
-.animate-scale-in {
-  animation: vireon-scale-in 160ms cubic-bezier(0, 0, 0.2, 1) both;
-}
-
 /* Stat/hoverable cards: consistent lift-on-hover micro-interaction */
 .hover-lift {
   transition: transform 160ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 160ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -116,6 +59,17 @@ body {
 /* Stagger helper: pair with inline `--stagger-index` for list entrance */
 .animate-stagger {
   animation-delay: calc(var(--stagger-index, 0) * 40ms);
+}
+
+/* ─── Focus Visibility ───────────────────────────────────────────────────── */
+/* Plain elements (custom buttons, cards used as controls) that don't get a
+   focus ring for free from a component library now that antd is gone. */
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

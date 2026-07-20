@@ -1,27 +1,10 @@
-import { useState, useMemo, useContext } from "react";
-import { ConfigProvider, theme } from "antd";
+import { useState } from "react";
 import { ThemeProvider } from "./shared/ThemeContext";
-import { ThemeContext } from "./shared/themeContextValue";
 import { BreadcrumbProvider } from "./shared/BreadcrumbContext";
-import createAntdTheme from "./shared/theme";
+import { ToastProvider } from "./components/ui/Toast";
+import { ConfirmDialogHost } from "./components/ui/ConfirmDialog";
 import Structure from "./layout";
 import "./App.css";
-
-const InnerApp = () => {
-  const { theme: currentTheme } = useContext(ThemeContext);
-  const antdTheme = useMemo(() => createAntdTheme(currentTheme), [currentTheme]);
-
-  return (
-    <ConfigProvider
-      theme={antdTheme}
-      algorithm={currentTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm}
-    >
-      <BreadcrumbProvider>
-        <Structure />
-      </BreadcrumbProvider>
-    </ConfigProvider>
-  );
-};
 
 const App = () => {
   const [theme] = useState(() => {
@@ -33,9 +16,14 @@ const App = () => {
   });
 
   return (
-    <div className={`app-theme-transition theme-${theme}`}>
+    <div className={`app-theme-transition theme-${theme} min-h-screen bg-bg`}>
       <ThemeProvider initialTheme={theme}>
-        <InnerApp />
+        <ToastProvider>
+          <BreadcrumbProvider>
+            <Structure />
+          </BreadcrumbProvider>
+          <ConfirmDialogHost />
+        </ToastProvider>
       </ThemeProvider>
     </div>
   );

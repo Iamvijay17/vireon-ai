@@ -1,24 +1,14 @@
-import { useContext } from "react";
-import { Spin } from "antd";
-import { ThemeContext } from "../../shared/themeContextValue";
+import { Spinner } from "../ui/Spinner";
 
 /**
- * Consistent centered loading block, replacing the hand-rolled
- * `<Spin size="large"/>` + margin-top div repeated across pages.
+ * Consistent centered loading block, replacing the hand-rolled spinner +
+ * margin-top div repeated across pages.
  */
-const LoadingState = ({ label = "Loading...", minHeight = 240 }) => {
-  const { colors } = useContext(ThemeContext);
-
-  return (
-    <div style={{ textAlign: "center", padding: 48, minHeight }}>
-      <Spin size="large" />
-      {label && (
-        <div style={{ marginTop: 16, color: colors.textSecondary, fontSize: 14 }}>
-          {label}
-        </div>
-      )}
-    </div>
-  );
-};
+const LoadingState = ({ label = "Loading...", minHeight = 240 }) => (
+  <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center" style={{ minHeight }}>
+    <Spinner size="lg" />
+    {label && <div className="text-sm text-text-secondary">{label}</div>}
+  </div>
+);
 
 export default LoadingState;

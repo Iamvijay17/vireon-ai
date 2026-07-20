@@ -1,33 +1,23 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import {
-  Typography,
-  Card,
-  Form,
-  Input,
-  Select,
-  Button,
-  Steps,
-  Result,
-  Descriptions,
-  Tag,
-  message,
-} from "antd";
-import {
-  VideoCameraOutlined,
-  AudioOutlined,
-  FileTextOutlined,
-  CheckCircleOutlined,
-  RocketOutlined,
-  ArrowLeftOutlined,
-  ArrowRightOutlined,
-  SendOutlined,
-} from "@ant-design/icons";
+  CheckCircle2,
+  Rocket,
+  ArrowLeft,
+  ArrowRight,
+  Send,
+  Copy,
+  Check,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createVideoJob } from "../../services/api";
-import { ThemeContext } from "../../shared/themeContextValue";
 import { LoadingState } from "../../components";
-
-const { Title, Text } = Typography;
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Steps } from "../../components/ui/Steps";
+import { Select } from "../../components/ui/Select";
+import { Textarea, Label, FieldHint } from "../../components/ui/Input";
+import { Badge } from "../../components/ui/Badge";
+import { toast } from "../../components/ui/toastBus";
 
 const VIDEO_TYPES = [
   { value: "educational", label: "Educational" },
@@ -74,299 +64,275 @@ const SCENE_COUNTS = [
 ];
 
 const STEPS = [
-  { title: "Topic & Type", icon: <FileTextOutlined /> },
-  { title: "Voice & Language", icon: <AudioOutlined /> },
-  { title: "Resolution", icon: <VideoCameraOutlined /> },
-  { title: "Done", icon: <CheckCircleOutlined /> },
+  { title: "Topic & Type" },
+  { title: "Voice & Language" },
+  { title: "Resolution" },
+  { title: "Done" },
 ];
+
+const DEFAULT_VALUES = {
+  topic: "",
+  type: undefined,
+  sceneCount: "5-10",
+  language: "english",
+  voice: "female-1",
+  resolution: "1920x1080",
+  aspectRatio: "16:9",
+};
+
+// Visual aspect-ratio picker (replaces a plain text dropdown with a preview
+// of each ratio's actual shape).
+const AspectRatioPicker = ({ value, onChange }) => {
+  const boxHeight = 40;
+  return (
+    <div className="flex flex-wrap gap-3">
+      {ASPECT_RATIOS.map((ratio) => {
+        const isActive = value === ratio.value;
+        const [w, h] = ratio.value.split(":").map(Number);
+        const boxWidth = Math.max(24, Math.min(64, (w / h) * boxHeight));
+
+        return (
+          <button
+            key={ratio.value}
+            type="button"
+            onClick={() => onChange?.(ratio.value)}
+            className={`flex min-w-22 flex-col items-center gap-2 rounded-[10px] border px-2.5 py-3 transition-colors ${
+              isActive ? "border-accent bg-accent-subtle" : "border-border bg-surface hover:bg-surface-hover"
+            }`}
+          >
+            <div
+              className={`rounded border-2 ${isActive ? "border-accent" : "border-text-tertiary"}`}
+              style={{ width: boxWidth, height: boxHeight }}
+            />
+            <span className={`text-xs ${isActive ? "font-semibold text-accent" : "text-text-secondary"}`}>{ratio.value}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 const Wizard = () => {
   const navigate = useNavigate();
-  const { colors } = useContext(ThemeContext);
-  const [form] = Form.useForm();
   const [current, setCurrent] = useState(0);
+  const [values, setValues] = useState(DEFAULT_VALUES);
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [fieldValues, setFieldValues] = useState({});
+  const [copied, setCopied] = useState(false);
 
-  const handleNext = async () => {
-    // Validate only the fields for the current step
-    try {
-      const fieldsToValidate = [];
-      if (current === 0) {
-        fieldsToValidate.push("topic", "type", "sceneCount", "language");
-      } else if (current === 1) {
-        fieldsToValidate.push("voice");
-      } else if (current === 2) {
-        fieldsToValidate.push("resolution", "aspectRatio");
-      }
-      await form.validateFields(fieldsToValidate);
-      // Save current values
-      const allValues = form.getFieldsValue();
-      setFieldValues(allValues);
-      setCurrent((prev) => prev + 1);
-    } catch {
-      // Validation failed - form will show errors
+  const setField = (name, value) => setValues((prev) => ({ ...prev, [name]: value }));
+
+  const validateStep = (step) => {
+    const next = {};
+    if (step === 0) {
+      if (!values.topic || values.topic.trim().length < 3) next.topic = "At least 3 characters";
+      if (!values.type) next.type = "Please select a type";
+      if (!values.sceneCount) next.sceneCount = "Please select scene count";
     }
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
-  const handleBack = () => {
-    const allValues = form.getFieldsValue();
-    setFieldValues(allValues);
-    setCurrent((prev) => prev - 1);
+  const handleNext = () => {
+    if (!validateStep(current)) return;
+    setCurrent((prev) => prev + 1);
   };
+
+  const handleBack = () => setCurrent((prev) => prev - 1);
 
   const handleSubmit = async () => {
+    if (!validateStep(0)) {
+      setCurrent(0);
+      return;
+    }
     try {
-      const allValues = form.getFieldsValue();
       setLoading(true);
-      setFieldValues(allValues);
-
-      console.log("Submitting payload:", allValues);
-
-      const res = await createVideoJob(allValues);
+      const res = await createVideoJob(values);
       setResult(res.data);
-      message.success("Video job created! Processing started.");
+      toast.success("Video job created! Processing started.");
       setCurrent(3);
     } catch (err) {
       const errMsg =
-        err?.response?.data?.error ||
-        err?.response?.data?.details?.[0]?.message ||
-        "Failed to create job";
-      message.error(errMsg);
+        err?.response?.data?.error || err?.response?.data?.details?.[0]?.message || "Failed to create job";
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
   };
 
+  const copyJobId = async () => {
+    if (!result?.jobId) return;
+    await navigator.clipboard.writeText(result.jobId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 24, color: colors.textPrimary }}>
-        Create Video
-      </Title>
+      <h1 className="mb-6 text-xl font-semibold tracking-tight text-text-primary">Create Video</h1>
 
-      <Steps current={current} style={{ marginBottom: 48, maxWidth: 700 }}>
-        {STEPS.map((s) => ({ title: s.title, icon: s.icon }))}
-      </Steps>
+      <Steps items={STEPS} current={current} className="mb-10 max-w-2xl" />
 
-      <Card style={{ borderRadius: 12, minHeight: 420 }}>
+      <Card className="min-h-105 p-8">
         {current < 3 && (
-          <Form
-            form={form}
-            layout="vertical"
-            size="large"
-            initialValues={{
-              language: "english",
-              voice: "female-1",
-              resolution: "1920x1080",
-              aspectRatio: "16:9",
-              ...fieldValues,
-            }}
-          >
+          <>
             {/* ── Step 1: Topic & Type ──────────────────────────────────────── */}
-            <div
-              style={{
-                maxWidth: 560,
-                margin: "0 auto",
-                display: current === 0 ? "block" : "none",
-              }}
-            >
-              <Title level={5} style={{ marginBottom: 24 }}>
-                What do you want to create?
-              </Title>
+            {current === 0 && (
+              <div className="mx-auto max-w-lg animate-slide-up">
+                <h2 className="mb-6 text-base font-semibold text-text-primary">What do you want to create?</h2>
 
-              <Form.Item
-                name="topic"
-                label="Video Topic"
-                rules={[
-                  { required: true, message: "Please enter a topic" },
-                  { min: 3, message: "At least 3 characters" },
-                ]}
-              >
-                <Input.TextArea
-                  rows={3}
-                  placeholder="e.g., Introduction to Quantum Computing, The Future of AI, How to Start a Business..."
-                />
-              </Form.Item>
+                <div className="mb-5">
+                  <Label required>Video Topic</Label>
+                  <Textarea
+                    rows={3}
+                    placeholder="e.g., Introduction to Quantum Computing, The Future of AI, How to Start a Business..."
+                    value={values.topic}
+                    onChange={(e) => setField("topic", e.target.value)}
+                    error={Boolean(errors.topic)}
+                  />
+                  <FieldHint error={Boolean(errors.topic)}>{errors.topic}</FieldHint>
+                </div>
 
-              <Form.Item
-                name="type"
-                label="Video Type"
-                rules={[{ required: true, message: "Please select a type" }]}
-              >
-                <Select
-                  placeholder="Select video type"
-                  options={VIDEO_TYPES}
-                  showSearch
-                />
-              </Form.Item>
+                <div className="mb-5">
+                  <Label required>Video Type</Label>
+                  <Select
+                    placeholder="Select video type"
+                    options={VIDEO_TYPES}
+                    value={values.type}
+                    onChange={(v) => setField("type", v)}
+                    error={Boolean(errors.type)}
+                  />
+                  <FieldHint error={Boolean(errors.type)}>{errors.type}</FieldHint>
+                </div>
 
-              <Form.Item
-                name="sceneCount"
-                label="Number of Scenes"
-                rules={[
-                  { required: true, message: "Please select scene count" },
-                ]}
-              >
-                <Select
-                  placeholder="Select scene count"
-                  options={SCENE_COUNTS}
-                  defaultValue={"5-10"}
-                />
-              </Form.Item>
+                <div className="mb-5">
+                  <Label required>Number of Scenes</Label>
+                  <Select
+                    placeholder="Select scene count"
+                    options={SCENE_COUNTS}
+                    value={values.sceneCount}
+                    onChange={(v) => setField("sceneCount", v)}
+                    error={Boolean(errors.sceneCount)}
+                  />
+                  <FieldHint error={Boolean(errors.sceneCount)}>{errors.sceneCount}</FieldHint>
+                </div>
 
-              <Form.Item name="language" label="Language">
-                <Select options={LANGUAGES} />
-              </Form.Item>
+                <div className="mb-5">
+                  <Label>Language</Label>
+                  <Select options={LANGUAGES} value={values.language} onChange={(v) => setField("language", v)} />
+                </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  marginTop: 32,
-                }}
-              >
-                <Button
-                  type="primary"
-                  onClick={handleNext}
-                  icon={<ArrowRightOutlined />}
-                >
-                  Next
-                </Button>
+                <div className="mt-8 flex justify-end">
+                  <Button variant="primary" onClick={handleNext} icon={<ArrowRight className="size-4" />}>
+                    Next
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ── Step 2: Voice & Language ──────────────────────────────────── */}
-            <div
-              style={{
-                maxWidth: 560,
-                margin: "0 auto",
-                display: current === 1 ? "block" : "none",
-              }}
-            >
-              <Title level={5} style={{ marginBottom: 24 }}>
-                Configure audio settings
-              </Title>
+            {current === 1 && (
+              <div className="mx-auto max-w-lg animate-slide-up">
+                <h2 className="mb-6 text-base font-semibold text-text-primary">Configure audio settings</h2>
 
-              <Form.Item name="voice" label="Voice">
-                <Select options={VOICES} />
-              </Form.Item>
+                <div className="mb-5">
+                  <Label>Voice</Label>
+                  <Select options={VOICES} value={values.voice} onChange={(v) => setField("voice", v)} />
+                </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginTop: 32,
-                }}
-              >
-                <Button onClick={handleBack} icon={<ArrowLeftOutlined />}>
-                  Back
-                </Button>
-                <Button
-                  type="primary"
-                  onClick={handleNext}
-                  icon={<ArrowRightOutlined />}
-                >
-                  Next
-                </Button>
+                <div className="mt-8 flex justify-between">
+                  <Button variant="secondary" onClick={handleBack} icon={<ArrowLeft className="size-4" />}>
+                    Back
+                  </Button>
+                  <Button variant="primary" onClick={handleNext} icon={<ArrowRight className="size-4" />}>
+                    Next
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ── Step 3: Resolution ─────────────────────────────────────────── */}
-            <div
-              style={{
-                maxWidth: 560,
-                margin: "0 auto",
-                display: current === 2 ? "block" : "none",
-              }}
-            >
-              <Title level={5} style={{ marginBottom: 24 }}>
-                Choose output quality
-              </Title>
+            {current === 2 && (
+              <div className="mx-auto max-w-lg animate-slide-up">
+                <h2 className="mb-6 text-base font-semibold text-text-primary">Choose output quality</h2>
 
-              <Form.Item name="resolution" label="Resolution">
-                <Select options={RESOLUTIONS} />
-              </Form.Item>
+                <div className="mb-5">
+                  <Label>Resolution</Label>
+                  <Select options={RESOLUTIONS} value={values.resolution} onChange={(v) => setField("resolution", v)} />
+                </div>
 
-              <Form.Item name="aspectRatio" label="Aspect Ratio">
-                <Select options={ASPECT_RATIOS} />
-              </Form.Item>
+                <div className="mb-2">
+                  <Label>Aspect Ratio</Label>
+                  <AspectRatioPicker value={values.aspectRatio} onChange={(v) => setField("aspectRatio", v)} />
+                </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginTop: 32,
-                }}
-              >
-                <Button onClick={handleBack} icon={<ArrowLeftOutlined />}>
-                  Back
-                </Button>
-                <Button
-                  type="primary"
-                  icon={<SendOutlined />}
-                  onClick={handleSubmit}
-                  loading={loading}
-                  size="large"
-                >
-                  Create Video
-                </Button>
+                <div className="mt-8 flex justify-between">
+                  <Button variant="secondary" onClick={handleBack} icon={<ArrowLeft className="size-4" />}>
+                    Back
+                  </Button>
+                  <Button variant="primary" size="lg" icon={<Send className="size-4" />} loading={loading} onClick={handleSubmit}>
+                    Create Video
+                  </Button>
+                </div>
               </div>
-            </div>
-          </Form>
+            )}
+          </>
         )}
 
         {/* ── Step 4: Result ─────────────────────────────────────────────────── */}
         {current === 3 && result && (
-          <Result
-            status="success"
-            title="Video Job Created!"
-            subTitle="Your video has been queued for processing. You can monitor its progress in real-time."
-            extra={[
-              <Button
-                type="primary"
-                key="view"
-                onClick={() => navigate(`/render?id=${result.jobId}`)}
-              >
+          <div className="mx-auto flex max-w-md flex-col items-center py-6 text-center animate-scale-in">
+            <div className="mb-5 flex size-14 items-center justify-center rounded-full bg-success-500/10 text-success-500">
+              <CheckCircle2 className="size-7" />
+            </div>
+            <h2 className="text-lg font-semibold text-text-primary">Video Job Created!</h2>
+            <p className="mt-2 text-sm text-text-secondary">
+              Your video has been queued for processing. You can monitor its progress in real-time.
+            </p>
+
+            <div className="mt-6 w-full rounded-xl border border-border bg-bg p-4 text-left">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-text-tertiary">Job ID</span>
+                <button
+                  onClick={copyJobId}
+                  className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-accent"
+                >
+                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <p className="mt-1 truncate font-mono text-[13px] text-text-primary">{result.jobId}</p>
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-xs font-medium text-text-tertiary">Status</span>
+                <Badge variant="accent" icon={<Rocket className="size-3" />}>
+                  {result.status}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
+              <Button variant="primary" onClick={() => navigate(`/render?id=${result.jobId}`)}>
                 View Progress
-              </Button>,
+              </Button>
               <Button
-                key="new"
+                variant="secondary"
                 onClick={() => {
                   setResult(null);
                   setCurrent(0);
-                  form.resetFields();
-                  setFieldValues({});
+                  setValues(DEFAULT_VALUES);
                 }}
               >
                 Create Another
-              </Button>,
-              <Button key="dashboard" onClick={() => navigate("/")}>
+              </Button>
+              <Button variant="ghost" onClick={() => navigate("/")}>
                 Back to Dashboard
-              </Button>,
-            ]}
-          >
-            <Descriptions
-              column={1}
-              bordered
-              size="small"
-              style={{ maxWidth: 400, margin: "24px auto 0" }}
-            >
-              <Descriptions.Item label="Job ID">
-                <Text copyable>{result.jobId}</Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Status">
-                <Tag icon={<RocketOutlined />} color="processing">
-                  {result.status}
-                </Tag>
-              </Descriptions.Item>
-            </Descriptions>
-          </Result>
+              </Button>
+            </div>
+          </div>
         )}
 
-        {current === 3 && !result && (
-          <LoadingState label="Creating your video job..." />
-        )}
+        {current === 3 && !result && <LoadingState label="Creating your video job..." />}
       </Card>
     </div>
   );

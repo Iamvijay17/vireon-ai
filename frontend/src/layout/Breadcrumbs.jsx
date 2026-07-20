@@ -1,7 +1,6 @@
 import { useContext } from "react";
-import { Breadcrumb } from "antd";
+import { ChevronRight } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ThemeContext } from "../shared/themeContextValue";
 import { BreadcrumbContext } from "../shared/breadcrumbContextValue";
 
 const STATIC_LABELS = {
@@ -22,7 +21,6 @@ const isObjectId = (segment) => /^[0-9a-fA-F]{24}$/.test(segment);
 const Breadcrumbs = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { colors } = useContext(ThemeContext);
   const { label } = useContext(BreadcrumbContext);
 
   const segments = location.pathname.split("/").filter(Boolean);
@@ -44,35 +42,31 @@ const Breadcrumbs = () => {
     if (staticLabel === null) return; // skip structural segments like "videos"
 
     const title = staticLabel || segment;
-    items.push(
-      isLast
-        ? { title }
-        : { title, onClick: () => navigate(path) }
-    );
+    items.push(isLast ? { title } : { title, onClick: () => navigate(path) });
   });
 
   if (items.length <= 1) return null;
 
   return (
-    <div
-      style={{
-        padding: "10px 24px",
-        borderBottom: `1px solid ${colors.borderLight}`,
-        background: colors.surface,
-      }}
-    >
-      <Breadcrumb
-        items={items.map((item, i) => ({
-          title: item.onClick ? (
-            <a onClick={item.onClick} style={{ color: colors.textSecondary }}>
-              {item.title}
-            </a>
-          ) : (
-            <span style={{ color: colors.textPrimary, fontWeight: 500 }}>{item.title}</span>
-          ),
-          key: i,
-        }))}
-      />
+    <div className="border-b border-border-light bg-surface px-6 py-2.5">
+      <nav className="flex items-center gap-1.5 text-[13px]">
+        {items.map((item, i) => (
+          <span key={i} className="flex items-center gap-1.5">
+            {i > 0 && <ChevronRight className="size-3.5 text-text-tertiary" />}
+            {item.onClick ? (
+              <button
+                type="button"
+                onClick={item.onClick}
+                className="text-text-secondary transition-colors hover:text-text-primary"
+              >
+                {item.title}
+              </button>
+            ) : (
+              <span className="font-medium text-text-primary">{item.title}</span>
+            )}
+          </span>
+        ))}
+      </nav>
     </div>
   );
 };

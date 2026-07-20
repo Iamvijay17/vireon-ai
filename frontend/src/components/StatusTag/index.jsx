@@ -1,10 +1,5 @@
-import { Tag } from "antd";
-import {
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  ClockCircleOutlined,
-  SyncOutlined,
-} from "@ant-design/icons";
+import { CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
+import { Badge } from "../ui/Badge";
 
 /**
  * Single status -> color/icon/label mapping, used everywhere a job/course/
@@ -24,21 +19,20 @@ const classify = (status) => {
 };
 
 const VARIANTS = {
-  success: { color: "success", icon: <CheckCircleOutlined /> },
-  error: { color: "error", icon: <CloseCircleOutlined /> },
-  default: { color: "default", icon: <ClockCircleOutlined /> },
-  processing: { color: "processing", icon: <SyncOutlined spin /> },
+  success: { variant: "success", Icon: CheckCircle2, spin: false },
+  error: { variant: "danger", Icon: XCircle, spin: false },
+  default: { variant: "neutral", Icon: Clock, spin: false },
+  processing: { variant: "accent", Icon: RefreshCw, spin: true },
 };
 
-const formatLabel = (status) =>
-  (status || "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+const formatLabel = (status) => (status || "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
 
 const StatusTag = ({ status, label }) => {
-  const variant = VARIANTS[classify(status)];
+  const { variant, Icon, spin } = VARIANTS[classify(status)];
   return (
-    <Tag color={variant.color} icon={variant.icon}>
+    <Badge variant={variant} icon={<Icon className={spin ? "size-3 animate-spin" : "size-3"} />}>
       {label || formatLabel(status)}
-    </Tag>
+    </Badge>
   );
 };
 
