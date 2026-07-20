@@ -71,8 +71,20 @@ class ScriptParserService {
 
       // Ensure elements structure matches the template
       let elements = scene.elements || null;
-      if (!elements && templateId) {
-        elements = ScriptParserService._createDefaultElements(templateId, scene);
+      if (templateId) {
+        const defaultElements = ScriptParserService._createDefaultElements(templateId, scene);
+        
+        // Prefer scene_meta.content over empty defaults for content scenes
+        if (sceneType === 'content' && scene.scene_meta?.content) {
+          const contentItems = scene.scene_meta.content.filter(s => s.trim().length > 0);
+          if (contentItems.length > 0) {
+            elements = ScriptParserService._createContentElementsFromMeta(templateId, contentItems, scene);
+          } else {
+            elements = defaultElements;
+          }
+        } else if (!elements) {
+          elements = defaultElements;
+        }
       }
 
       // Only keep imagePrompt for "image" scenes; clear for others to skip generation
@@ -262,6 +274,293 @@ class ScriptParserService {
     };
 
     return templateElements[templateId] || base;
+  }
+
+  /**
+   * Create elements from scene_meta.content when the LLM didn't provide explicit elements.
+   * Maps content sentences to template-specific element structures.
+   */
+  static _createContentElementsFromMeta(templateId, contentItems, scene) {
+    // Timeline templates: map contentItems to {date, text} pairs
+    if (['template-004', 'template-037'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        items: contentItems.map((text, i) => ({ date: '', text })),
+      };
+    }
+
+    // For templates that use items/text arrays, populate from scene_meta.content
+    const itemTemplates = [
+      'template-009', 'template-013', 'template-027', 'template-032',
+      'template-033', 'template-034', 'template-035', 'template-040'
+    ];
+    
+    if (itemTemplates.includes(templateId)) {
+      return {
+        title: scene.title || '',
+        subtitle: scene.subtitle || '',
+        items: contentItems.map(text => ({ text, icon: '' })),
+      };
+    }
+
+    // For bullet/point-style templates
+    if (['template-009', 'template-027'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        items: contentItems.map(text => ({ text, icon: '✅' })),
+      };
+    }
+
+    // For stats/cards templates
+    if (['template-007', 'template-010', 'template-014'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        stats: contentItems.map(text => ({ value: text, label: '' })),
+      };
+    }
+
+    // For fact/feature templates
+    if (['template-029', 'template-033', 'template-038'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        subtitle: scene.subtitle || '',
+        items: contentItems.map(text => ({ text, description: '' })),
+      };
+    }
+
+    // Hero/image card templates
+    if (['template-001', 'template-003', 'template-017', 'template-019', 'template-020', 'template-024', 'template-025'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        subtitle: scene.subtitle || contentItems.join(' '),
+        image: '',
+        body: contentItems.join(' '),
+      };
+    }
+
+    // Comparison templates
+    if (['template-005', 'template-028'].includes(templateId)) {
+      return {
+        header: scene.title || '',
+        leftCard: { title: '', body: contentItems[0] || '' },
+        rightCard: { title: '', body: contentItems[1] || '' },
+      };
+    }
+
+    // Q&A / flashcard templates
+    if (['template-002'].includes(templateId)) {
+      return {
+        question: scene.title || '',
+        answer: contentItems.join(' '),
+        questionIcon: '❓',
+        answerIcon: '💡',
+      };
+    }
+
+    // Quote/message templates
+    if (['template-006', 'template-047'].includes(templateId)) {
+      return {
+        quote: contentItems[0] || scene.title || '',
+        author: '',
+        authorTitle: '',
+      };
+    };
+
+    // Team/person templates
+    if (['template-011', 'template-039', 'template-042', 'template-048'].includes(templateId)) {
+      return {
+        name: scene.title || '',
+        role: scene.subtitle || '',
+        bio: contentItems.join(' '),
+        image: '',
+        stats: contentItems.map(text => ({ value: text, label: '' })),
+      };
+    }
+
+    // Gallery/photo templates
+    if (['template-016', 'template-018', 'template-022'].includes(templateId)) {
+      return {
+        images: contentItems.map(() => ({ url: '' })),
+        caption: scene.subtitle || '',
+      };
+    }
+
+    // Card grid templates
+    if (['template-023'].includes(templateId)) {
+      return {
+        cards: contentItems.map(text => ({ image: '', title: text, description: '' })),
+      };
+    }
+
+    // Text/body templates
+    if (['template-021', 'template-036', 'template-058'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        body: contentItems.join(' '),
+        image: '',
+      };
+    }
+
+    // Caption/callout templates
+    if (['template-041', 'template-050'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        caption: contentItems.join(' '),
+      };
+    }
+
+    // Definition/term templates
+    if (['template-026', 'template-054'].includes(templateId)) {
+      return {
+        term: scene.title || '',
+        title: scene.title || '',
+        definition: contentItems.join(' '),
+        example: '',
+      };
+    }
+
+    // Social media templates
+    if (['template-044'].includes(templateId)) {
+      return {
+        body: contentItems.join(' '),
+        profileImage: '',
+        username: '',
+        likes: '0',
+      };
+    }
+
+    // News/headline templates
+    if (['template-043'].includes(templateId)) {
+      return {
+        headline: scene.title || '',
+        body: contentItems.join(' '),
+        badge: '',
+        image: '',
+      };
+    }
+
+    // Device/product templates
+    if (['template-046'].includes(templateId)) {
+      return {
+        deviceImage: '',
+        specs: contentItems,
+      };
+    }
+
+    // Instruction/step templates
+    if (['template-049', 'template-013', 'template-032'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        step: '',
+        body: contentItems.join(' '),
+      };
+    }
+
+    // Metric templates
+    if (['template-051', 'template-055'].includes(templateId)) {
+      return {
+        image: '',
+        metric: contentItems[0] || '',
+        metricLabel: contentItems[1] || '',
+      };
+    }
+
+    // Recipe/ingredient templates
+    if (['template-052'].includes(templateId)) {
+      return {
+        image: '',
+        ingredients: contentItems,
+      };
+    }
+
+    // Location/travel templates
+    if (['template-053'].includes(templateId)) {
+      return {
+        location: scene.title || '',
+        image: '',
+      };
+    }
+
+    // Date/event templates
+    if (['template-059'].includes(templateId)) {
+      return {
+        image: '',
+        date: contentItems[0] || '',
+      };
+    }
+
+    // Caption/joke templates
+    if (['template-060'].includes(templateId)) {
+      return {
+        caption: contentItems.join(' '),
+      };
+    }
+
+    // Countdown templates
+    if (['template-012'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        message: contentItems.join(' '),
+        timeBlocks: contentItems.map(() => ({ value: '', label: '' })),
+      };
+    }
+
+    // Tags/skills templates
+    if (['template-008', 'template-034'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        tags: contentItems.map(text => ({ text, icon: '' })),
+      };
+    }
+
+    // Feature list templates
+    if (['template-015'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        features: contentItems.map(text => ({ icon: '', title: text, description: '' })),
+      };
+    }
+
+    // Summary/cards templates
+    if (['template-030'].includes(templateId)) {
+      return {
+        badge: '',
+        title: scene.title || '',
+        body: contentItems.join(' '),
+        stats: contentItems.map(text => ({ value: text, label: '' })),
+      };
+    }
+
+    // Milestones/year templates
+    if (['template-031', 'template-037'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        meta: '',
+        items: contentItems.map(text => ({ year: '', title: text, description: '' })),
+      };
+    }
+
+    // Background image templates
+    if (['template-045'].includes(templateId)) {
+      return {
+        backgroundImage: '',
+        caption: contentItems.join(' '),
+      };
+    }
+
+    // Generic caption templates
+    if (['template-056', 'template-057'].includes(templateId)) {
+      return {
+        caption: contentItems.join(' '),
+        image: '',
+      };
+    }
+
+    // Generic fallback: use as body/subtitle text
+    return {
+      title: scene.title || '',
+      subtitle: scene.subtitle || contentItems.join(' '),
+    };
   }
 
   /**

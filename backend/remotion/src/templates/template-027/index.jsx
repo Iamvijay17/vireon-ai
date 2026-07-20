@@ -11,7 +11,8 @@ import { backgroundColors } from '../../styles';
 const Template027 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
   const title = elements.title || '';
-  const points = elements.points || elements.items || [];
+  const contentItems = scene?.scene_meta?.content || [];
+  const points = elements.points || contentItems.map(text => ({ text, icon: '✓' }));
   const bgColor = elements.backgroundColor || backgroundColors.dark;
 
   const frame = useCurrentFrame();
