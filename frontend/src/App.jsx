@@ -1,10 +1,26 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { ThemeProvider } from "./shared/ThemeContext";
+import { ThemeContext } from "./shared/themeContextValue";
 import { BreadcrumbProvider } from "./shared/BreadcrumbContext";
 import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmDialogHost } from "./components/ui/ConfirmDialog";
 import Structure from "./layout";
 import "./App.css";
+
+const AppShell = () => {
+  const { theme } = useContext(ThemeContext);
+
+  return (
+    <div className={`app-theme-transition theme-${theme} min-h-screen bg-bg`}>
+      <ToastProvider>
+        <BreadcrumbProvider>
+          <Structure />
+        </BreadcrumbProvider>
+        <ConfirmDialogHost />
+      </ToastProvider>
+    </div>
+  );
+};
 
 const App = () => {
   const [theme] = useState(() => {
@@ -16,16 +32,9 @@ const App = () => {
   });
 
   return (
-    <div className={`app-theme-transition theme-${theme} min-h-screen bg-bg`}>
-      <ThemeProvider initialTheme={theme}>
-        <ToastProvider>
-          <BreadcrumbProvider>
-            <Structure />
-          </BreadcrumbProvider>
-          <ConfirmDialogHost />
-        </ToastProvider>
-      </ThemeProvider>
-    </div>
+    <ThemeProvider initialTheme={theme}>
+      <AppShell />
+    </ThemeProvider>
   );
 };
 
