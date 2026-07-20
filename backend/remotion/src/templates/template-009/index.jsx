@@ -11,8 +11,8 @@ import { backgroundColors } from '../../styles';
 const Template009 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
   const title = elements.title || '';
-  const items = elements.items || elements.bullets || [];
   const bgColor = elements.backgroundColor || backgroundColors.navy;
+  const contentItems = scene?.scene_meta?.content || [];
   const icons = ['🌟', '✅', '💡', '📌', '🔑', '🎯', '⚡', '🔥'];
 
   const frame = useCurrentFrame();
@@ -24,10 +24,10 @@ const Template009 = React.memo(({ scene }) => {
       <div style={{ ...styles.container, ...anim.bgStyle }}>
         {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
         <div style={styles.list}>
-          {items.map((item, index) => (
+          {contentItems.map((text, index) => (
             <div key={index} style={{ ...styles.listItem, ...getBulletItemAnimation(frame, 15 + index * 6) }}>
-              <div style={styles.bulletIcon}>{item.icon || icons[index % icons.length]}</div>
-              <div style={styles.bulletText}>{item.text || item.title || ''}</div>
+              <div style={styles.bulletIcon}>{icons[index % icons.length]}</div>
+              <div style={styles.bulletText}>{text}</div>
             </div>
           ))}
         </div>

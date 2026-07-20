@@ -10,8 +10,8 @@ import { backgroundColors } from '../../styles';
  */
 const Template006 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
-  const quoteText = elements.quote || elements.text || '';
-  const authorName = elements.author || '';
+  const quote = elements.quote || scene?.scene_meta?.content?.[0] || '';
+  const author = elements.author || '';
   const authorTitle = elements.authorTitle || '';
   const authorImage = elements.authorImage || '';
   const bgColor = elements.backgroundColor || backgroundColors.dark;

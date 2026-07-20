@@ -26,14 +26,14 @@ import { backgroundColors, textStyles } from '../../styles';
 const Template004 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
   const title = elements.title || '';
-  const items = elements.items || [];
   const bgColor = elements.backgroundColor || backgroundColors.slate;
+  const contentItems = scene?.scene_meta?.content || [];
 
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const secondsPerItem = 3;
-  const totalCardFrames = items.length * secondsPerItem * fps;
+  const totalCardFrames = contentItems.length * secondsPerItem * fps;
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
@@ -49,7 +49,7 @@ const Template004 = React.memo(({ scene }) => {
             {/* Timeline line */}
             <div style={styles.timelineLine} />
 
-            {items.map((item, index) => {
+            {contentItems.map((text, index) => {
               const itemStart = index * secondsPerItem * fps;
               const { dotStyle, cardAnim } = getTimelineItemAnimations(frame, fps, index);
               const isLeft = index % 2 === 0;
@@ -65,10 +65,7 @@ const Template004 = React.memo(({ scene }) => {
 
                     {/* Card */}
                     <div style={{ ...styles.card, ...cardAnim }}>
-                      {item.date && (
-                        <p style={styles.cardDate}>{item.date}</p>
-                      )}
-                      <p style={styles.cardText}>{item.text}</p>
+                      <p style={styles.cardText}>{text}</p>
                     </div>
                   </div>
                 </Sequence>
