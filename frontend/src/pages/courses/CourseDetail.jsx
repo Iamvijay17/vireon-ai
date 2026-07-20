@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import {
   Card,
   Button,
@@ -13,11 +13,8 @@ import {
   Row,
   Col,
   Progress,
-  Empty,
-  Spin,
   Tooltip,
   List,
-  Divider,
   Descriptions,
   Badge,
   Dropdown,
@@ -33,16 +30,15 @@ import {
   VideoCameraOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  ReloadOutlined,
-  SettingOutlined,
   MoreOutlined,
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ThemeContext } from '../../shared/ThemeContext';
-import { getColors, typography } from '../../shared/theme';
+import { ThemeContext } from "../../shared/themeContextValue";
+import { getColors } from '../../shared/theme';
+import { EmptyState, LoadingState } from '../../components';
+import { useSetBreadcrumbLabel } from '../../shared/breadcrumbContextValue';
 import {
   getCourse,
-  updateCourse,
   deleteCourse,
   getCourseVideos,
   createCourseVideo,
@@ -89,6 +85,7 @@ const CourseDetail = () => {
   const navigate = useNavigate();
 
   const [course, setCourse] = useState(null);
+  useSetBreadcrumbLabel(course?.title);
   const [videos, setVideos] = useState([]);
   const [videoStatusSummary, setVideoStatusSummary] = useState({});
   const [loading, setLoading] = useState(true);
@@ -104,7 +101,7 @@ const CourseDetail = () => {
       setCourse(res.data.course);
       setVideoStatusSummary(res.data.videoStatusSummary || {});
     } catch (err) {
-      message.error('Failed to load course');
+      message.error(err.response?.data?.error || 'Failed to load course');
       navigate('/courses');
     } finally {
       setLoading(false);
@@ -117,7 +114,7 @@ const CourseDetail = () => {
       const res = await getCourseVideos(id);
       setVideos(res.data.videos);
     } catch (err) {
-      message.error('Failed to load videos');
+      message.error(err.response?.data?.error || 'Failed to load videos');
     } finally {
       setVideosLoading(false);
     }
@@ -164,7 +161,7 @@ const CourseDetail = () => {
           fetchVideos();
           fetchCourse();
         } catch (err) {
-          message.error('Failed to delete video');
+          message.error(err.response?.data?.error || 'Failed to delete video');
         }
       },
     });
@@ -182,7 +179,7 @@ const CourseDetail = () => {
           message.success('Course deleted');
           navigate('/courses');
         } catch (err) {
-          message.error('Failed to delete course');
+          message.error(err.response?.data?.error || 'Failed to delete course');
         }
       },
     });
@@ -193,11 +190,7 @@ const CourseDetail = () => {
   const progressPercent = totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
 
   if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: 80 }}>
-        <Spin size="large" />
-      </div>
-    );
+    return <LoadingState label="Loading course..." />;
   }
 
   return (
@@ -212,7 +205,7 @@ const CourseDetail = () => {
               type="text"
             />
             <div>
-              <Title level={3} style={{ margin: 0, color: dynamicColors.text }}>
+              <Title level={3} style={{ margin: 0, color: dynamicColors.textPrimary }}>
                 {course?.title}
               </Title>
               <Text style={{ color: dynamicColors.textSecondary }}>
@@ -322,11 +315,11 @@ const CourseDetail = () => {
           dataSource={videos}
           locale={{
             emptyText: (
-              <Empty description="No videos yet" image={Empty.PRESENTED_IMAGE_SIMPLE}>
-                <Button type="primary" onClick={showCreateModal}>
-                  Create Your First Video
-                </Button>
-              </Empty>
+              <EmptyState
+                description="No videos yet"
+                actionLabel="Create Your First Video"
+                onAction={showCreateModal}
+              />
             ),
           }}
           renderItem={(video) => (
@@ -372,7 +365,7 @@ const CourseDetail = () => {
                 }
                 title={
                   <Space>
-                    <Text strong style={{ color: dynamicColors.text }}>
+                    <Text strong style={{ color: dynamicColors.textPrimary }}>
                       {video.order + 1}. {video.title}
                     </Text>
                   </Space>

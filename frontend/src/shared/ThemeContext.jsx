@@ -1,11 +1,6 @@
-import React, { createContext, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { getColors } from "./theme";
-
-export const ThemeContext = createContext({
-  theme: "light",
-  toggleTheme: () => {},
-  colors: getColors("light"),
-});
+import { ThemeContext } from "./themeContextValue";
 
 export const ThemeProvider = ({ children, initialTheme }) => {
   const [theme, setTheme] = useState(() => initialTheme || "light");
@@ -34,4 +29,4 @@ export const ThemeProvider = ({ children, initialTheme }) => {
   );
 };
 
-export default ThemeContext;
+export default ThemeProvider;

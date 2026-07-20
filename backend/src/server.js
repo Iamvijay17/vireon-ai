@@ -18,7 +18,18 @@ const server = http.createServer(app);
 
 // ── Security Middleware ──────────────────────────────────────────────────────
 app.use(helmet());
-app.use(cors({ origin: config.cors.origin, credentials: true }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Allow non-browser requests (no Origin header, e.g. curl/health checks)
+      if (!origin || config.cors.origins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true,
+  })
+);
 
 // ── Rate Limiting ────────────────────────────────────────────────────────────
 const limiter = rateLimit({

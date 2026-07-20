@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
+import { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import {
   Card,
   Button,
@@ -15,7 +15,6 @@ import {
   Alert,
   Input,
   Progress,
-  Tooltip,
   Empty,
   Result,
   Timeline,
@@ -25,10 +24,8 @@ import {
 import {
   ArrowLeftOutlined,
   FileTextOutlined,
-  SoundOutlined,
   VideoCameraOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined,
   ReloadOutlined,
   PlayCircleOutlined,
   EditOutlined,
@@ -39,8 +36,10 @@ import {
   StepForwardOutlined,
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ThemeContext } from '../../shared/ThemeContext';
+import { ThemeContext } from "../../shared/themeContextValue";
 import { getColors } from '../../shared/theme';
+import { LoadingState } from '../../components';
+import { useSetBreadcrumbLabel } from '../../shared/breadcrumbContextValue';
 import {
   getCourseVideo,
   generateCourseVideoScript,
@@ -83,6 +82,7 @@ const CourseVideoEditor = () => {
   const pollingRef = useRef(null);
 
   const [video, setVideo] = useState(null);
+  useSetBreadcrumbLabel(video?.title);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState({});
   const [editingScript, setEditingScript] = useState(false);
@@ -92,6 +92,13 @@ const CourseVideoEditor = () => {
 
   const setStepLoading = (step, val) => {
     setActionLoading((prev) => ({ ...prev, [step]: val }));
+  };
+
+  const addActivity = (text, timestamp) => {
+    setActivityLog((prev) => [
+      { text, time: timestamp ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString() },
+      ...prev,
+    ]);
   };
 
   const fetchVideo = useCallback(async () => {
@@ -115,7 +122,7 @@ const CourseVideoEditor = () => {
 
       addActivity(`Status: ${v.status}`, v.updatedAt);
     } catch (err) {
-      message.error('Failed to load video');
+      message.error(err.response?.data?.error || 'Failed to load video');
       navigate(`/courses/${courseId}`);
     } finally {
       setLoading(false);
@@ -130,13 +137,6 @@ const CourseVideoEditor = () => {
       }
     };
   }, [fetchVideo]);
-
-  const addActivity = (text, timestamp) => {
-    setActivityLog((prev) => [
-      { text, time: timestamp ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString() },
-      ...prev,
-    ]);
-  };
 
   const startPolling = (step) => {
     if (pollingRef.current) clearInterval(pollingRef.current);
@@ -315,18 +315,13 @@ const CourseVideoEditor = () => {
   const hasScript = video?.script && video.script.length > 0;
   const isApproved = video?.approved;
   const hasAudio = video?.audioUrl && video.audioUrl.length > 0;
-  const hasRender = video?.renderUrl && video.renderUrl.length > 0;
   const scenes = parsedScript?.scenes || [];
 
   // Compute audio URL base
   const audioBaseUrl = video?._id ? `/public/${video._id}/audio` : null;
 
   if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: 80 }}>
-        <Spin size="large" />
-      </div>
-    );
+    return <LoadingState label="Loading video..." />;
   }
 
   if (!video) {
@@ -357,7 +352,7 @@ const CourseVideoEditor = () => {
               type="text"
             />
             <div>
-              <Title level={3} style={{ margin: 0, color: dynamicColors.text }}>
+              <Title level={3} style={{ margin: 0, color: dynamicColors.textPrimary }}>
                 {video.title}
               </Title>
               <Text style={{ color: dynamicColors.textSecondary }}>
@@ -609,7 +604,7 @@ const CourseVideoEditor = () => {
                           overflow: 'auto',
                           fontSize: 13,
                           lineHeight: 1.6,
-                          color: dynamicColors.text,
+                          color: dynamicColors.textPrimary,
                           border: `1px solid ${dynamicColors.borderLight}`,
                           whiteSpace: 'pre-wrap',
                           fontFamily: 'monospace',
@@ -639,7 +634,7 @@ const CourseVideoEditor = () => {
                     fontFamily: 'monospace',
                     fontSize: 13,
                     background: dynamicColors.bg,
-                    color: dynamicColors.text,
+                    color: dynamicColors.textPrimary,
                     borderColor: dynamicColors.borderLight,
                   }}
                 />
@@ -922,7 +917,7 @@ const CourseVideoEditor = () => {
               items={activityLog.slice(0, 20).map((entry) => ({
                 children: (
                   <div>
-                    <Text style={{ color: dynamicColors.text }}>{entry.text}</Text>
+                    <Text style={{ color: dynamicColors.textPrimary }}>{entry.text}</Text>
                     <br />
                     <Text type="secondary" style={{ fontSize: 12 }}>{entry.time}</Text>
                   </div>

@@ -1,5 +1,5 @@
-import React, { useContext } from "react";
-import { Layout, Button, Avatar, Dropdown, Space, Badge, Input } from "antd";
+import { useContext } from "react";
+import { Layout, Button, Avatar, Dropdown, Space, Badge } from "antd";
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -13,8 +13,8 @@ import {
   SunOutlined,
   MoonOutlined,
 } from "@ant-design/icons";
-import { colors, shadows, typography, getColors } from "../../shared/theme";
-import { ThemeContext } from "../../shared/ThemeContext";
+import { shadows, typography } from "../../shared/theme";
+import { ThemeContext } from "../../shared/themeContextValue";
 
 const { Header } = Layout;
 
@@ -41,9 +41,8 @@ const userMenuItems = [
 
 // ─── Navbar Component ────────────────────────────────────────────────────────
 const AppNavbar = ({ collapsed, onToggle }) => {
-  const { theme, toggleTheme } = React.useContext(ThemeContext);
-  const dynamicColors = getColors(theme);
-  
+  const { theme, toggleTheme, colors } = useContext(ThemeContext);
+
   return (
     <Header
       style={{
@@ -79,22 +78,42 @@ const AppNavbar = ({ collapsed, onToggle }) => {
           }}
         />
 
-        {/* Search bar */}
-        <Input.Search
-          placeholder="Search projects, renders..."
-          allowClear
-          prefix={<SearchOutlined style={{ color: colors.textTertiary }} />}
+        {/* Command palette trigger, styled as a search bar */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("vireon:open-command-palette"))}
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
             maxWidth: 380,
             width: "100%",
+            height: 36,
+            padding: "0 12px",
+            borderRadius: 8,
+            border: `1px solid ${colors.border}`,
+            background: colors.bg,
+            color: colors.textTertiary,
+            fontSize: typography.fontSize.sm,
+            fontFamily: typography.fontFamily,
+            cursor: "pointer",
+            textAlign: "left",
           }}
-          styles={{
-            input: {
-              fontSize: typography.fontSize.sm,
-              fontFamily: typography.fontFamily,
-            },
-          }}
-        />
+        >
+          <SearchOutlined />
+          <span style={{ flex: 1 }}>Search or jump to...</span>
+          <span
+            style={{
+              fontSize: 11,
+              padding: "1px 6px",
+              borderRadius: 4,
+              border: `1px solid ${colors.border}`,
+              color: colors.textTertiary,
+            }}
+          >
+            ⌘K
+          </span>
+        </button>
       </div>
 
       {/* ── Right: Actions & User ──────────────────────────────────────── */}
@@ -112,7 +131,7 @@ const AppNavbar = ({ collapsed, onToggle }) => {
         <Button
           type="text"
           icon={<QuestionCircleOutlined />}
-          style={{ color: dynamicColors.textSecondary, fontSize: 18 }}
+          style={{ color: colors.textSecondary, fontSize: 18 }}
           size="large"
         />
 
@@ -121,7 +140,7 @@ const AppNavbar = ({ collapsed, onToggle }) => {
           <Button
             type="text"
             icon={<BellOutlined />}
-            style={{ color: dynamicColors.textSecondary, fontSize: 18 }}
+            style={{ color: colors.textSecondary, fontSize: 18 }}
             size="large"
           />
         </Badge>
@@ -134,7 +153,7 @@ const AppNavbar = ({ collapsed, onToggle }) => {
           >
             <span
               style={{
-                color: dynamicColors.textPrimary,
+                color: colors.textPrimary,
                 fontSize: typography.fontSize.sm,
                 fontWeight: 500,
                 lineHeight: 1,

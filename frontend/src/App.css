@@ -1,8 +1,25 @@
-/* ─── Reset & Base ────────────────────────────────────────────────────────── *//* Global theme transitions */
+/* ─── Reset & Base ───────────────────────────────────────────────────────── */
+/* Global theme transitions */
 .app-theme-transition,
 .app-theme-transition * {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
+
+/* Theme-aware CSS variables, mirroring shared/theme/index.js */
+.theme-light {
+  --scrollbar-thumb: #d6d2e6;
+  --scrollbar-thumb-hover: #b8b2d1;
+  --sider-trigger-bg: #17152b;
+  --user-menu-hover-bg: #f5f4fa;
+}
+
+.theme-dark {
+  --scrollbar-thumb: #322b55;
+  --scrollbar-thumb-hover: #453c73;
+  --sider-trigger-bg: #0a0916;
+  --user-menu-hover-bg: #262143;
+}
+
 *,
 *::before,
 *::after {
@@ -26,7 +43,7 @@ body {
     sans-serif;
 }
 
-/* ─── Scrollbar ───────────────────────────────────────────────────────────── */
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -37,17 +54,17 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--scrollbar-thumb, #d6d2e6);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--scrollbar-thumb-hover, #b8b2d1);
 }
 
-/* ─── Ant Design Overrides ─────────────────────────────────────────────────── */
+/* ─── Ant Design Overrides ───────────────────────────────────────────────── */
 .ant-layout-sider-trigger {
-  background: #1e293b !important;
+  background: var(--sider-trigger-bg, #17152b) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -55,7 +72,66 @@ body {
   font-weight: 500;
 }
 
-/* ─── User Menu Trigger Hover ──────────────────────────────────────────────── */
+/* ─── User Menu Trigger Hover ────────────────────────────────────────────── */
 .user-menu-trigger:hover {
-  background: #f1f5f9;
+  background: var(--user-menu-hover-bg, #f5f4fa);
+}
+
+/* ─── Motion Utilities ───────────────────────────────────────────────────── */
+@keyframes vireon-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes vireon-slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes vireon-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: vireon-fade-in 200ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+.animate-slide-up {
+  animation: vireon-slide-up 240ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+.animate-scale-in {
+  animation: vireon-scale-in 160ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+/* Stat/hoverable cards: consistent lift-on-hover micro-interaction */
+.hover-lift {
+  transition: transform 160ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+/* Stagger helper: pair with inline `--stagger-index` for list entrance */
+.animate-stagger {
+  animation-delay: calc(var(--stagger-index, 0) * 40ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-theme-transition,
+  .app-theme-transition * {
+    transition: none;
+  }
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in {
+    animation: none;
+  }
+  .hover-lift {
+    transition: none;
+  }
+  .hover-lift:hover {
+    transform: none;
+  }
 }

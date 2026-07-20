@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useContext } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  Typography, Card, Row, Col, Progress, Tag, Descriptions, Button, Spin, Steps, Space, Alert, message, Empty
+  Typography, Card, Row, Col, Progress, Tag, Descriptions, Button, Steps, Space, Alert, message
 } from "antd";
 import {
   ArrowLeftOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined,
@@ -10,7 +10,8 @@ import {
 } from "@ant-design/icons";
 import { getVideoJob, restartVideoJob, rerenderVideoJob } from "../../services/api";
 import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, onDisconnect, requestJobStatus, onJobStatus, isConnected } from "../../services/socket";
-import { colors } from "../../shared/theme";
+import { ThemeContext } from "../../shared/themeContextValue";
+import { LoadingState, EmptyState, ErrorState } from "../../components";
 
 const { Title, Text } = Typography;
 
@@ -30,6 +31,7 @@ const STEP_ORDER = PIPELINE_STEPS.map((s) => s.status);
 const RenderPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { colors } = useContext(ThemeContext);
   const jobId = searchParams.get("id");
 
   const [job, setJob] = useState(null);
@@ -180,27 +182,24 @@ const RenderPage = () => {
   }, [jobId, fetchJob, setupListeners]);
 
   if (loading) {
-    return (
-      <div style={{ textAlign: "center", padding: 80 }}>
-        <Spin size="large" />
-        <div style={{ marginTop: 16, color: colors.textSecondary }}>Loading job details...</div>
-      </div>
-    );
+    return <LoadingState label="Loading job details..." />;
   }
 
   if (!jobId) {
     return (
-      <Empty description="No job ID specified">
-        <Button type="primary" onClick={() => navigate("/")}>Back to Dashboard</Button>
-      </Empty>
+      <EmptyState
+        description="No job ID specified"
+        actionLabel="Back to Dashboard"
+        onAction={() => navigate("/")}
+      />
     );
   }
 
   if (error && !job) {
     return (
       <div style={{ textAlign: "center", padding: 48 }}>
-        <Alert message="Error" description={error} type="error" showIcon style={{ maxWidth: 400, margin: "0 auto 24px" }} />
-        <Button onClick={() => navigate("/")}>Back to Dashboard</Button>
+        <ErrorState message="Error" description={error} />
+        <Button style={{ marginTop: 16 }} onClick={() => navigate("/")}>Back to Dashboard</Button>
       </div>
     );
   }
@@ -267,8 +266,8 @@ const RenderPage = () => {
                 height: 8,
                 borderRadius: "50%",
                 backgroundColor:
-                  socketStatus === "connected" ? "#22c55e" :
-                  socketStatus === "reconnecting" ? "#f59e0b" : "#94a3b8",
+                  socketStatus === "connected" ? colors.success :
+                  socketStatus === "reconnecting" ? colors.warning : colors.textTertiary,
               }}
             />
             {socketStatus === "connected" ? "Live" :

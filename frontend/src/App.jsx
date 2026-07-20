@@ -1,12 +1,14 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo, useContext } from "react";
 import { ConfigProvider, theme } from "antd";
-import { ThemeProvider, ThemeContext } from "./shared/ThemeContext";
+import { ThemeProvider } from "./shared/ThemeContext";
+import { ThemeContext } from "./shared/themeContextValue";
+import { BreadcrumbProvider } from "./shared/BreadcrumbContext";
 import createAntdTheme from "./shared/theme";
 import Structure from "./layout";
 import "./App.css";
 
 const InnerApp = () => {
-  const { theme: currentTheme } = React.useContext(ThemeContext);
+  const { theme: currentTheme } = useContext(ThemeContext);
   const antdTheme = useMemo(() => createAntdTheme(currentTheme), [currentTheme]);
 
   return (
@@ -14,7 +16,9 @@ const InnerApp = () => {
       theme={antdTheme}
       algorithm={currentTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm}
     >
-      <Structure />
+      <BreadcrumbProvider>
+        <Structure />
+      </BreadcrumbProvider>
     </ConfigProvider>
   );
 };

@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  Typography, Card, Row, Col, Button, Form, Input, Select, Switch, Slider, Space, message, Spin, Empty, Divider, Tag, Collapse, InputNumber, List
+  Typography, Card, Row, Col, Button, Form, Input, Select, Space, message, Divider, Tag, Collapse, InputNumber, Alert
 } from "antd";
 import {
-  ArrowLeftOutlined, SaveOutlined, RedoOutlined, PlayCircleOutlined, SettingOutlined, EditOutlined, TranslationOutlined, PictureOutlined, BgColorsOutlined, RightOutlined
+  ArrowLeftOutlined, SaveOutlined, RedoOutlined, SettingOutlined, EditOutlined, TranslationOutlined, PictureOutlined, RightOutlined
 } from "@ant-design/icons";
 import { getVideoJob, updateVideoScenes, rerenderVideoJob } from "../../services/api";
-import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, onDisconnect, requestJobStatus, onJobStatus, isConnected } from "../../services/socket";
-import { colors } from "../../shared/theme";
+import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, onDisconnect, onJobStatus, isConnected } from "../../services/socket";
+import { ThemeContext } from "../../shared/themeContextValue";
+import { LoadingState, EmptyState } from "../../components";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -37,6 +38,7 @@ const CAMERA_OPTIONS = [
 const StudioPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { colors } = useContext(ThemeContext);
   const jobId = searchParams.get("id");
 
   const [job, setJob] = useState(null);
@@ -52,12 +54,12 @@ const StudioPage = () => {
 
   // Calculate scene start times for navigation
   const sceneTimeline = useMemo(() => {
-    let time = 0;
-    return editedScenes.map((scene) => {
-      const start = time;
-      time += scene.duration || 8;
-      return { ...scene, startTime: start, endTime: time };
-    });
+    return editedScenes.reduce((acc, scene) => {
+      const start = acc.length ? acc[acc.length - 1].endTime : 0;
+      const end = start + (scene.duration || 8);
+      acc.push({ ...scene, startTime: start, endTime: end });
+      return acc;
+    }, []);
   }, [editedScenes]);
 
   const fetchJob = useCallback(async () => {
@@ -81,11 +83,9 @@ const StudioPage = () => {
     setHasChanges(true);
   };
 
-  const handleArrayFieldChange = (index, field, arrayField, itemIndex, value) => {
+  const handleAudioTextChange = (index, value) => {
     const updated = [...editedScenes];
-    if (!updated[index][field]) updated[index][field] = [];
-    updated[index][field] = [...updated[index][field]];
-    updated[index][field][itemIndex] = value;
+    updated[index] = { ...updated[index], audio: { ...updated[index].audio, text: value } };
     setEditedScenes(updated);
     setHasChanges(true);
   };
@@ -123,7 +123,6 @@ const StudioPage = () => {
     if (!jobId) return;
     connect();
     joinJobRoom(jobId);
-    setSocketStatus(isConnected() ? "connected" : "disconnected");
 
     const unsubProgress = onJobProgress((data) => {
       if (data.jobId === jobId) {
@@ -152,6 +151,12 @@ const StudioPage = () => {
 
     return () => {
       leaveJobRoom(jobId);
+      unsubProgress();
+      unsubCompleted();
+      unsubFailed();
+      unsubStatus();
+      unsubConnect();
+      unsubDisconnect();
     };
   }, [jobId]);
 
@@ -160,19 +165,16 @@ const StudioPage = () => {
   }, [fetchJob]);
 
   if (loading) {
-    return (
-      <div style={{ textAlign: "center", padding: 80 }}>
-        <Spin size="large" />
-        <div style={{ marginTop: 16, color: colors.textSecondary }}>Loading studio...</div>
-      </div>
-    );
+    return <LoadingState label="Loading studio..." />;
   }
 
   if (!job) {
     return (
-      <Empty description="Job not found">
-        <Button type="primary" onClick={() => navigate("/")}>Back to Dashboard</Button>
-      </Empty>
+      <EmptyState
+        description="Job not found"
+        actionLabel="Back to Dashboard"
+        onAction={() => navigate("/")}
+      />
     );
   }
 
@@ -261,7 +263,7 @@ const StudioPage = () => {
                       minWidth: 150,
                       cursor: "pointer",
                       border: isActive ? `2px solid ${colors.primary}` : undefined,
-                      backgroundColor: isActive ? colors.primary + "10" : isPast ? "#f6f6f6" : undefined,
+                      backgroundColor: isActive ? colors.primaryBg : isPast ? colors.surfaceActive : undefined,
                       opacity: isActive ? 1 : isPast ? 0.7 : 1,
                       borderRadius: 8,
                       transition: "all 0.3s ease",
@@ -274,7 +276,7 @@ const StudioPage = () => {
                         height: 28,
                         borderRadius: 8,
                         backgroundColor: isActive ? colors.primary : colors.borderLight,
-                        color: isActive ? "#fff" : colors.textSecondary,
+                        color: isActive ? colors.textInverse : colors.textSecondary,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -321,7 +323,7 @@ const StudioPage = () => {
       )}
 
       {editedScenes.length === 0 ? (
-        <Empty description="No scenes found" />
+        <EmptyState description="No scenes found" />
       ) : (
         <Collapse
           accordion={false}
@@ -342,7 +344,7 @@ const StudioPage = () => {
                 </Space>
               }
             >
-              <Card size="small" style={{ background: "#fafafa" }}>
+              <Card size="small" style={{ background: colors.surfaceHover }}>
                 <Row gutter={16}>
                   {/* Basic Info */}
                   <Col span={24}>
@@ -421,7 +423,7 @@ const StudioPage = () => {
                   </Col>
                   <Col span={24}>
                     <Form.Item label="Narration Text" style={{ marginBottom: 12 }}>
-                      <TextArea rows={2} value={scene.audio?.text || ""} onChange={(e) => handleArrayFieldChange(index, "audio", "text", 0, e.target.value)} disabled={!canEdit} placeholder="Text to speak in this scene" />
+                      <TextArea rows={2} value={scene.audio?.text || ""} onChange={(e) => handleAudioTextChange(index, e.target.value)} disabled={!canEdit} placeholder="Text to speak in this scene" />
                     </Form.Item>
                   </Col>
                 </Row>

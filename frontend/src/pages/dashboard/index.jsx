@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { Typography, Card, Row, Col, Statistic, Table, Tag, Space, Button, Spin, Empty, message } from "antd";
+import { useState, useEffect, useContext } from "react";
+import { Card, Row, Col, Statistic, Table, Tag, Space, Button, message } from "antd";
 import {
   ProjectOutlined,
-  ThunderboltOutlined,
   CheckCircleOutlined,
-  ClockCircleOutlined,
   CloseCircleOutlined,
   SyncOutlined,
   PlusOutlined,
@@ -14,25 +12,12 @@ import {
 import { useNavigate } from "react-router-dom";
 import { getVideoJobs, deleteVideoJob } from "../../services/api";
 import { connect, onJobCreated, onJobCompleted, onJobFailed } from "../../services/socket";
-import { colors } from "../../shared/theme";
-
-const { Title, Text } = Typography;
-
-const STATUS_MAP = {
-  QUEUED: { color: "default", icon: <ClockCircleOutlined /> },
-  SCRIPT_GENERATION: { color: "processing", icon: <SyncOutlined spin /> },
-  SCRIPT_COMPLETED: { color: "blue", icon: <CheckCircleOutlined /> },
-  GENERATING_AUDIO: { color: "processing", icon: <SyncOutlined spin /> },
-  AUDIO_COMPLETED: { color: "geekblue", icon: <CheckCircleOutlined /> },
-  PREPARING_ASSETS: { color: "processing", icon: <SyncOutlined spin /> },
-  RENDERING: { color: "processing", icon: <SyncOutlined spin /> },
-  UPLOADING: { color: "processing", icon: <SyncOutlined spin /> },
-  COMPLETED: { color: "success", icon: <CheckCircleOutlined /> },
-  FAILED: { color: "error", icon: <CloseCircleOutlined /> },
-};
+import { ThemeContext } from "../../shared/themeContextValue";
+import { PageHeader, LoadingState, EmptyState, StatusTag } from "../../components";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { colors } = useContext(ThemeContext);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 0 });
@@ -44,7 +29,7 @@ const Dashboard = () => {
       setJobs(res.data.jobs);
       setPagination(res.data.pagination);
     } catch (err) {
-      message.error("Failed to fetch jobs");
+      message.error(err.response?.data?.error || "Failed to fetch jobs");
     } finally {
       setLoading(false);
     }
@@ -122,14 +107,7 @@ const Dashboard = () => {
       dataIndex: "status",
       key: "status",
       width: 180,
-      render: (status) => {
-        const s = STATUS_MAP[status] || { color: "default", icon: null };
-        return (
-          <Tag color={s.color} icon={s.icon}>
-            {status?.replace(/_/g, " ")}
-          </Tag>
-        );
-      },
+      render: (status) => <StatusTag status={status} />,
     },
     {
       title: "Progress",
@@ -141,7 +119,7 @@ const Dashboard = () => {
         return (
           <Space>
             {isActive ? <SyncOutlined spin style={{ color: colors.primary }} /> : null}
-            <Text>{progress}%</Text>
+            <span style={{ color: colors.textPrimary }}>{progress}%</span>
           </Space>
         );
       },
@@ -151,7 +129,7 @@ const Dashboard = () => {
       dataIndex: "createdAt",
       key: "createdAt",
       width: 160,
-      render: (date) => <Text type="secondary">{new Date(date).toLocaleString()}</Text>,
+      render: (date) => <span style={{ color: colors.textSecondary }}>{new Date(date).toLocaleString()}</span>,
     },
     {
       title: "Actions",
@@ -177,20 +155,20 @@ const Dashboard = () => {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <Title level={4} style={{ margin: 0, color: colors.textPrimary }}>
-          Dashboard
-        </Title>
-        <Button type="primary" icon={<PlusOutlined />} size="large" onClick={() => navigate("/wizard")}>
-          Create Video
-        </Button>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        extra={
+          <Button type="primary" icon={<PlusOutlined />} size="large" onClick={() => navigate("/wizard")}>
+            Create Video
+          </Button>
+        }
+      />
 
       {/* Stats */}
       <Row gutter={[16, 16]}>
         {stats.map((s) => (
           <Col xs={12} lg={6} key={s.title}>
-            <Card hoverable style={{ borderRadius: 12 }}>
+            <Card hoverable style={{ borderRadius: 16 }}>
               <Statistic
                 title={s.title}
                 value={s.value}
@@ -209,7 +187,7 @@ const Dashboard = () => {
       {/* Job List */}
       <Card
         title="Recent Jobs"
-        style={{ marginTop: 24, borderRadius: 12 }}
+        style={{ marginTop: 24, borderRadius: 16 }}
         headStyle={{ fontWeight: 600 }}
         extra={
           <Button size="small" onClick={() => fetchJobs(pagination.page)} loading={loading}>
@@ -218,9 +196,14 @@ const Dashboard = () => {
         }
       >
         {loading && jobs.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 48 }}><Spin size="large" /></div>
+          <LoadingState label="Loading jobs..." />
         ) : jobs.length === 0 ? (
-          <Empty description="No jobs yet. Create your first video!" />
+          <EmptyState
+            description="No jobs yet. Create your first video!"
+            actionLabel="Create Video"
+            actionIcon={<PlusOutlined />}
+            onAction={() => navigate("/wizard")}
+          />
         ) : (
           <Table
             dataSource={jobs}

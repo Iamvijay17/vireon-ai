@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import { useContext } from "react";
 import { Layout, Menu } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -7,14 +7,13 @@ import {
   AppstoreOutlined,
   SettingOutlined,
   FileTextOutlined,
-  ThunderboltOutlined,
   CodeOutlined,
   BarChartOutlined,
   RocketOutlined,
   BookOutlined,
 } from "@ant-design/icons";
-import { colors, getColors } from "../../shared/theme";
-import { ThemeContext } from "../../shared/ThemeContext";
+import { getColors } from "../../shared/theme";
+import { ThemeContext } from "../../shared/themeContextValue";
 
 const { Sider } = Layout;
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useContext } from "react";
 import {
   Typography,
   Card,
@@ -10,7 +10,6 @@ import {
   Result,
   Descriptions,
   Tag,
-  Spin,
   message,
 } from "antd";
 import {
@@ -25,7 +24,8 @@ import {
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { createVideoJob } from "../../services/api";
-import { colors } from "../../shared/theme";
+import { ThemeContext } from "../../shared/themeContextValue";
+import { LoadingState } from "../../components";
 
 const { Title, Text } = Typography;
 
@@ -82,6 +82,7 @@ const STEPS = [
 
 const Wizard = () => {
   const navigate = useNavigate();
+  const { colors } = useContext(ThemeContext);
   const [form] = Form.useForm();
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -364,12 +365,7 @@ const Wizard = () => {
         )}
 
         {current === 3 && !result && (
-          <div style={{ textAlign: "center", padding: 80 }}>
-            <Spin size="large" />
-            <div style={{ marginTop: 16, color: colors.textSecondary }}>
-              Creating your video job...
-            </div>
-          </div>
+          <LoadingState label="Creating your video job..." />
         )}
       </Card>
     </div>

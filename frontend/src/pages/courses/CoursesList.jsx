@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import {
   Card,
   Table,
@@ -14,9 +14,6 @@ import {
   Row,
   Col,
   Statistic,
-  Empty,
-  Spin,
-  Badge,
   Tooltip,
 } from 'antd';
 import {
@@ -28,11 +25,11 @@ import {
   ClockCircleOutlined,
   CheckCircleOutlined,
   PlayCircleOutlined,
-  FilterOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { ThemeContext } from '../../shared/ThemeContext';
-import { getColors, typography } from '../../shared/theme';
+import { ThemeContext } from "../../shared/themeContextValue";
+import { getColors } from '../../shared/theme';
+import { EmptyState } from '../../components';
 import {
   getCourses,
   createCourse,
@@ -78,7 +75,7 @@ const CoursesList = () => {
       setCourses(res.data.courses);
       setPagination(res.data.pagination);
     } catch (err) {
-      message.error('Failed to load courses');
+      message.error(err.response?.data?.error || 'Failed to load courses');
     } finally {
       setLoading(false);
     }
@@ -149,7 +146,7 @@ const CoursesList = () => {
           message.success('Course deleted');
           fetchCourses();
         } catch (err) {
-          message.error('Failed to delete course');
+          message.error(err.response?.data?.error || 'Failed to delete course');
         }
       },
     });
@@ -236,7 +233,7 @@ const CoursesList = () => {
     <div>
       <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
         <Col>
-          <Title level={3} style={{ margin: 0, color: dynamicColors.text }}>
+          <Title level={3} style={{ margin: 0, color: dynamicColors.textPrimary }}>
             Courses
           </Title>
           <Text style={{ color: dynamicColors.textSecondary }}>
@@ -316,7 +313,7 @@ const CoursesList = () => {
               title="In Progress"
               value={courses.filter((c) => c.status === 'In Progress').length}
               prefix={<PlayCircleOutlined />}
-              valueStyle={{ color: '#1890ff' }}
+              valueStyle={{ color: dynamicColors.info }}
             />
           </Card>
         </Col>
@@ -326,7 +323,7 @@ const CoursesList = () => {
               title="Completed"
               value={courses.filter((c) => c.status === 'Completed').length}
               prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: dynamicColors.success }}
             />
           </Card>
         </Col>
@@ -336,7 +333,7 @@ const CoursesList = () => {
               title="Draft"
               value={courses.filter((c) => c.status === 'Draft').length}
               prefix={<BookOutlined />}
-              valueStyle={{ color: '#faad14' }}
+              valueStyle={{ color: dynamicColors.textSecondary }}
             />
           </Card>
         </Col>
@@ -363,14 +360,11 @@ const CoursesList = () => {
           }}
           locale={{
             emptyText: (
-              <Empty
+              <EmptyState
                 description="No courses yet"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              >
-                <Button type="primary" onClick={showCreateModal}>
-                  Create Your First Course
-                </Button>
-              </Empty>
+                actionLabel="Create Your First Course"
+                onAction={showCreateModal}
+              />
             ),
           }}
         />

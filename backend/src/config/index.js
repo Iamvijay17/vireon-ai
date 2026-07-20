@@ -58,7 +58,11 @@ const config = Object.freeze({
   },
 
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173' || 'http://172.24.0.1:5173' || 'http://192.168.1.7:5173',
+    // CORS_ORIGIN accepts a comma-separated list (e.g. for LAN access from multiple hosts)
+    origins: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://172.24.0.1:5173,http://192.168.1.7:5173')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
   },
 
   rateLimit: {
