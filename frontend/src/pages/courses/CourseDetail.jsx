@@ -24,10 +24,10 @@ import { Dropdown, DropdownItem } from "../../components/ui/Dropdown";
 import { DescriptionList } from "../../components/ui/DescriptionList";
 import { CircularProgress } from "../../components/ui/CircularProgress";
 import { Select } from "../../components/ui/Select";
-import { Input, Textarea, Label } from "../../components/ui/Input";
+import { Input, Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
-import { getCourse, deleteCourse, getCourseVideos, createCourseVideo, deleteCourseVideo } from "../../services/api";
+import { getCourse, deleteCourse, getCourseVideos, createCourseVideo, deleteCourseVideo, getVoices } from "../../services/api";
 
 const VIDEO_STATUS = {
   Draft: { variant: "neutral", icon: FileText },
@@ -52,12 +52,10 @@ const DURATION_OPTIONS = [
   { value: 15, label: "15 minutes" },
 ];
 
-const VOICE_OPTIONS = [
-  { value: "male-1", label: "Male 1" },
-  { value: "male-2", label: "Male 2" },
-  { value: "female-1", label: "Female 1" },
-  { value: "female-2", label: "Female 2" },
-  { value: "neutral-1", label: "Neutral" },
+// Shown while the real voice catalog is loading (or if it fails to load).
+const FALLBACK_VOICE_OPTIONS = [
+  { value: "female-1", label: "Female Voice 1" },
+  { value: "male-1", label: "Male Voice 1" },
 ];
 
 const STYLE_OPTIONS = [
@@ -83,6 +81,7 @@ const CourseDetail = () => {
   const [formValues, setFormValues] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
 
   const fetchCourse = useCallback(async () => {
     setLoading(true);
@@ -115,8 +114,28 @@ const CourseDetail = () => {
     fetchVideos();
   }, [fetchCourse, fetchVideos]);
 
+  useEffect(() => {
+    let cancelled = false;
+    getVoices()
+      .then((res) => {
+        if (!cancelled) setVoiceCatalog(res.data || { custom: [], clone: [] });
+      })
+      .catch(() => {
+        // Keep FALLBACK_VOICE_OPTIONS if the catalog can't be loaded.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const voiceOptions = [
+    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom" })),
+    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone" })),
+  ];
+  if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICE_OPTIONS);
+
   const showCreateModal = () => {
-    setFormValues(EMPTY_FORM);
+    setFormValues({ ...EMPTY_FORM, voice: voiceOptions[0]?.value || EMPTY_FORM.voice });
     setFormError("");
     setModalVisible(true);
   };
@@ -364,7 +383,8 @@ const CourseDetail = () => {
             </div>
             <div>
               <Label>Voice</Label>
-              <Select options={VOICE_OPTIONS} value={formValues.voice} onChange={(v) => setFormValues((prev) => ({ ...prev, voice: v }))} />
+              <Select options={voiceOptions} value={formValues.voice} onChange={(v) => setFormValues((prev) => ({ ...prev, voice: v }))} />
+              <FieldHint>Custom presets or cloned from your reference .wav files</FieldHint>
             </div>
             <div>
               <Label>Style</Label>

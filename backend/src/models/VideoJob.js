@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, VOICES, LANGUAGES } = require('../constants');
+const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES } = require('../constants');
 
 const sceneSchema = new mongoose.Schema(
   {
@@ -45,9 +45,11 @@ const videoJobSchema = new mongoose.Schema(
       enum: LANGUAGES,
       default: 'english',
     },
+    // Free-form voice selector: legacy bare keys (e.g. "female-1"),
+    // "custom:<Speaker>" for a Qwen3-TTS preset, or "clone:<file>.wav"
+    // for a cloned reference voice - see AudioService.resolveVoice.
     voice: {
       type: String,
-      enum: VOICES,
       default: 'female-1',
     },
     resolution: {

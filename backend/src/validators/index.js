@@ -3,7 +3,6 @@ const {
   VIDEO_TYPES,
   RESOLUTIONS,
   ASPECT_RATIOS,
-  VOICES,
   LANGUAGES,
 } = require('../constants');
 
@@ -22,7 +21,9 @@ const createVideoSchema = z.object({
   topic: z.string().min(3).max(500).trim(),
   type: z.enum(VIDEO_TYPES),
   language: z.enum(LANGUAGES).optional().default('english'),
-  voice: z.enum(VOICES).optional().default('female-1'),
+  // Accepts legacy keys ("female-1"), "custom:<Speaker>", or "clone:<file>.wav"
+  // - see AudioService.resolveVoice for how this is interpreted.
+  voice: z.string().min(1).max(200).optional().default('female-1'),
   resolution: z.enum(RESOLUTIONS).optional().default('1920x1080'),
   aspectRatio: z.enum(ASPECT_RATIOS).optional().default('16:9'),
 });

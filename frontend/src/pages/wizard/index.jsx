@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   CheckCircle2,
   Rocket,
@@ -9,7 +9,7 @@ import {
   Check,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { createVideoJob } from "../../services/api";
+import { createVideoJob, getVoices } from "../../services/api";
 import { LoadingState } from "../../components";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -45,12 +45,10 @@ const ASPECT_RATIOS = [
   { value: "21:9", label: "21:9 (Ultrawide)" },
 ];
 
-const VOICES = [
-  { value: "male-1", label: "Male Voice 1" },
-  { value: "male-2", label: "Male Voice 2" },
+// Shown while the real voice catalog is loading (or if it fails to load).
+const FALLBACK_VOICES = [
   { value: "female-1", label: "Female Voice 1" },
-  { value: "female-2", label: "Female Voice 2" },
-  { value: "neutral-1", label: "Neutral Voice" },
+  { value: "male-1", label: "Male Voice 1" },
 ];
 
 const LANGUAGES = [{ value: "english", label: "English" }];
@@ -120,6 +118,34 @@ const Wizard = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    getVoices()
+      .then((res) => {
+        if (cancelled) return;
+        const catalog = res.data || { custom: [], clone: [] };
+        setVoiceCatalog(catalog);
+
+        // The default value ("female-1") is a legacy key not present in the
+        // fetched catalog - swap it for a real option once one is available.
+        const allIds = [...(catalog.custom || []), ...(catalog.clone || [])].map((v) => v.id);
+        setValues((prev) => (allIds.includes(prev.voice) ? prev : { ...prev, voice: allIds[0] || prev.voice }));
+      })
+      .catch(() => {
+        // Keep FALLBACK_VOICES if the catalog can't be loaded.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const voiceOptions = [
+    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom" })),
+    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone" })),
+  ];
+  if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
 
   const setField = (name, value) => setValues((prev) => ({ ...prev, [name]: value }));
 
@@ -238,7 +264,8 @@ const Wizard = () => {
 
                 <div className="mb-5">
                   <Label>Voice</Label>
-                  <Select options={VOICES} value={values.voice} onChange={(v) => setField("voice", v)} />
+                  <Select options={voiceOptions} value={values.voice} onChange={(v) => setField("voice", v)} />
+                  <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/.</FieldHint>
                 </div>
 
                 <div className="mt-8 flex justify-between">

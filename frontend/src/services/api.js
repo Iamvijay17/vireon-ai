@@ -25,6 +25,10 @@ export const rerenderVideoJob = (id) => api.post(`/api/videos/${id}/rerender`);
 
 export const updateVideoScenes = (id, scenes) => api.put(`/api/videos/${id}/scenes`, { scenes });
 
+// ─── Voices ─────────────────────────────────────────────────────────────────────
+
+export const getVoices = () => api.get('/api/voices');
+
 // ─── Courses ────────────────────────────────────────────────────────────────────
 
 export const createCourse = (data) => api.post('/api/courses', data);

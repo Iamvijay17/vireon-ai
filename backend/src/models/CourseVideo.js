@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { VIDEO_STATUS, VOICES, LANGUAGES, VIDEO_DURATIONS } = require('../constants');
+const { VIDEO_STATUS, LANGUAGES, VIDEO_DURATIONS } = require('../constants');
 
 const courseVideoSchema = new mongoose.Schema(
   {
@@ -30,9 +30,10 @@ const courseVideoSchema = new mongoose.Schema(
       enum: VIDEO_DURATIONS,
       default: 5,
     },
+    // See AudioService.resolveVoice for accepted formats (legacy key,
+    // "custom:<Speaker>", or "clone:<file>.wav").
     voice: {
       type: String,
-      enum: VOICES,
       default: 'female-1',
     },
     style: {
