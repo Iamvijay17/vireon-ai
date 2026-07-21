@@ -27,13 +27,13 @@ const Template004 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const bgColor = elements.backgroundColor || backgroundColors.slate;
-  const contentItems = scene?.scene_meta?.content || [];
+  const items = elements.items || [];
 
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const secondsPerItem = 3;
-  const totalCardFrames = contentItems.length * secondsPerItem * fps;
+  const totalCardFrames = items.length * secondsPerItem * fps;
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
@@ -49,10 +49,11 @@ const Template004 = React.memo(({ scene }) => {
             {/* Timeline line */}
             <div style={styles.timelineLine} />
 
-            {contentItems.map((text, index) => {
+            {items.map((item, index) => {
               const itemStart = index * secondsPerItem * fps;
               const { dotStyle, cardAnim } = getTimelineItemAnimations(frame, fps, index);
               const isLeft = index % 2 === 0;
+              const text = item.text || item.date || '';
 
               return (
                 <Sequence key={index} from={itemStart} durationInFrames={totalCardFrames - itemStart}>

@@ -11,8 +11,7 @@ import { backgroundColors } from '../../styles';
 const Template007 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
   const title = elements.title || '';
-  const contentItems = scene?.scene_meta?.content || [];
-  const stats = elements.stats || contentItems.map(text => ({ value: text, label: '' }));
+  const stats = elements.stats || [];
   const bgColor = elements.backgroundColor || backgroundColors.navy;
 
   const anim = useTemplate007Animations({ frameOffset: 0 });

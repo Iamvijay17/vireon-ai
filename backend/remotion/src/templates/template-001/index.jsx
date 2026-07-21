@@ -27,7 +27,6 @@ const Template001 = React.memo(({ scene }) => {
   const subtitle = elements.subtitle || '';
   const image = elements.image || '';
   const bgColor = elements.backgroundColor || backgroundColors.dark;
-  const contentItems = scene?.scene_meta?.content || [];
 
   const anim = useTemplate001Animations({ frameOffset: 0 });
 
@@ -58,10 +57,10 @@ const Template001 = React.memo(({ scene }) => {
             </h1>
           )}
 
-          {/* Subtitle from scene_meta if no explicit subtitle */}
-          {(subtitle || contentItems[0]) && (
+          {/* Subtitle */}
+          {subtitle && (
             <p style={{ ...styles.subtitle, ...anim.subtitleStyle }}>
-              {subtitle || contentItems[0]}
+              {subtitle}
             </p>
           )}
         </div>

@@ -12,8 +12,7 @@ const Template013 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const emoji = elements.emoji || '📋';
-  const contentItems = scene?.scene_meta?.content || [];
-  const steps = elements.steps || contentItems.map(text => ({ title: text, description: '' }));
+  const steps = elements.steps || [];
   const bgColor = elements.backgroundColor || backgroundColors.slate;
 
   const anim = useTemplate013Animations({ frameOffset: 0 });

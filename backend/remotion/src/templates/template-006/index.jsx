@@ -10,7 +10,7 @@ import { backgroundColors } from '../../styles';
  */
 const Template006 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
-  const quote = elements.quote || scene?.scene_meta?.content?.[0] || '';
+  const quote = elements.quote || '';
   const author = elements.author || '';
   const authorTitle = elements.authorTitle || '';
   const authorImage = elements.authorImage || '';
@@ -23,17 +23,17 @@ const Template006 = React.memo(({ scene }) => {
       <div style={{ ...styles.container, ...anim.bgStyle }}>
         <div style={styles.contentLayer}>
           <div style={{ ...styles.quoteMark, ...anim.quoteStyle }}>"</div>
-          {quoteText && (
-            <p style={{ ...styles.quoteText, ...anim.quoteStyle }}>{quoteText}</p>
+          {quote && (
+            <p style={{ ...styles.quoteText, ...anim.quoteStyle }}>{quote}</p>
           )}
           <div style={{ ...styles.decorativeLine, ...anim.lineStyle }} />
-          {(authorName || authorImage) && (
+          {(author || authorImage) && (
             <div style={{ ...styles.authorRow, ...anim.authorStyle }}>
               {authorImage && (
                 <Img src={authorImage} style={styles.authorImage} />
               )}
               <div style={styles.authorInfo}>
-                <span style={styles.authorName}>{authorName}</span>
+                  <span style={styles.authorName}>{author}</span>
                 {authorTitle && (
                   <span style={styles.authorTitle}>{authorTitle}</span>
                 )}
