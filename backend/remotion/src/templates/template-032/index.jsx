@@ -16,12 +16,14 @@ const s = {
 
 const StepItem = ({ step, index, fo }) => {
   const stepSlide = useSlideLeft({ startAt: fo + 15 + index * 6, distance: 60 });
+  const stepTitle = step.title || step.text || '';
+  const stepDesc = step.description || '';
   return (
     <div style={{ ...s.stepRow, ...stepSlide }}>
       <div style={s.numBadge}>{step.num || (index + 1)}</div>
       <div style={s.content}>
-        <div style={s.stepTitle}>{step.title}</div>
-        {step.description && <div style={s.stepDesc}>{step.description}</div>}
+        <div style={s.stepTitle}>{stepTitle}</div>
+        {stepDesc && <div style={s.stepDesc}>{stepDesc}</div>}
       </div>
     </div>
   );
