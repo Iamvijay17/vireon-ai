@@ -9,7 +9,7 @@ AI-powered video generation platform backend with clean architecture.
 - **Database:** MongoDB (Mongoose)
 - **Queue:** BullMQ (Redis)
 - **Realtime:** Socket.IO
-- **AI:** LM Studio (Gemma) + Pinokio F5-TTS
+- **AI:** LM Studio (Gemma) + Pinokio Qwen3-TTS
 - **Rendering:** Remotion
 - **Storage:** GitHub (temporary)
 - **Validation:** Zod
@@ -50,7 +50,7 @@ src/
 1. **QUEUED** → Job created, added to BullMQ queue
 2. **SCRIPT_GENERATION** (10%) → Prompt template rendered with user input
 3. **SCRIPT_COMPLETED** (20%) → LM Studio (Gemma) generates script, validated & saved
-4. **GENERATING_AUDIO** (40%) → F5-TTS generates audio per scene
+4. **GENERATING_AUDIO** (40%) → Qwen3-TTS generates audio per scene
 5. **AUDIO_COMPLETED** (50%) → All audio files saved locally
 6. **PREPARING_ASSETS** (60%) → `assets.json` built for Remotion
 7. **RENDERING** (80%) → Remotion renders video + thumbnail
@@ -98,7 +98,7 @@ PORT=3000
 MONGODB_URI=mongodb://localhost:27017/vireon-ai
 JWT_SECRET=your-secret
 LM_STUDIO_URL=http://localhost:1234/v1/chat/completions
-TTS_API_URL=http://localhost:8000/generate
+TTS_API_URL=http://localhost:7860
 GITHUB_TOKEN=your-token
 GITHUB_REPO_OWNER=your-username
 GITHUB_REPO_NAME=vireon-ai-storage

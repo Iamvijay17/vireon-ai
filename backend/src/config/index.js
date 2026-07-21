@@ -32,7 +32,8 @@ const config = Object.freeze({
   },
 
   tts: {
-    url: process.env.TTS_API_URL || 'http://localhost:8000/generate',
+    url: process.env.TTS_API_URL || 'http://localhost:7860',
+    modelSize: process.env.TTS_MODEL_SIZE || '1.7B',
     timeout: parseInt(process.env.TTS_TIMEOUT, 10) || 120000,
     maxRetries: parseInt(process.env.TTS_MAX_RETRIES, 10) || 3,
   },

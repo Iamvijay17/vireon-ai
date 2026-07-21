@@ -5,32 +5,25 @@ const config = require("../../config");
 const LoggerService = require("../LoggerService");
 
 /**
- * Service for generating audio via Pinokio F5-TTS API.
+ * Service for generating audio via Pinokio Qwen3-TTS API.
  * Single Responsibility: Text-to-speech generation.
  */
 class AudioService {
   /**
-   * Get reference audio path based on voice selection.
-   * Falls back to a default voice if none specified.
+   * Map our internal voice keys to a Qwen3-TTS built-in speaker.
+   * Falls back to a default speaker if none specified/recognized.
    */
-  static getReferenceAudio(voice) {
-    const voiceDir = path.resolve(__dirname, "../../../voices");
-    const voiceMap = {
-      "male-1": "default_male_voice.wav",
-      "male-2": "default_male_voice.wav",
-      "female-1": "default_female_voice.wav",
-      "female-2": "default_female_voice.wav",
-      "neutral-1": "default_male_voice.wav",
-      default: "default_male_voice.wav",
+  static getSpeaker(voice) {
+    const speakerMap = {
+      "male-1": "Ryan",
+      "male-2": "Aiden",
+      "female-1": "Serena",
+      "female-2": "Vivian",
+      "neutral-1": "Eric",
+      default: "Ryan",
     };
 
-    // If voice is a path, use it directly
-    if (voice && (voice.includes("/") || voice.includes("\\"))) {
-      return voice;
-    }
-
-    // Otherwise, use mapped voice
-    return path.join(voiceDir, voiceMap[voice] || voiceMap.default);
+    return speakerMap[voice] || speakerMap.default;
   }
 
   /**
@@ -52,8 +45,8 @@ class AudioService {
     const outputFile = path.join(audioDir, `scene${scene.sceneNumber}.mp3`);
     let lastError = null;
 
-    // Get reference audio path
-    const refAudioPath = this.getReferenceAudio(voice);
+    // Map our internal voice key to a Qwen3-TTS built-in speaker
+    const speaker = this.getSpeaker(voice);
 
     for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
       try {
@@ -61,32 +54,24 @@ class AudioService {
           `Generating audio scene ${scene.sceneNumber} (attempt ${attempt})`,
           {
             voice,
+            speaker,
             textLength: text.length,
           },
         );
 
-        // Connect to Gradio F5-TTS server
+        // Connect to Gradio Qwen3-TTS server
         const client = await Client.connect(
           config.tts.url.replace(/\/generate$/, "").replace(/\/$/, ""),
         );
 
-        // Read reference audio file
-        const audioBuffer = await fs.readFile(refAudioPath);
-
-        // Create blob for Gradio API (Node.js 24+ supports Blob natively)
-        const audioBlob = new Blob([audioBuffer], { type: "audio/wav" });
-
-        // Call the F5-TTS API with proper parameters
-        const result = await client.predict("/basic_tts", {
-          ref_audio_input: audioBlob,
-          ref_text_input: "", // Empty reference text lets the model auto-detect
-          gen_text_input: text,
-          remove_silence: false,
-          randomize_seed: true,
-          seed_input: 0,
-          cross_fade_duration_slider: 0.15,
-          nfe_slider: 32,
-          speed_slider: 1.0,
+        // Call the Qwen3-TTS custom-voice API with a built-in speaker preset
+        const result = await client.predict("/generate_custom_voice", {
+          text,
+          language: "Auto",
+          speaker,
+          instruct: "",
+          model_size: config.tts.modelSize,
+          seed: -1,
         });
 
         const audio = result.data[0];
