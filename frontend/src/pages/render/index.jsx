@@ -29,6 +29,7 @@ import {
   onJobProgress,
   onJobCompleted,
   onJobFailed,
+  onSceneAudioReady,
   onConnect,
   onDisconnect,
   requestJobStatus,
@@ -147,6 +148,22 @@ const RenderPage = () => {
           if (data.jobId === currentJobId) {
             setJob((prev) => (prev ? { ...prev, status: "FAILED", error: data.error } : prev));
             toast.error("Video generation failed");
+          }
+        })
+      );
+
+      unsubscribesRef.current.push(
+        onSceneAudioReady((data) => {
+          if (data.jobId === currentJobId) {
+            setJob((prev) => {
+              if (!prev?.script?.scenes) return prev;
+              const scenes = prev.script.scenes.map((scene) =>
+                scene.sceneNumber === data.sceneNumber
+                  ? { ...scene, audio: { ...scene.audio, ...data.audio } }
+                  : scene
+              );
+              return { ...prev, script: { ...prev.script, scenes } };
+            });
           }
         })
       );
@@ -328,6 +345,37 @@ const RenderPage = () => {
           <Alert type="success" title="Video generation completed successfully!" className="mt-5 animate-scale-in" />
         )}
       </Card>
+
+      {/* Per-Scene Audio Progress */}
+      {job?.script?.scenes?.length > 0 && (
+        <Card className="mb-6 animate-slide-up p-6" style={{ "--stagger-index": 1.5 }}>
+          <h3 className="mb-4 flex items-center gap-2 text-[15px] font-semibold text-text-primary">
+            <AudioLines className="size-[18px] text-accent" /> Scene Audio ({job.script.scenes.filter((s) => s.audio?.file).length}/{job.script.scenes.length})
+          </h3>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {job.script.scenes.map((scene) => {
+              const ready = Boolean(scene.audio?.file);
+              return (
+                <div
+                  key={scene.sceneNumber}
+                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-[13px]"
+                >
+                  <span className="font-medium text-text-primary">Scene {scene.sceneNumber}</span>
+                  {ready ? (
+                    <span className="flex items-center gap-1 text-success-500">
+                      <CheckCircle2 className="size-3.5" /> Ready
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-text-tertiary">
+                      <RefreshCw className="size-3.5 animate-spin" /> Pending
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Video / Player section */}
       {isComplete && job?.videoUrl && (

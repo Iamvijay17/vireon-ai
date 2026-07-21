@@ -144,8 +144,11 @@ class AudioService {
 
   /**
    * Generate audio for all scenes in a script.
+   * If `onSceneComplete(sceneNumber, result)` is provided, it is invoked
+   * immediately after each individual scene's audio finishes, so callers can
+   * persist/broadcast progress without waiting for the whole batch.
    */
-  static async generateAllAudio(jobId, scenes, voice) {
+  static async generateAllAudio(jobId, scenes, voice, onSceneComplete) {
     LoggerService.tts("Starting batch audio generation", {
       jobId,
       scenes: scenes.length,
@@ -154,13 +157,17 @@ class AudioService {
 
     const results = [];
     for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
       const result = await this.generateSceneAudio(
         jobId,
-        scenes[i],
-        voice || scenes[i].audio?.voice,
+        scene,
+        voice || scene.audio?.voice,
       );
       if (result) {
         results.push(result);
+        if (typeof onSceneComplete === "function") {
+          await onSceneComplete(scene.sceneNumber, result);
+        }
       }
     }
 

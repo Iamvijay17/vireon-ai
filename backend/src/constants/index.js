@@ -129,6 +129,7 @@ const SOCKET_EVENTS = Object.freeze({
   JOB_PROGRESS: 'jobProgress',
   JOB_COMPLETED: 'jobCompleted',
   JOB_FAILED: 'jobFailed',
+  SCENE_AUDIO_READY: 'sceneAudioReady',
   CONNECTION: 'connection',
   DISCONNECT: 'disconnect',
   JOIN: 'join',

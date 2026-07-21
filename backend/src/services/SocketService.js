@@ -157,6 +157,9 @@ class SocketService {
       case 'jobFailed':
         SocketService.emitToJob(jobId, SOCKET_EVENTS.JOB_FAILED, data);
         break;
+      case 'sceneAudioReady':
+        SocketService.emitToJob(jobId, SOCKET_EVENTS.SCENE_AUDIO_READY, data);
+        break;
       case 'jobCreated':
         io.emit(SOCKET_EVENTS.JOB_CREATED, data);
         break;
@@ -278,6 +281,29 @@ class SocketService {
     } else {
       // We're in the worker process - publish via Redis
       SocketService.publish(job._id, 'jobProgress', data);
+    }
+  }
+
+  /**
+   * Emit a single scene's audio-ready event, as soon as that scene finishes
+   * (rather than waiting for the whole batch of scenes to complete).
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitSceneAudioReady(jobId, sceneNumber, audioData) {
+    const data = {
+      jobId,
+      sceneNumber,
+      audio: {
+        file: audioData.file,
+        duration: audioData.duration,
+      },
+    };
+
+    if (io) {
+      SocketService.emitToJob(jobId, SOCKET_EVENTS.SCENE_AUDIO_READY, data);
+    } else {
+      SocketService.publish(jobId, 'sceneAudioReady', data);
     }
   }
 

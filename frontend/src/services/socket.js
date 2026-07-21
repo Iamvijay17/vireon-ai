@@ -65,6 +65,11 @@ export const onJobFailed = (callback) => {
   return () => socket.off('jobFailed', callback);
 };
 
+export const onSceneAudioReady = (callback) => {
+  socket.on('sceneAudioReady', callback);
+  return () => socket.off('sceneAudioReady', callback);
+};
+
 // ─── Course Video Event Listeners ────────────────────────────────────────────────
 
 export const onCourseVideoProgress = (callback) => {

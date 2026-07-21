@@ -141,13 +141,21 @@ const worker = new Worker(
           pendingScenes: scenesToProcess.length,
         });
 
-        const audioResults = await AudioService.generateAllAudio(jobId, scenesToProcess, videoJob.voice);
-
-        // Update each scene with audio data
-        for (const result of audioResults) {
-          const sceneNum = parseInt(result.file.match(/\d+/)[0], 10);
-          await VideoService.updateSceneAudio(jobId, sceneNum, result);
-        }
+        await AudioService.generateAllAudio(
+          jobId,
+          scenesToProcess,
+          videoJob.voice,
+          async (sceneNumber, result) => {
+            // Persist and broadcast as soon as this individual scene's audio is ready,
+            // instead of waiting for the whole batch to finish.
+            await VideoService.updateSceneAudio(jobId, sceneNumber, result);
+            SocketService.emitSceneAudioReady(jobId, sceneNumber, result);
+            LoggerService.info(`Scene ${sceneNumber} audio ready`, {
+              file: result.file,
+              duration: result.duration,
+            });
+          }
+        );
       } else {
         LoggerService.info('All audio already generated, skipping audio step');
       }
