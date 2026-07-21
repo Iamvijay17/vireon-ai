@@ -18,4 +18,7 @@ router.post('/:id/generate-audio', authenticate, CourseVideoController.generateA
 router.post('/:id/render', authenticate, CourseVideoController.render);
 router.post('/:id/retry', authenticate, CourseVideoController.retry);
 
+// Activity logs
+router.get('/:id/activity-logs', authenticate, CourseVideoController.getActivityLogs);
+
 module.exports = router;

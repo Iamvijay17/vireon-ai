@@ -35,6 +35,7 @@ import {
   generateCourseVideoAudio,
   renderCourseVideo,
   retryCourseVideo,
+  getCourseVideoActivityLogs,
 } from "../../services/api";
 
 const getCurrentStep = (status) => {
@@ -90,6 +91,20 @@ const CourseVideoEditor = () => {
 
   const setStepLoading = (step, val) => setActionLoading((prev) => ({ ...prev, [step]: val }));
 
+  const fetchActivityLogs = useCallback(async () => {
+    try {
+      const res = await getCourseVideoActivityLogs(videoId);
+      setActivityLog(
+        (res.data.logs || []).map((log) => ({
+          text: log.text,
+          time: new Date(log.timestamp).toLocaleTimeString(),
+        }))
+      );
+    } catch {
+      // Ignore errors fetching logs
+    }
+  }, [videoId]);
+
   const addActivity = (text, timestamp) => {
     setActivityLog((prev) => [
       { text, time: timestamp ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString() },
@@ -125,10 +140,11 @@ const CourseVideoEditor = () => {
 
   useEffect(() => {
     fetchVideo();
+    fetchActivityLogs();
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [fetchVideo]);
+  }, [fetchVideo, fetchActivityLogs]);
 
   const startPolling = (step) => {
     if (pollingRef.current) clearInterval(pollingRef.current);
@@ -152,6 +168,7 @@ const CourseVideoEditor = () => {
           pollingRef.current = null;
           setStepLoading(step, false);
           addActivity(`Status updated: ${updated.status}`, updated.updatedAt);
+          fetchActivityLogs();
         }
       } catch {
         // Ignore polling errors
@@ -166,6 +183,7 @@ const CourseVideoEditor = () => {
       toast.info("Script generation started");
       addActivity("Script generation started");
       startPolling("script");
+      fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to start script generation");
       setStepLoading("script", false);
@@ -179,6 +197,7 @@ const CourseVideoEditor = () => {
       toast.success("Script approved");
       addActivity("Script approved");
       fetchVideo();
+      fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to approve script");
     } finally {
@@ -194,6 +213,7 @@ const CourseVideoEditor = () => {
       setEditingScript(false);
       addActivity("Script edited and saved");
       fetchVideo();
+      fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to save script");
     } finally {
@@ -210,6 +230,7 @@ const CourseVideoEditor = () => {
       toast.info("Script regeneration started");
       addActivity("Script regeneration started");
       startPolling("script");
+      fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to regenerate script");
       setStepLoading("script", false);
@@ -223,6 +244,7 @@ const CourseVideoEditor = () => {
       toast.info("Audio generation started");
       addActivity("Audio generation started");
       startPolling("audio");
+      fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to start audio generation");
       setStepLoading("audio", false);
@@ -238,6 +260,7 @@ const CourseVideoEditor = () => {
       toast.info("Audio regeneration started");
       addActivity("Audio regeneration started");
       startPolling("audio");
+      fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to regenerate audio");
       setStepLoading("audio", false);
@@ -251,6 +274,7 @@ const CourseVideoEditor = () => {
       toast.info("Rendering started");
       addActivity("Rendering started");
       startPolling("render");
+      fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to start rendering");
       setStepLoading("render", false);
@@ -266,10 +290,17 @@ const CourseVideoEditor = () => {
       toast.info("Re-rendering started");
       addActivity("Re-rendering started");
       startPolling("render");
+      fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to re-render");
       setStepLoading("render", false);
     }
+  };
+
+  const handleManualRefresh = () => {
+    fetchVideo();
+    fetchActivityLogs();
+    toast.info("Refreshed video data");
   };
 
   const handleRetry = async () => {
@@ -280,6 +311,7 @@ const CourseVideoEditor = () => {
       toast.info(`Retrying ${failedStep}...`);
       addActivity(`Retrying ${failedStep}...`);
       startPolling("retry");
+      fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to retry");
       setStepLoading("retry", false);
@@ -418,12 +450,13 @@ const CourseVideoEditor = () => {
               }
               extra={
                 <>
-                  {!hasScript && !isProcessing && (
+                  <Button variant="ghost" size="sm" iconOnly aria-label="Refresh" icon={<RotateCw className="size-3.5" />} onClick={handleManualRefresh} />
+                  {!hasScript && video?.status !== "Generating Script" && (
                     <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.script} onClick={handleGenerateScript}>
                       Generate Script
                     </Button>
                   )}
-                  {hasScript && !isApproved && !isProcessing && (
+                  {hasScript && !isApproved && video?.status !== "Generating Script" && (
                     <>
                       <Button variant="secondary" size="sm" icon={<Pencil className="size-3.5" />} onClick={() => setEditingScript((v) => !v)}>
                         {editingScript ? "Cancel" : "Edit"}
@@ -436,7 +469,7 @@ const CourseVideoEditor = () => {
                       </Button>
                     </>
                   )}
-                  {isApproved && !isProcessing && (
+                  {isApproved && video?.status !== "Generating Script" && (
                     <Button variant="secondary" size="sm" icon={<RotateCw className="size-3.5" />} loading={actionLoading.script} onClick={handleRegenerateScript}>
                       Regenerate Script
                     </Button>
@@ -546,12 +579,13 @@ const CourseVideoEditor = () => {
               }
               extra={
                 <>
-                  {isApproved && !hasAudio && !isProcessing && (
+                  <Button variant="ghost" size="sm" iconOnly aria-label="Refresh" icon={<RotateCw className="size-3.5" />} onClick={handleManualRefresh} />
+                  {isApproved && !hasAudio && video?.status !== "Generating Audio" && (
                     <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.audio} onClick={handleGenerateAudio}>
                       Generate Audio
                     </Button>
                   )}
-                  {hasAudio && !isProcessing && (
+                  {hasAudio && video?.status !== "Generating Audio" && (
                     <Button variant="secondary" size="sm" icon={<RotateCw className="size-3.5" />} loading={actionLoading.audio} onClick={handleRegenerateAudio}>
                       Regenerate Audio
                     </Button>
@@ -631,12 +665,13 @@ const CourseVideoEditor = () => {
               }
               extra={
                 <>
-                  {hasAudio && !isCompleted && !isProcessing && (
+                  <Button variant="ghost" size="sm" iconOnly aria-label="Refresh" icon={<RotateCw className="size-3.5" />} onClick={handleManualRefresh} />
+                  {hasAudio && !isCompleted && video?.status !== "Rendering Video" && (
                     <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.render} onClick={handleRender}>
                       Render Video
                     </Button>
                   )}
-                  {isCompleted && !isProcessing && (
+                  {isCompleted && (
                     <Button variant="secondary" size="sm" icon={<RotateCw className="size-3.5" />} loading={actionLoading.render} onClick={handleReRender}>
                       Re-Render
                     </Button>

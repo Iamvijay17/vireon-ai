@@ -73,6 +73,9 @@ export const renderCourseVideo = (id) =>
 export const retryCourseVideo = (id) =>
   api.post(`/api/course-videos/${id}/retry`);
 
+export const getCourseVideoActivityLogs = (id) =>
+  api.get(`/api/course-videos/${id}/activity-logs`);
+
 // ─── Health ────────────────────────────────────────────────────────────────────
 
 export const getHealth = () => api.get('/health');

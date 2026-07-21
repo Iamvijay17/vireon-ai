@@ -2,6 +2,7 @@ const CourseVideo = require('../models/CourseVideo');
 const CourseService = require('./CourseService');
 const LoggerService = require('./LoggerService');
 const SocketService = require('./SocketService');
+const ActivityLogService = require('./ActivityLogService');
 const LMStudioService = require('./LMStudioService');
 const AudioService = require('./TTS/audioService');
 const RemotionService = require('./RemotionService');
@@ -140,6 +141,7 @@ class CourseVideoService {
     video.status = VIDEO_STATUS.GENERATING_SCRIPT;
     await video.save();
 
+    await ActivityLogService.add(videoId, 'Script generation started');
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_SCRIPT, 10, 'Generating script...');
 
     try {
@@ -168,6 +170,7 @@ class CourseVideoService {
         scriptLength: video.script.length,
       });
 
+      await ActivityLogService.add(videoId, 'Script generated successfully. Please review and approve.', video.scriptGeneratedAt);
       // Emit socket event
       SocketService.emitCourseVideoScriptReady(video, 'Script generated successfully. Please review and approve.');
 
@@ -181,6 +184,7 @@ class CourseVideoService {
       };
       await video.save();
 
+      await ActivityLogService.add(videoId, `Script generation failed: ${err.message}`);
       SocketService.emitCourseVideoFailed(video, err.message, 'Script Generation');
 
       throw err;
@@ -254,6 +258,8 @@ Rules:
     video.status = VIDEO_STATUS.APPROVED;
     await video.save();
 
+    await ActivityLogService.add(videoId, 'Script approved');
+
     LoggerService.info('Course video script approved', {
       videoId,
       courseId: video.courseId,
@@ -275,6 +281,8 @@ Rules:
     video.status = VIDEO_STATUS.WAITING_FOR_APPROVAL;
     await video.save();
 
+    await ActivityLogService.add(videoId, 'Script edited and saved');
+
     return video;
   }
 
@@ -293,6 +301,8 @@ Rules:
     video.approved = false;
     video.approvedAt = null;
     await video.save();
+
+    await ActivityLogService.add(videoId, 'Script regeneration started');
 
     return this.generateScript(videoId);
   }
@@ -313,6 +323,7 @@ Rules:
     video.status = VIDEO_STATUS.GENERATING_AUDIO;
     await video.save();
 
+    await ActivityLogService.add(videoId, 'Audio generation started');
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_AUDIO, 40, 'Generating audio...');
 
     try {
@@ -402,6 +413,7 @@ Rules:
         totalDuration: video.audioDuration,
       });
 
+      await ActivityLogService.add(videoId, 'Audio generated successfully.', video.audioGeneratedAt);
       SocketService.emitCourseVideoAudioReady(video, 'Audio generated successfully.');
 
       return video;
@@ -414,6 +426,7 @@ Rules:
       };
       await video.save();
 
+      await ActivityLogService.add(videoId, `Audio generation failed: ${err.message}`);
       SocketService.emitCourseVideoFailed(video, err.message, 'Audio Generation');
 
       throw err;
@@ -435,6 +448,7 @@ Rules:
     video.renderProgress = 0;
     await video.save();
 
+    await ActivityLogService.add(videoId, 'Rendering started');
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 60, 'Preparing assets for rendering...');
 
     try {
@@ -532,6 +546,7 @@ Rules:
         renderUrl,
       });
 
+      await ActivityLogService.add(videoId, 'Video rendering completed!', video.renderedAt);
       SocketService.emitCourseVideoRenderReady(video, 'Video completed!');
 
       return video;
@@ -544,6 +559,7 @@ Rules:
       };
       await video.save();
 
+      await ActivityLogService.add(videoId, `Rendering failed: ${err.message}`);
       SocketService.emitCourseVideoFailed(video, err.message, 'Rendering');
 
       throw err;
@@ -568,6 +584,8 @@ Rules:
     // Clear error
     video.error = { message: '', step: '', retryCount: 0 };
     await video.save();
+
+    await ActivityLogService.add(videoId, `Retrying ${failedStep}...`);
 
     // Retry based on the failed step
     switch (failedStep) {

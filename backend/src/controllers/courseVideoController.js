@@ -1,4 +1,5 @@
 const CourseVideoService = require('../services/CourseVideoService');
+const ActivityLogService = require('../services/ActivityLogService');
 const courseQueue = require('../queues/courseQueue');
 const LoggerService = require('../services/LoggerService');
 
@@ -171,6 +172,18 @@ class CourseVideoController {
         status: 'Queued',
         message: 'Rendering has been queued',
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/course-videos/:id/activity-logs - Get activity logs
+   */
+  static async getActivityLogs(req, res, next) {
+    try {
+      const logs = await ActivityLogService.getByVideo(req.params.id);
+      res.json({ logs });
     } catch (err) {
       next(err);
     }
