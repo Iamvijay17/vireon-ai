@@ -11,7 +11,7 @@ const RemotionService = require('./RemotionService');
 const ScriptParserService = require('./ScriptParserService');
 const StorageService = require('./StorageService');
 const GitHubService = require('./GitHubService');
-const { VIDEO_STATUS, SOCKET_EVENTS } = require('../constants');
+const { VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../constants');
 
 /**
  * Service for managing course videos.
@@ -52,6 +52,68 @@ class CourseVideoService {
     });
 
     return video;
+  }
+
+  /**
+   * Generate a full Udemy-style curriculum via the LLM and return it for
+   * review - no CourseVideo records are created yet. The caller (frontend)
+   * shows this as an editable preview; the user can modify titles/topics,
+   * remove lessons, or add their own before approving creation via
+   * createFromLessons(). Purely a read: no DB writes, no socket emit.
+   */
+  static async previewCurriculum(title, topic) {
+    return LMStudioService.generateCurriculum(title, topic);
+  }
+
+  /**
+   * Create one CourseVideo (status Draft, all stages Pending) per lesson
+   * from an approved/edited lesson list (the output of previewCurriculum,
+   * possibly modified by the user). Does NOT trigger script/audio/render
+   * generation - that's a separate, explicit action per the "AI only
+   * builds structure, generation is manual/bulk" requirement. Always
+   * appends after existing lessons, never replaces them.
+   */
+  static async createFromLessons(courseId, lessons, options) {
+    const { voice, style, duration, additionalInstructions } = options;
+
+    if (!Array.isArray(lessons) || lessons.length === 0) {
+      throw { status: 400, message: 'lessons must be a non-empty array' };
+    }
+
+    const lastVideo = await CourseVideo.findOne({ courseId }).sort({ order: -1 }).select('order');
+    let order = (lastVideo?.order ?? -1) + 1;
+
+    const videos = [];
+    for (const lesson of lessons) {
+      const video = await CourseVideo.create({
+        courseId,
+        title: lesson.title || `Lesson ${order + 1}`,
+        topic: lesson.topic || lesson.description || lesson.title || '',
+        order: order++,
+        duration: duration || 5,
+        voice: voice || 'female-1',
+        style: style || 'educational',
+        additionalInstructions: additionalInstructions || '',
+        status: VIDEO_STATUS.DRAFT,
+      });
+      videos.push(video);
+    }
+
+    await CourseService.recalculateStatus(courseId);
+
+    LoggerService.info('Course curriculum videos created', {
+      courseId,
+      lessons: videos.length,
+    });
+
+    // Reuses the existing COURSE_VIDEO_CREATED event - CourseDetail.jsx
+    // already listens for it and refetches the video list on receipt.
+    SocketService.emitToCourse(courseId, SOCKET_EVENTS.COURSE_VIDEO_CREATED, {
+      bulk: true,
+      count: videos.length,
+    });
+
+    return videos;
   }
 
   /**
@@ -143,6 +205,7 @@ class CourseVideoService {
 
     // Update status
     video.status = VIDEO_STATUS.GENERATING_SCRIPT;
+    video.scriptStatus = STAGE_STATUS.PROCESSING;
     await video.save();
 
     await ActivityLogService.add(videoId, 'Script generation started');
@@ -161,6 +224,7 @@ class CourseVideoService {
       // Store the generated script
       video.script = JSON.stringify(scriptData, null, 2);
       video.status = VIDEO_STATUS.SCRIPT_GENERATED;
+      video.scriptStatus = STAGE_STATUS.COMPLETED;
       video.scriptGeneratedAt = new Date();
 
       // Save script to disk for Remotion pipeline
@@ -181,6 +245,8 @@ class CourseVideoService {
       return video;
     } catch (err) {
       video.status = VIDEO_STATUS.FAILED;
+      video.scriptStatus = STAGE_STATUS.FAILED;
+      video.scriptError = { message: err.message, failedAt: new Date() };
       video.error = {
         message: err.message,
         step: 'Script Generation',
@@ -320,11 +386,12 @@ Rules:
       throw { status: 404, message: 'Video not found' };
     }
 
-    if (!video.approved) {
-      throw { status: 400, message: 'Script must be approved before generating audio' };
+    if (!video.script) {
+      throw { status: 400, message: 'A script must exist before generating audio' };
     }
 
     video.status = VIDEO_STATUS.GENERATING_AUDIO;
+    video.audioStatus = STAGE_STATUS.PROCESSING;
     await video.save();
 
     await ActivityLogService.add(videoId, 'Audio generation started');
@@ -411,6 +478,7 @@ Rules:
       }
 
       video.status = VIDEO_STATUS.AUDIO_GENERATED;
+      video.audioStatus = STAGE_STATUS.COMPLETED;
       video.audioGeneratedAt = new Date();
       await video.save();
 
@@ -427,6 +495,8 @@ Rules:
       return video;
     } catch (err) {
       video.status = VIDEO_STATUS.FAILED;
+      video.audioStatus = STAGE_STATUS.FAILED;
+      video.audioError = { message: err.message, failedAt: new Date() };
       video.error = {
         message: err.message,
         step: 'Audio Generation',
@@ -453,6 +523,7 @@ Rules:
     }
 
     video.status = VIDEO_STATUS.RENDERING_VIDEO;
+    video.videoStatus = STAGE_STATUS.PROCESSING;
     video.renderProgress = 0;
     await video.save();
 
@@ -555,6 +626,7 @@ Rules:
       await this._uploadAssetsToCloud(video, scriptData);
 
       video.status = VIDEO_STATUS.COMPLETED;
+      video.videoStatus = STAGE_STATUS.COMPLETED;
       video.renderProgress = 100;
       await video.save();
 
@@ -573,6 +645,8 @@ Rules:
       return video;
     } catch (err) {
       video.status = VIDEO_STATUS.FAILED;
+      video.videoStatus = STAGE_STATUS.FAILED;
+      video.videoError = { message: err.message, failedAt: new Date() };
       video.error = {
         message: err.message,
         step: 'Rendering',
@@ -660,6 +734,43 @@ Rules:
       });
       await ActivityLogService.add(video._id, `Cloud upload failed, using local assets: ${err.message}`);
     }
+  }
+
+  /**
+   * Mark the relevant stage(s) Queued for a batch of videos and return the
+   * ordered list of {videoId, action} jobs the caller should push to the
+   * queue. Used for both single-row and multi-row (bulk) generation from
+   * the lesson table - a single video is just a 1-element videoIds array.
+   *
+   * For 'generate-full', all three stages are marked Queued immediately
+   * (they genuinely are, right away) and one video's script/audio/render
+   * jobs are kept contiguous in the returned list. Combined with the
+   * course-video-processing queue running at concurrency:1, this makes
+   * audio start only once that same video's script job has fully finished,
+   * without needing a dedicated composite worker action.
+   */
+  static async prepareBulkJobs(videoIds, action) {
+    const stageActions = action === 'generate-full'
+      ? ['generate-script', 'generate-audio', 'render']
+      : [action];
+
+    const stageField = {
+      'generate-script': 'scriptStatus',
+      'generate-audio': 'audioStatus',
+      render: 'videoStatus',
+    };
+
+    const jobs = [];
+    for (const videoId of videoIds) {
+      const update = {};
+      for (const a of stageActions) {
+        update[stageField[a]] = STAGE_STATUS.QUEUED;
+        jobs.push({ videoId, action: a });
+      }
+      await CourseVideo.findByIdAndUpdate(videoId, { $set: update });
+    }
+
+    return jobs;
   }
 
   /**

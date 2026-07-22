@@ -14,5 +14,7 @@ router.delete('/:id', authenticate, CourseController.delete);
 // Course Videos
 router.get('/:id/videos', authenticate, CourseController.listVideos);
 router.post('/:id/videos', authenticate, CourseController.createVideo);
+router.post('/:id/generate-curriculum', authenticate, CourseController.generateCurriculum);
+router.post('/:id/curriculum-videos', authenticate, CourseController.createCurriculumVideos);
 
 module.exports = router;

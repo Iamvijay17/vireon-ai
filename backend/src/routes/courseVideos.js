@@ -4,6 +4,9 @@ const { authenticate } = require('../middleware/auth');
 
 const router = Router();
 
+// Bulk actions (must be registered before /:id routes)
+router.post('/bulk-generate', authenticate, CourseVideoController.bulkGenerate);
+
 // Video CRUD
 router.get('/:id', authenticate, CourseVideoController.getById);
 router.put('/:id', authenticate, CourseVideoController.update);

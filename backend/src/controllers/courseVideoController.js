@@ -5,7 +5,47 @@ const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
 
+const VALID_BULK_ACTIONS = ['generate-script', 'generate-audio', 'render', 'generate-full'];
+
 class CourseVideoController {
+  /**
+   * POST /api/course-videos/bulk-generate - Queue a generation action for
+   * one or more lessons. Used by both single-row and multi-row (bulk)
+   * actions in the lesson table - a single lesson is just a 1-element
+   * videoIds array. Marks the relevant stage(s) Queued immediately, then
+   * dispatches jobs to the worker queue in order (one video's jobs stay
+   * contiguous so, with the worker at concurrency:1, 'generate-full'
+   * naturally chains script -> audio -> render per video).
+   */
+  static async bulkGenerate(req, res, next) {
+    try {
+      const { videoIds, action } = req.body;
+
+      if (!Array.isArray(videoIds) || videoIds.length === 0) {
+        throw { status: 400, message: 'videoIds must be a non-empty array' };
+      }
+      if (!VALID_BULK_ACTIONS.includes(action)) {
+        throw { status: 400, message: `action must be one of: ${VALID_BULK_ACTIONS.join(', ')}` };
+      }
+
+      const jobs = await CourseVideoService.prepareBulkJobs(videoIds, action);
+
+      for (const job of jobs) {
+        await courseQueue.add(job.action, { videoId: job.videoId, action: job.action });
+      }
+
+      LoggerService.info('Bulk course video generation queued', {
+        videos: videoIds.length,
+        action,
+        jobs: jobs.length,
+      });
+
+      res.json({ queued: videoIds.length, jobs: jobs.length });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   /**
    * GET /api/course-videos/:id - Get a single video
    */

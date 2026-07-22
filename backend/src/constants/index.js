@@ -38,6 +38,17 @@ const VIDEO_STATUS = Object.freeze({
   FAILED: 'Failed',
 });
 
+// Independent per-stage status for the Script/Audio/Video pipeline, tracked
+// separately from the legacy overall VIDEO_STATUS so bulk/table UI can show
+// each stage's progress without inferring it from the combined status string.
+const STAGE_STATUS = Object.freeze({
+  PENDING: 'Pending',
+  QUEUED: 'Queued',
+  PROCESSING: 'Processing',
+  COMPLETED: 'Completed',
+  FAILED: 'Failed',
+});
+
 const JOB_STEPS = Object.freeze({
   [JOB_STATUS.SCRIPT_GENERATION]: { progress: 10, order: 1 },
   [JOB_STATUS.SCRIPT_COMPLETED]: { progress: 20, order: 2 },
@@ -173,6 +184,7 @@ module.exports = {
   JOB_STATUS,
   COURSE_STATUS,
   VIDEO_STATUS,
+  STAGE_STATUS,
   JOB_STEPS,
   VIDEO_TYPES,
   VIDEO_TYPES_LABEL,

@@ -120,6 +120,48 @@ class CourseController {
       next(err);
     }
   }
+
+  /**
+   * POST /api/courses/:id/generate-curriculum - Generate a full Udemy-style
+   * curriculum via the LLM for review. Read-only: no CourseVideo records
+   * are created here. The frontend shows the returned lessons as an
+   * editable preview before the user approves creation.
+   */
+  static async generateCurriculum(req, res, next) {
+    try {
+      if (!req.body.title || !req.body.topic) {
+        throw { status: 400, message: 'title and topic are required' };
+      }
+
+      const lessons = await CourseVideoService.previewCurriculum(req.body.title, req.body.topic);
+
+      res.json({ lessons });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/courses/:id/curriculum-videos - Create one CourseVideo per
+   * lesson from an approved (possibly user-edited) lesson list, the output
+   * of generate-curriculum above.
+   */
+  static async createCurriculumVideos(req, res, next) {
+    try {
+      const { lessons, voice, style, duration, additionalInstructions } = req.body;
+
+      const videos = await CourseVideoService.createFromLessons(req.params.id, lessons, {
+        voice,
+        style,
+        duration,
+        additionalInstructions,
+      });
+
+      res.status(201).json({ videos });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = CourseController;

@@ -113,7 +113,11 @@ const courseVideoWorker = new Worker(
   },
   {
     connection,
-    concurrency: 2,
+    // Strict sequential processing: bulk actions from the lesson table rely
+    // on this being 1 so one lesson's job fully completes before the next
+    // starts (also what makes 'generate-full' correctly chain script ->
+    // audio -> render for a single video without a dedicated composite action).
+    concurrency: 1,
     lockDuration: 3_600_000, // 60 minutes - video rendering can take a long time
     stalledInterval: 60_000,  // Check for stalled jobs every 60 seconds
     maxStalledCount: 3,       // Allow up to 3 stalled checks before failing
@@ -143,7 +147,7 @@ courseVideoWorker.on('error', (err) => {
 LoggerService.border('🎥 Course Video Worker Started', 'event');
 LoggerService.info('Worker listening for jobs', {
   queue: 'course-video-processing',
-  concurrency: 2,
+  concurrency: 1,
   redis: `${config.redis.host}:${config.redis.port}`,
 });
 

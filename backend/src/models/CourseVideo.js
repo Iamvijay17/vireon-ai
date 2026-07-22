@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
-const { VIDEO_STATUS, LANGUAGES, VIDEO_DURATIONS } = require('../constants');
+const { VIDEO_STATUS, STAGE_STATUS, LANGUAGES, VIDEO_DURATIONS } = require('../constants');
+
+const STAGE_STATUS_VALUES = Object.values(STAGE_STATUS);
 
 const courseVideoSchema = new mongoose.Schema(
   {
@@ -50,6 +52,39 @@ const courseVideoSchema = new mongoose.Schema(
       enum: Object.values(VIDEO_STATUS),
       default: VIDEO_STATUS.DRAFT,
       index: true,
+    },
+    // Independent per-stage status/error, tracked alongside the legacy
+    // `status` above so the bulk lesson table can show Script/Audio/Video
+    // progress separately without inferring it from the combined string.
+    scriptStatus: {
+      type: String,
+      enum: STAGE_STATUS_VALUES,
+      default: STAGE_STATUS.PENDING,
+      index: true,
+    },
+    audioStatus: {
+      type: String,
+      enum: STAGE_STATUS_VALUES,
+      default: STAGE_STATUS.PENDING,
+      index: true,
+    },
+    videoStatus: {
+      type: String,
+      enum: STAGE_STATUS_VALUES,
+      default: STAGE_STATUS.PENDING,
+      index: true,
+    },
+    scriptError: {
+      message: { type: String, default: '' },
+      failedAt: { type: Date, default: null },
+    },
+    audioError: {
+      message: { type: String, default: '' },
+      failedAt: { type: Date, default: null },
+    },
+    videoError: {
+      message: { type: String, default: '' },
+      failedAt: { type: Date, default: null },
     },
     script: {
       type: String,
