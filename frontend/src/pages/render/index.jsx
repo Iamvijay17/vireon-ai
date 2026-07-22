@@ -49,6 +49,7 @@ import { toast } from "../../components/ui/toastBus";
 const PIPELINE_STEPS = [
   { title: "Queued", status: "QUEUED", icon: Clock },
   { title: "Script", status: "SCRIPT_GENERATION", icon: FileText },
+  { title: "Approval", status: "AWAITING_APPROVAL", icon: Pencil },
   { title: "Audio", status: "GENERATING_AUDIO", icon: AudioLines },
   { title: "Images", status: "GENERATING_IMAGES", icon: FileText },
   { title: "Assets", status: "PREPARING_ASSETS", icon: Zap },
@@ -281,6 +282,11 @@ const RenderPage = () => {
         {isFailed && (
           <Button variant="danger" icon={<Redo2 className="size-4" />} loading={restartLoading} onClick={handleRestart}>
             Restart Job
+          </Button>
+        )}
+        {job?.status === "AWAITING_APPROVAL" && (
+          <Button variant="primary" icon={<Pencil className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
+            Review Script
           </Button>
         )}
         {isComplete && (

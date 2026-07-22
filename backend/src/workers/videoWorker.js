@@ -102,19 +102,34 @@ const worker = new Worker(
 
         // ── Step 3: Call LM Studio
         const rawScript = await LMStudioService.generateScript(prompt);
-        script = ScriptParserService.validate(rawScript, videoJob.type);
+        script = ScriptParserService.validate(rawScript, videoJob.type, {
+          hostVoice: videoJob.hostVoice,
+          guestVoice: videoJob.guestVoice,
+        });
 
         // Save script to disk
         await ScriptParserService.saveScript(jobId, script);
 
         // Update job with script
         await VideoService.updateScript(jobId, script);
-        SocketService.emitJobProgress({ _id: jobId, progress: 20, status: JOB_STATUS.SCRIPT_COMPLETED, currentStep: JOB_STATUS.SCRIPT_COMPLETED, currentScene: 0 });
 
         LoggerService.success('Script generated and saved', {
           title: script.title,
           scenes: script.scenes.length,
         });
+
+        // ── Pause here: wait for explicit manual approval before spending
+        // TTS/image/render resources on this script. The user reviews/edits
+        // it (and can set manual scene image URLs) in the Studio Editor,
+        // then POST /:id/approve re-enqueues this same job - at that point
+        // `needsScriptGeneration` above will be false (script exists, status
+        // isn't QUEUED) so it resumes straight into Step 4 below.
+        await VideoService.updateStatus(jobId, JOB_STATUS.AWAITING_APPROVAL, { progress: 20 });
+        SocketService.emitJobProgress({ _id: jobId, progress: 20, status: JOB_STATUS.AWAITING_APPROVAL, currentStep: JOB_STATUS.AWAITING_APPROVAL, currentScene: 0 });
+
+        LoggerService.info('Script awaiting manual approval - pausing pipeline', { jobId });
+
+        return { success: true, jobId, awaitingApproval: true };
       } else {
         LoggerService.info('Using existing script (skipping script generation)', {
           title: script.title,
@@ -141,10 +156,16 @@ const worker = new Worker(
           pendingScenes: scenesToProcess.length,
         });
 
+        // Podcast turns already carry their own resolved host/guest voice on
+        // scene.audio.voice (see ScriptParserService.validate) - don't pass a
+        // job-wide voice for those, so generateSceneAudio's fallback
+        // (`voice || scene.audio?.voice`) picks up the per-turn voice.
+        const jobVoice = videoJob.type === 'podcast' ? undefined : videoJob.voice;
+
         await AudioService.generateAllAudio(
           jobId,
           scenesToProcess,
-          videoJob.voice,
+          jobVoice,
           async (sceneNumber, result) => {
             // Persist and broadcast as soon as this individual scene's audio is ready,
             // instead of waiting for the whole batch to finish.
@@ -191,7 +212,20 @@ const worker = new Worker(
         // For other types, generate per-scene images
         const isSingleImageType = ['podcast', 'business'].includes(videoJob.type);
 
-        if (isSingleImageType && imageScenes.length > 0) {
+        // If a cover image already exists on any image-type scene (e.g. the
+        // user manually pasted one in the Studio Editor during the approval
+        // pause), reuse it for the rest instead of generating a new one.
+        const existingCoverUrl = script.scenes.find(s => s.sceneType === 'image' && s.imageUrl)?.imageUrl;
+
+        if (isSingleImageType && existingCoverUrl) {
+          LoggerService.info('Single-image mode: reusing manually-set cover image for remaining scenes', {
+            jobId,
+            type: videoJob.type,
+          });
+          for (const scene of imageScenes) {
+            await VideoService.updateSceneImage(jobId, scene.sceneNumber, { imageUrl: existingCoverUrl });
+          }
+        } else if (isSingleImageType && imageScenes.length > 0) {
           // Generate just ONE image from the first image scene's prompt, use as background for all images scenes
           LoggerService.info('Single-image mode: generating one background image for all image scenes', {
             jobId,

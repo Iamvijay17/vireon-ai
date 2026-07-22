@@ -20,7 +20,8 @@ class ScriptParserService {
    */
   static VALID_SCENE_TYPES = ['intro', 'content', 'image'];
 
-  static validate(scriptData, videoType = 'educational') {
+  static validate(scriptData, videoType = 'educational', options = {}) {
+    const { hostVoice = '', guestVoice = '' } = options;
     const errors = [];
 
     if (!scriptData.title || typeof scriptData.title !== 'string') {
@@ -59,9 +60,18 @@ class ScriptParserService {
     // Use provided video type or fallback to scriptData.type
     const resolvedType = videoType || scriptData.type || 'educational';
 
+    // Podcast episodes share ONE cover image across every turn - but the LLM
+    // doesn't reliably tag every single scene as sceneType "image" with a
+    // repeated imagePrompt (observed: only the first couple of turns), so
+    // enforce it here instead of trusting the model's discipline across a
+    // long scene list.
+    const podcastSharedImagePrompt = resolvedType === 'podcast'
+      ? (scriptData.scenes.find((s) => s.imagePrompt)?.imagePrompt || 'warm studio lighting, abstract shapes, no readable text, no people\'s faces')
+      : '';
+
     // Set defaults for missing optional fields
     scriptData.scenes = scriptData.scenes.map((scene) => {
-      const sceneType = scene.sceneType || 'content';
+      const sceneType = resolvedType === 'podcast' ? 'image' : (scene.sceneType || 'content');
 
       // If LLM didn't provide templateId, assign a default based on video type + scene type
       let templateId = scene.templateId || '';
@@ -88,7 +98,9 @@ class ScriptParserService {
       }
 
       // Only keep imagePrompt for "image" scenes; clear for others to skip generation
-      const imagePrompt = sceneType === 'image' ? (scene.imagePrompt || '') : '';
+      const imagePrompt = resolvedType === 'podcast'
+        ? podcastSharedImagePrompt
+        : (sceneType === 'image' ? (scene.imagePrompt || '') : '');
 
       // Build scene_meta for content scenes: preserve LLM output if valid, otherwise auto-generate
       let scene_meta = null;
@@ -105,9 +117,18 @@ class ScriptParserService {
         }
       }
 
+      // Podcast dialogue turns: resolve the per-scene voice from the
+      // "host"/"guest" speaker tag + the job's two chosen voices, instead of
+      // relying on a single job-wide voice.
+      const speaker = scene.speaker === 'guest' ? 'guest' : (scene.speaker === 'host' ? 'host' : '');
+      const resolvedVoice = speaker && resolvedType === 'podcast'
+        ? (speaker === 'guest' ? guestVoice : hostVoice) || scene.audio?.voice || ''
+        : scene.audio?.voice || '';
+
       return {
         sceneNumber: scene.sceneNumber,
         sceneType,
+        speaker,
         title: scene.title || '',
         subtitle: scene.subtitle || '',
         duration: scene.duration || 0, // No default duration - will be set after audio generation
@@ -124,7 +145,7 @@ class ScriptParserService {
           text: scene.audio?.text || '',
           file: '',
           duration: 0, // No duration until audio is generated
-          voice: scene.audio?.voice || '',
+          voice: resolvedVoice,
         },
       };
     });
@@ -146,6 +167,12 @@ class ScriptParserService {
    * End scenes get outro/ending templates.
    */
   static _getDefaultTemplateForType(videoType, sceneNumber, sceneType = 'content') {
+    // Podcast dialogue turns all share one continuous look (cover art +
+    // waveform + captions) rather than rotating through the content pool.
+    if (videoType === 'podcast') {
+      return 'template-061';
+    }
+
     // Full pool of content-appropriate templates (mirrors
     // SceneTypeCategories.content in templates/TemplateCategories.js).
     // Content scenes rotate through this whole pool regardless of
@@ -288,6 +315,11 @@ class ScriptParserService {
       'template-058': { ...base, body: scene.subtitle || '', image: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-059': { ...base, image: '', date: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-060': { ...base, caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
+      'template-061': {
+        caption: scene.audio?.text || scene.subtitle || '',
+        captionTimestamps: null,
+        speakerLabel: scene.speaker === 'guest' ? 'Guest' : 'Host',
+      },
     };
 
     return templateElements[templateId] || base;

@@ -959,5 +959,15 @@ export const sampleScenes = {
       "caption": "Why did the developer go broke?"
     },
     "duration": 8
+  },
+  "template-061": {
+    "templateId": "template-061",
+    "speaker": "guest",
+    "imageUrl": "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=1920&h=1080&fit=crop",
+    "elements": {
+      "speakerLabel": "Guest",
+      "caption": "Honestly, the moment I started shipping small features every week, everything clicked."
+    },
+    "duration": 8
   }
 };

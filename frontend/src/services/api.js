@@ -30,6 +30,8 @@ export const deleteVideoJob = (id) => api.delete(`/api/videos/${id}`);
 
 export const restartVideoJob = (id) => api.post(`/api/videos/${id}/restart`);
 
+export const approveVideoJob = (id) => api.post(`/api/videos/${id}/approve`);
+
 export const rerenderVideoJob = (id) => api.post(`/api/videos/${id}/rerender`);
 
 export const updateVideoScenes = (id, scenes) => api.put(`/api/videos/${id}/scenes`, { scenes });

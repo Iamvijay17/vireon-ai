@@ -5,6 +5,8 @@ const sceneSchema = new mongoose.Schema(
   {
     sceneNumber: { type: Number, required: true },
     sceneType: { type: String, default: 'content' },
+    // "host" | "guest" - which speaker this turn belongs to (podcast type only).
+    speaker: { type: String, default: '' },
     title: { type: String, default: '' },
     subtitle: { type: String, default: '' },
     duration: { type: Number, default: 8 },
@@ -51,6 +53,22 @@ const videoJobSchema = new mongoose.Schema(
     voice: {
       type: String,
       default: 'female-1',
+    },
+    // Podcast type only: separate voice selections for the two speakers,
+    // same free-form format as `voice` above - see AudioService.resolveVoice.
+    hostVoice: {
+      type: String,
+      default: '',
+    },
+    guestVoice: {
+      type: String,
+      default: '',
+    },
+    // Requested scene/turn count range, e.g. "5-10" - drives both prompt
+    // generation (PromptService) and total duration estimate in the worker.
+    sceneCount: {
+      type: String,
+      default: '5-10',
     },
     resolution: {
       type: String,

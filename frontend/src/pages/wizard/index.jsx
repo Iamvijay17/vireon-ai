@@ -74,6 +74,8 @@ const DEFAULT_VALUES = {
   sceneCount: "5-10",
   language: "english",
   voice: "female-1",
+  hostVoice: "",
+  guestVoice: "",
   resolution: "1920x1080",
   aspectRatio: "16:9",
 };
@@ -155,6 +157,10 @@ const Wizard = () => {
       if (!values.topic || values.topic.trim().length < 3) next.topic = "At least 3 characters";
       if (!values.type) next.type = "Please select a type";
       if (!values.sceneCount) next.sceneCount = "Please select scene count";
+    }
+    if (step === 1 && values.type === "podcast") {
+      if (!values.hostVoice) next.hostVoice = "Please select a host voice";
+      if (!values.guestVoice) next.guestVoice = "Please select a guest voice";
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -262,11 +268,41 @@ const Wizard = () => {
               <div className="mx-auto max-w-lg animate-slide-up">
                 <h2 className="mb-6 text-base font-semibold text-text-primary">Configure audio settings</h2>
 
-                <div className="mb-5">
-                  <Label>Voice</Label>
-                  <Select options={voiceOptions} value={values.voice} onChange={(v) => setField("voice", v)} />
-                  <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/.</FieldHint>
-                </div>
+                {values.type === "podcast" ? (
+                  <>
+                    <div className="mb-5">
+                      <Label required>Host Voice</Label>
+                      <Select
+                        placeholder="Select host voice"
+                        options={voiceOptions}
+                        value={values.hostVoice}
+                        onChange={(v) => setField("hostVoice", v)}
+                        error={Boolean(errors.hostVoice)}
+                      />
+                      <FieldHint error={Boolean(errors.hostVoice)}>{errors.hostVoice}</FieldHint>
+                    </div>
+
+                    <div className="mb-5">
+                      <Label required>Guest Voice</Label>
+                      <Select
+                        placeholder="Select guest voice"
+                        options={voiceOptions}
+                        value={values.guestVoice}
+                        onChange={(v) => setField("guestVoice", v)}
+                        error={Boolean(errors.guestVoice)}
+                      />
+                      <FieldHint error={Boolean(errors.guestVoice)}>
+                        The host and guest take turns in the conversation, each with their own voice.
+                      </FieldHint>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mb-5">
+                    <Label>Voice</Label>
+                    <Select options={voiceOptions} value={values.voice} onChange={(v) => setField("voice", v)} />
+                    <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/.</FieldHint>
+                  </div>
+                )}
 
                 <div className="mt-8 flex justify-between">
                   <Button variant="secondary" onClick={handleBack} icon={<ArrowLeft className="size-4" />}>

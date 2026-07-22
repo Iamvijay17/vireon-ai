@@ -1,6 +1,7 @@
 const VideoJob = require('../models/VideoJob');
 const { validate, jobIdSchema } = require('../validators');
 const LoggerService = require('../services/LoggerService');
+const { JOB_STATUS } = require('../constants');
 
 class SceneController {
   /**
@@ -16,13 +17,22 @@ class SceneController {
         throw { status: 400, message: 'Scenes must be an array' };
       }
 
+      // Preserve AWAITING_APPROVAL if that's the job's current status, so
+      // saving edits during the pre-render approval pause doesn't lose track
+      // of the fact it's still awaiting approval (vs. SCRIPT_COMPLETED for
+      // post-completion revisions, which are ready for an explicit re-render).
+      const existing = await VideoJob.findById(id).select('status').lean();
+      const nextStatus = existing?.status === JOB_STATUS.AWAITING_APPROVAL
+        ? JOB_STATUS.AWAITING_APPROVAL
+        : JOB_STATUS.SCRIPT_COMPLETED;
+
       const updatedJob = await VideoJob.findByIdAndUpdate(
         id,
         {
           'script.scenes': scenes,
-          status: 'SCRIPT_COMPLETED', // Ready for re-render
+          status: nextStatus,
           progress: 20,
-          currentStep: 'SCRIPT_COMPLETED',
+          currentStep: nextStatus,
           error: undefined,
         },
         { new: true }

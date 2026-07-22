@@ -16,6 +16,9 @@ class VideoService {
       type: data.type,
       language: data.language || 'english',
       voice: data.voice || 'female-1',
+      hostVoice: data.hostVoice || '',
+      guestVoice: data.guestVoice || '',
+      sceneCount: data.sceneCount || '5-10',
       resolution: data.resolution || '1920x1080',
       aspectRatio: data.aspectRatio || '16:9',
       status: JOB_STATUS.QUEUED,
@@ -249,6 +252,27 @@ class VideoService {
   }
 
   /**
+   * Approve a script that's awaiting manual review, letting the pipeline
+   * continue into audio/image/render. Caller is expected to re-enqueue the
+   * 'render-video' BullMQ job afterwards - the worker's own
+   * `needsScriptGeneration` check already skips regeneration once status
+   * isn't QUEUED, so it resumes straight into audio generation.
+   */
+  static async approve(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    if (job.status !== JOB_STATUS.AWAITING_APPROVAL) {
+      throw { status: 400, message: `Job is in ${job.status} state and cannot be approved. Only jobs awaiting approval can be approved.` };
+    }
+
+    LoggerService.info('Video job script approved', { jobId });
+    return job;
+  }
+
+  /**
    * Map step to resume status for jobs that are stuck.
    * When a job is stuck in a processing state, we resume from the next step.
    */
@@ -259,6 +283,7 @@ class VideoService {
     const stepStatusMap = {
       [JOB_STATUS.SCRIPT_GENERATION]: { status: JOB_STATUS.QUEUED, progress: 0 },
       [JOB_STATUS.SCRIPT_COMPLETED]: { status: JOB_STATUS.SCRIPT_COMPLETED, progress: 20 },
+      [JOB_STATUS.AWAITING_APPROVAL]: { status: JOB_STATUS.AWAITING_APPROVAL, progress: 20 },
       [JOB_STATUS.GENERATING_AUDIO]: { status: JOB_STATUS.GENERATING_AUDIO, progress: 40 },
       [JOB_STATUS.AUDIO_COMPLETED]: { status: JOB_STATUS.AUDIO_COMPLETED, progress: 50 },
       [JOB_STATUS.PREPARING_ASSETS]: { status: JOB_STATUS.PREPARING_ASSETS, progress: 60 },
@@ -280,7 +305,10 @@ class VideoService {
       };
     }
 
-    // Fallback: Determine based on job state (script and audio files)
+    // Fallback: Determine based on job state (script and audio files). A job
+    // with scenes but none awaiting/past audio yet is presumed still awaiting
+    // manual approval, since that's the only place a script-having job stops
+    // this early - resuming should land back on the approval gate, not skip it.
     if (job.script?.scenes?.length > 0) {
       const scenesWithAudio = job.script.scenes.filter(s => s.audio?.file);
 
@@ -292,10 +320,18 @@ class VideoService {
         };
       }
 
+      if (scenesWithAudio.length > 0) {
+        return {
+          status: JOB_STATUS.GENERATING_AUDIO,
+          progress: 40,
+          currentStep: JOB_STATUS.GENERATING_AUDIO,
+        };
+      }
+
       return {
-        status: JOB_STATUS.GENERATING_AUDIO,
-        progress: 40,
-        currentStep: JOB_STATUS.GENERATING_AUDIO,
+        status: JOB_STATUS.AWAITING_APPROVAL,
+        progress: 20,
+        currentStep: JOB_STATUS.AWAITING_APPROVAL,
       };
     }
 
@@ -318,6 +354,7 @@ class VideoService {
     const stepStatusMap = {
       [JOB_STATUS.SCRIPT_GENERATION]: { status: JOB_STATUS.QUEUED, progress: 0 },
       [JOB_STATUS.SCRIPT_COMPLETED]: { status: JOB_STATUS.QUEUED, progress: 0 },
+      [JOB_STATUS.AWAITING_APPROVAL]: { status: JOB_STATUS.AWAITING_APPROVAL, progress: 20 },
       [JOB_STATUS.GENERATING_AUDIO]: { status: JOB_STATUS.GENERATING_AUDIO, progress: 40 },
       [JOB_STATUS.AUDIO_COMPLETED]: { status: JOB_STATUS.PREPARING_ASSETS, progress: 60 },
       [JOB_STATUS.PREPARING_ASSETS]: { status: JOB_STATUS.PREPARING_ASSETS, progress: 60 },
@@ -339,7 +376,10 @@ class VideoService {
       };
     }
 
-    // Fallback: Determine based on job state (script and audio files)
+    // Fallback: Determine based on job state (script and audio files). A job
+    // with scenes but no audio yet is presumed still awaiting manual
+    // approval, since that's the only place a script-having job stops this
+    // early - resuming should land back on the approval gate, not skip it.
     if (job.script?.scenes?.length > 0) {
       const scenesWithAudio = job.script.scenes.filter(s => s.audio?.file);
 
@@ -351,10 +391,18 @@ class VideoService {
         };
       }
 
+      if (scenesWithAudio.length > 0) {
+        return {
+          status: JOB_STATUS.GENERATING_AUDIO,
+          progress: 40,
+          currentStep: JOB_STATUS.GENERATING_AUDIO,
+        };
+      }
+
       return {
-        status: JOB_STATUS.GENERATING_AUDIO,
-        progress: 40,
-        currentStep: JOB_STATUS.GENERATING_AUDIO,
+        status: JOB_STATUS.AWAITING_APPROVAL,
+        progress: 20,
+        currentStep: JOB_STATUS.AWAITING_APPROVAL,
       };
     }
 

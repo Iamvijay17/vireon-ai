@@ -9,8 +9,9 @@ import {
   Languages,
   Image as ImageIcon,
   ChevronRight,
+  CheckCircle2,
 } from "lucide-react";
-import { getVideoJob, updateVideoScenes, rerenderVideoJob } from "../../services/api";
+import { getVideoJob, updateVideoScenes, rerenderVideoJob, approveVideoJob } from "../../services/api";
 import {
   connect,
   joinJobRoom,
@@ -87,6 +88,7 @@ const StudioPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rerendering, setRerendering] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
   const [editedScenes, setEditedScenes] = useState([]);
   const [hasChanges, setHasChanges] = useState(false);
@@ -159,6 +161,24 @@ const StudioPage = () => {
     }
   };
 
+  const handleApprove = async () => {
+    if (!jobId) return;
+    try {
+      setApproving(true);
+      if (hasChanges) {
+        await updateVideoScenes(jobId, editedScenes);
+        setHasChanges(false);
+      }
+      await approveVideoJob(jobId);
+      toast.success("Script approved! Generating audio, images, and video...");
+      navigate(`/render?id=${jobId}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to approve script");
+    } finally {
+      setApproving(false);
+    }
+  };
+
   useEffect(() => {
     if (!jobId) return;
     connect();
@@ -210,7 +230,8 @@ const StudioPage = () => {
     return <EmptyState description="Job not found" actionLabel="Back to Dashboard" onAction={() => navigate("/")} />;
   }
 
-  const canEdit = job.status === "COMPLETED" || job.status === "FAILED" || job.status === "SCRIPT_COMPLETED";
+  const isAwaitingApproval = job.status === "AWAITING_APPROVAL";
+  const canEdit = job.status === "COMPLETED" || job.status === "FAILED" || job.status === "SCRIPT_COMPLETED" || isAwaitingApproval;
 
   return (
     <div>
@@ -238,12 +259,26 @@ const StudioPage = () => {
             <Button variant="secondary" icon={<Save className="size-4" />} onClick={handleSave} loading={saving} disabled={!hasChanges || !canEdit}>
               Save Changes
             </Button>
-            <Button variant="primary" icon={<Redo2 className="size-4" />} onClick={handleRerender} loading={rerendering} disabled={!canEdit}>
-              Re-render
-            </Button>
+            {isAwaitingApproval ? (
+              <Button variant="primary" icon={<CheckCircle2 className="size-4" />} onClick={handleApprove} loading={approving}>
+                Approve & Continue
+              </Button>
+            ) : (
+              <Button variant="primary" icon={<Redo2 className="size-4" />} onClick={handleRerender} loading={rerendering} disabled={!canEdit}>
+                Re-render
+              </Button>
+            )}
           </div>
         </div>
       </Card>
+
+      {isAwaitingApproval && (
+        <Alert type="info" title="Script ready for review" className="mb-6">
+          Review and edit the scenes below - you can also paste a manual image URL for any image scene instead of
+          waiting for AI image generation. Click "Approve & Continue" when you're ready to generate audio, images, and
+          the final video.
+        </Alert>
+      )}
 
       {/* Preview */}
       {job?.videoUrl && (
@@ -408,9 +443,19 @@ const StudioPage = () => {
                   <SectionLabel icon={ImageIcon} tone="warning">
                     Image
                   </SectionLabel>
-                  <Field label="Image Prompt">
-                    <Textarea rows={2} value={scene.imagePrompt || ""} onChange={(e) => handleSceneChange(index, "imagePrompt", e.target.value)} disabled={!canEdit} placeholder="AI image generation prompt (only for image scenes)" />
-                  </Field>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field label="Image Prompt">
+                      <Textarea rows={2} value={scene.imagePrompt || ""} onChange={(e) => handleSceneChange(index, "imagePrompt", e.target.value)} disabled={!canEdit} placeholder="AI image generation prompt (only for image scenes)" />
+                    </Field>
+                    <Field label="Image URL (manual override)">
+                      <Input
+                        value={scene.imageUrl || ""}
+                        onChange={(e) => handleSceneChange(index, "imageUrl", e.target.value)}
+                        disabled={!canEdit}
+                        placeholder="https://... - skips AI image generation for this scene"
+                      />
+                    </Field>
+                  </div>
                 </div>
 
                 <div className="h-px bg-border-light" />

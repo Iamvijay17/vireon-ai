@@ -110,6 +110,39 @@ class VideoController {
   }
 
   /**
+   * POST /api/videos/:id/approve - Approve a script that's awaiting manual
+   * review and resume the pipeline into audio/image/render.
+   */
+  static async approve(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const job = await VideoService.approve(id);
+
+      // Emit socket event
+      SocketService.emitJobCreated(job);
+
+      // Re-add to BullMQ queue for background processing - the worker will
+      // skip script generation since the job is no longer QUEUED.
+      await videoQueue.add('render-video', {
+        jobId: job._id.toString(),
+      });
+
+      LoggerService.info('Video job approved and queued for processing', {
+        jobId: job._id,
+        queue: 'video-rendering',
+      });
+
+      res.json({
+        jobId: job._id,
+        status: job.status,
+        progress: job.progress,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * POST /api/videos/:id/rerender - Re-render a completed or failed job
    * Resets to PREPARING_ASSETS state and re-runs rendering + upload.
    * Keeps existing script and audio data intact.
