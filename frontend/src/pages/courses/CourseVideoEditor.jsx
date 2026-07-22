@@ -180,12 +180,12 @@ const CourseVideoEditor = () => {
     }
   }, [videoId, formatActivityTime]);
 
-  const addActivity = (text, timestamp) => {
+  const addActivity = useCallback((text, timestamp) => {
     setActivityLog((prev) => [
       { text, time: timestamp ? formatActivityTime(timestamp) : formatActivityTime(new Date().toISOString()) },
       ...prev,
     ]);
-  };
+  }, [formatActivityTime]);
 
   const fetchVideo = useCallback(async () => {
     try {
@@ -211,7 +211,7 @@ const CourseVideoEditor = () => {
     } finally {
       setLoading(false);
     }
-  }, [videoId, courseId, navigate]);
+  }, [videoId, courseId, navigate, addActivity]);
 
   const cleanup = useCallback(() => {
     unsubscribesRef.current.forEach((unsubscribe) => unsubscribe && unsubscribe());
