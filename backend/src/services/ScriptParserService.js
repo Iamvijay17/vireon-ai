@@ -146,14 +146,31 @@ class ScriptParserService {
    * End scenes get outro/ending templates.
    */
   static _getDefaultTemplateForType(videoType, sceneNumber, sceneType = 'content') {
+    // Full pool of content-appropriate templates (mirrors
+    // SceneTypeCategories.content in templates/TemplateCategories.js).
+    // Content scenes rotate through this whole pool regardless of
+    // videoType so that longer scripts (more scenes) actually surface
+    // more visual variety instead of repeating a handful of templates.
+    const CONTENT_TEMPLATES = [
+      'template-004', 'template-005', 'template-006', 'template-007', 'template-008',
+      'template-009', 'template-011', 'template-012', 'template-013', 'template-014',
+      'template-015', 'template-016', 'template-017', 'template-018', 'template-021',
+      'template-022', 'template-023', 'template-024', 'template-025', 'template-026',
+      'template-027', 'template-028', 'template-029', 'template-031', 'template-032',
+      'template-033', 'template-034', 'template-035', 'template-036', 'template-037',
+      'template-038', 'template-039', 'template-040', 'template-043', 'template-044',
+      'template-045', 'template-046', 'template-047', 'template-048', 'template-054',
+      'template-055', 'template-056', 'template-057', 'template-058',
+    ];
+
     const templateMap = {
-      educational: ['template-001', 'template-009', 'template-013', 'template-026', 'template-027', 'template-032', 'template-041', 'template-054'],
-      podcast: ['template-042', 'template-048', 'template-031', 'template-036'],
-      marketing: ['template-005', 'template-007', 'template-010', 'template-015', 'template-028', 'template-033', 'template-003'],
-      story: ['template-017', 'template-020', 'template-021', 'template-022', 'template-023', 'template-045', 'template-058'],
-      motivational: ['template-006', 'template-029', 'template-047', 'template-004', 'template-019'],
-      business: ['template-004', 'template-011', 'template-014', 'template-030', 'template-036', 'template-038', 'template-055'],
-      youtube_shorts: ['template-044', 'template-050', 'template-051', 'template-052', 'template-053', 'template-016'],
+      educational: CONTENT_TEMPLATES,
+      podcast: CONTENT_TEMPLATES,
+      marketing: CONTENT_TEMPLATES,
+      story: CONTENT_TEMPLATES,
+      motivational: CONTENT_TEMPLATES,
+      business: CONTENT_TEMPLATES,
+      youtube_shorts: CONTENT_TEMPLATES,
     };
 
     // Scene-type-specific template overrides for better visual matching

@@ -268,6 +268,15 @@ class CourseVideoService {
   static buildScriptPrompt(video) {
     const durationMinutes = video.duration;
     const wordCount = durationMinutes * 130;
+    // Scale scene count with video length - roughly 2 scenes per minute
+    // (5min -> 10 scenes, 15min -> 30 scenes) so there's enough scenes to
+    // cycle through many different templates instead of repeating a few,
+    // with a floor of 3 so short videos still get an intro/content/summary
+    // shape.
+    const sceneCount = Math.max(3, Math.round(durationMinutes * 2));
+    const contentSceneCount = sceneCount - 2;
+    const avgSceneSeconds = Math.round((durationMinutes * 60) / sceneCount);
+    const wordsPerScene = Math.round(wordCount / sceneCount);
 
     return `Create a ${durationMinutes}min educational video script about "${video.topic}".
 
@@ -289,15 +298,15 @@ Return ONLY valid JSON with this structure:
       "animation": "",
       "imagePrompt": "",
       "scene_meta": { "content": ["", "", ""] },
-      "audio": { "text": "Narration text here (~${Math.round(wordCount / 5)} words per scene)" }
+      "audio": { "text": "Narration text here (~${wordsPerScene} words per scene)" }
     }
   ]
 }
 
 Rules:
 - Total narration: ~${wordCount} words across all scenes
-- 5-8 scenes total: 1 intro, 3-5 content, 1 summary
-- Scene duration: 8-15 seconds each
+- Exactly ${sceneCount} scenes total: 1 intro, ${contentSceneCount} content, 1 summary
+- Scene duration: about ${avgSceneSeconds} seconds each
 - sceneType must be one of: "intro", "content", or "image"
 - Use "intro" for the opening scene
 - Use "content" for main educational content
