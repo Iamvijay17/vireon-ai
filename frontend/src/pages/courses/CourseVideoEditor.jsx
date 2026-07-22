@@ -36,7 +36,22 @@ import {
   renderCourseVideo,
   retryCourseVideo,
   getCourseVideoActivityLogs,
+  resolveMediaUrl,
 } from "../../services/api";
+import {
+  connect,
+  joinCourseRoom,
+  leaveCourseRoom,
+  onCourseVideoProgress,
+  onCourseVideoScriptReady,
+  onCourseVideoAudioReady,
+  onCourseVideoRenderReady,
+  onCourseVideoUpdated,
+  onJobFailed,
+  onConnect,
+  onDisconnect,
+  isConnected,
+} from "../../services/socket";
 
 const getCurrentStep = (status) => {
   const stepMap = {
@@ -52,6 +67,7 @@ const getCurrentStep = (status) => {
     "Generating Images": 2,
     "Images Generated": 2,
     "Rendering Video": 3,
+    Uploading: 3,
     Completed: 4,
     Failed: -1,
   };
@@ -78,7 +94,7 @@ const InlineSpinner = ({ label }) => (
 const CourseVideoEditor = () => {
   const { courseId, videoId } = useParams();
   const navigate = useNavigate();
-  const pollingRef = useRef(null);
+  const unsubscribesRef = useRef([]);
 
   const [video, setVideo] = useState(null);
   useSetBreadcrumbLabel(video?.title);
@@ -88,8 +104,21 @@ const CourseVideoEditor = () => {
   const [scriptText, setScriptText] = useState("");
   const [activityLog, setActivityLog] = useState([]);
   const [parsedScript, setParsedScript] = useState(null);
+  const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
 
   const setStepLoading = (step, val) => setActionLoading((prev) => ({ ...prev, [step]: val }));
+
+  const applyScript = (script) => {
+    if (!script) {
+      setParsedScript(null);
+      return;
+    }
+    try {
+      setParsedScript(JSON.parse(script));
+    } catch {
+      setParsedScript(null);
+    }
+  };
 
   const fetchActivityLogs = useCallback(async () => {
     try {
@@ -138,43 +167,97 @@ const CourseVideoEditor = () => {
     }
   }, [videoId, courseId, navigate]);
 
+  const cleanup = useCallback(() => {
+    unsubscribesRef.current.forEach((unsubscribe) => unsubscribe && unsubscribe());
+    unsubscribesRef.current = [];
+  }, []);
+
   useEffect(() => {
+    if (!videoId || !courseId) return undefined;
+
     fetchVideo();
     fetchActivityLogs();
+    cleanup();
+    connect();
+    joinCourseRoom(courseId);
+    setSocketStatus(isConnected() ? "connected" : "disconnected");
+
+    unsubscribesRef.current.push(
+      onCourseVideoProgress((data) => {
+        if (data.videoId !== videoId) return;
+        setVideo((prev) => (prev ? { ...prev, status: data.status } : prev));
+        if (data.message) addActivity(data.message);
+      })
+    );
+
+    unsubscribesRef.current.push(
+      onCourseVideoScriptReady((data) => {
+        if (data.videoId !== videoId) return;
+        setVideo((prev) => (prev ? { ...prev, status: data.status, script: data.script } : prev));
+        setScriptText(data.script || "");
+        applyScript(data.script);
+        setActionLoading({});
+        addActivity(data.message || "Script ready", data.updatedAt);
+        fetchActivityLogs();
+      })
+    );
+
+    unsubscribesRef.current.push(
+      onCourseVideoAudioReady((data) => {
+        if (data.videoId !== videoId) return;
+        setVideo((prev) =>
+          prev ? { ...prev, status: data.status, audioUrl: data.audioUrl, audioDuration: data.audioDuration } : prev
+        );
+        setActionLoading({});
+        addActivity(data.message || "Audio ready");
+        fetchActivityLogs();
+      })
+    );
+
+    unsubscribesRef.current.push(
+      onCourseVideoRenderReady((data) => {
+        if (data.videoId !== videoId) return;
+        setVideo((prev) =>
+          prev ? { ...prev, status: data.status, renderUrl: data.renderUrl, renderedAt: data.renderedAt || new Date().toISOString() } : prev
+        );
+        setActionLoading({});
+        addActivity(data.message || "Render ready");
+        fetchActivityLogs();
+      })
+    );
+
+    unsubscribesRef.current.push(
+      onCourseVideoUpdated((data) => {
+        if (data.videoId !== videoId) return;
+        // Cloud upload can touch script/audioUrl/renderUrl together, so
+        // just refetch the full record rather than partially merging.
+        fetchVideo();
+        addActivity(data.message || "Video updated");
+        fetchActivityLogs();
+      })
+    );
+
+    unsubscribesRef.current.push(
+      onJobFailed((data) => {
+        if (data.videoId !== videoId) return;
+        setVideo((prev) => (prev ? { ...prev, status: data.status, error: { message: data.error, step: data.step } } : prev));
+        setActionLoading({});
+        toast.error(data.error || "Step failed");
+        addActivity(`Failed: ${data.error || "Unknown error"}`);
+        fetchActivityLogs();
+      })
+    );
+
+    unsubscribesRef.current.push(onConnect(() => setSocketStatus("connected")));
+    unsubscribesRef.current.push(
+      onDisconnect((reason) => setSocketStatus(reason === "io client disconnect" ? "disconnected" : "reconnecting"))
+    );
+
     return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      leaveCourseRoom(courseId);
+      cleanup();
     };
-  }, [fetchVideo, fetchActivityLogs]);
-
-  const startPolling = (step) => {
-    if (pollingRef.current) clearInterval(pollingRef.current);
-    pollingRef.current = setInterval(async () => {
-      try {
-        const res = await getCourseVideo(videoId);
-        const updated = res.data.video;
-        setVideo(updated);
-        setScriptText(updated.script || "");
-
-        if (updated.script) {
-          try {
-            setParsedScript(JSON.parse(updated.script));
-          } catch {
-            setParsedScript(null);
-          }
-        }
-
-        if (["Completed", "Failed", "Script Generated", "Audio Generated"].includes(updated.status)) {
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-          setStepLoading(step, false);
-          addActivity(`Status updated: ${updated.status}`, updated.updatedAt);
-          fetchActivityLogs();
-        }
-      } catch {
-        // Ignore polling errors
-      }
-    }, 2000);
-  };
+  }, [videoId, courseId, fetchVideo, fetchActivityLogs, cleanup]);
 
   const handleGenerateScript = async () => {
     setStepLoading("script", true);
@@ -182,7 +265,6 @@ const CourseVideoEditor = () => {
       await generateCourseVideoScript(videoId);
       toast.info("Script generation started");
       addActivity("Script generation started");
-      startPolling("script");
       fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to start script generation");
@@ -229,7 +311,6 @@ const CourseVideoEditor = () => {
       await regenerateCourseVideoScript(videoId);
       toast.info("Script regeneration started");
       addActivity("Script regeneration started");
-      startPolling("script");
       fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to regenerate script");
@@ -243,7 +324,6 @@ const CourseVideoEditor = () => {
       await generateCourseVideoAudio(videoId);
       toast.info("Audio generation started");
       addActivity("Audio generation started");
-      startPolling("audio");
       fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to start audio generation");
@@ -259,7 +339,6 @@ const CourseVideoEditor = () => {
       await generateCourseVideoAudio(videoId);
       toast.info("Audio regeneration started");
       addActivity("Audio regeneration started");
-      startPolling("audio");
       fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to regenerate audio");
@@ -273,7 +352,6 @@ const CourseVideoEditor = () => {
       await renderCourseVideo(videoId);
       toast.info("Rendering started");
       addActivity("Rendering started");
-      startPolling("render");
       fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to start rendering");
@@ -289,7 +367,6 @@ const CourseVideoEditor = () => {
       await renderCourseVideo(videoId);
       toast.info("Re-rendering started");
       addActivity("Re-rendering started");
-      startPolling("render");
       fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to re-render");
@@ -310,7 +387,6 @@ const CourseVideoEditor = () => {
       await retryCourseVideo(videoId);
       toast.info(`Retrying ${failedStep}...`);
       addActivity(`Retrying ${failedStep}...`);
-      startPolling("retry");
       fetchActivityLogs();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to retry");
@@ -318,14 +394,15 @@ const CourseVideoEditor = () => {
     }
   };
 
-  const isProcessing = ["Generating Script", "Generating Audio", "Rendering Video", "Generating Scenes", "Generating Images"].includes(video?.status);
+  const isProcessing = ["Generating Script", "Generating Audio", "Rendering Video", "Uploading", "Generating Scenes", "Generating Images"].includes(video?.status);
+  const isUploading = video?.status === "Uploading";
   const isFailed = video?.status === "Failed";
   const isCompleted = video?.status === "Completed";
   const hasScript = video?.script && video.script.length > 0;
   const isApproved = video?.approved;
   const hasAudio = video?.audioUrl && video.audioUrl.length > 0;
   const scenes = parsedScript?.scenes || [];
-  const audioBaseUrl = video?._id ? `/public/${video._id}/audio` : null;
+  const audioBaseUrl = video?._id ? resolveMediaUrl(`/public/${video._id}/audio`) : null;
 
   if (loading) return <LoadingState label="Loading video..." />;
 
@@ -371,6 +448,9 @@ const CourseVideoEditor = () => {
             <h1 className="text-xl font-semibold tracking-tight text-text-primary">{video.title}</h1>
             <p className="mt-1 text-sm text-text-secondary">{video.topic}</p>
           </div>
+          <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
+            {socketStatus === "connected" ? "Live" : socketStatus === "reconnecting" ? "Reconnecting..." : "Offline"}
+          </Badge>
         </div>
         <div className="flex items-center gap-2">
           {isFailed && (
@@ -609,7 +689,14 @@ const CourseVideoEditor = () => {
                   <ul className="divide-y divide-border-light">
                     {scenes.map((scene, idx) => {
                       const sceneNum = scene.sceneNumber || idx + 1;
-                      const sceneAudioUrl = `${audioBaseUrl}/scene${sceneNum}.mp3`;
+                      // After a successful cloud upload, the backend swaps
+                      // scene.audio.file for the full GitHub URL in place -
+                      // use it directly when present, otherwise fall back
+                      // to the locally-served file.
+                      const audioFile = scene.audio?.file;
+                      const sceneAudioUrl = audioFile && /^https?:\/\//i.test(audioFile)
+                        ? audioFile
+                        : `${audioBaseUrl}/${audioFile || `scene${sceneNum}.mp3`}`;
                       const narrationText = scene.audio?.text || scene.title || "";
                       const sceneTitle = scene.title || `Scene ${sceneNum}`;
                       const sceneType = scene.sceneType || "content";
@@ -644,7 +731,7 @@ const CourseVideoEditor = () => {
                     ]}
                   />
                   {video.audioUrl && (
-                    <audio controls className="mt-3 w-full" src={video.audioUrl}>
+                    <audio controls className="mt-3 w-full" src={resolveMediaUrl(video.audioUrl)}>
                       Your browser does not support the audio element.
                     </audio>
                   )}
@@ -666,7 +753,7 @@ const CourseVideoEditor = () => {
               extra={
                 <>
                   <Button variant="ghost" size="sm" iconOnly aria-label="Refresh" icon={<RotateCw className="size-3.5" />} onClick={handleManualRefresh} />
-                  {hasAudio && !isCompleted && video?.status !== "Rendering Video" && (
+                  {hasAudio && !isCompleted && !isProcessing && (
                     <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.render} onClick={handleRender}>
                       Render Video
                     </Button>
@@ -695,6 +782,13 @@ const CourseVideoEditor = () => {
                   {video.renderProgress > 0 && <Progress percent={video.renderProgress} className="mt-1 w-full max-w-sm" />}
                 </div>
               )}
+              {isUploading && (
+                <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+                  <Spinner size="lg" />
+                  <p className="text-sm text-text-secondary">Uploading assets to cloud storage...</p>
+                  {video.renderProgress > 0 && <Progress percent={video.renderProgress} className="mt-1 w-full max-w-sm" />}
+                </div>
+              )}
               {isCompleted && (
                 <div className="flex flex-col items-center py-6 text-center">
                   <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-success-500/10 text-success-500">
@@ -706,7 +800,7 @@ const CourseVideoEditor = () => {
                   </p>
                   <div className="mt-5 flex flex-wrap justify-center gap-2">
                     {video.renderUrl && (
-                      <Button href={video.renderUrl} target="_blank" rel="noopener noreferrer" variant="primary" icon={<PlayCircle className="size-4" />}>
+                      <Button href={resolveMediaUrl(video.renderUrl)} target="_blank" rel="noopener noreferrer" variant="primary" icon={<PlayCircle className="size-4" />}>
                         Watch Video
                       </Button>
                     )}

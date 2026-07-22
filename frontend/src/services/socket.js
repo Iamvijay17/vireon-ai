@@ -72,6 +72,21 @@ export const onSceneAudioReady = (callback) => {
 
 // ─── Course Video Event Listeners ────────────────────────────────────────────────
 
+export const onCourseVideoCreated = (callback) => {
+  socket.on('courseVideoCreated', callback);
+  return () => socket.off('courseVideoCreated', callback);
+};
+
+export const onCourseVideoDeleted = (callback) => {
+  socket.on('courseVideoDeleted', callback);
+  return () => socket.off('courseVideoDeleted', callback);
+};
+
+export const onCourseVideoUpdated = (callback) => {
+  socket.on('courseVideoUpdated', callback);
+  return () => socket.off('courseVideoUpdated', callback);
+};
+
 export const onCourseVideoProgress = (callback) => {
   socket.on('courseVideoProgress', callback);
   return () => socket.off('courseVideoProgress', callback);

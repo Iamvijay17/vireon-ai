@@ -50,8 +50,17 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan('short', { stream: LoggerService.stream() }));
 
 // ── Static Files (serve jobs directory for Remotion audio assets) ────────────
+// helmet's default Cross-Origin-Resource-Policy: same-origin would block the
+// frontend dev server (different port/origin) from loading this media in
+// <audio>/<video> tags, so relax it for this route only - these files are
+// meant to be embedded cross-origin.
 const jobsDir = path.resolve(__dirname, '../jobs');
-app.use('/public', express.static(jobsDir));
+app.use(
+  '/public',
+  express.static(jobsDir, {
+    setHeaders: (res) => res.set('Cross-Origin-Resource-Policy', 'cross-origin'),
+  })
+);
 LoggerService.info('Static files configured', { path: jobsDir });
 
 // ── Health Check ─────────────────────────────────────────────────────────────

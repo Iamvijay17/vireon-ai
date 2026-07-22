@@ -8,6 +8,15 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Backend-generated media (course audio/render output) comes back as paths
+// relative to the API origin (e.g. "/public/<id>/audio/scene1.mp3"), not the
+// frontend's own origin, so they need the API base prefixed to load.
+export const resolveMediaUrl = (path) => {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
+};
+
 // ─── Video Jobs ───────────────────────────────────────────────────────────────
 
 export const createVideoJob = (data) => api.post('/api/videos', data);

@@ -184,6 +184,11 @@ class SocketService {
           io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_RENDER_READY, data);
         }
         break;
+      case 'courseVideoUpdated':
+        if (courseId) {
+          io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_UPDATED, data);
+        }
+        break;
       default:
         LoggerService.warn('Unknown event type from Redis pub/sub', { type });
     }
@@ -474,6 +479,28 @@ class SocketService {
       io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_RENDER_READY, data);
     } else {
       SocketService.publishToCourse(video.courseId.toString(), 'courseVideoRenderReady', data);
+    }
+  }
+
+  /**
+   * Emit a generic "this video's record changed" event, used after the
+   * automatic cloud upload swaps local paths for GitHub URLs so the
+   * frontend knows to refetch the video (script/audioUrl/renderUrl all
+   * potentially changed at once).
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitCourseVideoUpdated(video, message) {
+    const data = {
+      videoId: video._id,
+      status: video.status,
+      message,
+    };
+
+    if (io) {
+      io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_UPDATED, data);
+    } else {
+      SocketService.publishToCourse(video.courseId.toString(), 'courseVideoUpdated', data);
     }
   }
 

@@ -33,6 +33,7 @@ const VIDEO_STATUS = Object.freeze({
   GENERATING_IMAGES: 'Generating Images',
   IMAGES_GENERATED: 'Images Generated',
   RENDERING_VIDEO: 'Rendering Video',
+  UPLOADING: 'Uploading',
   COMPLETED: 'Completed',
   FAILED: 'Failed',
 });

@@ -2,6 +2,8 @@ const CourseVideoService = require('../services/CourseVideoService');
 const ActivityLogService = require('../services/ActivityLogService');
 const courseQueue = require('../queues/courseQueue');
 const LoggerService = require('../services/LoggerService');
+const SocketService = require('../services/SocketService');
+const { SOCKET_EVENTS } = require('../constants');
 
 class CourseVideoController {
   /**
@@ -33,7 +35,15 @@ class CourseVideoController {
    */
   static async delete(req, res, next) {
     try {
+      const video = await CourseVideoService.getById(req.params.id);
+      const courseId = video.courseId.toString();
+
       const result = await CourseVideoService.delete(req.params.id);
+
+      SocketService.emitToCourse(courseId, SOCKET_EVENTS.COURSE_VIDEO_DELETED, {
+        videoId: req.params.id,
+      });
+
       res.json(result);
     } catch (err) {
       next(err);

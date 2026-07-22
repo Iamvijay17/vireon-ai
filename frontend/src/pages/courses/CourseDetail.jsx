@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus,
   ArrowLeft,
@@ -28,6 +28,22 @@ import { Input, Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 import { getCourse, deleteCourse, getCourseVideos, createCourseVideo, deleteCourseVideo, getVoices } from "../../services/api";
+import {
+  connect,
+  joinCourseRoom,
+  leaveCourseRoom,
+  onCourseVideoCreated,
+  onCourseVideoDeleted,
+  onCourseVideoProgress,
+  onCourseVideoScriptReady,
+  onCourseVideoAudioReady,
+  onCourseVideoRenderReady,
+  onCourseVideoUpdated,
+  onJobFailed,
+  onConnect,
+  onDisconnect,
+  isConnected,
+} from "../../services/socket";
 
 const VIDEO_STATUS = {
   Draft: { variant: "neutral", icon: FileText },
@@ -42,6 +58,7 @@ const VIDEO_STATUS = {
   "Generating Images": { variant: "accent", icon: FileText },
   "Images Generated": { variant: "warning", icon: FileText },
   "Rendering Video": { variant: "accent", icon: Video },
+  Uploading: { variant: "accent", icon: Video },
   Completed: { variant: "success", icon: CheckCircle2 },
   Failed: { variant: "danger", icon: Clock },
 };
@@ -82,6 +99,8 @@ const CourseDetail = () => {
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
+  const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
+  const unsubscribesRef = useRef([]);
 
   const fetchCourse = useCallback(async () => {
     setLoading(true);
@@ -113,6 +132,87 @@ const CourseDetail = () => {
     fetchCourse();
     fetchVideos();
   }, [fetchCourse, fetchVideos]);
+
+  const recalcSummary = (list) =>
+    list.reduce((acc, v) => {
+      acc[v.status] = (acc[v.status] || 0) + 1;
+      return acc;
+    }, {});
+
+  const patchVideo = (videoId, patch) => {
+    setVideos((prev) => {
+      const updated = prev.map((v) => (v._id === videoId ? { ...v, ...patch } : v));
+      setVideoStatusSummary(recalcSummary(updated));
+      return updated;
+    });
+  };
+
+  const cleanupSockets = useCallback(() => {
+    unsubscribesRef.current.forEach((unsubscribe) => unsubscribe && unsubscribe());
+    unsubscribesRef.current = [];
+  }, []);
+
+  useEffect(() => {
+    if (!id) return undefined;
+
+    cleanupSockets();
+    connect();
+    joinCourseRoom(id);
+    setSocketStatus(isConnected() ? "connected" : "disconnected");
+
+    unsubscribesRef.current.push(
+      onCourseVideoCreated(() => {
+        fetchVideos();
+        fetchCourse();
+      })
+    );
+    unsubscribesRef.current.push(
+      onCourseVideoDeleted(() => {
+        fetchVideos();
+        fetchCourse();
+      })
+    );
+    unsubscribesRef.current.push(
+      onCourseVideoProgress((data) => patchVideo(data.videoId, { status: data.status }))
+    );
+    unsubscribesRef.current.push(
+      onCourseVideoScriptReady((data) => patchVideo(data.videoId, { status: data.status, script: data.script }))
+    );
+    unsubscribesRef.current.push(
+      onCourseVideoAudioReady((data) =>
+        patchVideo(data.videoId, { status: data.status, audioUrl: data.audioUrl, audioDuration: data.audioDuration })
+      )
+    );
+    unsubscribesRef.current.push(
+      onCourseVideoRenderReady((data) => {
+        patchVideo(data.videoId, { status: data.status, renderUrl: data.renderUrl });
+        fetchCourse();
+      })
+    );
+    unsubscribesRef.current.push(
+      onCourseVideoUpdated((data) => {
+        // Cloud upload can swap script/audioUrl/renderUrl together - just
+        // refetch the list rather than partially merging.
+        patchVideo(data.videoId, { status: data.status });
+        fetchVideos();
+      })
+    );
+    unsubscribesRef.current.push(
+      onJobFailed((data) => {
+        if (!data.videoId) return;
+        patchVideo(data.videoId, { status: data.status });
+      })
+    );
+    unsubscribesRef.current.push(onConnect(() => setSocketStatus("connected")));
+    unsubscribesRef.current.push(
+      onDisconnect((reason) => setSocketStatus(reason === "io client disconnect" ? "disconnected" : "reconnecting"))
+    );
+
+    return () => {
+      leaveCourseRoom(id);
+      cleanupSockets();
+    };
+  }, [id, fetchVideos, fetchCourse, cleanupSockets]);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,6 +310,9 @@ const CourseDetail = () => {
             <h1 className="text-xl font-semibold tracking-tight text-text-primary">{course?.title}</h1>
             <p className="mt-1 text-sm text-text-secondary">{course?.description || "No description"}</p>
           </div>
+          <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
+            {socketStatus === "connected" ? "Live" : socketStatus === "reconnecting" ? "Reconnecting..." : "Offline"}
+          </Badge>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="primary" icon={<Plus className="size-4" />} onClick={showCreateModal}>
