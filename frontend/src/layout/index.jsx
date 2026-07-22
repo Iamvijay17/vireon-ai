@@ -15,6 +15,7 @@ const StudioPage = lazy(() => import("../pages/studio"));
 const CoursesList = lazy(() => import("../pages/courses/CoursesList"));
 const CourseDetail = lazy(() => import("../pages/courses/CourseDetail"));
 const CourseVideoEditor = lazy(() => import("../pages/courses/CourseVideoEditor"));
+const CourseVideoStudio = lazy(() => import("../pages/courses/CourseVideoStudio"));
 
 const LARGE_BREAKPOINT = 992;
 
@@ -63,6 +64,7 @@ const AppLayout = () => {
                 <Route path="/courses" element={<CoursesList />} />
                 <Route path="/courses/:id" element={<CourseDetail />} />
                 <Route path="/courses/:courseId/videos/:videoId" element={<CourseVideoEditor />} />
+                <Route path="/courses/:courseId/videos/:videoId/studio" element={<CourseVideoStudio />} />
               </Routes>
             </Suspense>
           </div>

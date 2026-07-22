@@ -32,13 +32,28 @@ const getSceneStartFrames = (scenes) => {
   });
 };
 
-export function ScenePreview({ scenes = [] }) {
+// `focusIndex` / `onActiveSceneChange` let a parent editor stay in sync with
+// the preview: clicking a scene in an edit form seeks the player there, and
+// scrubbing/playing the player updates which scene the editor highlights.
+export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange }) {
   const playerRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const lastFocusRef = useRef(focusIndex);
 
   const previewScenes = useMemo(() => stripAudioAndResolveMedia(scenes), [scenes]);
   const sceneStarts = useMemo(() => getSceneStartFrames(scenes), [scenes]);
   const durationInFrames = useMemo(() => calculateTotalDurationInFrames(scenes), [scenes]);
+
+  const seekToScene = useCallback(
+    (index) => {
+      const player = playerRef.current;
+      if (!player) return;
+      player.pause();
+      player.seekTo(sceneStarts[index] || 0);
+      setActiveIndex(index);
+    },
+    [sceneStarts],
+  );
 
   useEffect(() => {
     const player = playerRef.current;
@@ -51,21 +66,19 @@ export function ScenePreview({ scenes = [] }) {
         if (frame >= sceneStarts[i]) idx = i;
       }
       setActiveIndex(idx);
+      lastFocusRef.current = idx;
+      onActiveSceneChange?.(idx);
     };
 
     player.addEventListener("frameupdate", onFrameUpdate);
     return () => player.removeEventListener("frameupdate", onFrameUpdate);
-  }, [sceneStarts]);
+  }, [sceneStarts, onActiveSceneChange]);
 
-  const seekToScene = useCallback(
-    (index) => {
-      const player = playerRef.current;
-      if (!player) return;
-      player.pause();
-      player.seekTo(sceneStarts[index] || 0);
-    },
-    [sceneStarts],
-  );
+  useEffect(() => {
+    if (focusIndex == null || focusIndex === lastFocusRef.current) return;
+    lastFocusRef.current = focusIndex;
+    seekToScene(focusIndex);
+  }, [focusIndex, seekToScene]);
 
   if (previewScenes.length === 0) return null;
 

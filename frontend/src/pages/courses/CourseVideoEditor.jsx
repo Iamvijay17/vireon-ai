@@ -744,6 +744,16 @@ const CourseVideoEditor = () => {
                     <Badge>No audio</Badge>
                   </span>
                 }
+                extra={
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={<Pencil className="size-3.5" />}
+                    onClick={() => navigate(`/courses/${courseId}/videos/${videoId}/studio`)}
+                  >
+                    Customize in Studio
+                  </Button>
+                }
               />
               <div className="p-5">
                 <ScenePreview scenes={scenes} />
