@@ -248,7 +248,16 @@ const CourseVideoEditor = () => {
       })
     );
 
-    unsubscribesRef.current.push(onConnect(() => setSocketStatus("connected")));
+    unsubscribesRef.current.push(
+      onConnect(() => {
+        setSocketStatus("connected");
+        // Rooms aren't remembered across a reconnect - rejoin and resync
+        // in case events fired while we were disconnected.
+        joinCourseRoom(courseId);
+        fetchVideo();
+        fetchActivityLogs();
+      })
+    );
     unsubscribesRef.current.push(
       onDisconnect((reason) => setSocketStatus(reason === "io client disconnect" ? "disconnected" : "reconnecting"))
     );
