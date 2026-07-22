@@ -9,6 +9,20 @@ const VALID_BULK_ACTIONS = ['generate-script', 'generate-audio', 'render', 'gene
 
 class CourseVideoController {
   /**
+   * GET /api/course-videos/worker-status - Whether a course-video worker
+   * process is currently listening on the queue. Backs the frontend's
+   * running/offline indicator.
+   */
+  static async workerStatus(req, res, next) {
+    try {
+      const workers = await courseQueue.getWorkers();
+      res.json({ running: workers.length > 0, count: workers.length });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * POST /api/course-videos/bulk-generate - Queue a generation action for
    * one or more lessons. Used by both single-row and multi-row (bulk)
    * actions in the lesson table - a single lesson is just a 1-element

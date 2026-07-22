@@ -16,6 +16,7 @@ import { useSetBreadcrumbLabel } from "../../shared/breadcrumbContextValue";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
+import { Tooltip } from "../../components/ui/Tooltip";
 import { Alert } from "../../components/ui/Alert";
 import { Steps } from "../../components/ui/Steps";
 import { DescriptionList } from "../../components/ui/DescriptionList";
@@ -37,6 +38,7 @@ import {
   retryCourseVideo,
   getCourseVideoActivityLogs,
   resolveMediaUrl,
+  getCourseWorkerStatus,
 } from "../../services/api";
 import {
   connect,
@@ -105,6 +107,7 @@ const CourseVideoEditor = () => {
   const [activityLog, setActivityLog] = useState([]);
   const [parsedScript, setParsedScript] = useState(null);
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
+  const [workerRunning, setWorkerRunning] = useState(null); // null = unknown, boolean once checked
 
   const setStepLoading = (step, val) => setActionLoading((prev) => ({ ...prev, [step]: val }));
 
@@ -268,6 +271,27 @@ const CourseVideoEditor = () => {
     };
   }, [videoId, courseId, fetchVideo, fetchActivityLogs, cleanup]);
 
+  // Poll worker liveness so the Generate/Render buttons always reflect
+  // whether a job would actually get picked up right now.
+  useEffect(() => {
+    let cancelled = false;
+    const checkWorker = () => {
+      getCourseWorkerStatus()
+        .then((res) => {
+          if (!cancelled) setWorkerRunning(res.data.running);
+        })
+        .catch(() => {
+          if (!cancelled) setWorkerRunning(false);
+        });
+    };
+    checkWorker();
+    const interval = setInterval(checkWorker, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
   const handleGenerateScript = async () => {
     setStepLoading("script", true);
     try {
@@ -276,7 +300,7 @@ const CourseVideoEditor = () => {
       addActivity("Script generation started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to start script generation");
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to start script generation");
       setStepLoading("script", false);
     }
   };
@@ -322,7 +346,7 @@ const CourseVideoEditor = () => {
       addActivity("Script regeneration started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to regenerate script");
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to regenerate script");
       setStepLoading("script", false);
     }
   };
@@ -335,7 +359,7 @@ const CourseVideoEditor = () => {
       addActivity("Audio generation started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to start audio generation");
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to start audio generation");
       setStepLoading("audio", false);
     }
   };
@@ -350,7 +374,7 @@ const CourseVideoEditor = () => {
       addActivity("Audio regeneration started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to regenerate audio");
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to regenerate audio");
       setStepLoading("audio", false);
     }
   };
@@ -363,7 +387,7 @@ const CourseVideoEditor = () => {
       addActivity("Rendering started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to start rendering");
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to start rendering");
       setStepLoading("render", false);
     }
   };
@@ -378,7 +402,7 @@ const CourseVideoEditor = () => {
       addActivity("Re-rendering started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to re-render");
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to re-render");
       setStepLoading("render", false);
     }
   };
@@ -398,7 +422,7 @@ const CourseVideoEditor = () => {
       addActivity(`Retrying ${failedStep}...`);
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to retry");
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to retry");
       setStepLoading("retry", false);
     }
   };
@@ -460,6 +484,19 @@ const CourseVideoEditor = () => {
           <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
             {socketStatus === "connected" ? "Live" : socketStatus === "reconnecting" ? "Reconnecting..." : "Offline"}
           </Badge>
+          {workerRunning !== null && (
+            <Tooltip
+              content={
+                workerRunning
+                  ? "The course worker is running - generation jobs will process."
+                  : "The course worker is not running. Start it (npm run course-worker) before generating - otherwise generation requests will be rejected."
+              }
+            >
+              <Badge variant={workerRunning ? "success" : "danger"} dot>
+                {workerRunning ? "Worker Running" : "Worker Offline"}
+              </Badge>
+            </Tooltip>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {isFailed && (

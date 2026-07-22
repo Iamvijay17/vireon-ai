@@ -89,6 +89,8 @@ export const retryCourseVideo = (id) =>
 export const getCourseVideoActivityLogs = (id) =>
   api.get(`/api/course-videos/${id}/activity-logs`);
 
+export const getCourseWorkerStatus = () => api.get(`/api/course-videos/worker-status`);
+
 // Curriculum generation is one LLM call producing 12-20 lessons - can take
 // well over the default 30s timeout, so this request gets a longer one.
 // Preview only - no CourseVideo records are created by this call.

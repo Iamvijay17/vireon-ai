@@ -43,6 +43,7 @@ import {
   generateCourseCurriculum,
   createCourseVideosFromCurriculum,
   bulkGenerateCourseVideos,
+  getCourseWorkerStatus,
 } from "../../services/api";
 import {
   connect,
@@ -182,6 +183,7 @@ const CourseDetail = () => {
   const [submitting, setSubmitting] = useState(false);
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
+  const [workerRunning, setWorkerRunning] = useState(null); // null = unknown, boolean once checked
   const unsubscribesRef = useRef([]);
 
   const [curriculumModalVisible, setCurriculumModalVisible] = useState(false);
@@ -230,6 +232,27 @@ const CourseDetail = () => {
     fetchCourse();
     fetchVideos();
   }, [fetchCourse, fetchVideos]);
+
+  // Poll worker liveness so the "Generate/Render" buttons always reflect
+  // whether a job would actually get picked up right now.
+  useEffect(() => {
+    let cancelled = false;
+    const checkWorker = () => {
+      getCourseWorkerStatus()
+        .then((res) => {
+          if (!cancelled) setWorkerRunning(res.data.running);
+        })
+        .catch(() => {
+          if (!cancelled) setWorkerRunning(false);
+        });
+    };
+    checkWorker();
+    const interval = setInterval(checkWorker, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   const recalcSummary = (list) =>
     list.reduce((acc, v) => {
@@ -691,6 +714,19 @@ const CourseDetail = () => {
           <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
             {socketStatus === "connected" ? "Live" : socketStatus === "reconnecting" ? "Reconnecting..." : "Offline"}
           </Badge>
+          {workerRunning !== null && (
+            <Tooltip
+              content={
+                workerRunning
+                  ? "The course worker is running - generation jobs will process."
+                  : "The course worker is not running. Start it (npm run course-worker) before generating scripts, audio, or video - otherwise generation requests will be rejected."
+              }
+            >
+              <Badge variant={workerRunning ? "success" : "danger"} dot>
+                {workerRunning ? "Worker Running" : "Worker Offline"}
+              </Badge>
+            </Tooltip>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" icon={<Sparkles className="size-4" />} onClick={showCurriculumModal}>
