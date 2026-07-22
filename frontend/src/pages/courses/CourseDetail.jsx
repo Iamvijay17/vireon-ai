@@ -27,6 +27,7 @@ import { Modal } from "../../components/ui/Modal";
 import { Dropdown, DropdownItem } from "../../components/ui/Dropdown";
 import { DescriptionList } from "../../components/ui/DescriptionList";
 import { CircularProgress } from "../../components/ui/CircularProgress";
+import { Progress } from "../../components/ui/Progress";
 import { Select } from "../../components/ui/Select";
 import { Input, Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { Table } from "../../components/ui/Table";
@@ -559,6 +560,10 @@ const CourseDetail = () => {
   const totalVideos = course?.videoCount || 0;
   const completedVideos = course?.completedVideoCount || 0;
   const progressPercent = totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
+  const scriptCompletedCount = videos.filter((v) => v.scriptStatus === "Completed").length;
+  const audioCompletedCount = videos.filter((v) => v.audioStatus === "Completed").length;
+  const scriptPercent = totalVideos > 0 ? Math.round((scriptCompletedCount / totalVideos) * 100) : 0;
+  const audioPercent = totalVideos > 0 ? Math.round((audioCompletedCount / totalVideos) * 100) : 0;
 
   if (loading) return <LoadingState label="Loading course..." />;
 
@@ -758,11 +763,37 @@ const CourseDetail = () => {
       <Card className="mb-4 p-6">
         <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-2">
           <DescriptionList items={infoItems} columns={2} />
-          <div className="flex flex-col items-center gap-2 justify-self-center">
-            <CircularProgress percent={progressPercent} size={80} stroke={7} label={`${completedVideos}/${totalVideos}`} />
-            <p className="text-[13px] text-text-secondary">
-              {completedVideos} of {totalVideos} videos completed
-            </p>
+          <div className="flex items-center gap-6 justify-self-center">
+            <div className="flex flex-col items-center gap-2">
+              <CircularProgress percent={progressPercent} size={80} stroke={7} label={`${completedVideos}/${totalVideos}`} />
+              <p className="text-[13px] text-text-secondary">
+                {completedVideos} of {totalVideos} videos completed
+              </p>
+            </div>
+            <div className="flex w-44 flex-col gap-3">
+              <div>
+                <div className="mb-1 flex items-center justify-between text-[13px] text-text-secondary">
+                  <span className="flex items-center gap-1.5">
+                    <FileText className="size-3.5" /> Script
+                  </span>
+                  <span className="tabular-nums">
+                    {scriptCompletedCount}/{totalVideos}
+                  </span>
+                </div>
+                <Progress percent={scriptPercent} showLabel={false} size="sm" />
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-[13px] text-text-secondary">
+                  <span className="flex items-center gap-1.5">
+                    <AudioLines className="size-3.5" /> Audio
+                  </span>
+                  <span className="tabular-nums">
+                    {audioCompletedCount}/{totalVideos}
+                  </span>
+                </div>
+                <Progress percent={audioPercent} showLabel={false} size="sm" />
+              </div>
+            </div>
           </div>
         </div>
       </Card>

@@ -733,7 +733,7 @@ const CourseVideoEditor = () => {
             </div>
           </Card>
 
-          {/* SCENE PREVIEW: live in-browser Remotion preview, no audio, no server render */}
+          {/* SCENE PREVIEW: live in-browser Remotion preview, no server render */}
           {hasScript && scenes.length > 0 && (
             <Card>
               <CardHeader
@@ -741,7 +741,7 @@ const CourseVideoEditor = () => {
                   <span className="flex flex-wrap items-center gap-2">
                     <PlayCircle className="size-4 text-text-tertiary" />
                     Scene Preview
-                    <Badge>No audio</Badge>
+                    {!hasAudio && <Badge>No audio</Badge>}
                   </span>
                 }
                 extra={
@@ -756,7 +756,7 @@ const CourseVideoEditor = () => {
                 }
               />
               <div className="p-5">
-                <ScenePreview scenes={scenes} />
+                <ScenePreview scenes={scenes} videoId={videoId} />
               </div>
             </Card>
           )}

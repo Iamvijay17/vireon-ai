@@ -100,18 +100,21 @@ export const CaptionRenderer = React.memo(
       return text.split(/\s+/).filter(Boolean);
     }, [text]);
 
-    // Get the animation hook
-    const animHook = useMemo(() => {
-      const hookFactory = captionAnimationRegistry[animation];
-      if (!hookFactory) {
-        console.warn(`Unknown caption animation: "${animation}", falling back to fadeInUp`);
-        return captionAnimationRegistry.fadeInUp(animationConfig);
-      }
-      return hookFactory({
-        framesPerWord: config.framesPerWord,
-        ...animationConfig,
-      });
-    }, [animation, animationConfig, config.framesPerWord]);
+    // Get the animation hook. This must be called directly in the component
+    // body, not inside useMemo/useEffect - the hook factories themselves call
+    // useCurrentFrame()/useVideoConfig(), and nesting a hook call inside
+    // another hook's callback breaks React's hook-call bookkeeping (it
+    // reliably crashed with "Cannot read properties of undefined (reading
+    // 'length')" once this was actually re-rendered live, e.g. in the studio
+    // preview or whenever `animation` changed on an already-mounted scene).
+    if (!captionAnimationRegistry[animation]) {
+      console.warn(`Unknown caption animation: "${animation}", falling back to fadeInUp`);
+    }
+    const hookFactory = captionAnimationRegistry[animation] || captionAnimationRegistry.fadeInUp;
+    const animHook = hookFactory({
+      framesPerWord: config.framesPerWord,
+      ...animationConfig,
+    });
 
     // Compute active word index
     const activeIndex = useMemo(

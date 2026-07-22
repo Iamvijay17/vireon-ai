@@ -6,15 +6,20 @@ import { resolveMediaUrl } from "../../services/api";
 
 // Live, in-browser preview of a course video's scenes using the same
 // Remotion composition/templates the backend renders with — no server
-// render and no audio (scene.audio is stripped before it reaches the
-// templates, so the per-template `<Audio src={scene.audio.file}>` never
-// fires).
-const stripAudioAndResolveMedia = (scenes) =>
+// render, but scene audio still plays: each scene's narration file is
+// resolved to a browser-fetchable URL (same rule the per-scene audio
+// list in CourseVideoEditor uses - absolute URL as-is, otherwise served
+// from /public/<videoId>/audio/<file>).
+const resolveScenesMedia = (scenes, audioBaseUrl) =>
   (scenes || []).map((scene) => {
     const elements = scene.elements || {};
+    const audioFile = scene.audio?.file;
+    const resolvedAudioFile = audioFile
+      ? (/^https?:\/\//i.test(audioFile) ? audioFile : `${audioBaseUrl}/${audioFile}`)
+      : undefined;
     return {
       ...scene,
-      audio: undefined,
+      audio: resolvedAudioFile ? { ...scene.audio, file: resolvedAudioFile } : undefined,
       imageUrl: scene.imageUrl ? resolveMediaUrl(scene.imageUrl) : scene.imageUrl,
       elements: {
         ...elements,
@@ -35,12 +40,13 @@ const getSceneStartFrames = (scenes) => {
 // `focusIndex` / `onActiveSceneChange` let a parent editor stay in sync with
 // the preview: clicking a scene in an edit form seeks the player there, and
 // scrubbing/playing the player updates which scene the editor highlights.
-export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange }) {
+export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hideChips = false, videoId }) {
   const playerRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const lastFocusRef = useRef(focusIndex);
 
-  const previewScenes = useMemo(() => stripAudioAndResolveMedia(scenes), [scenes]);
+  const audioBaseUrl = videoId ? resolveMediaUrl(`/public/${videoId}/audio`) : null;
+  const previewScenes = useMemo(() => resolveScenesMedia(scenes, audioBaseUrl), [scenes, audioBaseUrl]);
   const sceneStarts = useMemo(() => getSceneStartFrames(scenes), [scenes]);
   const durationInFrames = useMemo(() => calculateTotalDurationInFrames(scenes), [scenes]);
 
@@ -98,25 +104,26 @@ export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange }) {
           clickToPlay
           doubleClickToFullscreen
           loop
-          showVolumeControls={false}
         />
       </div>
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {scenes.map((scene, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => seekToScene(i)}
-            className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-              i === activeIndex
-                ? "border-accent bg-accent-subtle text-accent"
-                : "border-border-light text-text-tertiary hover:text-text-primary"
-            }`}
-          >
-            Scene {scene.sceneNumber || i + 1}
-          </button>
-        ))}
-      </div>
+      {!hideChips && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {scenes.map((scene, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => seekToScene(i)}
+              className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                i === activeIndex
+                  ? "border-accent bg-accent-subtle text-accent"
+                  : "border-border-light text-text-tertiary hover:text-text-primary"
+              }`}
+            >
+              Scene {scene.sceneNumber || i + 1}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

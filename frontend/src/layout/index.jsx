@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Suspense, lazy } from "react";
+import { useState, useEffect, useCallback, useContext, Suspense, lazy } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import AppSidebar from "./sidebar";
 import AppNavbar from "./navbar";
@@ -7,6 +7,7 @@ import CommandPalette from "./CommandPalette";
 import { LoadingState } from "../components";
 import PlaceholderPage from "../pages/placeholder";
 import { cn } from "../components/ui/cn";
+import { SidebarContext } from "../shared/sidebarContextValue";
 
 const Dashboard = lazy(() => import("../pages/dashboard"));
 const Wizard = lazy(() => import("../pages/wizard"));
@@ -21,6 +22,7 @@ const LARGE_BREAKPOINT = 992;
 
 const AppLayout = () => {
   const location = useLocation();
+  const { forceCollapsed } = useContext(SidebarContext);
 
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window !== "undefined") return window.innerWidth < LARGE_BREAKPOINT;
@@ -38,14 +40,16 @@ const AppLayout = () => {
 
   const toggleCollapsed = useCallback(() => setCollapsed((prev) => !prev), []);
 
+  const effectiveCollapsed = forceCollapsed ?? collapsed;
+
   return (
     <div className="min-h-screen bg-bg">
-      <AppSidebar collapsed={collapsed} onCollapse={setCollapsed} />
+      <AppSidebar collapsed={effectiveCollapsed} onCollapse={setCollapsed} />
 
       <div
-        className={cn("flex min-h-screen flex-col transition-[margin-left] duration-200", collapsed ? "ml-16" : "ml-60")}
+        className={cn("flex min-h-screen flex-col transition-[margin-left] duration-200", effectiveCollapsed ? "ml-16" : "ml-60")}
       >
-        <AppNavbar collapsed={collapsed} onToggle={toggleCollapsed} />
+        <AppNavbar collapsed={effectiveCollapsed} onToggle={toggleCollapsed} />
         <Breadcrumbs />
         <CommandPalette />
 

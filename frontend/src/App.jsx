@@ -2,6 +2,7 @@ import { useState, useContext } from "react";
 import { ThemeProvider } from "./shared/ThemeContext";
 import { ThemeContext } from "./shared/themeContextValue";
 import { BreadcrumbProvider } from "./shared/BreadcrumbContext";
+import { SidebarProvider } from "./shared/SidebarContext";
 import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmDialogHost } from "./components/ui/ConfirmDialog";
 import Structure from "./layout";
@@ -13,9 +14,11 @@ const AppShell = () => {
   return (
     <div className={`app-theme-transition theme-${theme} min-h-screen bg-bg`}>
       <ToastProvider>
-        <BreadcrumbProvider>
-          <Structure />
-        </BreadcrumbProvider>
+        <SidebarProvider>
+          <BreadcrumbProvider>
+            <Structure />
+          </BreadcrumbProvider>
+        </SidebarProvider>
         <ConfirmDialogHost />
       </ToastProvider>
     </div>
