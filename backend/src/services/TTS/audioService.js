@@ -137,18 +137,31 @@ class AudioService {
     }
   }
 
-  static async _generateCustom(client, resolved, text) {
+  /**
+   * Derive a stable positive 32-bit seed from a jobId so every scene in the
+   * same video gets identical TTS prosody instead of a random seed per call.
+   */
+  static _seedFromJobId(jobId) {
+    let hash = 5381;
+    const str = String(jobId);
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash * 33) ^ str.charCodeAt(i);
+    }
+    return hash >>> 0;
+  }
+
+  static async _generateCustom(client, resolved, text, seed) {
     return client.predict("/generate_custom_voice", {
       text,
       language: "Auto",
       speaker: resolved.speaker,
       instruct: "",
       model_size: config.tts.modelSize,
-      seed: -1,
+      seed,
     });
   }
 
-  static async _generateClone(client, resolved, text) {
+  static async _generateClone(client, resolved, text, seed) {
     const refText = await this._getReferenceText(
       client,
       resolved.filePath,
@@ -166,7 +179,7 @@ class AudioService {
       model_size: config.tts.modelSize,
       max_chunk_chars: 200,
       chunk_gap: 0,
-      seed: -1,
+      seed,
     });
   }
 
@@ -193,6 +206,10 @@ class AudioService {
     // configuration error, not a transient failure, so don't retry on it.
     const resolved = await this.resolveVoice(voice);
 
+    // Fixed per-job seed so every scene (including later resumed ones)
+    // shares the same TTS prosody instead of a random seed per call.
+    const seed = this._seedFromJobId(jobId);
+
     for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
       try {
         LoggerService.tts(
@@ -213,8 +230,8 @@ class AudioService {
 
         const result =
           resolved.mode === "clone"
-            ? await this._generateClone(client, resolved, text)
-            : await this._generateCustom(client, resolved, text);
+            ? await this._generateClone(client, resolved, text, seed)
+            : await this._generateCustom(client, resolved, text, seed);
 
         const audio = result.data[0];
 
