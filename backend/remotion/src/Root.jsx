@@ -4,31 +4,9 @@ import { HelloWorld } from "./HelloWorld";
 import { Logo } from "./HelloWorld/Logo";
 import { VideoComposition } from "./VideoComposition";
 import { sampleScenes } from "./sampleData";
+import { calculateVideoMetadata } from "./calculateVideoMetadata";
 
 // Each <Composition> is an entry in the sidebar!
-
-/**
- * Dynamically calculate the duration of the video based on the scenes provided via props.
- * This ensures the composition's durationInFrames matches the actual total scene duration.
- */
-const calculateVideoMetadata = ({ props }) => {
-  const { assets } = props;
-  const scenes = assets?.scenes || [];
-  const fps = 30;
-
-  // Calculate total duration from all scenes (default 8 seconds per scene)
-  const totalDurationSeconds = scenes.reduce(
-    (sum, scene) => sum + (scene.duration || 8),
-    scenes.length > 0 ? 0 : 8 // default 8 seconds if no scenes
-  );
-
-  const durationInFrames = Math.max(Math.round(totalDurationSeconds * fps), 30); // minimum 1 second (30 frames)
-
-  return {
-    durationInFrames,
-    fps,
-  };
-};
 
 /**
  * Helper to create a composition with sample scene data

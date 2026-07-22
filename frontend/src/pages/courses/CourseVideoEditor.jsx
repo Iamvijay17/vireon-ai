@@ -25,6 +25,7 @@ import { Timeline } from "../../components/ui/Timeline";
 import { AccordionItem } from "../../components/ui/Accordion";
 import { Textarea } from "../../components/ui/Input";
 import { Spinner } from "../../components/ui/Spinner";
+import { ScenePreview } from "../../components/video/ScenePreview";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 import {
@@ -731,6 +732,24 @@ const CourseVideoEditor = () => {
               )}
             </div>
           </Card>
+
+          {/* SCENE PREVIEW: live in-browser Remotion preview, no audio, no server render */}
+          {hasScript && scenes.length > 0 && (
+            <Card>
+              <CardHeader
+                title={
+                  <span className="flex flex-wrap items-center gap-2">
+                    <PlayCircle className="size-4 text-text-tertiary" />
+                    Scene Preview
+                    <Badge>No audio</Badge>
+                  </span>
+                }
+              />
+              <div className="p-5">
+                <ScenePreview scenes={scenes} />
+              </div>
+            </Card>
+          )}
 
           {/* STEP 2: AUDIO */}
           <Card>
