@@ -89,15 +89,30 @@ class StorageService {
   }
 
   /**
-   * Clean up job directory.
+   * Clean up job directory after a successful upload.
+   *
+   * Only removes the render output and the transient assets/render-props
+   * files (both get freshly regenerated on every render anyway). Keeps
+   * script.json, audio/, and images/ on disk - VideoService.rerender() and
+   * the Studio Editor's re-render flow both resume from the existing script
+   * and audio without regenerating them, so wiping the whole job directory
+   * here (as this used to do) made every completed job's "Re-render" button
+   * fail with a 404 once Remotion tried to read audio files that no longer
+   * existed.
    */
   static async cleanupJob(jobId) {
     const jobDir = this.getJobDir(jobId);
+    const renderDir = this.getRenderDir(jobId);
+    const assetsPath = path.join(jobDir, 'assets.json');
+    const propsPath = path.join(jobDir, 'render-props.json');
+
     try {
-      await fs.rm(jobDir, { recursive: true, force: true });
-      LoggerService.info('Job directory cleaned up', { jobId });
+      await fs.rm(renderDir, { recursive: true, force: true });
+      await fs.unlink(assetsPath).catch(() => {});
+      await fs.unlink(propsPath).catch(() => {});
+      LoggerService.info('Job render output cleaned up (script/audio/images kept for re-render)', { jobId });
     } catch (err) {
-      LoggerService.warn('Failed to cleanup job directory', { jobId, error: err.message });
+      LoggerService.warn('Failed to cleanup job render output', { jobId, error: err.message });
     }
   }
 }

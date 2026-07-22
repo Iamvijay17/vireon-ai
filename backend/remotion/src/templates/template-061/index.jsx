@@ -35,6 +35,17 @@ const Template061 = React.memo(({ scene }) => {
   const backgroundImage = scene?.imageUrl || '';
   const accentColor = isGuest ? '#22d3ee' : '#f97316';
 
+  // Without real per-word timestamps (captionTimestamps is always null - no
+  // forced-alignment step exists yet), CaptionRenderer's fallback paces
+  // words at a fixed framesPerWord regardless of how long this turn's line
+  // actually is. But we DO know the scene's exact duration - it's set to the
+  // real TTS audio length in VideoService.updateSceneAudio - so spread the
+  // words evenly across that instead of a fixed guess, keeping captions in
+  // sync with speech regardless of turn length.
+  const wordCount = useMemo(() => (caption ? caption.split(/\s+/).filter(Boolean).length : 0), [caption]);
+  const sceneDurationFrames = (scene?.duration || 8) * fps;
+  const dynamicFramesPerWord = wordCount > 0 ? Math.max(1, sceneDurationFrames / wordCount) : 3;
+
   const entryOpacity = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: 'clamp' });
 
   // Fake amplitude-reactive waveform bars, same sine-driven technique used
@@ -142,7 +153,7 @@ const Template061 = React.memo(({ scene }) => {
           backgroundColor: 'rgba(0, 0, 0, 0.6)',
           backgroundPadding: '14px 28px',
           borderRadius: 16,
-          framesPerWord: 3,
+          framesPerWord: dynamicFramesPerWord,
           maxWidth: '85%',
         }}
         timestamps={captionTimestamps}

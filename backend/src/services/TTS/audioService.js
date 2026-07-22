@@ -184,6 +184,33 @@ class AudioService {
   }
 
   /**
+   * Run forced alignment on a finished audio clip to get real per-word
+   * timestamps for caption sync. Best-effort: returns null on any failure
+   * (missing python/faster-whisper, timeout, etc.) rather than throwing,
+   * since a missing alignment just means CaptionRenderer's estimated-pace
+   * fallback kicks in instead.
+   */
+  static _alignCaptions(audioFilePath) {
+    try {
+      const { execSync } = require("child_process");
+      const script = path.resolve(__dirname, "alignCaptions.py");
+      const stdout = execSync(`python "${script}" "${audioFilePath}"`, {
+        encoding: "utf8",
+        timeout: 60000,
+      }).trim();
+
+      const lastLine = stdout.split("\n").filter(Boolean).pop() || "[]";
+      const words = JSON.parse(lastLine);
+      return Array.isArray(words) && words.length > 0 ? words : null;
+    } catch (err) {
+      LoggerService.warn("Caption alignment failed, falling back to estimated pacing", {
+        error: err.message,
+      });
+      return null;
+    }
+  }
+
+  /**
    * Generate audio for a single scene's text.
    * Implements retry with exponential backoff.
    */
@@ -250,15 +277,25 @@ class AudioService {
           ).trim();
           const duration = parseFloat(durationStr);
 
+          // Real per-word caption timing via forced alignment (faster-whisper
+          // ASR on the finished clip - accurate here because it's synthetic
+          // speech reading back a known script, not noisy real-world audio).
+          // Best-effort: caption rendering already falls back to an estimated
+          // pace when this comes back empty, so a failure here shouldn't fail
+          // the whole audio-generation step.
+          const captionTimestamps = this._alignCaptions(outputFile);
+
           LoggerService.tts(`Audio generated for scene ${scene.sceneNumber}`, {
             file: `scene${scene.sceneNumber}.mp3`,
             duration: duration,
+            words: captionTimestamps?.length || 0,
           });
 
           return {
             file: `scene${scene.sceneNumber}.mp3`,
             path: outputFile,
             duration: duration || Math.ceil(text.split(" ").length * 0.4), // fallback: ~0.4s per word
+            captionTimestamps,
           };
         }
 

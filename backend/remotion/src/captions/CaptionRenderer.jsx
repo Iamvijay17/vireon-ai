@@ -39,12 +39,12 @@ export const defaultCaptionConfig = {
  * @param {number} fps - Frames per second
  * @param {number} currentFrame - Current frame in the sequence
  * @param {number} sceneStartFrame - Frame offset when this scene started
+ * @param {number} framesPerWord - Steady-rate fallback pacing (only used without timestamps)
  * @returns {number} Active word index
  */
-const computeActiveWordIndex = (words, timestamps, fps, currentFrame, sceneStartFrame) => {
+const computeActiveWordIndex = (words, timestamps, fps, currentFrame, sceneStartFrame, framesPerWord) => {
   if (!timestamps || timestamps.length === 0) {
     // Fallback: estimate based on frame rate
-    const framesPerWord = 3;
     return Math.min(Math.floor((currentFrame - sceneStartFrame) / framesPerWord), words.length - 1);
   }
 
@@ -94,10 +94,18 @@ export const CaptionRenderer = React.memo(
       ...styleConfig,
     }), [styleConfig]);
 
-    // Split text into words
+    // Split text into words. Em/en-dashes used as parenthetical pauses (e.g.
+    // "craving—our", common in LLM-written dialogue) get typed with no
+    // surrounding space, so a plain whitespace split treats them as one
+    // fused word - but forced-alignment timestamps are derived from actual
+    // speech, which pauses there and produces two separate words. Splitting
+    // them the same way here keeps every subsequent word's index aligned
+    // with its real timestamp instead of drifting by one for the rest of
+    // the line.
     const words = useMemo(() => {
       if (!text) return [];
-      return text.split(/\s+/).filter(Boolean);
+      const normalized = text.replace(/([a-zA-Z0-9])[—–]([a-zA-Z0-9])/g, '$1— $2');
+      return normalized.split(/\s+/).filter(Boolean);
     }, [text]);
 
     // Get the animation hook. This must be called directly in the component
@@ -118,8 +126,8 @@ export const CaptionRenderer = React.memo(
 
     // Compute active word index
     const activeIndex = useMemo(
-      () => computeActiveWordIndex(words, timestamps, fps, frame, sceneStartFrame),
-      [words, timestamps, fps, frame, sceneStartFrame]
+      () => computeActiveWordIndex(words, timestamps, fps, frame, sceneStartFrame, config.framesPerWord),
+      [words, timestamps, fps, frame, sceneStartFrame, config.framesPerWord]
     );
 
     // Position style for the container

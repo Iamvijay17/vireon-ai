@@ -24,6 +24,9 @@ const sceneSchema = new mongoose.Schema(
       file: { type: String, default: '' },
       duration: { type: Number, default: 0 },
       voice: { type: String, default: '' },
+      // Real per-word timestamps from forced alignment (AudioService._alignCaptions),
+      // null when alignment wasn't run or failed - see CaptionRenderer's estimated-pace fallback.
+      captionTimestamps: { type: mongoose.Schema.Types.Mixed, default: null },
     },
   },
   { _id: false }

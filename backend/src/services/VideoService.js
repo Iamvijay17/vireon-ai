@@ -149,8 +149,16 @@ class VideoService {
     if (scene) {
       scene.audio.file = audioData.file;
       scene.audio.duration = audioData.duration;
+      scene.audio.captionTimestamps = audioData.captionTimestamps || null;
       // The audio file duration is the actual scene duration
       scene.duration = audioData.duration;
+      // `elements` was built at script-validation time, before audio (and
+      // its real per-word timing) existed - copy it in now so templates that
+      // read elements.captionTimestamps pick up real sync instead of null.
+      if (scene.elements) {
+        scene.elements.captionTimestamps = audioData.captionTimestamps || null;
+        scene.markModified('elements');
+      }
     }
 
     await job.save();
