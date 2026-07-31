@@ -218,8 +218,12 @@ class CourseVideoService {
       // Call LM Studio
       const rawScriptData = await LMStudioService.generateScript(prompt);
 
-      // Parse and validate script to ensure scene_meta is generated and scene types are normalized
-      const scriptData = ScriptParserService.validate(rawScriptData, video.style || 'educational');
+      // Parse and validate script to ensure scene_meta is generated and scene types are normalized.
+      // Seed the template rotation with the video id so different lessons
+      // in the same course don't all draw the identical template sequence.
+      const scriptData = ScriptParserService.validate(rawScriptData, video.style || 'educational', {
+        seed: video._id.toString(),
+      });
 
       // Store the generated script
       video.script = JSON.stringify(scriptData, null, 2);

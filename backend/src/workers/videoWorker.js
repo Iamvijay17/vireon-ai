@@ -105,6 +105,7 @@ const worker = new Worker(
         script = ScriptParserService.validate(rawScript, videoJob.type, {
           hostVoice: videoJob.hostVoice,
           guestVoice: videoJob.guestVoice,
+          seed: jobId,
         });
 
         // Save script to disk

@@ -27,6 +27,11 @@ export const defaultCaptionConfig = {
   framesPerWord: 3,
   wordSpacing: '0.3em',
   letterSpacing: '0.02em',
+  // When set, only this many words are rendered at once (chunked by
+  // activeIndex) instead of the entire caption wrapping across multiple
+  // lines. Opt-in so existing templates keep their current full-text
+  // behavior unless they explicitly ask for windowing.
+  maxVisibleWords: 0,
 };
 
 /**
@@ -140,6 +145,20 @@ export const CaptionRenderer = React.memo(
       return positions[config.position] || positions.bottom;
     }, [config.position]);
 
+    // Windowing: only show a chunk of `maxVisibleWords` words at a time,
+    // advancing to the next chunk once the active word moves past it. Keeps
+    // each word's global index (for animation timing / active-word compare)
+    // instead of renumbering from 0, so the animation hooks above don't need
+    // to know windowing is happening.
+    const visibleWords = useMemo(() => {
+      if (!config.maxVisibleWords || config.maxVisibleWords <= 0) {
+        return words.map((word, index) => ({ word, index }));
+      }
+      const chunkStart = Math.floor(Math.max(0, activeIndex) / config.maxVisibleWords) * config.maxVisibleWords;
+      const chunkEnd = Math.min(words.length, chunkStart + config.maxVisibleWords);
+      return words.slice(chunkStart, chunkEnd).map((word, i) => ({ word, index: chunkStart + i }));
+    }, [words, activeIndex, config.maxVisibleWords]);
+
     if (!text || words.length === 0) return null;
 
     return (
@@ -167,7 +186,7 @@ export const CaptionRenderer = React.memo(
             backdropFilter: 'blur(4px)',
           }}
         >
-          {words.map((word, index) => {
+          {visibleWords.map(({ word, index }) => {
             const wordStyle = animHook.getWordStyle(index, activeIndex, word);
 
             return (

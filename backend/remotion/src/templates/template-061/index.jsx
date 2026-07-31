@@ -155,6 +155,7 @@ const Template061 = React.memo(({ scene }) => {
           borderRadius: 16,
           framesPerWord: dynamicFramesPerWord,
           maxWidth: '85%',
+          maxVisibleWords: 6,
         }}
         timestamps={captionTimestamps}
         fps={fps}

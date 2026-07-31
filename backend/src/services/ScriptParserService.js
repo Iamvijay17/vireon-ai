@@ -21,7 +21,7 @@ class ScriptParserService {
   static VALID_SCENE_TYPES = ['intro', 'content', 'image'];
 
   static validate(scriptData, videoType = 'educational', options = {}) {
-    const { hostVoice = '', guestVoice = '' } = options;
+    const { hostVoice = '', guestVoice = '', seed = '' } = options;
     const errors = [];
 
     if (!scriptData.title || typeof scriptData.title !== 'string') {
@@ -69,6 +69,14 @@ class ScriptParserService {
       ? (scriptData.scenes.find((s) => s.imagePrompt)?.imagePrompt || 'warm studio lighting, abstract shapes, no readable text, no people\'s faces')
       : '';
 
+    // Offsets where the content-template rotation starts for this script,
+    // derived from the video/job id. Without this, _getDefaultTemplateForType
+    // picks templates purely by scene position, so every video with the same
+    // scene count draws the exact same template sequence (e.g. every course
+    // lesson's scene 1 gets template-004, scene 2 gets template-005, ...).
+    const templateOffset = seed ? ScriptParserService._hashSeed(String(seed)) : 0;
+    const totalScenes = scriptData.scenes.length;
+
     // Set defaults for missing optional fields
     scriptData.scenes = scriptData.scenes.map((scene) => {
       const sceneType = resolvedType === 'podcast' ? 'image' : (scene.sceneType || 'content');
@@ -76,7 +84,13 @@ class ScriptParserService {
       // If LLM didn't provide templateId, assign a default based on video type + scene type
       let templateId = scene.templateId || '';
       if (!templateId) {
-        templateId = ScriptParserService._getDefaultTemplateForType(resolvedType, scene.sceneNumber, sceneType);
+        templateId = ScriptParserService._getDefaultTemplateForType(
+          resolvedType,
+          scene.sceneNumber,
+          sceneType,
+          totalScenes,
+          templateOffset
+        );
       }
 
       // Ensure elements structure matches the template
@@ -166,7 +180,7 @@ class ScriptParserService {
    * Image scenes get image-heavy templates.
    * End scenes get outro/ending templates.
    */
-  static _getDefaultTemplateForType(videoType, sceneNumber, sceneType = 'content') {
+  static _getDefaultTemplateForType(videoType, sceneNumber, sceneType = 'content', totalScenes = 0, templateOffset = 0) {
     // Podcast dialogue turns all share one continuous look (cover art +
     // waveform + captions) rather than rotating through the content pool.
     if (videoType === 'podcast') {
@@ -200,10 +214,14 @@ class ScriptParserService {
       youtube_shorts: CONTENT_TEMPLATES,
     };
 
-    // Scene-type-specific template overrides for better visual matching
+    // Scene-type-specific template overrides for better visual matching.
+    // Keyed by the *normalized* sceneType values validate() actually
+    // produces ('intro' | 'content' | 'image') - the closing/summary scene
+    // is handled separately below since its sceneType is still 'content',
+    // just the last one, not a distinct 'end' type.
     const sceneTypeOverrides = {
-      // Title scenes: use intro/hero templates
-      title: {
+      // Intro scenes: use intro/hero templates
+      intro: {
         educational: 'template-001',
         podcast: 'template-042',
         marketing: 'template-010',
@@ -211,16 +229,6 @@ class ScriptParserService {
         motivational: 'template-019',
         business: 'template-010',
         youtube_shorts: 'template-044',
-      },
-      // End scenes: use quote/milestone templates
-      end: {
-        educational: 'template-006',
-        podcast: 'template-031',
-        marketing: 'template-006',
-        story: 'template-006',
-        motivational: 'template-006',
-        business: 'template-037',
-        youtube_shorts: 'template-047',
       },
       // Image scenes: use image-focused templates
       image: {
@@ -234,13 +242,46 @@ class ScriptParserService {
       },
     };
 
+    // Closing scenes: use quote/milestone templates so the video visibly
+    // concludes instead of ending on a generic content layout.
+    const endTemplates = {
+      educational: 'template-006',
+      podcast: 'template-031',
+      marketing: 'template-006',
+      story: 'template-006',
+      motivational: 'template-006',
+      business: 'template-037',
+      youtube_shorts: 'template-047',
+    };
+
+    const isLastScene = totalScenes > 0 && sceneNumber === totalScenes;
+    if (sceneType === 'content' && isLastScene && endTemplates[videoType]) {
+      return endTemplates[videoType];
+    }
+
     // Check if there's a specific override for this scene type
     if (sceneTypeOverrides[sceneType] && sceneTypeOverrides[sceneType][videoType]) {
       return sceneTypeOverrides[sceneType][videoType];
     }
 
     const templates = templateMap[videoType] || ['template-001'];
-    return templates[(sceneNumber - 1) % templates.length];
+    // Offset the rotation start per-script (seeded from the job/video id) so
+    // consecutive videos with the same scene count don't all draw the exact
+    // same template sequence.
+    return templates[(sceneNumber - 1 + templateOffset) % templates.length];
+  }
+
+  /**
+   * Small deterministic string hash (djb2-like), used to seed the
+   * per-video template rotation offset. Doesn't need to be cryptographic -
+   * just needs different ids to land on different offsets.
+   */
+  static _hashSeed(seed) {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    }
+    return hash;
   }
 
   /**
