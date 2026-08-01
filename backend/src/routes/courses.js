@@ -16,5 +16,7 @@ router.get('/:id/videos', authenticate, CourseController.listVideos);
 router.post('/:id/videos', authenticate, CourseController.createVideo);
 router.post('/:id/generate-curriculum', authenticate, CourseController.generateCurriculum);
 router.post('/:id/curriculum-videos', authenticate, CourseController.createCurriculumVideos);
+router.put('/:id/curriculum-draft', authenticate, CourseController.saveCurriculumDraft);
+router.delete('/:id/curriculum-draft', authenticate, CourseController.clearCurriculumDraft);
 
 module.exports = router;

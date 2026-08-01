@@ -162,6 +162,33 @@ class CourseController {
       next(err);
     }
   }
+
+  /**
+   * PUT /api/courses/:id/curriculum-draft - Autosave the in-progress
+   * curriculum generation draft (form + generated lessons), so the frontend
+   * can restore it after navigating away and back.
+   */
+  static async saveCurriculumDraft(req, res, next) {
+    try {
+      const draft = await CourseService.saveCurriculumDraft(req.params.id, req.body);
+      res.json({ curriculumDraft: draft });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * DELETE /api/courses/:id/curriculum-draft - Clear the draft, e.g. once
+   * its lessons have been created into real CourseVideo records.
+   */
+  static async clearCurriculumDraft(req, res, next) {
+    try {
+      const result = await CourseService.clearCurriculumDraft(req.params.id);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = CourseController;

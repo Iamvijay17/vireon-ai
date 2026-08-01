@@ -104,6 +104,14 @@ export const generateCourseCurriculum = (courseId, data) =>
 export const createCourseVideosFromCurriculum = (courseId, data) =>
   api.post(`/api/courses/${courseId}/curriculum-videos`, data);
 
+// Autosaved in-progress curriculum draft (form + generated lessons), so
+// navigating away and back restores it instead of forcing a regeneration.
+export const saveCourseCurriculumDraft = (courseId, draft) =>
+  api.put(`/api/courses/${courseId}/curriculum-draft`, draft);
+
+export const clearCourseCurriculumDraft = (courseId) =>
+  api.delete(`/api/courses/${courseId}/curriculum-draft`);
+
 export const bulkGenerateCourseVideos = (videoIds, action) =>
   api.post(`/api/course-videos/bulk-generate`, { videoIds, action });
 

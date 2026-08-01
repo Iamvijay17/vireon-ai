@@ -48,6 +48,15 @@ const courseSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // In-progress "Generate Udemy Course Structure" draft (form values +
+    // AI-generated lessons not yet turned into CourseVideo records), so
+    // navigating away and back doesn't force a full LLM-call regeneration.
+    // Cleared once the lessons are actually created (see
+    // CourseVideoService.createFromLessons caller in the controller).
+    curriculumDraft: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
   },
   {
     timestamps: true,

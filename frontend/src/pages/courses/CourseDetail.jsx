@@ -44,6 +44,8 @@ import {
   getVoices,
   generateCourseCurriculum,
   createCourseVideosFromCurriculum,
+  saveCourseCurriculumDraft,
+  clearCourseCurriculumDraft,
   bulkGenerateCourseVideos,
   bulkApproveCourseVideoScripts,
   getCourseWorkerStatus,
@@ -196,6 +198,11 @@ const CourseDetail = () => {
   const [curriculumPreviewLoading, setCurriculumPreviewLoading] = useState(false);
   const [curriculumLessons, setCurriculumLessons] = useState([]);
   const [curriculumCreating, setCurriculumCreating] = useState(false);
+  // Tracks which course id the curriculum draft has been hydrated from the
+  // server for, so the autosave effect below doesn't fire (and stomp the
+  // server copy with blank pre-hydration state) before hydration runs.
+  const hydratedDraftIdRef = useRef(null);
+  const draftSaveTimeoutRef = useRef(null);
 
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(null);
@@ -235,6 +242,39 @@ const CourseDetail = () => {
     fetchCourse();
     fetchVideos();
   }, [fetchCourse, fetchVideos]);
+
+  // Restore a server-saved curriculum draft (if any) once per course, so
+  // navigating away mid-review and coming back doesn't lose the generated
+  // lessons. Marks hydration done (hydratedDraftIdRef) *before* the autosave
+  // effect below is allowed to run, so that effect can't fire on stale
+  // pre-hydration state and overwrite the draft it's about to restore.
+  useEffect(() => {
+    if (!course?._id) return;
+    if (hydratedDraftIdRef.current === course._id) return;
+    hydratedDraftIdRef.current = course._id;
+    const draft = course.curriculumDraft;
+    if (draft?.lessons?.length > 0) {
+      setCurriculumForm(draft.form || EMPTY_FORM);
+      setCurriculumLessons(draft.lessons);
+      setCurriculumStep(draft.step || "preview");
+    }
+  }, [course]);
+
+  // Autosave the curriculum draft to the course document (debounced) so it
+  // survives navigating away and coming back. Gated on hydratedDraftIdRef so
+  // it never fires before the effect above has had a chance to restore any
+  // existing draft first.
+  useEffect(() => {
+    if (!id || hydratedDraftIdRef.current !== id) return;
+    clearTimeout(draftSaveTimeoutRef.current);
+    if (curriculumLessons.length === 0) return undefined;
+    draftSaveTimeoutRef.current = setTimeout(() => {
+      saveCourseCurriculumDraft(id, { form: curriculumForm, lessons: curriculumLessons, step: curriculumStep }).catch(() => {
+        // Best-effort autosave - a failure here shouldn't interrupt the user.
+      });
+    }, 600);
+    return () => clearTimeout(draftSaveTimeoutRef.current);
+  }, [id, curriculumForm, curriculumLessons, curriculumStep]);
 
   // Poll worker liveness so the "Generate/Render" buttons always reflect
   // whether a job would actually get picked up right now.
@@ -415,24 +455,36 @@ const CourseDetail = () => {
   };
 
   const showCurriculumModal = () => {
+    // A previously generated (LLM-call-expensive) preview is still sitting
+    // in state - reopen straight back into it instead of discarding it and
+    // forcing a full regeneration. Only start a blank form when there's
+    // nothing to resume.
+    if (curriculumLessons.length > 0) {
+      setCurriculumModalVisible(true);
+      return;
+    }
     const prefs = loadSettings();
     setCurriculumForm({
       ...EMPTY_FORM,
       title: course?.title || "",
+      // The course's own description already says what it's about - reuse
+      // it as the default topic instead of asking the user to retype it.
+      topic: course?.description || "",
       voice: pickDefaultVoice(prefs.defaultVoice),
       style: prefs.defaultCourseStyle || EMPTY_FORM.style,
       duration: prefs.defaultCourseDuration || EMPTY_FORM.duration,
     });
     setCurriculumError("");
     setCurriculumStep("form");
-    setCurriculumLessons([]);
     setCurriculumModalVisible(true);
   };
 
+  // Just hides the modal - deliberately keeps curriculumStep/curriculumLessons
+  // intact so closing (X, backdrop, Escape, Cancel) doesn't throw away an
+  // already-generated structure. Full reset only happens once videos are
+  // actually created (see handleCreateCurriculumVideos).
   const closeCurriculumModal = () => {
     setCurriculumModalVisible(false);
-    setCurriculumStep("form");
-    setCurriculumLessons([]);
   };
 
   const handlePreviewCurriculum = async () => {
@@ -480,7 +532,13 @@ const CourseDetail = () => {
       setCurriculumCreating(true);
       const res = await createCourseVideosFromCurriculum(id, { lessons: curriculumLessons, ...curriculumForm });
       toast.success(`Created ${res.data.videos?.length || 0} lessons`);
-      closeCurriculumModal();
+      // Videos are created now, so the preview is consumed - fully reset
+      // (unlike closeCurriculumModal, which preserves it for resuming).
+      setCurriculumModalVisible(false);
+      setCurriculumStep("form");
+      setCurriculumLessons([]);
+      clearTimeout(draftSaveTimeoutRef.current);
+      clearCourseCurriculumDraft(id).catch(() => {});
       // The backend also emits courseVideoCreated (which triggers a
       // refetch), but refresh directly too in case the socket missed it.
       fetchVideos();
@@ -1020,7 +1078,10 @@ const CourseDetail = () => {
                 onChange={(e) => setCurriculumForm((prev) => ({ ...prev, topic: e.target.value }))}
                 error={Boolean(curriculumError) && !curriculumForm.topic.trim()}
               />
-              <FieldHint>AI will design 12-20 lessons covering this topic, from introduction through a practical summary.</FieldHint>
+              <FieldHint>
+                Pre-filled from the course description. Edit it to steer the AI - it designs 12-20 lessons covering
+                this topic, from introduction through a practical summary.
+              </FieldHint>
             </div>
             {curriculumError && <p className="text-xs text-danger-500">{curriculumError}</p>}
             <div className="grid grid-cols-3 gap-4">
