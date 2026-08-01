@@ -48,6 +48,22 @@ const Template061 = React.memo(({ scene }) => {
 
   const entryOpacity = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: 'clamp' });
 
+  // VideoComposition crossfades consecutive scenes by keeping this scene
+  // mounted ~15 frames past its own duration while the next scene fades in
+  // on top (see VideoComposition.jsx's overlapWithNext). That's fine for the
+  // shared background image, but two speakers' nameplate + caption text
+  // overlapping during that window read as garbled double text - so fade
+  // this scene's text/UI out before its nominal end, well before the next
+  // scene's content fades in over it.
+  const outroFrames = 15;
+  const exitOpacity = interpolate(
+    frame,
+    [sceneDurationFrames - outroFrames, sceneDurationFrames],
+    [1, 0],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+  );
+  const uiOpacity = entryOpacity * exitOpacity;
+
   // Fake amplitude-reactive waveform bars, same sine-driven technique used
   // by template-042's audio visualizer (no real audio analysis available).
   const bars = useMemo(() => Array.from({ length: 7 }, (_, i) => i), []);
@@ -93,7 +109,7 @@ const Template061 = React.memo(({ scene }) => {
           borderRadius: 999,
           backgroundColor: 'rgba(0,0,0,0.55)',
           border: `2px solid ${accentColor}`,
-          opacity: entryOpacity,
+          opacity: uiOpacity,
         }}
       >
         <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: accentColor }} />
@@ -122,7 +138,7 @@ const Template061 = React.memo(({ scene }) => {
           gap: 8,
           alignItems: 'center',
           height: 50,
-          opacity: entryOpacity,
+          opacity: uiOpacity,
         }}
       >
         {bars.map((i) => (
@@ -140,26 +156,29 @@ const Template061 = React.memo(({ scene }) => {
       </div>
 
       {/* Captions */}
-      <CaptionRenderer
-        text={caption}
-        animation="highlightCurrent"
-        animationConfig={{ highlightColor: accentColor }}
-        styleConfig={{
-          position: 'bottom',
-          fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
-          fontWeight: 700,
-          fontSize: 38,
-          textColor: '#ffffff',
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          backgroundPadding: '14px 28px',
-          borderRadius: 16,
-          framesPerWord: dynamicFramesPerWord,
-          maxWidth: '85%',
-          maxVisibleWords: 6,
-        }}
-        timestamps={captionTimestamps}
-        fps={fps}
-      />
+      <div style={{ opacity: exitOpacity }}>
+        <CaptionRenderer
+          text={caption}
+          animation="highlightCurrent"
+          animationConfig={{ highlightColor: accentColor }}
+          styleConfig={{
+            position: 'bottom',
+            fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+            fontWeight: 700,
+            fontSize: 38,
+            textColor: '#ffffff',
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            backgroundPadding: '14px 28px',
+            borderRadius: 16,
+            framesPerWord: dynamicFramesPerWord,
+            maxWidth: '85%',
+            maxVisibleWords: 6,
+            wordSpacing: '0.6em',
+          }}
+          timestamps={captionTimestamps}
+          fps={fps}
+        />
+      </div>
 
       {/* Audio */}
       {scene?.audio?.file && <Audio src={scene.audio.file} />}
