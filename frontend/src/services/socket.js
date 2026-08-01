@@ -107,6 +107,13 @@ export const onCourseVideoRenderReady = (callback) => {
   return () => socket.off('courseVideoRenderReady', callback);
 };
 
+// ─── Live Server Logs ──────────────────────────────────────────────────────────
+
+export const onServerLog = (callback) => {
+  socket.on('serverLog', callback);
+  return () => socket.off('serverLog', callback);
+};
+
 // ─── Connection Status ─────────────────────────────────────────────────────────
 
 export const onConnect = (callback) => {

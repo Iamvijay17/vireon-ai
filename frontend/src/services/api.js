@@ -123,6 +123,10 @@ export const bulkApproveCourseVideoScripts = (videoIds) =>
 export const getAnalyticsOverview = (days = 30) =>
   api.get('/api/analytics/overview', { params: { days } });
 
+// ─── Live Logs ──────────────────────────────────────────────────────────────────
+
+export const getRecentLogs = (limit = 300) => api.get('/api/logs/recent', { params: { limit } });
+
 // ─── Health ────────────────────────────────────────────────────────────────────
 
 export const getHealth = () => api.get('/health');

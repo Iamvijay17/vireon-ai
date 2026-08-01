@@ -158,7 +158,13 @@ const SOCKET_EVENTS = Object.freeze({
   COURSE_VIDEO_SCRIPT_READY: 'courseVideoScriptReady',
   COURSE_VIDEO_AUDIO_READY: 'courseVideoAudioReady',
   COURSE_VIDEO_RENDER_READY: 'courseVideoRenderReady',
+  // Live server log stream
+  SERVER_LOG: 'serverLog',
 });
+
+// Redis pub/sub channel used to bridge events (job progress, server logs)
+// from worker processes to the main server process's Socket.IO instance.
+const REDIS_CHANNEL = 'vireon:job-events';
 
 const DEFAULT_SCENE_DURATION = 8;
 
@@ -197,6 +203,7 @@ module.exports = {
   TRANSITIONS,
   CAMERA_MOTIONS,
   SOCKET_EVENTS,
+  REDIS_CHANNEL,
   DEFAULT_SCENE_DURATION,
   VIDEO_DURATIONS,
   CATEGORIES,

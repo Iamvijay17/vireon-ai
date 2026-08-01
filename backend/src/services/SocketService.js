@@ -2,14 +2,18 @@ const { Server } = require('socket.io');
 const Redis = require('ioredis');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
-const { SOCKET_EVENTS, VIDEO_STATUS } = require('../constants');
+const { SOCKET_EVENTS, VIDEO_STATUS, REDIS_CHANNEL } = require('../constants');
 const VideoService = require('./VideoService');
 
 let io = null;
 let redisSubscriber = null;
 let redisPublisher = null;
 
-const REDIS_CHANNEL = 'vireon:job-events';
+// Ring buffer of recent server log entries so a client opening the Live Logs
+// page gets immediate context instead of a blank screen until the next line
+// is emitted. Populated as 'serverLog' events arrive from Redis pub/sub.
+const LOG_BUFFER_MAX = 300;
+const logBuffer = [];
 
 /**
  * Socket.IO service for real-time job progress updates.
@@ -162,6 +166,11 @@ class SocketService {
         break;
       case 'jobCreated':
         io.emit(SOCKET_EVENTS.JOB_CREATED, data);
+        break;
+      case 'serverLog':
+        logBuffer.push(data);
+        if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift();
+        io.emit(SOCKET_EVENTS.SERVER_LOG, data);
         break;
       // Course video events
       case 'courseVideoProgress':
@@ -538,6 +547,14 @@ class SocketService {
    */
   static getIO() {
     return io;
+  }
+
+  /**
+   * Recent server log entries (newest last), for hydrating the Live Logs
+   * page on load before any new 'serverLog' events arrive.
+   */
+  static getRecentLogs(limit = LOG_BUFFER_MAX) {
+    return logBuffer.slice(-limit);
   }
 
   /**

@@ -11,6 +11,7 @@ import {
   BarChart3,
   Settings,
   ChevronDown,
+  Terminal,
 } from "lucide-react";
 import { cn } from "../../components/ui/cn";
 
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
     ],
   },
   { key: "analytics", label: "Analytics", icon: BarChart3, route: "/analytics" },
+  { key: "logs", label: "Live Logs", icon: Terminal, route: "/logs" },
   { key: "settings", label: "Settings", icon: Settings, route: "/settings" },
 ];
 
