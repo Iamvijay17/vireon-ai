@@ -158,7 +158,7 @@ class AnalyticsService {
         totalVideoJobs,
         completedVideoJobs: completedJobs,
         failedVideoJobs: failedJobs,
-        activeVideoJobs,
+        activeVideoJobs: activeJobs,
         jobSuccessRate: resolvedJobs ? Math.round((completedJobs / resolvedJobs) * 1000) / 10 : null,
         avgRenderTimeMs: avgRenderRows[0]?.avgMs ?? null,
         totalCourses,
