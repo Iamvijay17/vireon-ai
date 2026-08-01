@@ -145,6 +145,26 @@ class CourseVideoController {
   }
 
   /**
+   * POST /api/course-videos/bulk-approve-script - Approve scripts for
+   * multiple videos at once. Synchronous (no worker queue involved), so
+   * unlike bulk-generate this doesn't need the worker to be running.
+   */
+  static async bulkApproveScript(req, res, next) {
+    try {
+      const { videoIds } = req.body;
+
+      if (!Array.isArray(videoIds) || videoIds.length === 0) {
+        throw { status: 400, message: 'videoIds must be a non-empty array' };
+      }
+
+      const result = await CourseVideoService.bulkApproveScripts(videoIds);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * PUT /api/course-videos/:id/script - Update script (edit)
    */
   static async updateScript(req, res, next) {

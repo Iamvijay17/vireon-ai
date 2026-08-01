@@ -44,6 +44,7 @@ import {
   generateCourseCurriculum,
   createCourseVideosFromCurriculum,
   bulkGenerateCourseVideos,
+  bulkApproveCourseVideoScripts,
   getCourseWorkerStatus,
 } from "../../services/api";
 import {
@@ -544,6 +545,22 @@ const CourseDetail = () => {
     }
   };
 
+  const handleBulkApprove = async (videoIds) => {
+    setBulkActionLoading("approve-script");
+    try {
+      const res = await bulkApproveCourseVideoScripts(videoIds);
+      const { approved = [], skipped = [] } = res.data;
+      if (approved.length > 0) toast.success(`Approved ${approved.length} script${approved.length === 1 ? "" : "s"}`);
+      if (skipped.length > 0) toast.error(`Skipped ${skipped.length} video${skipped.length === 1 ? "" : "s"} (script not ready or already approved)`);
+      fetchVideos();
+      setSelectedIds(new Set());
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to approve scripts");
+    } finally {
+      setBulkActionLoading(null);
+    }
+  };
+
   const toggleSelect = (videoId) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -818,6 +835,15 @@ const CourseDetail = () => {
               Clear
             </Button>
             <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<CheckCircle2 className="size-3.5" />}
+                loading={bulkActionLoading === "approve-script"}
+                onClick={() => handleBulkApprove(Array.from(selectedIds))}
+              >
+                Approve Scripts
+              </Button>
               {BULK_ACTIONS.map(({ action, label, icon: Icon }) => (
                 <Button
                   key={action}

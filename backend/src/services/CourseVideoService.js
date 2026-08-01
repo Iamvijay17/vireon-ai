@@ -352,6 +352,47 @@ Rules:
   }
 
   /**
+   * Approve scripts for a batch of videos in one call. Used by the course
+   * detail page's bulk action bar - a single video is just a 1-element
+   * videoIds array. Videos not currently eligible (script not generated
+   * yet, or already approved) are skipped rather than failing the whole
+   * batch, so one stale row can't block approving the rest.
+   */
+  static async bulkApproveScripts(videoIds) {
+    const approved = [];
+    const skipped = [];
+
+    for (const videoId of videoIds) {
+      const video = await CourseVideo.findById(videoId);
+      if (!video) {
+        skipped.push({ videoId, reason: 'Video not found' });
+        continue;
+      }
+      if (video.status !== VIDEO_STATUS.SCRIPT_GENERATED && video.status !== VIDEO_STATUS.WAITING_FOR_APPROVAL) {
+        skipped.push({ videoId, reason: `Cannot approve in ${video.status} state` });
+        continue;
+      }
+
+      video.approved = true;
+      video.approvedAt = new Date();
+      video.status = VIDEO_STATUS.APPROVED;
+      await video.save();
+
+      await ActivityLogService.add(videoId, 'Script approved');
+      SocketService.emitCourseVideoUpdated(video, 'Script approved');
+      approved.push(videoId);
+    }
+
+    LoggerService.info('Bulk course video script approval', {
+      requested: videoIds.length,
+      approved: approved.length,
+      skipped: skipped.length,
+    });
+
+    return { approved, skipped };
+  }
+
+  /**
    * Update the script (editing).
    */
   static async updateScript(videoId, script) {

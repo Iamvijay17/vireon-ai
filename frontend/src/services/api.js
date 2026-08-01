@@ -107,6 +107,9 @@ export const createCourseVideosFromCurriculum = (courseId, data) =>
 export const bulkGenerateCourseVideos = (videoIds, action) =>
   api.post(`/api/course-videos/bulk-generate`, { videoIds, action });
 
+export const bulkApproveCourseVideoScripts = (videoIds) =>
+  api.post(`/api/course-videos/bulk-approve-script`, { videoIds });
+
 // ─── Health ────────────────────────────────────────────────────────────────────
 
 export const getHealth = () => api.get('/health');
