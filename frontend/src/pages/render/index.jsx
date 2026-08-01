@@ -36,7 +36,8 @@ import {
   onJobStatus,
   isConnected,
 } from "../../services/socket";
-import { LoadingState, EmptyState, ErrorState } from "../../components";
+import { LoadingState, ErrorState } from "../../components";
+import RenderQueue from "./RenderQueue";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -221,11 +222,9 @@ const RenderPage = () => {
     };
   }, [jobId, fetchJob, setupListeners]);
 
-  if (loading) return <LoadingState label="Loading job details..." />;
+  if (!jobId) return <RenderQueue />;
 
-  if (!jobId) {
-    return <EmptyState description="No job ID specified" actionLabel="Back to Dashboard" onAction={() => navigate("/")} />;
-  }
+  if (loading) return <LoadingState label="Loading job details..." />;
 
   if (error && !job) {
     return (
