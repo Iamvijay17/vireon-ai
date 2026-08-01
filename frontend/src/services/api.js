@@ -110,6 +110,11 @@ export const bulkGenerateCourseVideos = (videoIds, action) =>
 export const bulkApproveCourseVideoScripts = (videoIds) =>
   api.post(`/api/course-videos/bulk-approve-script`, { videoIds });
 
+// ─── Analytics ──────────────────────────────────────────────────────────────────
+
+export const getAnalyticsOverview = (days = 30) =>
+  api.get('/api/analytics/overview', { params: { days } });
+
 // ─── Health ────────────────────────────────────────────────────────────────────
 
 export const getHealth = () => api.get('/health');

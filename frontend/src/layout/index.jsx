@@ -17,6 +17,7 @@ const CoursesList = lazy(() => import("../pages/courses/CoursesList"));
 const CourseDetail = lazy(() => import("../pages/courses/CourseDetail"));
 const CourseVideoEditor = lazy(() => import("../pages/courses/CourseVideoEditor"));
 const CourseVideoStudio = lazy(() => import("../pages/courses/CourseVideoStudio"));
+const Analytics = lazy(() => import("../pages/analytics"));
 
 const LARGE_BREAKPOINT = 992;
 
@@ -62,7 +63,7 @@ const AppLayout = () => {
                 <Route path="/render" element={<RenderPage />} />
                 <Route path="/studio" element={<StudioPage />} />
                 <Route path="/projects" element={<PlaceholderPage title="Projects" description="Manage your AI projects, create new ones, and organize your work." />} />
-                <Route path="/analytics" element={<PlaceholderPage title="Analytics" description="View usage analytics and performance metrics for your renders." />} />
+                <Route path="/analytics" element={<Analytics />} />
                 <Route path="/settings" element={<PlaceholderPage title="Settings" description="Configure your preferences and application settings." />} />
                 <Route path="/editor/complete" element={<PlaceholderPage title="Complete" description="View your completed renders and download the final outputs." />} />
                 <Route path="/courses" element={<CoursesList />} />

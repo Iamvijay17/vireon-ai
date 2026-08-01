@@ -13,6 +13,7 @@ const videoRoutes = require('./routes/videos');
 const courseRoutes = require('./routes/courses');
 const courseVideoRoutes = require('./routes/courseVideos');
 const voiceRoutes = require('./routes/voices');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 const server = http.createServer(app);
@@ -91,6 +92,7 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/course-videos', courseVideoRoutes);
 app.use('/api/voices', voiceRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {
