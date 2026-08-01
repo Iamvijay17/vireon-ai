@@ -5,7 +5,6 @@ import AppNavbar from "./navbar";
 import Breadcrumbs from "./Breadcrumbs";
 import CommandPalette from "./CommandPalette";
 import { LoadingState } from "../components";
-import PlaceholderPage from "../pages/placeholder";
 import { cn } from "../components/ui/cn";
 import { SidebarContext } from "../shared/sidebarContextValue";
 
@@ -20,6 +19,7 @@ const CourseVideoStudio = lazy(() => import("../pages/courses/CourseVideoStudio"
 const SettingsPage = lazy(() => import("../pages/settings"));
 const Analytics = lazy(() => import("../pages/analytics"));
 const CompletedVideos = lazy(() => import("../pages/complete"));
+const Projects = lazy(() => import("../pages/projects"));
 
 const LARGE_BREAKPOINT = 992;
 
@@ -64,7 +64,7 @@ const AppLayout = () => {
                 <Route path="/wizard" element={<Wizard />} />
                 <Route path="/render" element={<RenderPage />} />
                 <Route path="/studio" element={<StudioPage />} />
-                <Route path="/projects" element={<PlaceholderPage title="Projects" description="Manage your AI projects, create new ones, and organize your work." />} />
+                <Route path="/projects" element={<Projects />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/editor/complete" element={<CompletedVideos />} />
