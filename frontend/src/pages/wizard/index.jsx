@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createVideoJob, getVoices } from "../../services/api";
+import { loadSettings } from "../../shared/settingsStorage";
 import { LoadingState } from "../../components";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -80,6 +81,20 @@ const DEFAULT_VALUES = {
   aspectRatio: "16:9",
 };
 
+// Applies the user's saved preferences (Settings page) on top of the base
+// defaults above - e.g. leaving `type` unselected still forces a choice.
+const buildInitialValues = () => {
+  const prefs = loadSettings();
+  return {
+    ...DEFAULT_VALUES,
+    type: VIDEO_TYPES.some((t) => t.value === prefs.defaultVideoType) ? prefs.defaultVideoType : DEFAULT_VALUES.type,
+    language: LANGUAGES.some((l) => l.value === prefs.defaultLanguage) ? prefs.defaultLanguage : DEFAULT_VALUES.language,
+    voice: prefs.defaultVoice || DEFAULT_VALUES.voice,
+    resolution: prefs.defaultResolution || DEFAULT_VALUES.resolution,
+    aspectRatio: prefs.defaultAspectRatio || DEFAULT_VALUES.aspectRatio,
+  };
+};
+
 // Visual aspect-ratio picker (replaces a plain text dropdown with a preview
 // of each ratio's actual shape).
 const AspectRatioPicker = ({ value, onChange }) => {
@@ -115,7 +130,7 @@ const AspectRatioPicker = ({ value, onChange }) => {
 const Wizard = () => {
   const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
-  const [values, setValues] = useState(DEFAULT_VALUES);
+  const [values, setValues] = useState(buildInitialValues);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -383,7 +398,7 @@ const Wizard = () => {
                 onClick={() => {
                   setResult(null);
                   setCurrent(0);
-                  setValues(DEFAULT_VALUES);
+                  setValues(buildInitialValues());
                 }}
               >
                 Create Another

@@ -19,6 +19,7 @@ import {
 import { useParams, useNavigate } from "react-router-dom";
 import { EmptyState, LoadingState } from "../../components";
 import { useSetBreadcrumbLabel } from "../../shared/breadcrumbContextValue";
+import { loadSettings } from "../../shared/settingsStorage";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -379,8 +380,19 @@ const CourseDetail = () => {
   ];
   if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICE_OPTIONS);
 
+  // Preferred voice comes from the Settings page if it's still a valid
+  // option, otherwise falls back to whatever's first in the catalog.
+  const pickDefaultVoice = (preferred) =>
+    (preferred && voiceOptions.some((o) => o.value === preferred) ? preferred : voiceOptions[0]?.value) || EMPTY_FORM.voice;
+
   const showCreateModal = () => {
-    setFormValues({ ...EMPTY_FORM, voice: voiceOptions[0]?.value || EMPTY_FORM.voice });
+    const prefs = loadSettings();
+    setFormValues({
+      ...EMPTY_FORM,
+      voice: pickDefaultVoice(prefs.defaultVoice),
+      style: prefs.defaultCourseStyle || EMPTY_FORM.style,
+      duration: prefs.defaultCourseDuration || EMPTY_FORM.duration,
+    });
     setFormError("");
     setModalVisible(true);
   };
@@ -403,7 +415,14 @@ const CourseDetail = () => {
   };
 
   const showCurriculumModal = () => {
-    setCurriculumForm({ ...EMPTY_FORM, title: course?.title || "", voice: voiceOptions[0]?.value || EMPTY_FORM.voice });
+    const prefs = loadSettings();
+    setCurriculumForm({
+      ...EMPTY_FORM,
+      title: course?.title || "",
+      voice: pickDefaultVoice(prefs.defaultVoice),
+      style: prefs.defaultCourseStyle || EMPTY_FORM.style,
+      duration: prefs.defaultCourseDuration || EMPTY_FORM.duration,
+    });
     setCurriculumError("");
     setCurriculumStep("form");
     setCurriculumLessons([]);

@@ -1,4 +1,5 @@
 import { useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import { PanelLeftClose, PanelLeftOpen, Bell, User, Search, HelpCircle, Sun, Moon, LogOut, Settings, UserRound } from "lucide-react";
 import { ThemeContext } from "../../shared/themeContextValue";
 import { Dropdown, DropdownItem, DropdownDivider } from "../../components/ui/Dropdown";
@@ -6,6 +7,7 @@ import { cn } from "../../components/ui/cn";
 
 const AppNavbar = ({ collapsed, onToggle }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
+  const navigate = useNavigate();
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border bg-surface/80 px-6 backdrop-blur-md">
@@ -83,7 +85,9 @@ const AppNavbar = ({ collapsed, onToggle }) => {
           {() => (
             <>
               <DropdownItem icon={<UserRound className="size-4" />}>Profile</DropdownItem>
-              <DropdownItem icon={<Settings className="size-4" />}>Settings</DropdownItem>
+              <DropdownItem icon={<Settings className="size-4" />} onClick={() => navigate("/settings")}>
+                Settings
+              </DropdownItem>
               <DropdownDivider />
               <DropdownItem danger icon={<LogOut className="size-4" />}>
                 Logout
