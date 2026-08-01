@@ -45,7 +45,12 @@ class VideoController {
     try {
       const page = parseInt(req.query.page, 10) || 1;
       const limit = parseInt(req.query.limit, 10) || 20;
-      const result = await VideoService.getAllJobs(page, limit);
+      const filters = {
+        status: req.query.status,
+        type: req.query.type,
+        search: req.query.search,
+      };
+      const result = await VideoService.getAllJobs(page, limit, filters);
       res.json(result);
     } catch (err) {
       next(err);

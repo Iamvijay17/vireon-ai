@@ -37,15 +37,27 @@ class VideoService {
   /**
    * Get all jobs with pagination.
    */
-  static async getAllJobs(page = 1, limit = 20) {
+  static async getAllJobs(page = 1, limit = 20, filters = {}) {
     const skip = (page - 1) * limit;
+    const query = {};
+
+    if (filters.status) {
+      query.status = filters.status;
+    }
+    if (filters.type) {
+      query.type = filters.type;
+    }
+    if (filters.search) {
+      query.topic = { $regex: filters.search, $options: 'i' };
+    }
+
     const [jobs, total] = await Promise.all([
-      VideoJob.find()
+      VideoJob.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      VideoJob.countDocuments(),
+      VideoJob.countDocuments(query),
     ]);
 
     return {

@@ -21,8 +21,8 @@ export const resolveMediaUrl = (path) => {
 
 export const createVideoJob = (data) => api.post('/api/videos', data);
 
-export const getVideoJobs = (page = 1, limit = 20) =>
-  api.get('/api/videos', { params: { page, limit } });
+export const getVideoJobs = (page = 1, limit = 20, filters = {}) =>
+  api.get('/api/videos', { params: { page, limit, ...filters } });
 
 export const getVideoJob = (id) => api.get(`/api/videos/${id}`);
 
