@@ -31,7 +31,7 @@ class SocketService {
   static init(httpServer) {
     io = new Server(httpServer, {
       cors: {
-        origin: config.cors.origin,
+        origin: config.cors.origins,
         methods: ['GET', 'POST'],
       },
     });

@@ -1,6 +1,16 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Derive the API base URL from the current browser hostname so the app works
+// both locally (localhost) and when accessed from another device on the LAN
+// (e.g. http://192.168.1.7:5173 → API at http://192.168.1.7:3000).
+// VITE_API_URL can still override this explicitly if needed.
+const getApiBase = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  const { hostname, protocol } = window.location;
+  return `${protocol}//${hostname}:3000`;
+};
+
+const API_BASE = getApiBase();
 
 const api = axios.create({
   baseURL: API_BASE,

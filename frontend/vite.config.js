@@ -4,6 +4,11 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    // Bind to all network interfaces so the dev server is reachable from
+    // other devices on the same LAN (e.g. your laptop).
+    host: true,
+  },
   resolve: {
     // vireon-remotion-templates is raw (unbuilt) workspace source shared
     // with backend/remotion, not a prebuilt library — dedupe forces every

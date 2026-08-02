@@ -1,6 +1,16 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Derive the socket URL from the current browser hostname so the app works
+// both locally (localhost) and when accessed from another device on the LAN
+// (e.g. http://192.168.1.7:5173 → socket at http://192.168.1.7:3000).
+// VITE_API_URL can still override this explicitly if needed.
+const getSocketUrl = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  const { hostname, protocol } = window.location;
+  return `${protocol}//${hostname}:3000`;
+};
+
+const SOCKET_URL = getSocketUrl();
 
 const socket = io(SOCKET_URL, {
   autoConnect: false,
