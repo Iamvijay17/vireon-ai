@@ -16,7 +16,9 @@ const STATIC_LABELS = {
   videos: null, // structural segment, not shown
 };
 
-const isObjectId = (segment) => /^[0-9a-fA-F]{24}$/.test(segment);
+// Matches our own generated ids (cou-/job-/vid- + 8 uppercase alnum chars),
+// not raw MongoDB ObjectIds - those aren't used anywhere in this app anymore.
+const isEntityId = (segment) => /^[a-z]{3}-[0-9A-Z]{8}$/.test(segment);
 
 const Breadcrumbs = () => {
   const location = useLocation();
@@ -33,7 +35,7 @@ const Breadcrumbs = () => {
     path += `/${segment}`;
     const isLast = index === segments.length - 1;
 
-    if (isObjectId(segment)) {
+    if (isEntityId(segment)) {
       items.push({ title: (isLast && label) || "Details" });
       return;
     }

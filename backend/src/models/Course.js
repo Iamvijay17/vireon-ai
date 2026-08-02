@@ -1,8 +1,13 @@
 const mongoose = require('mongoose');
 const { COURSE_STATUS, CATEGORIES, DIFFICULTIES, LANGUAGES } = require('../constants');
+const { generateCourseId } = require('../utils/id');
 
 const courseSchema = new mongoose.Schema(
   {
+    _id: {
+      type: String,
+      default: generateCourseId,
+    },
     title: {
       type: String,
       required: [true, 'Course title is required'],

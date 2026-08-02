@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES } = require('../constants');
+const { generateVideoJobId } = require('../utils/id');
 
 const sceneSchema = new mongoose.Schema(
   {
@@ -34,6 +35,10 @@ const sceneSchema = new mongoose.Schema(
 
 const videoJobSchema = new mongoose.Schema(
   {
+    _id: {
+      type: String,
+      default: generateVideoJobId,
+    },
     topic: {
       type: String,
       required: [true, 'Video topic is required'],

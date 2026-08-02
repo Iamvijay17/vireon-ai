@@ -1,12 +1,17 @@
 const mongoose = require('mongoose');
 const { VIDEO_STATUS, STAGE_STATUS, LANGUAGES, VIDEO_DURATIONS } = require('../constants');
+const { generateCourseVideoId } = require('../utils/id');
 
 const STAGE_STATUS_VALUES = Object.values(STAGE_STATUS);
 
 const courseVideoSchema = new mongoose.Schema(
   {
+    _id: {
+      type: String,
+      default: generateCourseVideoId,
+    },
     courseId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       ref: 'Course',
       required: [true, 'Course ID is required'],
       index: true,

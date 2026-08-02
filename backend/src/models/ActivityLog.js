@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const activityLogSchema = new mongoose.Schema(
   {
     videoId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       ref: 'CourseVideo',
       required: true,
       index: true,

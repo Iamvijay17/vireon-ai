@@ -52,7 +52,7 @@ const createVideoSchema = z
   });
 
 const jobIdSchema = z.object({
-  id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid MongoDB ObjectId'),
+  id: z.string().regex(/^job-[0-9A-Z]{8}$/, 'Invalid video job id'),
 });
 
 const validate = (schema) => (data) => {
