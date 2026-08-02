@@ -16,6 +16,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Steps } from "../../components/ui/Steps";
 import { Select } from "../../components/ui/Select";
+import { VoiceSelect } from "../../components/ui/VoiceSelect";
 import { Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { Badge } from "../../components/ui/Badge";
 import { Switch } from "../../components/ui/Switch";
@@ -119,8 +120,8 @@ const Wizard = () => {
   }, []);
 
   const voiceOptions = [
-    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom" })),
-    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone" })),
+    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom", previewUrl: v.previewUrl })),
+    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
   ];
   if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
 
@@ -247,7 +248,7 @@ const Wizard = () => {
                   <>
                     <div className="mb-5">
                       <Label required>Host Voice</Label>
-                      <Select
+                      <VoiceSelect
                         placeholder="Select host voice"
                         options={voiceOptions}
                         value={values.hostVoice}
@@ -259,7 +260,7 @@ const Wizard = () => {
 
                     <div className="mb-5">
                       <Label required>Guest Voice</Label>
-                      <Select
+                      <VoiceSelect
                         placeholder="Select guest voice"
                         options={voiceOptions}
                         value={values.guestVoice}
@@ -274,8 +275,8 @@ const Wizard = () => {
                 ) : (
                   <div className="mb-5">
                     <Label>Voice</Label>
-                    <Select options={voiceOptions} value={values.voice} onChange={(v) => setField("voice", v)} />
-                    <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/.</FieldHint>
+                    <VoiceSelect options={voiceOptions} value={values.voice} onChange={(v) => setField("voice", v)} />
+                    <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/. Click the play button to hear a sample.</FieldHint>
                   </div>
                 )}
 

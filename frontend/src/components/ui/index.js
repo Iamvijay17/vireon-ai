@@ -5,6 +5,7 @@ export { Badge } from "./Badge";
 export { Spinner } from "./Spinner";
 export { Input, Textarea, NumberInput, Label, FieldHint } from "./Input";
 export { Select } from "./Select";
+export { VoiceSelect } from "./VoiceSelect";
 export { Switch } from "./Switch";
 export { Alert } from "./Alert";
 export { Progress } from "./Progress";

@@ -4,6 +4,7 @@ import { PageHeader } from "../../components";
 import { Card, CardHeader, CardBody } from "../../components/ui/Card";
 import { Switch } from "../../components/ui/Switch";
 import { Select } from "../../components/ui/Select";
+import { VoiceSelect } from "../../components/ui/VoiceSelect";
 import { Label, FieldHint } from "../../components/ui/Input";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -95,8 +96,8 @@ const SettingsPage = () => {
   }, []);
 
   const voiceOptions = [
-    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom" })),
-    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone" })),
+    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom", previewUrl: v.previewUrl })),
+    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
   ];
   if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICE_OPTIONS);
 
@@ -166,7 +167,7 @@ const SettingsPage = () => {
           />
           <CardBody className="divide-y divide-border-light">
             <SettingsRow label="Default Voice" hint="Used across both the Wizard and Course video creation">
-              <Select options={voiceOptions} value={settings.defaultVoice} onChange={(v) => updateSetting("defaultVoice", v)} placeholder="No preference" />
+              <VoiceSelect options={voiceOptions} value={settings.defaultVoice} onChange={(v) => updateSetting("defaultVoice", v)} placeholder="No preference" />
             </SettingsRow>
             <SettingsRow label="Default Language" hint="Used when creating course videos">
               <Select options={LANGUAGE_OPTIONS} value={settings.defaultLanguage} onChange={(v) => updateSetting("defaultLanguage", v)} />

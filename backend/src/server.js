@@ -65,6 +65,17 @@ app.use(
 );
 LoggerService.info('Static files configured', { path: jobsDir });
 
+// Reference .wav files used for voice cloning - also served publicly so the
+// frontend voice picker can play them back as preview samples.
+const voicesDir = path.resolve(__dirname, '../voices');
+app.use(
+  '/voice-samples',
+  express.static(voicesDir, {
+    setHeaders: (res) => res.set('Cross-Origin-Resource-Policy', 'cross-origin'),
+  })
+);
+LoggerService.info('Voice sample files configured', { path: voicesDir });
+
 // ── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
   const healthData = {

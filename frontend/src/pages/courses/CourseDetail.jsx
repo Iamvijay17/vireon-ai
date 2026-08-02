@@ -30,6 +30,7 @@ import { DescriptionList } from "../../components/ui/DescriptionList";
 import { CircularProgress } from "../../components/ui/CircularProgress";
 import { Progress } from "../../components/ui/Progress";
 import { Select } from "../../components/ui/Select";
+import { VoiceSelect } from "../../components/ui/VoiceSelect";
 import { Input, Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { Table } from "../../components/ui/Table";
 import { toast } from "../../components/ui/toastBus";
@@ -415,8 +416,8 @@ const CourseDetail = () => {
   }, []);
 
   const voiceOptions = [
-    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom" })),
-    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone" })),
+    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom", previewUrl: v.previewUrl })),
+    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
   ];
   if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICE_OPTIONS);
 
@@ -1002,7 +1003,7 @@ const CourseDetail = () => {
             </div>
             <div>
               <Label>Voice</Label>
-              <Select options={voiceOptions} value={formValues.voice} onChange={(v) => setFormValues((prev) => ({ ...prev, voice: v }))} />
+              <VoiceSelect options={voiceOptions} value={formValues.voice} onChange={(v) => setFormValues((prev) => ({ ...prev, voice: v }))} />
               <FieldHint>Custom presets or cloned from your reference .wav files</FieldHint>
             </div>
             <div>
@@ -1091,7 +1092,7 @@ const CourseDetail = () => {
               </div>
               <div>
                 <Label>Voice</Label>
-                <Select options={voiceOptions} value={curriculumForm.voice} onChange={(v) => setCurriculumForm((prev) => ({ ...prev, voice: v }))} />
+                <VoiceSelect options={voiceOptions} value={curriculumForm.voice} onChange={(v) => setCurriculumForm((prev) => ({ ...prev, voice: v }))} />
               </div>
               <div>
                 <Label>Style</Label>
