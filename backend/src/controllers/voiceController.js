@@ -1,8 +1,8 @@
 const AudioService = require('../services/TTS/audioService');
 
-// TODO: replace with a real per-voice sample once distinct recordings/TTS
-// clips exist for each preset - every voice option shares this one file for
-// now so the frontend can preview "a voice" before dedicated samples land.
+// Fallback for the rare custom-voice preset with no matching reference .wav
+// in backend/voices/ (see AudioService.listCustomVoices) - keeps every
+// option previewable even before a dedicated sample exists for it.
 const PLACEHOLDER_PREVIEW_URL = '/voice-samples/default_female_voice.wav';
 
 class VoiceController {
@@ -17,7 +17,10 @@ class VoiceController {
         AudioService.listCloneVoices(),
       ]);
 
-      const withPreview = (voice) => ({ ...voice, previewUrl: PLACEHOLDER_PREVIEW_URL });
+      const withPreview = (voice) => ({
+        ...voice,
+        previewUrl: voice.file ? `/voice-samples/${voice.file}` : PLACEHOLDER_PREVIEW_URL,
+      });
 
       res.status(200).json({ custom: custom.map(withPreview), clone: clone.map(withPreview) });
     } catch (err) {

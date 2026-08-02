@@ -42,14 +42,36 @@ class AudioService {
   static _transcriptCache = new Map();
 
   /**
-   * List the built-in custom-voice speaker presets.
+   * List the built-in custom-voice speaker presets, matched up against any
+   * same-named reference .wav in backend/voices/ (e.g. "Aiden" -> aiden.wav)
+   * so the frontend can preview an actual sample of that speaker instead of
+   * a generic placeholder. Matching is substring-based (normalized to
+   * lowercase, underscores stripped) so "Ono_anna" matches anna.wav and
+   * "Uncle_fu" matches uncle.wav.
    */
-  static listCustomVoices() {
-    return QWEN_SPEAKERS.map((speaker) => ({
-      id: `custom:${speaker}`,
-      speaker,
-      label: speaker.replace(/_/g, " "),
-    }));
+  static async listCustomVoices() {
+    let files = [];
+    try {
+      files = await fs.readdir(VOICES_DIR);
+    } catch {
+      files = [];
+    }
+    const wavFiles = files.filter((f) => f.toLowerCase().endsWith(".wav"));
+
+    return QWEN_SPEAKERS.map((speaker) => {
+      const normalizedSpeaker = speaker.toLowerCase().replace(/_/g, "");
+      const file = wavFiles.find((f) => {
+        const normalizedFile = f.replace(/\.wav$/i, "").toLowerCase().replace(/_/g, "");
+        return normalizedSpeaker.includes(normalizedFile) || normalizedFile.includes(normalizedSpeaker);
+      });
+
+      return {
+        id: `custom:${speaker}`,
+        speaker,
+        label: speaker.replace(/_/g, " "),
+        file: file || null,
+      };
+    });
   }
 
   /**
