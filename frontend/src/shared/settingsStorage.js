@@ -8,7 +8,6 @@ export const DEFAULT_SETTINGS = {
   defaultLanguage: "english",
   defaultVideoType: "educational",
   defaultResolution: "1920x1080",
-  defaultAspectRatio: "16:9",
   defaultCourseStyle: "educational",
   defaultCourseDuration: 5,
 };

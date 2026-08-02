@@ -45,14 +45,6 @@ const RESOLUTION_OPTIONS = [
   { value: "3840x2160", label: "4K (3840x2160)" },
 ];
 
-const ASPECT_RATIO_OPTIONS = [
-  { value: "16:9", label: "16:9 (Landscape)" },
-  { value: "9:16", label: "9:16 (Portrait)" },
-  { value: "4:3", label: "4:3 (Standard)" },
-  { value: "1:1", label: "1:1 (Square)" },
-  { value: "21:9", label: "21:9 (Ultrawide)" },
-];
-
 const COURSE_STYLE_OPTIONS = [
   { value: "educational", label: "Educational" },
   { value: "story", label: "Story" },
@@ -182,11 +174,8 @@ const SettingsPage = () => {
             <SettingsRow label="Default Video Type" hint="Preselected in step 1 of the Wizard">
               <Select options={VIDEO_TYPE_OPTIONS} value={settings.defaultVideoType} onChange={(v) => updateSetting("defaultVideoType", v)} />
             </SettingsRow>
-            <SettingsRow label="Default Resolution" hint="Used by the Wizard's resolution step">
+            <SettingsRow label="Default Resolution" hint="Used by the Wizard's resolution step - aspect ratio follows automatically">
               <Select options={RESOLUTION_OPTIONS} value={settings.defaultResolution} onChange={(v) => updateSetting("defaultResolution", v)} />
-            </SettingsRow>
-            <SettingsRow label="Default Aspect Ratio" hint="Used by the Wizard's resolution step">
-              <Select options={ASPECT_RATIO_OPTIONS} value={settings.defaultAspectRatio} onChange={(v) => updateSetting("defaultAspectRatio", v)} />
             </SettingsRow>
             <SettingsRow label="Default Course Style" hint="Preselected when creating a course video">
               <Select options={COURSE_STYLE_OPTIONS} value={settings.defaultCourseStyle} onChange={(v) => updateSetting("defaultCourseStyle", v)} />

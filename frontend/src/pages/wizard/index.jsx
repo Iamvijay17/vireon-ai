@@ -39,14 +39,6 @@ const RESOLUTIONS = [
   { value: "3840x2160", label: "4K (3840x2160)" },
 ];
 
-const ASPECT_RATIOS = [
-  { value: "16:9", label: "16:9 (Landscape)" },
-  { value: "9:16", label: "9:16 (Portrait)" },
-  { value: "4:3", label: "4:3 (Standard)" },
-  { value: "1:1", label: "1:1 (Square)" },
-  { value: "21:9", label: "21:9 (Ultrawide)" },
-];
-
 // Shown while the real voice catalog is loading (or if it fails to load).
 const FALLBACK_VOICES = [
   { value: "female-1", label: "Female Voice 1" },
@@ -79,7 +71,6 @@ const DEFAULT_VALUES = {
   hostVoice: "",
   guestVoice: "",
   resolution: "1920x1080",
-  aspectRatio: "16:9",
   fastGeneration: true,
 };
 
@@ -93,40 +84,7 @@ const buildInitialValues = () => {
     language: LANGUAGES.some((l) => l.value === prefs.defaultLanguage) ? prefs.defaultLanguage : DEFAULT_VALUES.language,
     voice: prefs.defaultVoice || DEFAULT_VALUES.voice,
     resolution: prefs.defaultResolution || DEFAULT_VALUES.resolution,
-    aspectRatio: prefs.defaultAspectRatio || DEFAULT_VALUES.aspectRatio,
   };
-};
-
-// Visual aspect-ratio picker (replaces a plain text dropdown with a preview
-// of each ratio's actual shape).
-const AspectRatioPicker = ({ value, onChange }) => {
-  const boxHeight = 40;
-  return (
-    <div className="flex flex-wrap gap-3">
-      {ASPECT_RATIOS.map((ratio) => {
-        const isActive = value === ratio.value;
-        const [w, h] = ratio.value.split(":").map(Number);
-        const boxWidth = Math.max(24, Math.min(64, (w / h) * boxHeight));
-
-        return (
-          <button
-            key={ratio.value}
-            type="button"
-            onClick={() => onChange?.(ratio.value)}
-            className={`flex min-w-22 flex-col items-center gap-2 rounded-[10px] border px-2.5 py-3 transition-colors ${
-              isActive ? "border-accent bg-accent-subtle" : "border-border bg-surface hover:bg-surface-hover"
-            }`}
-          >
-            <div
-              className={`rounded border-2 ${isActive ? "border-accent" : "border-text-tertiary"}`}
-              style={{ width: boxWidth, height: boxHeight }}
-            />
-            <span className={`text-xs ${isActive ? "font-semibold text-accent" : "text-text-secondary"}`}>{ratio.value}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
 };
 
 const Wizard = () => {
@@ -337,14 +295,10 @@ const Wizard = () => {
               <div className="mx-auto max-w-lg animate-slide-up">
                 <h2 className="mb-6 text-base font-semibold text-text-primary">Choose output quality</h2>
 
-                <div className="mb-5">
+                <div className="mb-6">
                   <Label>Resolution</Label>
                   <Select options={RESOLUTIONS} value={values.resolution} onChange={(v) => setField("resolution", v)} />
-                </div>
-
-                <div className="mb-6">
-                  <Label>Aspect Ratio</Label>
-                  <AspectRatioPicker value={values.aspectRatio} onChange={(v) => setField("aspectRatio", v)} />
+                  <FieldHint>Aspect ratio is determined automatically by the resolution you pick.</FieldHint>
                 </div>
 
                 <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">

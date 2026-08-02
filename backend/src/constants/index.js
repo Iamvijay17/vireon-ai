@@ -94,13 +94,22 @@ const RESOLUTIONS = Object.freeze([
   '2160x3840',
 ]);
 
+// RESOLUTIONS only ever pairs a landscape/portrait 16:9-or-9:16 size (no
+// square/ultrawide presets), so aspect ratio is fully implied by resolution
+// - it's never independently chosen. See getAspectRatioForResolution below.
 const ASPECT_RATIOS = Object.freeze([
   '16:9',
   '9:16',
-  '4:3',
-  '1:1',
-  '21:9',
 ]);
+
+// Derives aspect ratio from a "WIDTHxHEIGHT" resolution string - the single
+// source of truth for a job's actual output dimensions. Landscape (width >=
+// height) is 16:9, portrait is 9:16, matching every entry in RESOLUTIONS.
+const getAspectRatioForResolution = (resolution) => {
+  const [width, height] = String(resolution || '').split('x').map(Number);
+  if (!width || !height) return '16:9';
+  return width >= height ? '16:9' : '9:16';
+};
 
 const VOICES = Object.freeze([
   'male-1',
@@ -198,6 +207,7 @@ module.exports = {
   VIDEO_TYPES_LABEL,
   RESOLUTIONS,
   ASPECT_RATIOS,
+  getAspectRatioForResolution,
   VOICES,
   LANGUAGES,
   TRANSITIONS,

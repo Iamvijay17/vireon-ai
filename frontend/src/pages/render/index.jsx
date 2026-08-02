@@ -47,6 +47,7 @@ import { Steps } from "../../components/ui/Steps";
 import { DescriptionList } from "../../components/ui/DescriptionList";
 import { CircularProgress } from "../../components/ui/CircularProgress";
 import { AudioPlayer } from "../../components/ui/AudioPlayer";
+import { isPortraitResolution } from "../../shared/resolution";
 import { toast } from "../../components/ui/toastBus";
 
 const PIPELINE_STEPS = [
@@ -416,7 +417,7 @@ const RenderPage = () => {
               autoPlay
               poster={job.thumbnailUrl || undefined}
               className="block w-full object-contain"
-              style={{ aspectRatio: job?.resolution === "9:16" ? "9/16" : "16/9" }}
+              style={{ aspectRatio: isPortraitResolution(job?.resolution) ? "9/16" : "16/9" }}
             >
               Your browser does not support the video tag.
             </video>

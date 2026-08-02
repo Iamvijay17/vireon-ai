@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, PlayCircle, Download, Eye, ChevronLeft, ChevronRight, Film } from "lucide-react";
 import { getVideoJobs } from "../../services/api";
+import { isPortraitResolution } from "../../shared/resolution";
 import { PageHeader, LoadingState, EmptyState } from "../../components";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -94,7 +95,7 @@ const CompletedVideos = () => {
         <>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {jobs.map((job, i) => {
-              const vertical = job.resolution?.startsWith("1080") || job.aspectRatio === "9:16";
+              const vertical = isPortraitResolution(job.resolution);
               return (
                 <Card key={job._id} hoverable className="animate-slide-up overflow-hidden" style={{ "--stagger-index": i }}>
                   <button

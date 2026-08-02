@@ -2,7 +2,6 @@ const { z } = require('zod');
 const {
   VIDEO_TYPES,
   RESOLUTIONS,
-  ASPECT_RATIOS,
   LANGUAGES,
 } = require('../constants');
 
@@ -33,8 +32,9 @@ const createVideoSchema = z
     // require min(1) - the superRefine below enforces it for podcast only.
     hostVoice: z.string().max(200).optional(),
     guestVoice: z.string().max(200).optional(),
+    // Aspect ratio isn't independently selectable - it's fully implied by
+    // resolution (see getAspectRatioForResolution), derived server-side.
     resolution: z.enum(RESOLUTIONS).optional().default('1920x1080'),
-    aspectRatio: z.enum(ASPECT_RATIOS).optional().default('16:9'),
     // true: current auto flow (audio/images/render run automatically after
     // script approval). false: manual mode - audio and render each need an
     // explicit trigger, like the course-video pipeline.

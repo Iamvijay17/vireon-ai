@@ -78,6 +78,8 @@ const videoJobSchema = new mongoose.Schema(
       enum: RESOLUTIONS,
       default: '1920x1080',
     },
+    // Not user-selectable - always derived from `resolution` server-side
+    // (VideoService.create -> getAspectRatioForResolution).
     aspectRatio: {
       type: String,
       enum: ASPECT_RATIOS,

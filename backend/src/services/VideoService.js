@@ -1,6 +1,6 @@
 const VideoJob = require('../models/VideoJob');
 const LoggerService = require('./LoggerService');
-const { JOB_STATUS } = require('../constants');
+const { JOB_STATUS, getAspectRatioForResolution } = require('../constants');
 
 /**
  * Service for managing video jobs.
@@ -20,7 +20,8 @@ class VideoService {
       guestVoice: data.guestVoice || '',
       sceneCount: data.sceneCount || '5-10',
       resolution: data.resolution || '1920x1080',
-      aspectRatio: data.aspectRatio || '16:9',
+      // Not user-selectable - resolution alone determines it.
+      aspectRatio: getAspectRatioForResolution(data.resolution || '1920x1080'),
       fastGeneration: data.fastGeneration ?? true,
       status: JOB_STATUS.QUEUED,
       progress: 0,
