@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, RefreshCw, CircleSlash } from "lucide-react";
 import { Badge } from "../ui/Badge";
 import { classifyStatus } from "../../lib/statusTone";
 
@@ -7,6 +7,7 @@ const VARIANTS = {
   error: { variant: "danger", Icon: XCircle, spin: false },
   default: { variant: "neutral", Icon: Clock, spin: false },
   processing: { variant: "accent", Icon: RefreshCw, spin: true },
+  cancelled: { variant: "neutral", Icon: CircleSlash, spin: false },
 };
 
 const formatLabel = (status) => (status || "").replace(/_/g, " ").replace(/\s+/g, " ").trim();

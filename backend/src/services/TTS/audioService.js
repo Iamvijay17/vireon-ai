@@ -348,8 +348,11 @@ class AudioService {
    * If `onSceneComplete(sceneNumber, result)` is provided, it is invoked
    * immediately after each individual scene's audio finishes, so callers can
    * persist/broadcast progress without waiting for the whole batch.
+   * If `checkCancelled` is provided, it's awaited before each scene - it
+   * should throw to abort the batch (used to let a "stop job" request take
+   * effect between scenes instead of only after the whole batch finishes).
    */
-  static async generateAllAudio(jobId, scenes, voice, onSceneComplete) {
+  static async generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled) {
     LoggerService.tts("Starting batch audio generation", {
       jobId,
       scenes: scenes.length,
@@ -358,6 +361,9 @@ class AudioService {
 
     const results = [];
     for (let i = 0; i < scenes.length; i++) {
+      if (typeof checkCancelled === "function") {
+        await checkCancelled();
+      }
       const scene = scenes[i];
       const result = await this.generateSceneAudio(
         jobId,

@@ -31,6 +31,33 @@ const connection = {
 };
 
 /**
+ * Thrown when a job is found to be CANCELLED at one of the worker's
+ * checkpoints. Caught specially in the outer catch block so cancellation
+ * doesn't get treated as a failure (no FAILED status, no BullMQ retry).
+ */
+class JobCancelledError extends Error {
+  constructor(jobId) {
+    super(`Job ${jobId} was cancelled`);
+    this.name = 'JobCancelledError';
+    this.cancelled = true;
+  }
+}
+
+/**
+ * Checkpoint called between pipeline steps and per-scene loop iterations.
+ * There's no way to kill an in-flight LM Studio/TTS/ComfyUI/Remotion/upload
+ * call directly, so cancellation only takes effect at these checkpoints -
+ * the worker can be mid-step for a while after a stop request before it
+ * actually notices and bails out.
+ */
+async function bailIfCancelled(jobId) {
+  const current = await VideoService.getById(jobId).catch(() => null);
+  if (current?.status === JOB_STATUS.CANCELLED) {
+    throw new JobCancelledError(jobId);
+  }
+}
+
+/**
  * Check if render output exists on disk for a job.
  */
 async function renderExists(jobId) {
@@ -116,6 +143,8 @@ const worker = new Worker(
           wordsPerScene: wordsPerScene,
         });
 
+        await bailIfCancelled(jobId);
+
         // ── Step 3: Call LM Studio
         const rawScript = await LMStudioService.generateScript(prompt);
         script = ScriptParserService.validate(rawScript, videoJob.type, {
@@ -134,6 +163,13 @@ const worker = new Worker(
           title: script.title,
           scenes: script.scenes.length,
         });
+
+        // A stop request that arrived while the LM Studio call was in
+        // flight wouldn't have been caught by the checkpoint before that
+        // call - check again now, before writing AWAITING_APPROVAL, so a
+        // cancellation can't get silently overwritten by this step's own
+        // success path.
+        await bailIfCancelled(jobId);
 
         // ── Pause here: wait for explicit manual approval before spending
         // TTS/image/render resources on this script. The user reviews/edits
@@ -154,6 +190,8 @@ const worker = new Worker(
           currentStatus,
         });
       }
+
+      await bailIfCancelled(jobId);
 
       // ── Step 4: Audio Generation (skip if all scenes have audio files)
       const scenesWithAudio = script.scenes.filter(s => s.audio?.file);
@@ -192,11 +230,16 @@ const worker = new Worker(
               file: result.file,
               duration: result.duration,
             });
-          }
+          },
+          () => bailIfCancelled(jobId)
         );
       } else {
         LoggerService.info('All audio already generated, skipping audio step');
       }
+
+      // Catches a cancellation that landed after the last scene's audio
+      // finished but before AUDIO_COMPLETED gets written below.
+      await bailIfCancelled(jobId);
 
       // Re-fetch the job from DB to get updated scene durations from audio generation
       const updatedJob = await VideoService.getById(jobId);
@@ -225,6 +268,8 @@ const worker = new Worker(
         LoggerService.info('Audio complete - pausing pipeline for manual render trigger (fastGeneration=false)', { jobId });
         return { success: true, jobId, awaitingRender: true };
       }
+
+      await bailIfCancelled(jobId);
 
       // ── Step 5: Image Generation via ComfyUI
       // Only generate images for scenes with sceneType === "image"
@@ -267,7 +312,7 @@ const worker = new Worker(
             jobId,
             type: videoJob.type,
           });
-          const scenesWithImages = await ImageService.generateAllImages(jobId, imageScenes, { singleImage: true });
+          const scenesWithImages = await ImageService.generateAllImages(jobId, imageScenes, { singleImage: true, checkCancelled: () => bailIfCancelled(jobId) });
 
           // Update ALL image scenes with the same image URL
           for (const updatedScene of scenesWithImages) {
@@ -277,7 +322,7 @@ const worker = new Worker(
           }
         } else {
           // Generate per-scene images for image scenes only
-          const scenesWithImages = await ImageService.generateAllImages(jobId, imageScenes);
+          const scenesWithImages = await ImageService.generateAllImages(jobId, imageScenes, { checkCancelled: () => bailIfCancelled(jobId) });
 
           // Update scenes with generated image URLs
           for (const updatedScene of scenesWithImages) {
@@ -290,6 +335,10 @@ const worker = new Worker(
         // Re-fetch script with updated image URLs
         const jobWithImages = await VideoService.getById(jobId);
         script = jobWithImages.script;
+
+        // Catches a cancellation that landed after the last scene's image
+        // finished but before IMAGE_COMPLETED gets written below.
+        await bailIfCancelled(jobId);
 
         // Mark image generation complete
         await VideoService.updateStatus(jobId, JOB_STATUS.IMAGE_COMPLETED, { progress: 60 });
@@ -323,6 +372,8 @@ const worker = new Worker(
 
       LoggerService.success('Assets prepared');
 
+      await bailIfCancelled(jobId);
+
       // ── Step 7: Render Video
       // Always re-render to ensure we have a valid, complete render
       // Remove old render if it exists to force clean re-render
@@ -337,6 +388,8 @@ const worker = new Worker(
       const renderResult = await RemotionService.renderVideo(jobId);
 
       LoggerService.success('Video rendered', renderResult);
+
+      await bailIfCancelled(jobId);
 
       // ── Step 8: Upload to GitHub
       currentStep = JOB_STATUS.UPLOADING;
@@ -374,6 +427,21 @@ const worker = new Worker(
 
       return { success: true, jobId };
     } catch (err) {
+      if (err.cancelled) {
+        // Status is already CANCELLED (set by VideoService.stop, which is
+        // what triggered this bailout) - don't overwrite it with FAILED, and
+        // don't re-throw, since a cancellation isn't something BullMQ should
+        // retry.
+        LoggerService.info(`Job ${jobId} stopped mid-pipeline at ${currentStep}`, { jobId });
+        try {
+          const cancelledJob = await VideoService.getById(jobId);
+          SocketService.emitJobProgress(cancelledJob);
+        } catch (dbErr) {
+          LoggerService.error('Failed to read cancelled job status', { error: dbErr.message });
+        }
+        return { success: false, jobId, cancelled: true };
+      }
+
       LoggerService.error(`Job ${jobId} failed`, {
         error: err.message,
         step: currentStep,

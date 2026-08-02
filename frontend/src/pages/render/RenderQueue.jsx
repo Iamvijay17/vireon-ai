@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, RefreshCw, Rocket, Eye, CheckCircle2, XCircle, Film, Redo2, Pencil } from "lucide-react";
-import { getVideoJobs, restartVideoJob } from "../../services/api";
+import { Plus, RefreshCw, Rocket, Eye, CheckCircle2, XCircle, Film, Redo2, Pencil, Square, CircleSlash } from "lucide-react";
+import { getVideoJobs, restartVideoJob, stopVideoJob } from "../../services/api";
 import { LoadingState, EmptyState, StatusTag } from "../../components";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -10,7 +10,7 @@ import { Badge } from "../../components/ui/Badge";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 
-const TERMINAL_STATUSES = ["COMPLETED", "FAILED"];
+const TERMINAL_STATUSES = ["COMPLETED", "FAILED", "CANCELLED"];
 const POLL_MS = 5000;
 
 /**
@@ -26,6 +26,8 @@ const RenderQueue = () => {
   const [loading, setLoading] = useState(true);
   const [regeneratingId, setRegeneratingId] = useState(null);
   const [regenerateAllLoading, setRegenerateAllLoading] = useState(false);
+  const [stoppingId, setStoppingId] = useState(null);
+  const [stopAllLoading, setStopAllLoading] = useState(false);
   const intervalRef = useRef(null);
 
   const fetchJobs = async (silent = false) => {
@@ -92,6 +94,52 @@ const RenderQueue = () => {
       setRegenerateAllLoading(false);
     }
   };
+
+  const handleStop = async (job, e) => {
+    e?.stopPropagation();
+    const ok = await confirmDialog({
+      title: "Stop this job?",
+      content: `"${job.topic}" will be marked cancelled. If it's still queued this stops it immediately; if it's actively processing, it stops as soon as the current step finishes checking in (may take a moment).`,
+      confirmText: "Stop Job",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      setStoppingId(job._id);
+      await stopVideoJob(job._id);
+      toast.success(`Stopped "${job.topic}"`);
+      fetchJobs(true);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to stop job");
+    } finally {
+      setStoppingId(null);
+    }
+  };
+
+  const handleStopAll = async () => {
+    if (active.length === 0) return;
+    const ok = await confirmDialog({
+      title: "Stop all active jobs?",
+      content: `This stops all ${active.length} active job${active.length === 1 ? "" : "s"}. Queued jobs stop immediately; actively processing jobs stop as soon as they next check in.`,
+      confirmText: "Stop All",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      setStopAllLoading(true);
+      const results = await Promise.allSettled(active.map((j) => stopVideoJob(j._id)));
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed === 0) {
+        toast.success(`Stopped ${active.length} job${active.length === 1 ? "" : "s"}`);
+      } else {
+        toast.error(`Stopped ${active.length - failed}/${active.length} jobs - ${failed} failed`);
+      }
+      fetchJobs(true);
+    } finally {
+      setStopAllLoading(false);
+    }
+  };
+
   const recent = jobs
     .filter((j) => TERMINAL_STATUSES.includes(j.status))
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
@@ -146,6 +194,15 @@ const RenderQueue = () => {
                   onClick={handleRegenerateAll}
                 >
                   Regenerate All
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  icon={<Square className="size-4" />}
+                  loading={stopAllLoading}
+                  onClick={handleStopAll}
+                >
+                  Stop All
                 </Button>
               </div>
             )
@@ -213,6 +270,15 @@ const RenderQueue = () => {
                           onClick={(e) => handleRegenerate(job, e)}
                         />
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        iconOnly
+                        icon={<Square className="size-4 text-danger-500" />}
+                        title="Stop"
+                        loading={stoppingId === job._id}
+                        onClick={(e) => handleStop(job, e)}
+                      />
                     </div>
                   </div>
                 );
@@ -229,6 +295,7 @@ const RenderQueue = () => {
             <div className="divide-y divide-border-light">
               {recent.map((job) => {
                 const isComplete = job.status === "COMPLETED";
+                const isCancelled = job.status === "CANCELLED";
                 return (
                   <button
                     key={job._id}
@@ -240,10 +307,12 @@ const RenderQueue = () => {
                       className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
                         isComplete
                           ? "bg-success-500/10 text-success-600 dark:text-success-500"
-                          : "bg-danger-500/10 text-danger-600 dark:text-danger-500"
+                          : isCancelled
+                            ? "bg-neutral-500/10 text-text-tertiary"
+                            : "bg-danger-500/10 text-danger-600 dark:text-danger-500"
                       }`}
                     >
-                      {isComplete ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
+                      {isComplete ? <CheckCircle2 className="size-4" /> : isCancelled ? <CircleSlash className="size-4" /> : <XCircle className="size-4" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-medium text-text-primary">{job.topic}</p>

@@ -274,6 +274,45 @@ class VideoService {
   }
 
   /**
+   * Stop a running job. Marks it CANCELLED immediately - if the job hasn't
+   * started processing yet, the caller (VideoController.stop) also removes
+   * it from the BullMQ queue so it never starts. If it's already mid-flight,
+   * there's no way to kill the in-progress external call (LM Studio/TTS/
+   * ComfyUI/Remotion/upload) directly, so the worker itself checks for
+   * CANCELLED at each step boundary and between per-scene iterations, and
+   * bails out as soon as it notices - see videoWorker.js's `bailIfCancelled`.
+   */
+  static async stop(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    const terminalStates = [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED];
+    if (terminalStates.includes(job.status)) {
+      throw { status: 400, message: `Job is in ${job.status} state and cannot be stopped - it isn't running.` };
+    }
+
+    const updatedJob = await VideoJob.findByIdAndUpdate(
+      jobId,
+      {
+        status: JOB_STATUS.CANCELLED,
+        currentStep: JOB_STATUS.CANCELLED,
+        error: {
+          message: 'Stopped by user',
+          step: job.status,
+          retryCount: job.error?.retryCount || 0,
+        },
+      },
+      { new: true }
+    );
+
+    LoggerService.info('Video job stopped', { jobId, previousStatus: job.status });
+
+    return updatedJob;
+  }
+
+  /**
    * Approve a script that's awaiting manual review.
    *
    * fastGeneration jobs: caller re-enqueues the 'render-video' BullMQ job

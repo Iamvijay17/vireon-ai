@@ -6,6 +6,7 @@
  */
 export const classifyStatus = (status) => {
   const s = (status || "").toLowerCase();
+  if (s.includes("cancel")) return "cancelled";
   if (s.includes("fail")) return "error";
   if (s.includes("complete") || s.includes("done") || s.includes("approved")) return "success";
   if (s.includes("queue") || s.includes("draft") || s.includes("waiting") || s.includes("pending")) return "default";
@@ -17,6 +18,7 @@ export const STATUS_TONE_HEX = {
   error: "var(--color-danger-500)",
   default: "var(--color-neutral-400)",
   processing: "var(--color-accent-500)",
+  cancelled: "var(--color-neutral-400)",
 };
 
 export const toneForStatus = (status) => STATUS_TONE_HEX[classifyStatus(status)];

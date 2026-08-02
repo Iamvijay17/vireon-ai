@@ -5,6 +5,7 @@ import {
   RefreshCw,
   CheckCircle2,
   XCircle,
+  CircleSlash,
   Clock,
   FileText,
   AudioLines,
@@ -12,6 +13,7 @@ import {
   CloudUpload,
   Zap,
   Redo2,
+  Square,
   PlayCircle,
   Download,
   Pencil,
@@ -21,6 +23,7 @@ import {
   getVideoJob,
   restartVideoJob,
   rerenderVideoJob,
+  stopVideoJob,
   resolveMediaUrl,
 } from "../../services/api";
 import {
@@ -75,6 +78,7 @@ const RenderPage = () => {
   const [error, setError] = useState(null);
   const [restartLoading, setRestartLoading] = useState(false);
   const [rerenderLoading, setRerenderLoading] = useState(false);
+  const [stopLoading, setStopLoading] = useState(false);
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
   const [copied, setCopied] = useState(false);
 
@@ -115,6 +119,27 @@ const RenderPage = () => {
       toast.error(err.response?.data?.error || "Failed to restart job");
     } finally {
       setRestartLoading(false);
+    }
+  };
+
+  const handleStop = async () => {
+    if (!jobId) return;
+    const ok = await confirmDialog({
+      title: "Stop this job?",
+      content:
+        "This will be marked cancelled. If it's still queued this stops it immediately; if it's actively processing, it stops as soon as the current step finishes checking in (may take a moment).",
+      confirmText: "Stop Job",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      setStopLoading(true);
+      await stopVideoJob(jobId);
+      toast.success("Job stopped");
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to stop job");
+    } finally {
+      setStopLoading(false);
     }
   };
 
@@ -254,7 +279,8 @@ const RenderPage = () => {
   const currentStepIndex = STEP_ORDER.indexOf(job?.status);
   const isComplete = job?.status === "COMPLETED";
   const isFailed = job?.status === "FAILED";
-  const isActive = !isComplete && !isFailed;
+  const isCancelled = job?.status === "CANCELLED";
+  const isActive = !isComplete && !isFailed && !isCancelled;
   const hasScript = job?.script?.scenes?.length > 0;
   const showReviewScript = job?.status === "AWAITING_APPROVAL";
   const showGenerateAudio = job?.fastGeneration === false && job?.status === "SCRIPT_COMPLETED";
@@ -267,6 +293,11 @@ const RenderPage = () => {
   // status to trigger the restart button - offer manual regeneration for any
   // active, non-queued job so it isn't stuck with no recourse.
   const canRegenerateStuck = isActive && job?.status !== "QUEUED";
+  // A cancelled job can still be restarted (backend only blocks COMPLETED).
+  const canRestartCancelled = isCancelled;
+  // Stoppable at any point before it's actually finished, including QUEUED
+  // (removes it from the queue before it ever starts).
+  const canStop = isActive;
 
   const copyJobId = async () => {
     await navigator.clipboard.writeText(job?._id || "");
@@ -304,7 +335,7 @@ const RenderPage = () => {
         <Button variant="secondary" icon={<RefreshCw className="size-4" />} loading={loading} onClick={fetchJob}>
           Refresh
         </Button>
-        {isFailed && (
+        {(isFailed || canRestartCancelled) && (
           <Button variant="danger" icon={<Redo2 className="size-4" />} loading={restartLoading} onClick={() => handleRestart(false)}>
             Restart Job
           </Button>
@@ -312,6 +343,11 @@ const RenderPage = () => {
         {canRegenerateStuck && (
           <Button variant="secondary" icon={<Redo2 className="size-4" />} loading={restartLoading} onClick={() => handleRestart(true)}>
             Regenerate
+          </Button>
+        )}
+        {canStop && (
+          <Button variant="danger" icon={<Square className="size-4" />} loading={stopLoading} onClick={handleStop}>
+            Stop
           </Button>
         )}
         {showReviewScript && (
@@ -359,7 +395,15 @@ const RenderPage = () => {
         <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[auto_1fr]">
           <div className="flex flex-col items-center gap-3 py-2">
             <CircularProgress percent={job?.progress || 0} error={isFailed} />
-            <Badge variant={isComplete ? "success" : isFailed ? "danger" : "accent"} icon={isComplete ? <CheckCircle2 className="size-3" /> : isFailed ? <XCircle className="size-3" /> : <RefreshCw className="size-3 animate-spin" />}>
+            <Badge
+              variant={isComplete ? "success" : isFailed ? "danger" : isCancelled ? "neutral" : "accent"}
+              icon={
+                isComplete ? <CheckCircle2 className="size-3" /> :
+                isFailed ? <XCircle className="size-3" /> :
+                isCancelled ? <CircleSlash className="size-3" /> :
+                <RefreshCw className="size-3 animate-spin" />
+              }
+            >
               {job?.status?.replace(/_/g, " ")}
             </Badge>
           </div>
@@ -373,7 +417,7 @@ const RenderPage = () => {
         <Steps
           items={PIPELINE_STEPS}
           current={currentStepIndex >= 0 ? currentStepIndex : 0}
-          status={isFailed ? "error" : isComplete ? "finish" : "process"}
+          status={isFailed || isCancelled ? "error" : isComplete ? "finish" : "process"}
         />
 
         {isActive && job?.currentStep && (
@@ -389,6 +433,12 @@ const RenderPage = () => {
         {isFailed && job?.error && (
           <Alert type="error" className="mt-5">
             {typeof job.error === "string" ? job.error : job.error?.message || "An error occurred"}
+          </Alert>
+        )}
+
+        {isCancelled && (
+          <Alert type="info" className="mt-5">
+            Stopped before reaching {job?.error?.step?.replace(/_/g, " ") || "completion"}. Use Restart Job to pick back up from here.
           </Alert>
         )}
 

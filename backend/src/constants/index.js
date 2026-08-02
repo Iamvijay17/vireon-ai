@@ -12,6 +12,7 @@ const JOB_STATUS = Object.freeze({
   UPLOADING: 'UPLOADING',
   COMPLETED: 'COMPLETED',
   FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
 });
 
 const COURSE_STATUS = Object.freeze({
@@ -63,6 +64,7 @@ const JOB_STEPS = Object.freeze({
   [JOB_STATUS.UPLOADING]: { progress: 95, order: 10 },
   [JOB_STATUS.COMPLETED]: { progress: 100, order: 11 },
   [JOB_STATUS.FAILED]: { progress: 0, order: 99 },
+  [JOB_STATUS.CANCELLED]: { progress: 0, order: 99 },
 });
 
 const VIDEO_TYPES = Object.freeze([

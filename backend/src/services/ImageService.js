@@ -37,6 +37,9 @@ class ImageService {
     let backgroundImageUrl = null;
 
     for (let i = 0; i < scenes.length; i++) {
+      if (typeof options.checkCancelled === 'function') {
+        await options.checkCancelled();
+      }
       const scene = scenes[i];
 
       // In singleImage mode, all scenes use the same image generated from first scene

@@ -18,9 +18,13 @@ class VideoController {
       SocketService.emitJobCreated(job);
 
       // Add to BullMQ queue for background processing
-      await videoQueue.add('render-video', {
-        jobId: job._id.toString(),
-      });
+      // Explicit jobId (matching our own Mongo _id) so a later /stop call
+      // can look this BullMQ job up by id and remove it if still queued.
+      await videoQueue.add(
+        'render-video',
+        { jobId: job._id.toString() },
+        { jobId: job._id.toString() }
+      );
 
       LoggerService.info('Video job queued for processing', {
         jobId: job._id,
@@ -95,9 +99,13 @@ class VideoController {
       SocketService.emitJobCreated(job);
 
       // Re-add to BullMQ queue for background processing
-      await videoQueue.add('render-video', {
-        jobId: job._id.toString(),
-      });
+      // Explicit jobId (matching our own Mongo _id) so a later /stop call
+      // can look this BullMQ job up by id and remove it if still queued.
+      await videoQueue.add(
+        'render-video',
+        { jobId: job._id.toString() },
+        { jobId: job._id.toString() }
+      );
 
       LoggerService.info('Video job restarted for processing', {
         jobId: job._id,
@@ -165,9 +173,13 @@ class VideoController {
 
       SocketService.emitJobCreated(job);
 
-      await videoQueue.add('render-video', {
-        jobId: job._id.toString(),
-      });
+      // Explicit jobId (matching our own Mongo _id) so a later /stop call
+      // can look this BullMQ job up by id and remove it if still queued.
+      await videoQueue.add(
+        'render-video',
+        { jobId: job._id.toString() },
+        { jobId: job._id.toString() }
+      );
 
       LoggerService.info('Video job audio generation queued (manual mode)', {
         jobId: job._id,
@@ -195,9 +207,13 @@ class VideoController {
 
       SocketService.emitJobCreated(job);
 
-      await videoQueue.add('render-video', {
-        jobId: job._id.toString(),
-      });
+      // Explicit jobId (matching our own Mongo _id) so a later /stop call
+      // can look this BullMQ job up by id and remove it if still queued.
+      await videoQueue.add(
+        'render-video',
+        { jobId: job._id.toString() },
+        { jobId: job._id.toString() }
+      );
 
       LoggerService.info('Video job render queued (manual mode)', {
         jobId: job._id,
@@ -228,14 +244,57 @@ class VideoController {
       SocketService.emitJobCreated(job);
 
       // Add to BullMQ queue for background processing
-      await videoQueue.add('render-video', {
-        jobId: job._id.toString(),
-      });
+      // Explicit jobId (matching our own Mongo _id) so a later /stop call
+      // can look this BullMQ job up by id and remove it if still queued.
+      await videoQueue.add(
+        'render-video',
+        { jobId: job._id.toString() },
+        { jobId: job._id.toString() }
+      );
 
       LoggerService.info('Video job queued for re-rendering', {
         jobId: job._id,
         queue: 'video-rendering',
       });
+
+      res.json({
+        jobId: job._id,
+        status: job.status,
+        progress: job.progress,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/videos/:id/stop - Stop a running job. Marks it CANCELLED and
+   * removes it from BullMQ if it hasn't started processing yet. A job that's
+   * already actively running can't be removed from the queue mid-flight -
+   * the worker itself notices the CANCELLED status at its next checkpoint
+   * (see videoWorker.js) and stops there instead.
+   */
+  static async stop(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const job = await VideoService.stop(id);
+
+      try {
+        const bullJob = await videoQueue.getJob(id);
+        if (bullJob) {
+          const state = await bullJob.getState();
+          if (['waiting', 'delayed', 'paused'].includes(state)) {
+            await bullJob.remove();
+            LoggerService.info('Removed not-yet-started job from queue', { jobId: id, state });
+          }
+        }
+      } catch (queueErr) {
+        LoggerService.warn('Could not remove queued job during stop', { jobId: id, error: queueErr.message });
+      }
+
+      SocketService.emitJobProgress(job);
+
+      LoggerService.info('Video job stopped by user', { jobId: id });
 
       res.json({
         jobId: job._id,

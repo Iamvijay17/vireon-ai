@@ -50,6 +50,8 @@ export const generateVideoRender = (id) => api.post(`/api/videos/${id}/generate-
 
 export const rerenderVideoJob = (id) => api.post(`/api/videos/${id}/rerender`);
 
+export const stopVideoJob = (id) => api.post(`/api/videos/${id}/stop`);
+
 export const updateVideoScenes = (id, scenes) => api.put(`/api/videos/${id}/scenes`, { scenes });
 
 // ─── Voices ─────────────────────────────────────────────────────────────────────
