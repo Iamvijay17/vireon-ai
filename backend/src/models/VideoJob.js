@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES } = require('../constants');
+const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS } = require('../constants');
 const { generateVideoJobId } = require('../utils/id');
 const sceneSchema = require('./schemas/sceneSchema');
 
@@ -42,11 +42,13 @@ const videoJobSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    // Requested scene/turn count range, e.g. "5-10" - drives both prompt
-    // generation (PromptService) and total duration estimate in the worker.
-    sceneCount: {
-      type: String,
-      default: '5-10',
+    // Requested video length in minutes - drives both prompt generation
+    // (PromptService, converted to an exact scene count) and total duration
+    // estimate in the worker.
+    duration: {
+      type: Number,
+      enum: STANDALONE_VIDEO_DURATIONS,
+      default: 5,
     },
     resolution: {
       type: String,

@@ -179,6 +179,10 @@ const DEFAULT_SCENE_DURATION = 8;
 
 const VIDEO_DURATIONS = Object.freeze([5, 10, 15]);
 
+// Standalone (Wizard) video duration options in minutes - a separate scale
+// from course videos' VIDEO_DURATIONS since it's a distinct pipeline.
+const STANDALONE_VIDEO_DURATIONS = Object.freeze([5, 8, 10, 15, 20, 25, 30]);
+
 const CATEGORIES = Object.freeze([
   'Web Development',
   'Mobile Development',
@@ -216,6 +220,7 @@ module.exports = {
   REDIS_CHANNEL,
   DEFAULT_SCENE_DURATION,
   VIDEO_DURATIONS,
+  STANDALONE_VIDEO_DURATIONS,
   CATEGORIES,
   DIFFICULTIES,
 };

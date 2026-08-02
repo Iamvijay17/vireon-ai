@@ -78,20 +78,13 @@ const worker = new Worker(
 
         LoggerService.info('Starting script generation', { topic: videoJob.topic, type: videoJob.type });
 
-        // ── Step 2: Calculate total video duration based on scene count range
-        const getTotalDuration = (sceneCount) => {
-          switch (sceneCount) {
-            case '5-10': return 60;
-            case '10-15': return 120;
-            case '15-20': return 180;
-            case '20-25': return 240;
-            case '25-30': return 300;
-            default: return 60;
-          }
-        };
-
-        const totalDuration = getTotalDuration(videoJob.sceneCount);
-        const sceneCount = videoJob.sceneCount || '5-10';
+        // ── Step 2: Derive an exact scene count from the requested duration
+        // (minutes) - roughly 2 scenes/min (5min -> 10 scenes, 10min -> 20
+        // scenes), matching CourseVideoService's heuristic, with a floor of
+        // 3 so short videos still get an intro/content/summary shape.
+        const durationMinutes = videoJob.duration || 5;
+        const totalDuration = durationMinutes * 60;
+        const sceneCount = Math.max(3, Math.round(durationMinutes * 2));
 
         // ── Step 2: Render prompt template
         const prompt = PromptService.render(videoJob.type, {

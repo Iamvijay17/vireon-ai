@@ -18,7 +18,7 @@ class VideoService {
       voice: data.voice || 'female-1',
       hostVoice: data.hostVoice || '',
       guestVoice: data.guestVoice || '',
-      sceneCount: data.sceneCount || '5-10',
+      duration: data.duration || 5,
       resolution: data.resolution || '1920x1080',
       // Not user-selectable - resolution alone determines it.
       aspectRatio: getAspectRatioForResolution(data.resolution || '1920x1080'),

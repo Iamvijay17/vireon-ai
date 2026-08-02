@@ -48,12 +48,14 @@ const FALLBACK_VOICES = [
 
 const LANGUAGES = [{ value: "english", label: "English" }];
 
-const SCENE_COUNTS = [
-  { value: "5-10", label: "5 to 10 scenes" },
-  { value: "10-15", label: "10 to 15 scenes" },
-  { value: "15-20", label: "15 to 20 scenes" },
-  { value: "20-25", label: "20 to 25 scenes" },
-  { value: "25-30", label: "25 to 30 scenes" },
+const DURATIONS = [
+  { value: 5, label: "5 minutes" },
+  { value: 8, label: "8 minutes" },
+  { value: 10, label: "10 minutes" },
+  { value: 15, label: "15 minutes" },
+  { value: 20, label: "20 minutes" },
+  { value: 25, label: "25 minutes" },
+  { value: 30, label: "30 minutes" },
 ];
 
 const STEPS = [
@@ -66,7 +68,7 @@ const STEPS = [
 const DEFAULT_VALUES = {
   topic: "",
   type: undefined,
-  sceneCount: "5-10",
+  duration: 5,
   language: "english",
   voice: "female-1",
   hostVoice: "",
@@ -132,7 +134,7 @@ const Wizard = () => {
     if (step === 0) {
       if (!values.topic || values.topic.trim().length < 3) next.topic = "At least 3 characters";
       if (!values.type) next.type = "Please select a type";
-      if (!values.sceneCount) next.sceneCount = "Please select scene count";
+      if (!values.duration) next.duration = "Please select a duration";
     }
     if (step === 1 && values.type === "podcast") {
       if (!values.hostVoice) next.hostVoice = "Please select a host voice";
@@ -215,15 +217,15 @@ const Wizard = () => {
                 </div>
 
                 <div className="mb-5">
-                  <Label required>Number of Scenes</Label>
+                  <Label required>Duration</Label>
                   <Select
-                    placeholder="Select scene count"
-                    options={SCENE_COUNTS}
-                    value={values.sceneCount}
-                    onChange={(v) => setField("sceneCount", v)}
-                    error={Boolean(errors.sceneCount)}
+                    placeholder="Select duration"
+                    options={DURATIONS}
+                    value={values.duration}
+                    onChange={(v) => setField("duration", v)}
+                    error={Boolean(errors.duration)}
                   />
-                  <FieldHint error={Boolean(errors.sceneCount)}>{errors.sceneCount}</FieldHint>
+                  <FieldHint error={Boolean(errors.duration)}>{errors.duration}</FieldHint>
                 </div>
 
                 <div className="mb-5">

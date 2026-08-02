@@ -3,6 +3,7 @@ const {
   VIDEO_TYPES,
   RESOLUTIONS,
   LANGUAGES,
+  STANDALONE_VIDEO_DURATIONS,
 } = require('../constants');
 
 const registerSchema = z.object({
@@ -16,14 +17,20 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-const SCENE_COUNTS = ['5-10', '10-15', '15-20', '20-25', '25-30'];
-
 const createVideoSchema = z
   .object({
     topic: z.string().min(3).max(500).trim(),
     type: z.enum(VIDEO_TYPES),
     language: z.enum(LANGUAGES).optional().default('english'),
-    sceneCount: z.enum(SCENE_COUNTS).optional().default('5-10'),
+    // Requested video length in minutes - the worker derives an exact scene
+    // count from this (see videoWorker.js).
+    duration: z
+      .number()
+      .refine((v) => STANDALONE_VIDEO_DURATIONS.includes(v), {
+        message: `Duration must be one of: ${STANDALONE_VIDEO_DURATIONS.join(', ')}`,
+      })
+      .optional()
+      .default(5),
     // Accepts legacy keys ("female-1"), "custom:<Speaker>", or "clone:<file>.wav"
     // - see AudioService.resolveVoice for how this is interpreted.
     voice: z.string().min(1).max(200).optional().default('female-1'),
