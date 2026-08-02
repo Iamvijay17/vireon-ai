@@ -49,6 +49,7 @@ import { CircularProgress } from "../../components/ui/CircularProgress";
 import { AudioPlayer } from "../../components/ui/AudioPlayer";
 import { isPortraitResolution } from "../../shared/resolution";
 import { toast } from "../../components/ui/toastBus";
+import { confirmDialog } from "../../components/ui/confirmBus";
 
 const PIPELINE_STEPS = [
   { title: "Queued", status: "QUEUED", icon: Clock },
@@ -94,8 +95,18 @@ const RenderPage = () => {
     }
   }, [jobId]);
 
-  const handleRestart = async () => {
+  const handleRestart = async (isStuckActive) => {
     if (!jobId) return;
+    if (isStuckActive) {
+      const ok = await confirmDialog({
+        title: "Regenerate stuck job?",
+        content:
+          "Only do this if the job has stopped making progress (e.g. no change for several minutes). Retriggering a job that's actually still processing can cause conflicting writes to the same files.",
+        confirmText: "Regenerate",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     try {
       setRestartLoading(true);
       await restartVideoJob(jobId);
@@ -244,6 +255,18 @@ const RenderPage = () => {
   const isComplete = job?.status === "COMPLETED";
   const isFailed = job?.status === "FAILED";
   const isActive = !isComplete && !isFailed;
+  const hasScript = job?.script?.scenes?.length > 0;
+  const showReviewScript = job?.status === "AWAITING_APPROVAL";
+  const showGenerateAudio = job?.fastGeneration === false && job?.status === "SCRIPT_COMPLETED";
+  const showGenerateRender = job?.fastGeneration === false && job?.status === "AUDIO_COMPLETED";
+  // Every other active state (queued behind script, generating audio/images,
+  // preparing assets, rendering, uploading) currently has no way to jump into
+  // the Studio - fall back to a plain "Studio" button once a script exists.
+  const showGenericStudio = hasScript && isActive && !showReviewScript && !showGenerateAudio && !showGenerateRender;
+  // A job stuck in an active state (e.g. UPLOADING forever) has no FAILED
+  // status to trigger the restart button - offer manual regeneration for any
+  // active, non-queued job so it isn't stuck with no recourse.
+  const canRegenerateStuck = isActive && job?.status !== "QUEUED";
 
   const copyJobId = async () => {
     await navigator.clipboard.writeText(job?._id || "");
@@ -282,23 +305,33 @@ const RenderPage = () => {
           Refresh
         </Button>
         {isFailed && (
-          <Button variant="danger" icon={<Redo2 className="size-4" />} loading={restartLoading} onClick={handleRestart}>
+          <Button variant="danger" icon={<Redo2 className="size-4" />} loading={restartLoading} onClick={() => handleRestart(false)}>
             Restart Job
           </Button>
         )}
-        {job?.status === "AWAITING_APPROVAL" && (
+        {canRegenerateStuck && (
+          <Button variant="secondary" icon={<Redo2 className="size-4" />} loading={restartLoading} onClick={() => handleRestart(true)}>
+            Regenerate
+          </Button>
+        )}
+        {showReviewScript && (
           <Button variant="primary" icon={<Pencil className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
             Review Script
           </Button>
         )}
-        {job?.fastGeneration === false && job?.status === "SCRIPT_COMPLETED" && (
+        {showGenerateAudio && (
           <Button variant="primary" icon={<AudioLines className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
             Generate Audio
           </Button>
         )}
-        {job?.fastGeneration === false && job?.status === "AUDIO_COMPLETED" && (
+        {showGenerateRender && (
           <Button variant="primary" icon={<Video className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
             Generate Render
+          </Button>
+        )}
+        {showGenericStudio && (
+          <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
+            Studio
           </Button>
         )}
         {isComplete && (

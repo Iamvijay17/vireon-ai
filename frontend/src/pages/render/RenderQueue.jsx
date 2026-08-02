@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, RefreshCw, Rocket, Eye, CheckCircle2, XCircle, Film } from "lucide-react";
-import { getVideoJobs } from "../../services/api";
+import { Plus, RefreshCw, Rocket, Eye, CheckCircle2, XCircle, Film, Redo2, Pencil } from "lucide-react";
+import { getVideoJobs, restartVideoJob } from "../../services/api";
 import { LoadingState, EmptyState, StatusTag } from "../../components";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Progress } from "../../components/ui/Progress";
 import { Badge } from "../../components/ui/Badge";
 import { toast } from "../../components/ui/toastBus";
+import { confirmDialog } from "../../components/ui/confirmBus";
 
 const TERMINAL_STATUSES = ["COMPLETED", "FAILED"];
 const POLL_MS = 5000;
@@ -23,6 +24,8 @@ const RenderQueue = () => {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [regeneratingId, setRegeneratingId] = useState(null);
+  const [regenerateAllLoading, setRegenerateAllLoading] = useState(false);
   const intervalRef = useRef(null);
 
   const fetchJobs = async (silent = false) => {
@@ -43,6 +46,52 @@ const RenderQueue = () => {
   }, []);
 
   const active = jobs.filter((j) => !TERMINAL_STATUSES.includes(j.status));
+
+  const handleRegenerate = async (job, e) => {
+    e?.stopPropagation();
+    const ok = await confirmDialog({
+      title: "Regenerate stuck job?",
+      content: `Only do this if "${job.topic}" has stopped making progress. Retriggering a job that's still actively processing can cause conflicting writes to the same files.`,
+      confirmText: "Regenerate",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      setRegeneratingId(job._id);
+      await restartVideoJob(job._id);
+      toast.success(`Restarted "${job.topic}"`);
+      fetchJobs(true);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to regenerate job");
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
+  const handleRegenerateAll = async () => {
+    const eligible = active.filter((j) => j.status !== "QUEUED");
+    if (eligible.length === 0) return;
+    const ok = await confirmDialog({
+      title: "Regenerate all active jobs?",
+      content: `This retriggers all ${eligible.length} active job${eligible.length === 1 ? "" : "s"}. Only do this if they're genuinely stuck - jobs that are still actively processing can end up with conflicting writes to the same files.`,
+      confirmText: "Regenerate All",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      setRegenerateAllLoading(true);
+      const results = await Promise.allSettled(eligible.map((j) => restartVideoJob(j._id)));
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed === 0) {
+        toast.success(`Restarted ${eligible.length} job${eligible.length === 1 ? "" : "s"}`);
+      } else {
+        toast.error(`Restarted ${eligible.length - failed}/${eligible.length} jobs - ${failed} failed`);
+      }
+      fetchJobs(true);
+    } finally {
+      setRegenerateAllLoading(false);
+    }
+  };
   const recent = jobs
     .filter((j) => TERMINAL_STATUSES.includes(j.status))
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
@@ -85,7 +134,22 @@ const RenderQueue = () => {
         <CardHeader
           title="Active Renders"
           subtitle={active.length > 0 ? `${active.length} job${active.length === 1 ? "" : "s"} in progress` : undefined}
-          extra={active.length > 0 && <Badge variant="accent" icon={<RefreshCw className="size-3 animate-spin" />}>Live</Badge>}
+          extra={
+            active.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Badge variant="accent" icon={<RefreshCw className="size-3 animate-spin" />}>Live</Badge>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Redo2 className="size-4" />}
+                  loading={regenerateAllLoading}
+                  onClick={handleRegenerateAll}
+                >
+                  Regenerate All
+                </Button>
+              </div>
+            )
+          }
         />
         <div className="p-2">
           {active.length === 0 ? (
@@ -97,29 +161,62 @@ const RenderQueue = () => {
             />
           ) : (
             <div className="divide-y divide-border-light">
-              {active.map((job) => (
-                <button
-                  key={job._id}
-                  type="button"
-                  onClick={() => navigate(`/render?id=${job._id}`)}
-                  className="flex w-full flex-col gap-3 px-3 py-3.5 text-left transition-colors hover:bg-surface-hover sm:flex-row sm:items-center sm:gap-4"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-[13px] font-medium text-text-primary">{job.topic}</p>
-                      <Badge variant="neutral">{job.type}</Badge>
+              {active.map((job) => {
+                const hasScript = job.script?.scenes?.length > 0;
+                return (
+                  <div
+                    key={job._id}
+                    className="flex w-full flex-col gap-3 px-3 py-3.5 transition-colors hover:bg-surface-hover sm:flex-row sm:items-center sm:gap-4"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/render?id=${job._id}`)}
+                      className="flex min-w-0 flex-1 flex-col gap-3 text-left sm:flex-row sm:items-center sm:gap-4"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-[13px] font-medium text-text-primary">{job.topic}</p>
+                          <Badge variant="neutral">{job.type}</Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-text-tertiary">
+                          {(job.currentStep || job.status || "").replace(/_/g, " ")}
+                          {job.currentScene ? ` · Scene ${job.currentScene}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 sm:w-64">
+                        <StatusTag status={job.status} />
+                        <Progress percent={job.progress || 0} size="sm" className="flex-1" />
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                      {hasScript && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          iconOnly
+                          icon={<Pencil className="size-4" />}
+                          title="Open in Studio"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/studio?id=${job._id}`);
+                          }}
+                        />
+                      )}
+                      {job.status !== "QUEUED" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          iconOnly
+                          icon={<Redo2 className="size-4" />}
+                          title="Regenerate"
+                          loading={regeneratingId === job._id}
+                          onClick={(e) => handleRegenerate(job, e)}
+                        />
+                      )}
                     </div>
-                    <p className="mt-1 text-xs text-text-tertiary">
-                      {(job.currentStep || job.status || "").replace(/_/g, " ")}
-                      {job.currentScene ? ` · Scene ${job.currentScene}` : ""}
-                    </p>
                   </div>
-                  <div className="flex items-center gap-3 sm:w-64">
-                    <StatusTag status={job.status} />
-                    <Progress percent={job.progress || 0} size="sm" className="flex-1" />
-                  </div>
-                </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
