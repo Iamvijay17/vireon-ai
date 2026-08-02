@@ -26,7 +26,7 @@ const config = Object.freeze({
 
   lmStudio: {
     url: process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/chat/completions',
-    model: process.env.LM_STUDIO_MODEL || 'gemma',
+    model: process.env.LM_STUDIO_MODEL || 'google/gemma-4-e4b',
     timeout: parseInt(process.env.LM_STUDIO_TIMEOUT, 10) || 60000,
     maxRetries: parseInt(process.env.LM_STUDIO_MAX_RETRIES, 10) || 3,
   },
