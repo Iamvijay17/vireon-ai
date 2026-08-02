@@ -78,19 +78,42 @@ const worker = new Worker(
 
         LoggerService.info('Starting script generation', { topic: videoJob.topic, type: videoJob.type });
 
-        // ── Step 2: Derive an exact scene count from the requested duration
-        // (minutes) - roughly 2 scenes/min (5min -> 10 scenes, 10min -> 20
-        // scenes), matching CourseVideoService's heuristic, with a floor of
-        // 3 so short videos still get an intro/content/summary shape.
+        // ── Step 2: Derive an exact scene count from the requested duration.
         const durationMinutes = videoJob.duration || 5;
         const totalDuration = durationMinutes * 60;
-        const sceneCount = Math.max(3, Math.round(durationMinutes * 2));
+        // Word budget for LM Studio, matching CourseVideoService's ~130
+        // words/min spoken pace. Without a length target the model writes a
+        // fixed-length script regardless of scene count, so total runtime
+        // doesn't scale with the requested duration.
+        const wordCount = Math.round(durationMinutes * 130);
+
+        let sceneCount, wordsPerScene;
+        if (videoJob.type === 'podcast') {
+          // Podcast turns are cheap to add (every turn reuses the same
+          // shared cover image - no extra image-gen cost per turn) and read
+          // more naturally as many short back-and-forth exchanges than a
+          // few long monologues. Scale duration by adding MORE turns at a
+          // fixed short length (~20 words/turn, matching real measured TTS
+          // timing) instead of making each turn longer.
+          wordsPerScene = 20;
+          sceneCount = Math.max(3, Math.round(wordCount / wordsPerScene));
+        } else {
+          // Other types render a unique background/image per scene, so
+          // scene count stays modest (~2/min, matching CourseVideoService's
+          // heuristic) and duration is scaled via longer narration per
+          // scene instead, with a floor of 3 for an intro/content/summary
+          // shape.
+          sceneCount = Math.max(3, Math.round(durationMinutes * 2));
+          wordsPerScene = Math.round(wordCount / sceneCount);
+        }
 
         // ── Step 2: Render prompt template
         const prompt = PromptService.render(videoJob.type, {
           topic: videoJob.topic,
           language: videoJob.language,
           sceneCount: sceneCount,
+          wordCount: wordCount,
+          wordsPerScene: wordsPerScene,
         });
 
         // ── Step 3: Call LM Studio
