@@ -49,6 +49,7 @@ import {
   clearCourseCurriculumDraft,
   bulkGenerateCourseVideos,
   bulkApproveCourseVideoScripts,
+  bulkDeleteCourseVideos,
   getCourseWorkerStatus,
 } from "../../services/api";
 import {
@@ -639,6 +640,34 @@ const CourseDetail = () => {
     }
   };
 
+  const handleBulkDelete = async (videoIds) => {
+    const selectedVideos = videos.filter((v) => videoIds.includes(v._id));
+    const names = selectedVideos
+      .slice(0, 3)
+      .map((v) => `"${v.title}"`)
+      .join(", ");
+    const more = selectedVideos.length - 3;
+    const ok = await confirmDialog({
+      title: "Delete Videos",
+      content: `Are you sure you want to delete ${selectedVideos.length} selected video${selectedVideos.length === 1 ? "" : "s"} (${names}${more > 0 ? ` and ${more} more` : ""})? This cannot be undone.`,
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    setBulkActionLoading("bulk-delete");
+    try {
+      const res = await bulkDeleteCourseVideos(videoIds);
+      toast.success(`Deleted ${res.data.deleted || videoIds.length} video${(res.data.deleted || videoIds.length) === 1 ? "" : "s"}`);
+      setSelectedIds(new Set());
+      fetchVideos();
+      fetchCourse();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to delete videos");
+    } finally {
+      setBulkActionLoading(null);
+    }
+  };
+
   const toggleSelect = (videoId) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -934,6 +963,15 @@ const CourseDetail = () => {
                   {label}
                 </Button>
               ))}
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Trash2 className="size-3.5" />}
+                loading={bulkActionLoading === "bulk-delete"}
+                onClick={() => handleBulkDelete(Array.from(selectedIds))}
+              >
+                Delete
+              </Button>
             </div>
           </div>
         </Card>

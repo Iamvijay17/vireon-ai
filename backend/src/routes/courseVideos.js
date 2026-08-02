@@ -11,6 +11,7 @@ router.get('/worker-status', authenticate, CourseVideoController.workerStatus);
 // Bulk actions (must be registered before /:id routes)
 router.post('/bulk-generate', authenticate, requireCourseWorker, CourseVideoController.bulkGenerate);
 router.post('/bulk-approve-script', authenticate, CourseVideoController.bulkApproveScript);
+router.post('/bulk-delete', authenticate, CourseVideoController.bulkDelete);
 
 // Video CRUD
 router.get('/:id', authenticate, CourseVideoController.getById);

@@ -195,6 +195,49 @@ class CourseVideoService {
   }
 
   /**
+   * Delete multiple videos at once. Used by the course detail page's bulk
+   * action bar - a single video is just a 1-element videoIds array.
+   * Recalculates the course status once and emits a single bulk delete
+   * socket event rather than one event per video (which would trigger a
+   * refetch for every row).
+   */
+  static async bulkDelete(videoIds) {
+    if (!Array.isArray(videoIds) || videoIds.length === 0) {
+      throw { status: 400, message: 'videoIds must be a non-empty array' };
+    }
+
+    const videos = await CourseVideo.find({ _id: { $in: videoIds } });
+    if (videos.length === 0) {
+      throw { status: 404, message: 'No videos found to delete' };
+    }
+
+    const deletedIds = videos.map((v) => v._id.toString());
+    await CourseVideo.deleteMany({ _id: { $in: deletedIds } });
+
+    // Recalculate status once per affected course (all rows in a bulk
+    // delete from the course detail page will share one course, but handle
+    // multiple defensively anyway).
+    const courseIds = [...new Set(videos.map((v) => v.courseId.toString()))];
+    for (const courseId of courseIds) {
+      await CourseService.recalculateStatus(courseId);
+    }
+
+    // Single bulk event so the frontend refetches once, not once per row.
+    SocketService.emitToCourse(courseIds[0], SOCKET_EVENTS.COURSE_VIDEO_DELETED, {
+      bulk: true,
+      count: deletedIds.length,
+    });
+
+    LoggerService.info('Bulk course videos deleted', {
+      requested: videoIds.length,
+      deleted: deletedIds.length,
+      courseId: courseIds[0],
+    });
+
+    return { deleted: deletedIds.length, videoIds: deletedIds };
+  }
+
+  /**
    * Generate script for a video using LM Studio.
    */
   static async generateScript(videoId) {

@@ -85,6 +85,21 @@ class CourseVideoController {
   }
 
   /**
+   * POST /api/course-videos/bulk-delete - Delete multiple videos at once.
+   * Used by the course detail page's bulk action bar - a single video is
+   * just a 1-element videoIds array.
+   */
+  static async bulkDelete(req, res, next) {
+    try {
+      const { videoIds } = req.body;
+      const result = await CourseVideoService.bulkDelete(videoIds);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * DELETE /api/course-videos/:id - Delete a video
    */
   static async delete(req, res, next) {

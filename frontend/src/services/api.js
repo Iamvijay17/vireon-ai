@@ -124,6 +124,9 @@ export const bulkGenerateCourseVideos = (videoIds, action) =>
 export const bulkApproveCourseVideoScripts = (videoIds) =>
   api.post(`/api/course-videos/bulk-approve-script`, { videoIds });
 
+export const bulkDeleteCourseVideos = (videoIds) =>
+  api.post(`/api/course-videos/bulk-delete`, { videoIds });
+
 // ─── Analytics ──────────────────────────────────────────────────────────────────
 
 export const getAnalyticsOverview = (days = 30) =>
