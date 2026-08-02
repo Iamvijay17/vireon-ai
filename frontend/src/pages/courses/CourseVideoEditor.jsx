@@ -25,6 +25,7 @@ import { Timeline } from "../../components/ui/Timeline";
 import { AccordionItem } from "../../components/ui/Accordion";
 import { Textarea } from "../../components/ui/Input";
 import { Spinner } from "../../components/ui/Spinner";
+import { AudioPlayer } from "../../components/ui/AudioPlayer";
 import { ScenePreview } from "../../components/video/ScenePreview";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
@@ -804,7 +805,7 @@ const CourseVideoEditor = () => {
               {hasAudio && scenes.length > 0 && (
                 <div>
                   <p className="mb-3 font-semibold text-text-primary">Per-Scene Audio ({scenes.length} scenes)</p>
-                  <ul className="divide-y divide-border-light">
+                  <div className="flex flex-wrap gap-3">
                     {scenes.map((scene, idx) => {
                       const sceneNum = scene.sceneNumber || idx + 1;
                       // After a successful cloud upload, the backend swaps
@@ -819,7 +820,7 @@ const CourseVideoEditor = () => {
                       const sceneTitle = scene.title || `Scene ${sceneNum}`;
                       const sceneType = scene.sceneType || "content";
                       return (
-                        <li key={idx} className="py-3 first:pt-0 last:pb-0">
+                        <div key={idx} className="min-w-70 flex-1 basis-[calc(50%-0.375rem)] rounded-xl border border-border-light p-3">
                           <div className="mb-2 flex items-center gap-2">
                             <Badge>{sceneType}</Badge>
                             <span className="font-semibold text-text-primary">
@@ -830,14 +831,11 @@ const CourseVideoEditor = () => {
                             {narrationText.substring(0, 120)}
                             {narrationText.length > 120 ? "..." : ""}
                           </p>
-                          <audio controls preload="none" className="h-9 w-full">
-                            <source src={sceneAudioUrl} type="audio/mpeg" />
-                            Your browser does not support the audio element.
-                          </audio>
-                        </li>
+                          <AudioPlayer src={sceneAudioUrl} className="w-full" />
+                        </div>
                       );
                     })}
-                  </ul>
+                  </div>
                 </div>
               )}
               {hasAudio && scenes.length === 0 && (
@@ -848,11 +846,7 @@ const CourseVideoEditor = () => {
                       { label: "Generated", value: video.audioGeneratedAt ? new Date(video.audioGeneratedAt).toLocaleString() : "N/A" },
                     ]}
                   />
-                  {video.audioUrl && (
-                    <audio controls className="mt-3 w-full" src={resolveMediaUrl(video.audioUrl)}>
-                      Your browser does not support the audio element.
-                    </audio>
-                  )}
+                  {video.audioUrl && <AudioPlayer src={resolveMediaUrl(video.audioUrl)} className="mt-3" />}
                 </div>
               )}
             </div>
