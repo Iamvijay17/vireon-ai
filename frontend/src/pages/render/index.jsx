@@ -21,6 +21,7 @@ import {
   getVideoJob,
   restartVideoJob,
   rerenderVideoJob,
+  resolveMediaUrl,
 } from "../../services/api";
 import {
   connect,
@@ -45,6 +46,7 @@ import { Alert } from "../../components/ui/Alert";
 import { Steps } from "../../components/ui/Steps";
 import { DescriptionList } from "../../components/ui/DescriptionList";
 import { CircularProgress } from "../../components/ui/CircularProgress";
+import { AudioPlayer } from "../../components/ui/AudioPlayer";
 import { toast } from "../../components/ui/toastBus";
 
 const PIPELINE_STEPS = [
@@ -367,23 +369,30 @@ const RenderPage = () => {
           <h3 className="mb-4 flex items-center gap-2 text-[15px] font-semibold text-text-primary">
             <AudioLines className="size-[18px] text-accent" /> Scene Audio ({job.script.scenes.filter((s) => s.audio?.file).length}/{job.script.scenes.length})
           </h3>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="flex flex-wrap gap-3">
             {job.script.scenes.map((scene) => {
-              const ready = Boolean(scene.audio?.file);
+              const audioFile = scene.audio?.file;
+              const ready = Boolean(audioFile);
+              const sceneAudioUrl = ready
+                ? (/^https?:\/\//i.test(audioFile) ? audioFile : resolveMediaUrl(`/public/${job._id}/audio/${audioFile}`))
+                : null;
               return (
                 <div
                   key={scene.sceneNumber}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-[13px]"
+                  className="min-w-70 flex-1 basis-[calc(50%-0.375rem)] rounded-xl border border-border-light p-3"
                 >
-                  <span className="font-medium text-text-primary">Scene {scene.sceneNumber}</span>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-medium text-text-primary">Scene {scene.sceneNumber}</span>
+                    {!ready && (
+                      <span className="flex items-center gap-1 text-[11px] text-text-tertiary">
+                        <RefreshCw className="size-3 animate-spin" /> Pending
+                      </span>
+                    )}
+                  </div>
                   {ready ? (
-                    <span className="flex items-center gap-1 text-success-500">
-                      <CheckCircle2 className="size-3.5" /> Ready
-                    </span>
+                    <AudioPlayer src={sceneAudioUrl} className="w-full" />
                   ) : (
-                    <span className="flex items-center gap-1 text-text-tertiary">
-                      <RefreshCw className="size-3.5 animate-spin" /> Pending
-                    </span>
+                    <div className="h-9 w-full rounded-full bg-surface-active" />
                   )}
                 </div>
               );
