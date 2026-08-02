@@ -67,14 +67,8 @@ const CourseVideoStudio = () => {
       const res = await getCourseVideo(videoId);
       const v = res.data.video || res.data;
       setVideo(v);
-      try {
-        const parsed = JSON.parse(v.script);
-        setScriptMeta(parsed);
-        setEditedScenes(parsed.scenes || []);
-      } catch {
-        setScriptMeta(null);
-        setEditedScenes([]);
-      }
+      setScriptMeta(v.script || null);
+      setEditedScenes(v.script?.scenes || []);
       setHasChanges(false);
       setSelectedSceneIndex(0);
     } catch (err) {
@@ -162,7 +156,7 @@ const CourseVideoStudio = () => {
     try {
       setSaving(true);
       const newScript = { ...(scriptMeta || {}), scenes: editedScenes };
-      await updateCourseVideoScript(videoId, JSON.stringify(newScript));
+      await updateCourseVideoScript(videoId, newScript);
       setHasChanges(false);
       toast.success("Scenes saved. Regenerate audio and re-render to apply changes to the final video.");
       fetchVideo();

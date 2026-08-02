@@ -226,7 +226,7 @@ class CourseVideoService {
       });
 
       // Store the generated script
-      video.script = JSON.stringify(scriptData, null, 2);
+      video.script = scriptData;
       video.status = VIDEO_STATUS.SCRIPT_GENERATED;
       video.scriptStatus = STAGE_STATUS.COMPLETED;
       video.scriptGeneratedAt = new Date();
@@ -239,7 +239,7 @@ class CourseVideoService {
         videoId,
         courseId: video.courseId,
         title: video.title,
-        scriptLength: video.script.length,
+        scenes: scriptData.scenes.length,
       });
 
       await ActivityLogService.add(videoId, 'Script generated successfully. Please review and approve.', video.scriptGeneratedAt);
@@ -393,9 +393,16 @@ Rules:
   }
 
   /**
-   * Update the script (editing).
+   * Update the script (editing). `script` must be a { title, description,
+   * tags, thumbnailPrompt, scenes } object matching ScriptParserService's
+   * output shape - the caller (frontend's raw-JSON editor) parses its text
+   * before sending, so this never receives a JSON string.
    */
   static async updateScript(videoId, script) {
+    if (!script || typeof script !== 'object' || !Array.isArray(script.scenes)) {
+      throw { status: 400, message: 'script must be an object with a scenes array' };
+    }
+
     const video = await CourseVideo.findById(videoId);
     if (!video) {
       throw { status: 404, message: 'Video not found' };
@@ -420,7 +427,7 @@ Rules:
       throw { status: 404, message: 'Video not found' };
     }
 
-    video.script = '';
+    video.script = { title: '', description: '', tags: [], thumbnailPrompt: '', scenes: [] };
     video.scriptGeneratedAt = null;
     video.approved = false;
     video.approvedAt = null;
@@ -440,7 +447,7 @@ Rules:
       throw { status: 404, message: 'Video not found' };
     }
 
-    if (!video.script) {
+    if (!video.script?.scenes?.length) {
       throw { status: 400, message: 'A script must exist before generating audio' };
     }
 
@@ -452,29 +459,11 @@ Rules:
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_AUDIO, 40, 'Generating audio...');
 
     try {
-      // Parse script to extract scenes
-      let scriptData;
-      try {
-        scriptData = JSON.parse(video.script);
-      } catch {
-        // If script is plain text, create a single scene
-        scriptData = {
-          scenes: [{
-            sceneNumber: 1,
-            audio: { text: video.script },
-          }],
-        };
-      }
-
-      const scenes = scriptData.scenes || [];
-
-      if (scenes.length === 0) {
-        // Create a single scene with the full script
-        scenes.push({
-          sceneNumber: 1,
-          audio: { text: video.script },
-        });
-      }
+      // Plain object copy (not the live Mongoose subdocument) so it can be
+      // freely spread/mutated below, then written back to video.script as
+      // a whole once audio results are in.
+      const scriptData = video.script.toObject();
+      const scenes = scriptData.scenes;
 
       // Convert scenes to the format expected by AudioService
       // Ensure sceneType is included in the audio scenes
@@ -516,8 +505,8 @@ Rules:
       }
 
       // Save updated script with audio durations back to database and disk
-      video.script = JSON.stringify(scriptData, null, 2);
-      
+      video.script = scriptData;
+
       // Also save updated script to disk for Remotion pipeline
       await ScriptParserService.saveScript(video._id.toString(), scriptData);
 
@@ -585,18 +574,13 @@ Rules:
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 60, 'Preparing assets for rendering...');
 
     try {
-      // Parse the script to get scene data
-      let scriptData;
-      try {
-        scriptData = JSON.parse(video.script);
-      } catch {
-        throw new Error('Invalid script JSON - cannot render');
-      }
-
-      const scenes = scriptData.scenes || [];
-      if (scenes.length === 0) {
+      if (!video.script?.scenes?.length) {
         throw new Error('No scenes found in script');
       }
+
+      // Plain object copy so it can be freely spread/mutated below.
+      const scriptData = video.script.toObject();
+      const scenes = scriptData.scenes;
 
        // Map audio files to scenes - use videoId as job directory
        const jobId = video._id.toString();
@@ -750,7 +734,7 @@ Rules:
         }
 
         if (anyUploaded) {
-          video.script = JSON.stringify(scriptData, null, 2);
+          video.script = scriptData;
           const firstCloudUrl = scriptData.scenes.find((s) => /^https?:\/\//i.test(s.audio?.file || ''))?.audio?.file;
           if (firstCloudUrl) video.audioUrl = firstCloudUrl;
         }

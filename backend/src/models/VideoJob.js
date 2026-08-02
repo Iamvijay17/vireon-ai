@@ -1,37 +1,7 @@
 const mongoose = require('mongoose');
 const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES } = require('../constants');
 const { generateVideoJobId } = require('../utils/id');
-
-const sceneSchema = new mongoose.Schema(
-  {
-    sceneNumber: { type: Number, required: true },
-    sceneType: { type: String, default: 'content' },
-    // "host" | "guest" - which speaker this turn belongs to (podcast type only).
-    speaker: { type: String, default: '' },
-    title: { type: String, default: '' },
-    subtitle: { type: String, default: '' },
-    duration: { type: Number, default: 8 },
-    backgroundColor: { type: String, default: '#1a1a2e' },
-    transition: { type: String, default: 'fade' },
-    imagePrompt: { type: String, default: '' },
-    cameraMotion: { type: String, default: 'static' },
-    animation: { type: String, default: '' },
-    imageUrl: { type: String, default: '' },
-     templateId: { type: String, default: '' },
-     elements: { type: mongoose.Schema.Types.Mixed, default: null },
-     scene_meta: { type: mongoose.Schema.Types.Mixed, default: null },
-     audio: {
-      text: { type: String, default: '' },
-      file: { type: String, default: '' },
-      duration: { type: Number, default: 0 },
-      voice: { type: String, default: '' },
-      // Real per-word timestamps from forced alignment (AudioService._alignCaptions),
-      // null when alignment wasn't run or failed - see CaptionRenderer's estimated-pace fallback.
-      captionTimestamps: { type: mongoose.Schema.Types.Mixed, default: null },
-    },
-  },
-  { _id: false }
-);
+const sceneSchema = require('./schemas/sceneSchema');
 
 const videoJobSchema = new mongoose.Schema(
   {

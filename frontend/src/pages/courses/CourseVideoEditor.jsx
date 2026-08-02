@@ -107,23 +107,14 @@ const CourseVideoEditor = () => {
   const [editingScript, setEditingScript] = useState(false);
   const [scriptText, setScriptText] = useState("");
   const [activityLog, setActivityLog] = useState([]);
-  const [parsedScript, setParsedScript] = useState(null);
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
   const [workerRunning, setWorkerRunning] = useState(null); // null = unknown, boolean once checked
 
   const setStepLoading = (step, val) => setActionLoading((prev) => ({ ...prev, [step]: val }));
 
-  const applyScript = (script) => {
-    if (!script) {
-      setParsedScript(null);
-      return;
-    }
-    try {
-      setParsedScript(JSON.parse(script));
-    } catch {
-      setParsedScript(null);
-    }
-  };
+  // `video.script` is already a real { title, description, scenes, ... }
+  // object from the API - this is only for the raw-JSON textarea editor.
+  const scriptToText = (script) => (script?.scenes?.length ? JSON.stringify(script, null, 2) : "");
 
   const formatActivityTime = useCallback((timestamp) => {
     if (!timestamp) return "";
@@ -194,17 +185,7 @@ const CourseVideoEditor = () => {
       const res = await getCourseVideo(videoId);
       const v = res.data.video;
       setVideo(v);
-      setScriptText(v.script || "");
-
-      if (v.script) {
-        try {
-          setParsedScript(JSON.parse(v.script));
-        } catch {
-          setParsedScript(null);
-        }
-      } else {
-        setParsedScript(null);
-      }
+      setScriptText(scriptToText(v.script));
 
       addActivity(`Status: ${v.status}`, v.updatedAt);
     } catch (err) {
@@ -242,8 +223,7 @@ const CourseVideoEditor = () => {
       onCourseVideoScriptReady((data) => {
         if (data.videoId !== videoId) return;
         setVideo((prev) => (prev ? { ...prev, status: data.status, script: data.script } : prev));
-        setScriptText(data.script || "");
-        applyScript(data.script);
+        setScriptText(scriptToText(data.script));
         setActionLoading({});
         addActivity(data.message || "Script ready", data.updatedAt);
         fetchActivityLogs();
@@ -366,9 +346,16 @@ const CourseVideoEditor = () => {
   };
 
   const handleSaveScript = async () => {
+    let parsed;
+    try {
+      parsed = JSON.parse(scriptText);
+    } catch {
+      toast.error("Invalid JSON - please fix before saving");
+      return;
+    }
     setStepLoading("save", true);
     try {
-      await updateCourseVideoScript(videoId, scriptText);
+      await updateCourseVideoScript(videoId, parsed);
       toast.success("Script updated");
       setEditingScript(false);
       addActivity("Script edited and saved");
@@ -476,10 +463,10 @@ const CourseVideoEditor = () => {
   const isUploading = video?.status === "Uploading";
   const isFailed = video?.status === "Failed";
   const isCompleted = video?.status === "Completed";
-  const hasScript = video?.script && video.script.length > 0;
+  const hasScript = Boolean(video?.script?.scenes?.length);
   const isApproved = video?.approved;
   const hasAudio = video?.audioUrl && video.audioUrl.length > 0;
-  const scenes = parsedScript?.scenes || [];
+  const scenes = video?.script?.scenes || [];
   const audioBaseUrl = video?._id ? resolveMediaUrl(`/public/${video._id}/audio`) : null;
 
   if (loading) return <LoadingState label="Loading video..." />;
@@ -696,13 +683,7 @@ const CourseVideoEditor = () => {
 
                   <AccordionItem title={<span className="text-[13px] text-text-tertiary">View raw script JSON</span>} ghost className="mt-3">
                     <pre className="max-h-96 overflow-auto rounded-lg border border-border-light bg-bg p-4 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-text-primary">
-                      {(() => {
-                        try {
-                          return JSON.stringify(JSON.parse(video.script), null, 2);
-                        } catch {
-                          return video.script;
-                        }
-                      })()}
+                      {JSON.stringify(video.script, null, 2)}
                     </pre>
                   </AccordionItem>
                 </div>
@@ -720,7 +701,7 @@ const CourseVideoEditor = () => {
                       variant="secondary"
                       onClick={() => {
                         setEditingScript(false);
-                        setScriptText(video.script);
+                        setScriptText(scriptToText(video.script));
                       }}
                     >
                       Cancel

@@ -12,10 +12,11 @@ const nanoid8 = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
 const withPrefix = (prefix) => `${prefix}-${nanoid8()}`;
 
 // Three-letter prefix from each entity's own name - "cou"rse, "vid"eo,
-// "job" (already 3 letters).
+// "job" (already 3 letters), "sce"ne.
 const generateCourseId = () => withPrefix('cou');
 const generateVideoJobId = () => withPrefix('job');
 const generateCourseVideoId = () => withPrefix('vid');
+const generateSceneId = () => withPrefix('sce');
 
 // Matches any id produced above - used to tell "already migrated" ids apart
 // from legacy MongoDB ObjectId strings (and from earlier id styles used
@@ -26,5 +27,6 @@ module.exports = {
   generateCourseId,
   generateVideoJobId,
   generateCourseVideoId,
+  generateSceneId,
   ID_PATTERN,
 };

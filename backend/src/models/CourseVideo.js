@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { VIDEO_STATUS, STAGE_STATUS, LANGUAGES, VIDEO_DURATIONS } = require('../constants');
 const { generateCourseVideoId } = require('../utils/id');
+const sceneSchema = require('./schemas/sceneSchema');
 
 const STAGE_STATUS_VALUES = Object.values(STAGE_STATUS);
 
@@ -91,9 +92,14 @@ const courseVideoSchema = new mongoose.Schema(
       message: { type: String, default: '' },
       failedAt: { type: Date, default: null },
     },
+    // Structured to match VideoJob.script exactly - same shape, same
+    // ScriptParserService.validate() output, same audio/render pipeline.
     script: {
-      type: String,
-      default: '',
+      title: { type: String, default: '' },
+      description: { type: String, default: '' },
+      tags: [String],
+      thumbnailPrompt: { type: String, default: '' },
+      scenes: [sceneSchema],
     },
     scriptGeneratedAt: {
       type: Date,
@@ -122,22 +128,6 @@ const courseVideoSchema = new mongoose.Schema(
     waveform: {
       type: String,
       default: '',
-    },
-    sceneJson: {
-      type: mongoose.Schema.Types.Mixed,
-      default: null,
-    },
-    scenesGeneratedAt: {
-      type: Date,
-      default: null,
-    },
-    imageUrls: [{
-      sceneNumber: Number,
-      url: String,
-    }],
-    imagesGeneratedAt: {
-      type: Date,
-      default: null,
     },
     renderUrl: {
       type: String,
