@@ -288,6 +288,16 @@ const RenderPage = () => {
             Review Script
           </Button>
         )}
+        {job?.fastGeneration === false && job?.status === "SCRIPT_COMPLETED" && (
+          <Button variant="primary" icon={<AudioLines className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
+            Generate Audio
+          </Button>
+        )}
+        {job?.fastGeneration === false && job?.status === "AUDIO_COMPLETED" && (
+          <Button variant="primary" icon={<Video className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
+            Generate Render
+          </Button>
+        )}
         {isComplete && (
           <>
             <Button variant="primary" icon={<Pencil className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>

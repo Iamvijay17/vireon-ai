@@ -83,6 +83,14 @@ const videoJobSchema = new mongoose.Schema(
       enum: ASPECT_RATIOS,
       default: '16:9',
     },
+    // true (default): current auto flow - after the script-approval pause,
+    // audio/images/render/upload all run automatically. false: manual mode,
+    // mirroring the course-video pipeline - audio and render each require
+    // their own explicit trigger (see videoWorker.js's pause checks).
+    fastGeneration: {
+      type: Boolean,
+      default: true,
+    },
     status: {
       type: String,
       enum: Object.values(JOB_STATUS),

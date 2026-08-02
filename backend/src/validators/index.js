@@ -29,10 +29,16 @@ const createVideoSchema = z
     // - see AudioService.resolveVoice for how this is interpreted.
     voice: z.string().min(1).max(200).optional().default('female-1'),
     // Podcast type only: separate voice per speaker (same format as `voice`).
-    hostVoice: z.string().min(1).max(200).optional(),
-    guestVoice: z.string().min(1).max(200).optional(),
+    // Non-podcast submissions send "" (the wizard's default), so this can't
+    // require min(1) - the superRefine below enforces it for podcast only.
+    hostVoice: z.string().max(200).optional(),
+    guestVoice: z.string().max(200).optional(),
     resolution: z.enum(RESOLUTIONS).optional().default('1920x1080'),
     aspectRatio: z.enum(ASPECT_RATIOS).optional().default('16:9'),
+    // true: current auto flow (audio/images/render run automatically after
+    // script approval). false: manual mode - audio and render each need an
+    // explicit trigger, like the course-video pipeline.
+    fastGeneration: z.boolean().optional().default(true),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'podcast') {

@@ -21,6 +21,7 @@ class VideoService {
       sceneCount: data.sceneCount || '5-10',
       resolution: data.resolution || '1920x1080',
       aspectRatio: data.aspectRatio || '16:9',
+      fastGeneration: data.fastGeneration ?? true,
       status: JOB_STATUS.QUEUED,
       progress: 0,
     });
@@ -272,11 +273,16 @@ class VideoService {
   }
 
   /**
-   * Approve a script that's awaiting manual review, letting the pipeline
-   * continue into audio/image/render. Caller is expected to re-enqueue the
-   * 'render-video' BullMQ job afterwards - the worker's own
-   * `needsScriptGeneration` check already skips regeneration once status
-   * isn't QUEUED, so it resumes straight into audio generation.
+   * Approve a script that's awaiting manual review.
+   *
+   * fastGeneration jobs: caller re-enqueues the 'render-video' BullMQ job
+   * afterwards - the worker's own `needsScriptGeneration` check already
+   * skips regeneration once status isn't QUEUED, so it resumes straight
+   * into audio/image/render/upload, all automatic from here.
+   *
+   * Manual (fastGeneration: false) jobs: this only marks the script
+   * approved (status -> SCRIPT_COMPLETED) and stops - audio generation is
+   * a separate explicit step (see generateAudio below), like course videos.
    */
   static async approve(jobId) {
     const job = await VideoJob.findById(jobId);
@@ -288,7 +294,60 @@ class VideoService {
       throw { status: 400, message: `Job is in ${job.status} state and cannot be approved. Only jobs awaiting approval can be approved.` };
     }
 
-    LoggerService.info('Video job script approved', { jobId });
+    if (!job.fastGeneration) {
+      job.status = JOB_STATUS.SCRIPT_COMPLETED;
+      job.progress = 20;
+      job.currentStep = JOB_STATUS.SCRIPT_COMPLETED;
+      await job.save();
+    }
+
+    LoggerService.info('Video job script approved', { jobId, fastGeneration: job.fastGeneration });
+    return job;
+  }
+
+  /**
+   * Manual mode only: trigger audio generation for an approved script.
+   * Caller re-enqueues 'render-video' afterwards - the worker pauses again
+   * right after audio completes (status stays AUDIO_COMPLETED) instead of
+   * auto-continuing into images/render, since fastGeneration is false.
+   */
+  static async generateAudio(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    if (job.fastGeneration) {
+      throw { status: 400, message: 'This job uses fast generation - audio runs automatically after approval.' };
+    }
+
+    if (job.status !== JOB_STATUS.SCRIPT_COMPLETED) {
+      throw { status: 400, message: `Job is in ${job.status} state. Approve the script before generating audio.` };
+    }
+
+    LoggerService.info('Video job manual audio generation triggered', { jobId });
+    return job;
+  }
+
+  /**
+   * Manual mode only: trigger the final image/render/upload stage once
+   * audio is ready. Caller re-enqueues 'render-video' afterwards.
+   */
+  static async generateRender(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    if (job.fastGeneration) {
+      throw { status: 400, message: 'This job uses fast generation - rendering runs automatically after approval.' };
+    }
+
+    if (job.status !== JOB_STATUS.AUDIO_COMPLETED) {
+      throw { status: 400, message: `Job is in ${job.status} state. Generate audio before rendering.` };
+    }
+
+    LoggerService.info('Video job manual render triggered', { jobId });
     return job;
   }
 

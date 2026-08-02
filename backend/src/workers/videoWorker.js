@@ -191,6 +191,25 @@ const worker = new Worker(
 
       LoggerService.success('Audio generation complete', { files: script.scenes.length });
 
+      // ── Pause here for manual-mode jobs (fastGeneration: false): wait for
+      // an explicit POST /:id/generate-render before spending image/render
+      // resources, mirroring the script-approval pause above. Only pause the
+      // first time we reach this point in a given run (currentStatus was
+      // still pre-audio when this job started) - if we're resuming from a
+      // manual generate-render trigger (or a restart mid-render), currentStatus
+      // is already AUDIO_COMPLETED or later, so fall through and continue.
+      const PRE_AUDIO_STATUSES = [
+        JOB_STATUS.QUEUED,
+        JOB_STATUS.SCRIPT_GENERATION,
+        JOB_STATUS.SCRIPT_COMPLETED,
+        JOB_STATUS.AWAITING_APPROVAL,
+        JOB_STATUS.GENERATING_AUDIO,
+      ];
+      if (!videoJob.fastGeneration && PRE_AUDIO_STATUSES.includes(currentStatus)) {
+        LoggerService.info('Audio complete - pausing pipeline for manual render trigger (fastGeneration=false)', { jobId });
+        return { success: true, jobId, awaitingRender: true };
+      }
+
       // ── Step 5: Image Generation via ComfyUI
       // Only generate images for scenes with sceneType === "image"
       const imageScenes = script.scenes.filter(s => s.sceneType === 'image' && !s.imageUrl);

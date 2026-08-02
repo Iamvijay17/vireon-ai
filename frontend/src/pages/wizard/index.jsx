@@ -18,6 +18,7 @@ import { Steps } from "../../components/ui/Steps";
 import { Select } from "../../components/ui/Select";
 import { Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { Badge } from "../../components/ui/Badge";
+import { Switch } from "../../components/ui/Switch";
 import { toast } from "../../components/ui/toastBus";
 
 const VIDEO_TYPES = [
@@ -79,6 +80,7 @@ const DEFAULT_VALUES = {
   guestVoice: "",
   resolution: "1920x1080",
   aspectRatio: "16:9",
+  fastGeneration: true,
 };
 
 // Applies the user's saved preferences (Settings page) on top of the base
@@ -340,9 +342,21 @@ const Wizard = () => {
                   <Select options={RESOLUTIONS} value={values.resolution} onChange={(v) => setField("resolution", v)} />
                 </div>
 
-                <div className="mb-2">
+                <div className="mb-6">
                   <Label>Aspect Ratio</Label>
                   <AspectRatioPicker value={values.aspectRatio} onChange={(v) => setField("aspectRatio", v)} />
+                </div>
+
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
+                  <div>
+                    <Label className="mb-1">Fast Generation</Label>
+                    <p className="text-xs text-text-secondary">
+                      {values.fastGeneration
+                        ? "On: after you approve the script, audio, images, and the final video generate automatically."
+                        : "Off: you'll manually trigger each step — approve the script, then generate audio, then generate the video — reviewing in between, like course videos."}
+                    </p>
+                  </div>
+                  <Switch checked={values.fastGeneration} onChange={(v) => setField("fastGeneration", v)} />
                 </div>
 
                 <div className="mt-8 flex justify-between">

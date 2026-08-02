@@ -15,8 +15,10 @@ import {
   Settings,
   Image as ImageIcon,
   Languages,
+  AudioLines,
+  Video,
 } from "lucide-react";
-import { getVideoJob, updateVideoScenes, rerenderVideoJob, approveVideoJob } from "../../services/api";
+import { getVideoJob, updateVideoScenes, rerenderVideoJob, approveVideoJob, generateVideoAudio, generateVideoRender } from "../../services/api";
 import {
   connect,
   joinJobRoom,
@@ -94,6 +96,8 @@ const StudioPage = () => {
   const [saving, setSaving] = useState(false);
   const [rerendering, setRerendering] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [generatingAudio, setGeneratingAudio] = useState(false);
+  const [generatingRender, setGeneratingRender] = useState(false);
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
   const [editedScenes, setEditedScenes] = useState([]);
   const [hasChanges, setHasChanges] = useState(false);
@@ -255,13 +259,46 @@ const StudioPage = () => {
         await updateVideoScenes(jobId, editedScenes);
         setHasChanges(false);
       }
-      await approveVideoJob(jobId);
-      toast.success("Script approved! Generating audio, images, and video...");
-      navigate(`/render?id=${jobId}`);
+      const res = await approveVideoJob(jobId);
+      if (job?.fastGeneration === false) {
+        setJob((prev) => (prev ? { ...prev, status: res.data.status, progress: res.data.progress } : prev));
+        toast.success("Script approved! Click \"Generate Audio\" when you're ready for the next step.");
+      } else {
+        toast.success("Script approved! Generating audio, images, and video...");
+        navigate(`/render?id=${jobId}`);
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to approve script");
     } finally {
       setApproving(false);
+    }
+  };
+
+  const handleGenerateAudio = async () => {
+    if (!jobId) return;
+    try {
+      setGeneratingAudio(true);
+      await generateVideoAudio(jobId);
+      toast.success("Audio generation started!");
+      navigate(`/render?id=${jobId}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to start audio generation");
+    } finally {
+      setGeneratingAudio(false);
+    }
+  };
+
+  const handleGenerateRender = async () => {
+    if (!jobId) return;
+    try {
+      setGeneratingRender(true);
+      await generateVideoRender(jobId);
+      toast.success("Rendering started!");
+      navigate(`/render?id=${jobId}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to start rendering");
+    } finally {
+      setGeneratingRender(false);
     }
   };
 
@@ -291,6 +328,13 @@ const StudioPage = () => {
   }
 
   const isAwaitingApproval = job.status === "AWAITING_APPROVAL";
+  // Manual mode (fastGeneration: false) pauses twice more after approval -
+  // once with the script approved and waiting for "Generate Audio", once
+  // with audio ready and waiting for "Generate Render" - mirroring the
+  // course-video pipeline's separate script/audio/render steps.
+  const isManual = job.fastGeneration === false;
+  const isAwaitingAudioTrigger = isManual && job.status === "SCRIPT_COMPLETED";
+  const isAwaitingRenderTrigger = isManual && job.status === "AUDIO_COMPLETED";
   const canEdit = job.status === "COMPLETED" || job.status === "FAILED" || job.status === "SCRIPT_COMPLETED" || isAwaitingApproval;
   const scene = editedScenes[selectedSceneIndex];
 
@@ -316,7 +360,15 @@ const StudioPage = () => {
           </Button>
           {isAwaitingApproval ? (
             <Button variant="primary" size="sm" icon={<CheckCircle2 className="size-4" />} onClick={handleApprove} loading={approving}>
-              Approve & Continue
+              {isManual ? "Approve Script" : "Approve & Continue"}
+            </Button>
+          ) : isAwaitingAudioTrigger ? (
+            <Button variant="primary" size="sm" icon={<AudioLines className="size-4" />} onClick={handleGenerateAudio} loading={generatingAudio}>
+              Generate Audio
+            </Button>
+          ) : isAwaitingRenderTrigger ? (
+            <Button variant="primary" size="sm" icon={<Video className="size-4" />} onClick={handleGenerateRender} loading={generatingRender}>
+              Generate Render
             </Button>
           ) : (
             <Button variant="primary" size="sm" icon={<Redo2 className="size-4" />} onClick={handleRerender} loading={rerendering} disabled={!canEdit}>
@@ -329,12 +381,26 @@ const StudioPage = () => {
       {isAwaitingApproval && (
         <Alert type="info" title="Script ready for review">
           Review and edit the scenes below - you can also paste a manual image URL for any image scene instead of
-          waiting for AI image generation. Click "Approve & Continue" when you're ready to generate audio, images, and
-          the final video.
+          waiting for AI image generation.{" "}
+          {isManual
+            ? 'Click "Approve Script" when ready - you\'ll then trigger audio and rendering separately.'
+            : 'Click "Approve & Continue" when you\'re ready to generate audio, images, and the final video.'}
         </Alert>
       )}
 
-      {!canEdit && !isAwaitingApproval && (
+      {isAwaitingAudioTrigger && (
+        <Alert type="info" title="Script approved">
+          Click "Generate Audio" when you're ready to generate the voiceover for each scene.
+        </Alert>
+      )}
+
+      {isAwaitingRenderTrigger && (
+        <Alert type="info" title="Audio ready">
+          Click "Generate Render" when you're ready to generate images (if any) and produce the final video.
+        </Alert>
+      )}
+
+      {!canEdit && !isAwaitingApproval && !isAwaitingAudioTrigger && !isAwaitingRenderTrigger && (
         <Alert type="warning" title="This job cannot be edited in its current state.">
           Only completed, failed, or awaiting-approval jobs can be edited and re-rendered.
         </Alert>

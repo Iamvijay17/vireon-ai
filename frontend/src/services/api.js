@@ -32,6 +32,12 @@ export const restartVideoJob = (id) => api.post(`/api/videos/${id}/restart`);
 
 export const approveVideoJob = (id) => api.post(`/api/videos/${id}/approve`);
 
+// Manual mode only (fastGeneration: false) - each is a separate explicit
+// trigger, mirroring the course-video pipeline.
+export const generateVideoAudio = (id) => api.post(`/api/videos/${id}/generate-audio`);
+
+export const generateVideoRender = (id) => api.post(`/api/videos/${id}/generate-render`);
+
 export const rerenderVideoJob = (id) => api.post(`/api/videos/${id}/rerender`);
 
 export const updateVideoScenes = (id, scenes) => api.put(`/api/videos/${id}/scenes`, { scenes });

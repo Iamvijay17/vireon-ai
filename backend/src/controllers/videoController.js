@@ -116,7 +116,8 @@ class VideoController {
 
   /**
    * POST /api/videos/:id/approve - Approve a script that's awaiting manual
-   * review and resume the pipeline into audio/image/render.
+   * review. Fast-generation jobs resume straight into audio/image/render;
+   * manual jobs stop here until /generate-audio is called explicitly.
    */
   static async approve(req, res, next) {
     try {
@@ -126,13 +127,79 @@ class VideoController {
       // Emit socket event
       SocketService.emitJobCreated(job);
 
-      // Re-add to BullMQ queue for background processing - the worker will
-      // skip script generation since the job is no longer QUEUED.
+      if (job.fastGeneration) {
+        // Re-add to BullMQ queue for background processing - the worker will
+        // skip script generation since the job is no longer QUEUED.
+        await videoQueue.add('render-video', {
+          jobId: job._id.toString(),
+        });
+
+        LoggerService.info('Video job approved and queued for processing', {
+          jobId: job._id,
+          queue: 'video-rendering',
+        });
+      } else {
+        LoggerService.info('Video job script approved (manual mode) - awaiting Generate Audio', {
+          jobId: job._id,
+        });
+      }
+
+      res.json({
+        jobId: job._id,
+        status: job.status,
+        progress: job.progress,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/videos/:id/generate-audio - Manual mode only: trigger audio
+   * generation for an approved script.
+   */
+  static async generateAudio(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const job = await VideoService.generateAudio(id);
+
+      SocketService.emitJobCreated(job);
+
       await videoQueue.add('render-video', {
         jobId: job._id.toString(),
       });
 
-      LoggerService.info('Video job approved and queued for processing', {
+      LoggerService.info('Video job audio generation queued (manual mode)', {
+        jobId: job._id,
+        queue: 'video-rendering',
+      });
+
+      res.json({
+        jobId: job._id,
+        status: job.status,
+        progress: job.progress,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/videos/:id/generate-render - Manual mode only: trigger the
+   * final image/render/upload stage once audio is ready.
+   */
+  static async generateRender(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const job = await VideoService.generateRender(id);
+
+      SocketService.emitJobCreated(job);
+
+      await videoQueue.add('render-video', {
+        jobId: job._id.toString(),
+      });
+
+      LoggerService.info('Video job render queued (manual mode)', {
         jobId: job._id,
         queue: 'video-rendering',
       });
