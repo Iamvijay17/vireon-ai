@@ -4,6 +4,30 @@ const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
 const { validate, createVideoSchema, jobIdSchema } = require('../validators');
 
+/**
+ * (Re-)enqueue a job for the worker, always under a BullMQ jobId matching
+ * our own Mongo _id (so /stop can look it up and remove it if still
+ * queued). BullMQ treats `.add()` with an id that already exists as a
+ * no-op - it does NOT create a new job run - so every restart/approve/
+ * rerender/regenerate call needs to clear out the job's old BullMQ record
+ * first (which sticks around for a while: removeOnComplete/removeOnFail
+ * are age-based, 24h/7d), or the DB status updates but the worker never
+ * actually reprocesses it.
+ */
+async function enqueueJob(jobId) {
+  try {
+    const existing = await videoQueue.getJob(jobId);
+    if (existing) {
+      await existing.remove();
+    }
+  } catch (err) {
+    // Can't remove an actively-processing job (still locked) - fine, that
+    // means it's already running and doesn't need re-adding anyway.
+    LoggerService.warn('Could not clear prior BullMQ record before re-queueing', { jobId, error: err.message });
+  }
+  await videoQueue.add('render-video', { jobId }, { jobId });
+}
+
 class VideoController {
   /**
    * POST /api/videos - Create a new video job
@@ -18,13 +42,7 @@ class VideoController {
       SocketService.emitJobCreated(job);
 
       // Add to BullMQ queue for background processing
-      // Explicit jobId (matching our own Mongo _id) so a later /stop call
-      // can look this BullMQ job up by id and remove it if still queued.
-      await videoQueue.add(
-        'render-video',
-        { jobId: job._id.toString() },
-        { jobId: job._id.toString() }
-      );
+      await enqueueJob(job._id.toString());
 
       LoggerService.info('Video job queued for processing', {
         jobId: job._id,
@@ -99,13 +117,7 @@ class VideoController {
       SocketService.emitJobCreated(job);
 
       // Re-add to BullMQ queue for background processing
-      // Explicit jobId (matching our own Mongo _id) so a later /stop call
-      // can look this BullMQ job up by id and remove it if still queued.
-      await videoQueue.add(
-        'render-video',
-        { jobId: job._id.toString() },
-        { jobId: job._id.toString() }
-      );
+      await enqueueJob(job._id.toString());
 
       LoggerService.info('Video job restarted for processing', {
         jobId: job._id,
@@ -138,9 +150,7 @@ class VideoController {
       if (job.fastGeneration) {
         // Re-add to BullMQ queue for background processing - the worker will
         // skip script generation since the job is no longer QUEUED.
-        await videoQueue.add('render-video', {
-          jobId: job._id.toString(),
-        });
+        await enqueueJob(job._id.toString());
 
         LoggerService.info('Video job approved and queued for processing', {
           jobId: job._id,
@@ -173,13 +183,7 @@ class VideoController {
 
       SocketService.emitJobCreated(job);
 
-      // Explicit jobId (matching our own Mongo _id) so a later /stop call
-      // can look this BullMQ job up by id and remove it if still queued.
-      await videoQueue.add(
-        'render-video',
-        { jobId: job._id.toString() },
-        { jobId: job._id.toString() }
-      );
+      await enqueueJob(job._id.toString());
 
       LoggerService.info('Video job audio generation queued (manual mode)', {
         jobId: job._id,
@@ -207,13 +211,7 @@ class VideoController {
 
       SocketService.emitJobCreated(job);
 
-      // Explicit jobId (matching our own Mongo _id) so a later /stop call
-      // can look this BullMQ job up by id and remove it if still queued.
-      await videoQueue.add(
-        'render-video',
-        { jobId: job._id.toString() },
-        { jobId: job._id.toString() }
-      );
+      await enqueueJob(job._id.toString());
 
       LoggerService.info('Video job render queued (manual mode)', {
         jobId: job._id,
@@ -244,13 +242,7 @@ class VideoController {
       SocketService.emitJobCreated(job);
 
       // Add to BullMQ queue for background processing
-      // Explicit jobId (matching our own Mongo _id) so a later /stop call
-      // can look this BullMQ job up by id and remove it if still queued.
-      await videoQueue.add(
-        'render-video',
-        { jobId: job._id.toString() },
-        { jobId: job._id.toString() }
-      );
+      await enqueueJob(job._id.toString());
 
       LoggerService.info('Video job queued for re-rendering', {
         jobId: job._id,

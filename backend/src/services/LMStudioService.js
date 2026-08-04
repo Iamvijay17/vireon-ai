@@ -1,6 +1,7 @@
 const axios = require('axios');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
+const JsonRepairService = require('./JsonRepairService');
 
 /**
  * Service for interacting with LM Studio (Gemma) API.
@@ -51,7 +52,21 @@ class LMStudioService {
           .replace(/```\s*/g, '')
           .trim();
 
-        return JSON.parse(cleaned);
+        try {
+          return JSON.parse(cleaned);
+        } catch (parseErr) {
+          // Local models frequently produce near-valid JSON on larger
+          // responses - a literal newline left inside a narration string
+          // ("Expected property name or '}'"), a trailing comma, or
+          // generation stopping mid-structure ("Unexpected end of JSON
+          // input"). Try to repair before burning a whole attempt (and
+          // several more minutes of generation) over a fixable slip.
+          const repaired = JsonRepairService.parse(cleaned);
+          LoggerService.warn('LM Studio response needed JSON repair before parsing', {
+            originalError: parseErr.message,
+          });
+          return repaired;
+        }
       } catch (err) {
         lastError = err;
         const isLastAttempt = attempt === config.lmStudio.maxRetries;
@@ -77,9 +92,13 @@ class LMStudioService {
 
   /**
    * Generate script by calling LM Studio API with the rendered prompt.
+   * `options` (maxTokens/timeout) should scale with the requested script
+   * size - see videoWorker.js's estimate. The 10000-token default only
+   * covers short scripts; longer ones get cut off mid-JSON ("Unexpected end
+   * of JSON input") if the caller doesn't raise it.
    */
-  static async generateScript(prompt) {
-    const parsed = await this._callLLM(prompt);
+  static async generateScript(prompt, options = {}) {
+    const parsed = await this._callLLM(prompt, options);
 
     LoggerService.lmstudio(`Script generated successfully`, {
       title: parsed.title,

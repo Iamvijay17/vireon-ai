@@ -112,7 +112,25 @@ const worker = new Worker(
         // words/min spoken pace. Without a length target the model writes a
         // fixed-length script regardless of scene count, so total runtime
         // doesn't scale with the requested duration.
-        const wordCount = Math.round(durationMinutes * 130);
+        //
+        // Measured across real runs, the model consistently UNDERSHOOTS a
+        // soft "about N words" instruction rather than hitting it - a
+        // "small scenes, more of them" podcast script came in at ~78% of
+        // its target, an aggregate-target podcast script at ~67%, and an
+        // educational script at ~55%. A flat 1.5x buffer on the target fed
+        // into the prompt compensates for the typical case without being
+        // so aggressive it inflates the token/context budget (which scales
+        // off this same number) past what's actually needed.
+        //
+        // Scene COUNT is derived from the unbuffered word count so it stays
+        // anchored to the original ratios (podcast: ~20 scenes per 3min;
+        // others: ~2 scenes/min) - only wordsPerScene picks up the buffer.
+        // Buffering scene count too would have compounded with podcast's
+        // "more, shorter scenes" mechanism (a 30min podcast would ask for
+        // ~293 turns instead of ~195, blowing past the token budget again).
+        const WORD_COUNT_UNDERSHOOT_BUFFER = 1.5;
+        const baseWordCount = Math.round(durationMinutes * 130);
+        const wordCount = Math.round(baseWordCount * WORD_COUNT_UNDERSHOOT_BUFFER);
 
         let sceneCount, wordsPerScene;
         if (videoJob.type === 'podcast') {
@@ -120,10 +138,11 @@ const worker = new Worker(
           // shared cover image - no extra image-gen cost per turn) and read
           // more naturally as many short back-and-forth exchanges than a
           // few long monologues. Scale duration by adding MORE turns at a
-          // fixed short length (~20 words/turn, matching real measured TTS
-          // timing) instead of making each turn longer.
-          wordsPerScene = 20;
-          sceneCount = Math.max(3, Math.round(wordCount / wordsPerScene));
+          // ~20 words/turn baseline (matching real measured TTS timing);
+          // the buffer nudges that up moderately per turn rather than
+          // adding even more turns.
+          sceneCount = Math.max(3, Math.round(baseWordCount / 20));
+          wordsPerScene = Math.round(wordCount / sceneCount);
         } else {
           // Other types render a unique background/image per scene, so
           // scene count stays modest (~2/min, matching CourseVideoService's
@@ -143,10 +162,37 @@ const worker = new Worker(
           wordsPerScene: wordsPerScene,
         });
 
+        // A fixed max_tokens doesn't scale with the requested duration - a
+        // longer script gets cut off mid-JSON ("Unexpected end of JSON
+        // input") once its response would exceed the old flat 10000-token
+        // budget. Estimate the actual response size instead: ~80 tokens/
+        // scene for the surrounding JSON structure (keys, punctuation,
+        // short field values like backgroundColor/transition), plus
+        // narration at ~1.4 tokens/word. Non-podcast types repeat the
+        // narration text twice per scene (once split into scene_meta.content
+        // sentences, once whole in audio.text), roughly doubling its token
+        // cost; podcast turns only carry it once (audio.text). A 25% buffer
+        // covers the model's per-token variance, floored at the old default
+        // (so short scripts are unaffected) and capped so a runaway
+        // estimate can't request something the model can't produce anyway.
+        const narrationMultiplier = videoJob.type === 'podcast' ? 1 : 2;
+        const estimatedTokens = Math.round(
+          (sceneCount * 80 + wordCount * 1.4 * narrationMultiplier) * 1.25
+        );
+        const scriptMaxTokens = Math.min(32000, Math.max(10000, estimatedTokens));
+        // Generating more tokens takes proportionally longer on a local
+        // model - scale the request timeout with it too, capped at 10
+        // minutes of *scaling* so it never falls below whatever the user
+        // has explicitly configured (LM_STUDIO_TIMEOUT).
+        const scriptTimeout = Math.max(config.lmStudio.timeout, Math.min(600000, scriptMaxTokens * 50));
+
         await bailIfCancelled(jobId);
 
         // ── Step 3: Call LM Studio
-        const rawScript = await LMStudioService.generateScript(prompt);
+        const rawScript = await LMStudioService.generateScript(prompt, {
+          maxTokens: scriptMaxTokens,
+          timeout: scriptTimeout,
+        });
         script = ScriptParserService.validate(rawScript, videoJob.type, {
           hostVoice: videoJob.hostVoice,
           guestVoice: videoJob.guestVoice,

@@ -247,19 +247,24 @@ class VideoService {
     try { await fs.unlink(assetsPath); } catch {}
     try { await fs.unlink(propsPath); } catch {}
 
-    // Reset to PREPARING_ASSETS - keeps script and audio, re-runs from assets prep
+    // Reset to PREPARING_ASSETS - keeps script and audio, re-runs from assets prep.
+    // `error: undefined` in a plain update object is silently dropped by
+    // Mongoose (undefined-valued keys never reach the $set), so the old
+    // error would otherwise stick around forever - needs an explicit $unset.
     const updatedJob = await VideoJob.findByIdAndUpdate(
       jobId,
       {
-        status: JOB_STATUS.PREPARING_ASSETS,
-        progress: 60,
-        currentStep: JOB_STATUS.PREPARING_ASSETS,
-        error: undefined,
-        videoUrl: '',
-        thumbnailUrl: '',
-        scriptUrl: '',
-        audioUrls: [],
-        assetsUrl: '',
+        $set: {
+          status: JOB_STATUS.PREPARING_ASSETS,
+          progress: 60,
+          currentStep: JOB_STATUS.PREPARING_ASSETS,
+          videoUrl: '',
+          thumbnailUrl: '',
+          scriptUrl: '',
+          audioUrls: [],
+          assetsUrl: '',
+        },
+        $unset: { error: '' },
       },
       { new: true }
     );
@@ -553,14 +558,19 @@ class VideoService {
       ? this.getResumeStep(job)
       : this.getStepForResume(job);
 
-    // Update job to resume from the appropriate step
+    // Update job to resume from the appropriate step.
+    // `error: undefined` in a plain update object is silently dropped by
+    // Mongoose (undefined-valued keys never reach the $set), so the old
+    // error would otherwise stick around forever - needs an explicit $unset.
     const updatedJob = await VideoJob.findByIdAndUpdate(
       jobId,
       {
-        status: resumeInfo.status,
-        progress: resumeInfo.progress,
-        currentStep: resumeInfo.currentStep,
-        error: undefined,
+        $set: {
+          status: resumeInfo.status,
+          progress: resumeInfo.progress,
+          currentStep: resumeInfo.currentStep,
+        },
+        $unset: { error: '' },
       },
       { new: true }
     );
