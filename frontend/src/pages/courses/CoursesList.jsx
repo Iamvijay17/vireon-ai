@@ -209,7 +209,7 @@ const CoursesList = () => {
         setCourses(res.data.courses);
         setPagination(res.data.pagination);
       } catch (err) {
-        toast.error(err.response?.data?.error || "Failed to load courses");
+        toast.error(err.friendlyMessage || "Failed to load courses");
       } finally {
         setLoading(false);
       }
@@ -272,7 +272,7 @@ const CoursesList = () => {
       toast.success("Course deleted");
       fetchCourses(pagination.page);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to delete course");
+      toast.error(err.friendlyMessage || "Failed to delete course");
     }
   };
 

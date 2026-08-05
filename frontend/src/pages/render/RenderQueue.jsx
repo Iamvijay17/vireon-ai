@@ -36,7 +36,7 @@ const RenderQueue = () => {
       const res = await getVideoJobs(1, 100);
       setJobs(res.data.jobs || []);
     } catch (err) {
-      if (!silent) toast.error(err.response?.data?.error || "Failed to load render queue");
+      if (!silent) toast.error(err.friendlyMessage || "Failed to load render queue");
     } finally {
       if (!silent) setLoading(false);
     }
@@ -64,7 +64,7 @@ const RenderQueue = () => {
       toast.success(`Restarted "${job.topic}"`);
       fetchJobs(true);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to regenerate job");
+      toast.error(err.friendlyMessage || "Failed to regenerate job");
     } finally {
       setRegeneratingId(null);
     }
@@ -110,7 +110,7 @@ const RenderQueue = () => {
       toast.success(`Stopped "${job.topic}"`);
       fetchJobs(true);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to stop job");
+      toast.error(err.friendlyMessage || "Failed to stop job");
     } finally {
       setStoppingId(null);
     }

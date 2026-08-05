@@ -39,7 +39,7 @@ const CompletedVideos = () => {
       setJobs(res.data.jobs);
       setPagination(res.data.pagination);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to fetch completed videos");
+      toast.error(err.friendlyMessage || "Failed to fetch completed videos");
     } finally {
       setLoading(false);
     }

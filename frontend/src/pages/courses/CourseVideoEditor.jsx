@@ -237,7 +237,7 @@ const CourseVideoEditor = () => {
 
       addActivity(`Status: ${v.status}`, v.updatedAt);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to load video");
+      toast.error(err.friendlyMessage || "Failed to load video");
       navigate(`/courses/${courseId}`);
     } finally {
       setLoading(false);
@@ -389,7 +389,7 @@ const CourseVideoEditor = () => {
       addActivity("Script generation started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to start script generation");
+      toast.error(err.friendlyMessage || "Failed to start script generation");
       setStepLoading("script", false);
     }
   };
@@ -442,7 +442,7 @@ const CourseVideoEditor = () => {
       addActivity("Script regeneration started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to regenerate script");
+      toast.error(err.friendlyMessage || "Failed to regenerate script");
       setStepLoading("script", false);
     }
   };
@@ -455,7 +455,7 @@ const CourseVideoEditor = () => {
       addActivity("Audio generation started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to start audio generation");
+      toast.error(err.friendlyMessage || "Failed to start audio generation");
       setStepLoading("audio", false);
     }
   };
@@ -470,7 +470,7 @@ const CourseVideoEditor = () => {
       addActivity("Audio regeneration started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to regenerate audio");
+      toast.error(err.friendlyMessage || "Failed to regenerate audio");
       setStepLoading("audio", false);
     }
   };
@@ -483,7 +483,7 @@ const CourseVideoEditor = () => {
       addActivity("Rendering started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to start rendering");
+      toast.error(err.friendlyMessage || "Failed to start rendering");
       setStepLoading("render", false);
     }
   };
@@ -498,7 +498,7 @@ const CourseVideoEditor = () => {
       addActivity("Re-rendering started");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to re-render");
+      toast.error(err.friendlyMessage || "Failed to re-render");
       setStepLoading("render", false);
     }
   };
@@ -518,7 +518,7 @@ const CourseVideoEditor = () => {
       addActivity(`Retrying ${failedStep}...`);
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to retry");
+      toast.error(err.friendlyMessage || "Failed to retry");
       setStepLoading("retry", false);
     }
   };
@@ -540,7 +540,7 @@ const CourseVideoEditor = () => {
       addActivity("Stopped by user");
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to stop");
+      toast.error(err.friendlyMessage || "Failed to stop");
     } finally {
       setStepLoading("stop", false);
     }
@@ -563,7 +563,7 @@ const CourseVideoEditor = () => {
       toast.success(`Scene ${sceneNumber} audio regenerated`);
       fetchActivityLogs();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || `Failed to regenerate scene ${sceneNumber}`);
+      toast.error(err.friendlyMessage || `Failed to regenerate scene ${sceneNumber}`);
     } finally {
       setRegeneratingScene(null);
     }

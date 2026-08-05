@@ -34,24 +34,27 @@ class GitHubStorageProvider extends StorageProvider {
 
   #baseUrl;
 
-  // One promise chain per jobId, so concurrent upload/delete calls for the
-  // *same* job (e.g. a rerender racing the original still-in-flight upload)
-  // run one at a time instead of interleaving GET-for-SHA/PUT/DELETE calls
-  // against the same remote paths - that GET-then-write pattern isn't
-  // atomic on GitHub's side, so two overlapping writers can each read a
-  // stale SHA and clobber or 409 on each other's PUT.
-  #jobLocks = new Map();
+  // One promise chain per *remote path*, so concurrent writers targeting
+  // the exact same GitHub file (e.g. a rerender racing the original
+  // still-in-flight upload of the same scene's audio) run one at a time
+  // instead of interleaving GET-for-SHA/PUT/DELETE calls against it - that
+  // GET-then-write pattern isn't atomic on GitHub's side, so two
+  // overlapping writers can each read a stale SHA and clobber or 409 on
+  // each other's PUT. Keyed by path rather than jobId so unrelated files
+  // within the same job (different scenes, script vs. audio vs. render)
+  // can still upload/delete concurrently.
+  #pathLocks = new Map();
 
-  async #withJobLock(jobId, fn) {
-    const previous = this.#jobLocks.get(jobId) || Promise.resolve();
+  async #withPathLock(remotePath, fn) {
+    const previous = this.#pathLocks.get(remotePath) || Promise.resolve();
     const tail = previous.then(fn, fn);
     const settleTail = tail.then(() => {}, () => {});
-    this.#jobLocks.set(jobId, settleTail);
+    this.#pathLocks.set(remotePath, settleTail);
     try {
       return await tail;
     } finally {
-      if (this.#jobLocks.get(jobId) === settleTail) {
-        this.#jobLocks.delete(jobId);
+      if (this.#pathLocks.get(remotePath) === settleTail) {
+        this.#pathLocks.delete(remotePath);
       }
     }
   }
@@ -69,8 +72,8 @@ class GitHubStorageProvider extends StorageProvider {
 
   /**
    * Upload a single file to GitHub under `videos/{jobId}/{category}/{fileName}`.
-   * Implements retry logic with exponential backoff. Serialized per jobId -
-   * see #withJobLock.
+   * Implements retry logic with exponential backoff. Serialized per remote
+   * path - see #withPathLock.
    *
    * @param {string} jobId
    * @param {string} filePath - Absolute path to local file.
@@ -78,12 +81,14 @@ class GitHubStorageProvider extends StorageProvider {
    * @returns {Promise<string>} Raw GitHub download URL.
    */
   async uploadFile(jobId, filePath, category) {
-    return this.#withJobLock(jobId, () => this.#uploadFileLocked(jobId, filePath, category));
+    const remotePath = this.getRemotePath(jobId, category, path.basename(filePath));
+    return this.#withPathLock(remotePath, () =>
+      this.#uploadFileLocked(jobId, filePath, category, remotePath)
+    );
   }
 
-  async #uploadFileLocked(jobId, filePath, category) {
+  async #uploadFileLocked(jobId, filePath, category, remotePath) {
     const fileName = path.basename(filePath);
-    const remotePath = this.getRemotePath(jobId, category, fileName);
 
     const fileContent = await fs.readFile(filePath);
     const contentBase64 = fileContent.toString('base64');
@@ -183,16 +188,13 @@ class GitHubStorageProvider extends StorageProvider {
   /**
    * Delete all assets for a given job from GitHub.
    * Iterates through all files at `videos/{jobId}/` and deletes them.
-   * Serialized per jobId - see #withJobLock.
+   * Each file's delete is serialized against any concurrent upload/delete
+   * targeting that same remote path - see #withPathLock.
    *
    * @param {string} jobId
    * @returns {Promise<void>}
    */
   async deleteJob(jobId) {
-    return this.#withJobLock(jobId, () => this.#deleteJobLocked(jobId));
-  }
-
-  async #deleteJobLocked(jobId) {
     const jobPath = this.getJobPath(jobId);
 
     try {
@@ -202,24 +204,28 @@ class GitHubStorageProvider extends StorageProvider {
 
       const items = Array.isArray(contents) ? contents : [contents];
 
-      for (const item of items) {
-        try {
-          await axios.delete(`${this.#baseUrl}/${item.path}`, {
-            headers: this.#headers(),
-            data: {
-              message: `Delete job ${jobId}`,
-              sha: item.sha,
-              branch: config.github.branch,
-            },
-          });
-          LoggerService.info(`Deleted ${item.path} from GitHub storage`, { jobId });
-        } catch (err) {
-          LoggerService.warn(`Failed to delete ${item.path} from GitHub`, {
-            jobId,
-            error: err.response?.data?.message || err.message,
-          });
-        }
-      }
+      await Promise.all(
+        items.map((item) =>
+          this.#withPathLock(item.path, async () => {
+            try {
+              await axios.delete(`${this.#baseUrl}/${item.path}`, {
+                headers: this.#headers(),
+                data: {
+                  message: `Delete job ${jobId}`,
+                  sha: item.sha,
+                  branch: config.github.branch,
+                },
+              });
+              LoggerService.info(`Deleted ${item.path} from GitHub storage`, { jobId });
+            } catch (err) {
+              LoggerService.warn(`Failed to delete ${item.path} from GitHub`, {
+                jobId,
+                error: err.response?.data?.message || err.message,
+              });
+            }
+          })
+        )
+      );
     } catch (err) {
       // Folder may not exist — that's acceptable
       if (err.response?.status !== 404) {

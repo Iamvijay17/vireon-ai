@@ -113,7 +113,7 @@ const Analytics = () => {
       const res = await getAnalyticsOverview(Number(range));
       setData(res.data);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to load analytics");
+      toast.error(err.friendlyMessage || "Failed to load analytics");
     } finally {
       setLoading(false);
     }

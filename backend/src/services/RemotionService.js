@@ -102,6 +102,29 @@ class RemotionService {
   }
 
   /**
+   * Verify every scene that's expected to have audio (audio.duration > 0
+   * in assets.json) actually has its mp3 on disk. Scenes with no audio
+   * text legitimately have duration 0 and are skipped.
+   */
+  static async _verifySceneAudioFiles(jobId, scenes) {
+    const audioDir = path.resolve(__dirname, '../../jobs', jobId, 'audio');
+    const missing = [];
+
+    for (const scene of scenes) {
+      if (!(scene.audio?.duration > 0)) continue;
+      const audioFile = path.join(audioDir, `scene${scene.sceneNumber}.mp3`);
+      const exists = await fs.stat(audioFile).then(() => true).catch(() => false);
+      if (!exists) missing.push(scene.sceneNumber);
+    }
+
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing audio file(s) for scene(s) ${missing.join(', ')} - audio generation must complete before rendering`
+      );
+    }
+  }
+
+  /**
    * Execute Remotion render process.
    */
   static async renderVideo(jobId, assets = null) {
@@ -135,6 +158,13 @@ class RemotionService {
        totalDuration,
        sceneCount: assetsFile.scenes.length,
      });
+
+     // Fail fast and clearly here rather than letting Remotion render
+     // silently with a missing/blank clip - a scene with an expected
+     // audio.duration > 0 but no actual file on disk usually means a prior
+     // TTS step was skipped or partially failed, and that's much easier to
+     // diagnose from this error than from a rendering artifact.
+     await this._verifySceneAudioFiles(jobId, assetsFile.scenes);
 
      let lastError = null;
 

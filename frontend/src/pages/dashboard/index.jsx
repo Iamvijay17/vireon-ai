@@ -56,7 +56,7 @@ const Dashboard = () => {
       setJobs(res.data.jobs);
       setPagination(res.data.pagination);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to fetch jobs");
+      toast.error(err.friendlyMessage || "Failed to fetch jobs");
     } finally {
       setLoading(false);
     }

@@ -43,7 +43,7 @@ const Projects = () => {
       setVideoJobs(jobsRes.data.jobs || []);
       setCourses(coursesRes.data.courses || []);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to load projects");
+      toast.error(err.friendlyMessage || "Failed to load projects");
     } finally {
       setLoading(false);
     }

@@ -103,19 +103,30 @@ class VideoService {
    * Update job status with progress.
    */
   static async updateStatus(jobId, status, extra = {}) {
+    const { error: errorMessage, retryCount, progress, ...rest } = extra;
+
     const update = {
-      status,
-      progress: extra.progress ?? 0,
-      currentStep: status,
-      ...extra,
+      $set: {
+        status,
+        progress: progress ?? 0,
+        currentStep: status,
+        ...rest,
+      },
     };
 
-    if (extra.error) {
-      update.error = {
-        message: extra.error,
+    if (errorMessage) {
+      update.$set.error = {
+        message: errorMessage,
         step: status,
-        retryCount: extra.retryCount || 0,
+        retryCount: retryCount || 0,
       };
+    } else {
+      // Every call site here represents a successful stage transition, not
+      // a failure - clear any error left over from an earlier failed
+      // attempt so the UI doesn't keep showing an error banner next to a
+      // job that's now healthy again. `error: undefined` would be silently
+      // dropped by Mongoose rather than clearing the field, hence $unset.
+      update.$unset = { error: '' };
     }
 
     const job = await VideoJob.findByIdAndUpdate(jobId, update, { new: true });

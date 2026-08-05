@@ -152,7 +152,7 @@ const RenderPage = () => {
       setJob(res.data.job);
       setError(null);
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to fetch job");
+      setError(err.friendlyMessage || "Failed to fetch job");
     } finally {
       setLoading(false);
     }
@@ -175,7 +175,7 @@ const RenderPage = () => {
       await restartVideoJob(jobId);
       toast.success("Job restarted successfully");
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to restart job");
+      toast.error(err.friendlyMessage || "Failed to restart job");
     } finally {
       setRestartLoading(false);
     }
@@ -196,7 +196,7 @@ const RenderPage = () => {
       await stopVideoJob(jobId);
       toast.success("Job stopped");
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to stop job");
+      toast.error(err.friendlyMessage || "Failed to stop job");
     } finally {
       setStopLoading(false);
     }
@@ -219,7 +219,7 @@ const RenderPage = () => {
       });
       toast.success(`Scene ${sceneNumber} audio regenerated`);
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || `Failed to regenerate scene ${sceneNumber}`);
+      toast.error(err.friendlyMessage || `Failed to regenerate scene ${sceneNumber}`);
     } finally {
       setRegeneratingScene(null);
     }
@@ -232,7 +232,7 @@ const RenderPage = () => {
       await rerenderVideoJob(jobId);
       toast.success("Re-render started successfully");
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to re-render job");
+      toast.error(err.friendlyMessage || "Failed to re-render job");
     } finally {
       setRerenderLoading(false);
     }

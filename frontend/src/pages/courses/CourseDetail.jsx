@@ -277,7 +277,7 @@ const CourseDetail = () => {
       setCourse(res.data.course);
       setVideoStatusSummary(res.data.videoStatusSummary || {});
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to load course");
+      toast.error(err.friendlyMessage || "Failed to load course");
       navigate("/courses");
     } finally {
       setLoading(false);
@@ -290,7 +290,7 @@ const CourseDetail = () => {
       const res = await getCourseVideos(id);
       setVideos(res.data.videos);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to load videos");
+      toast.error(err.friendlyMessage || "Failed to load videos");
     } finally {
       setVideosLoading(false);
     }
@@ -535,7 +535,7 @@ const CourseDetail = () => {
       setVideoEditModalVisible(false);
       fetchVideos();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to update video");
+      toast.error(err.friendlyMessage || "Failed to update video");
     } finally {
       setVideoEditSubmitting(false);
     }
@@ -585,7 +585,7 @@ const CourseDetail = () => {
       );
       setCurriculumStep("preview");
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to generate curriculum");
+      toast.error(err.friendlyMessage || "Failed to generate curriculum");
     } finally {
       setCurriculumPreviewLoading(false);
     }
@@ -631,7 +631,7 @@ const CourseDetail = () => {
       fetchVideos();
       fetchCourse();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to create videos");
+      toast.error(err.friendlyMessage || "Failed to create videos");
     } finally {
       setCurriculumCreating(false);
     }
@@ -651,7 +651,7 @@ const CourseDetail = () => {
       fetchVideos();
       fetchCourse();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to delete video");
+      toast.error(err.friendlyMessage || "Failed to delete video");
     }
   };
 
@@ -670,7 +670,7 @@ const CourseDetail = () => {
       setCourseEditModalVisible(false);
       fetchCourse();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to update course");
+      toast.error(err.friendlyMessage || "Failed to update course");
     } finally {
       setCourseEditSubmitting(false);
     }
@@ -689,7 +689,7 @@ const CourseDetail = () => {
       toast.success("Course deleted");
       navigate("/courses");
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to delete course");
+      toast.error(err.friendlyMessage || "Failed to delete course");
     }
   };
 
@@ -711,7 +711,7 @@ const CourseDetail = () => {
       if (bulk) setSelectedIds(new Set());
       return res;
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to queue generation");
+      toast.error(err.friendlyMessage || "Failed to queue generation");
       return null;
     } finally {
       setBulkActionLoading(null);
@@ -728,7 +728,7 @@ const CourseDetail = () => {
       fetchVideos();
       setSelectedIds(new Set());
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to approve scripts");
+      toast.error(err.friendlyMessage || "Failed to approve scripts");
     } finally {
       setBulkActionLoading(null);
     }
@@ -750,7 +750,7 @@ const CourseDetail = () => {
       fetchVideos();
       fetchCourse();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to stop course");
+      toast.error(err.friendlyMessage || "Failed to stop course");
     } finally {
       setBulkActionLoading(null);
     }
@@ -763,7 +763,7 @@ const CourseDetail = () => {
       toast.success("Lesson stopped");
       fetchVideos();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to stop lesson");
+      toast.error(err.friendlyMessage || "Failed to stop lesson");
     } finally {
       setBulkActionLoading(null);
     }
@@ -778,7 +778,7 @@ const CourseDetail = () => {
       setSelectedIds(new Set());
       fetchVideos();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to stop lessons");
+      toast.error(err.friendlyMessage || "Failed to stop lessons");
     } finally {
       setBulkActionLoading(null);
     }
@@ -806,7 +806,7 @@ const CourseDetail = () => {
       fetchVideos();
       fetchCourse();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to delete videos");
+      toast.error(err.friendlyMessage || "Failed to delete videos");
     } finally {
       setBulkActionLoading(null);
     }

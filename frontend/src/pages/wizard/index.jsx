@@ -166,7 +166,7 @@ const Wizard = () => {
       setCurrent(3);
     } catch (err) {
       const errMsg =
-        err?.response?.data?.error || err?.response?.data?.details?.[0]?.message || "Failed to create job";
+        err.friendlyMessage || "Failed to create job";
       toast.error(errMsg);
     } finally {
       setLoading(false);

@@ -18,6 +18,25 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Every call site used to repeat its own
+// `err.response?.data?.error || err.response?.data?.message || fallback`
+// chain, with inconsistent ordering/coverage across pages (some didn't
+// check `details`, the shape our zod validators use for field-level
+// errors). This normalizes all of that once, onto `err.friendlyMessage`,
+// so callers just do `err.friendlyMessage || "fallback for this action"`.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const data = error.response?.data;
+    // `details[0].message` (per-field validation detail, e.g. "Invalid id")
+    // is more specific than `error` (the generic "Validation failed"
+    // umbrella message that always accompanies it), so it takes priority.
+    error.friendlyMessage =
+      data?.message || data?.details?.[0]?.message || data?.error || error.message || 'Something went wrong';
+    return Promise.reject(error);
+  }
+);
+
 // Backend-generated media (course audio/render output) comes back as paths
 // relative to the API origin (e.g. "/public/<id>/audio/scene1.mp3"), not the
 // frontend's own origin, so they need the API base prefixed to load.

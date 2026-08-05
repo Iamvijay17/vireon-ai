@@ -72,7 +72,7 @@ const CourseVideoStudio = () => {
       setHasChanges(false);
       setSelectedSceneIndex(0);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to load video");
+      toast.error(err.friendlyMessage || "Failed to load video");
     } finally {
       setLoading(false);
     }
@@ -161,7 +161,7 @@ const CourseVideoStudio = () => {
       toast.success("Scenes saved. Regenerate audio and re-render to apply changes to the final video.");
       fetchVideo();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to save scenes");
+      toast.error(err.friendlyMessage || "Failed to save scenes");
     } finally {
       setSaving(false);
     }

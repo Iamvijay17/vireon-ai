@@ -43,6 +43,29 @@ async function bailIfCancelled(videoId) {
 }
 
 /**
+ * Run `fn` over `items` with at most `limit` in flight at once - used for
+ * the cloud-upload step so a lesson's scene audio files upload in parallel
+ * (each is now a separate GitHub file, safe to overlap - see
+ * GitHubStorageProvider's per-path lock) instead of one full round-trip at
+ * a time, without hitting GitHub's API rate limit the way full concurrency
+ * could for a many-scene lesson.
+ */
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await fn(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+/**
  * Service for managing course videos.
  * Single Responsibility: Course video CRUD and generation pipeline.
  */
@@ -1004,21 +1027,22 @@ Rules:
     try {
       if (scriptData?.scenes?.length) {
         const audioDir = StorageService.getAudioDir(jobId);
-        for (const scene of scriptData.scenes) {
+        const uploadedScenes = await mapWithConcurrency(scriptData.scenes, 4, async (scene) => {
           const fileName = scene.audio?.file;
-          if (!fileName || /^https?:\/\//i.test(fileName)) continue;
+          if (!fileName || /^https?:\/\//i.test(fileName)) return false;
 
           const localPath = path.join(audioDir, fileName);
           try {
             await fs.access(localPath);
           } catch {
-            continue; // scene has no local audio file (e.g. no narration)
+            return false; // scene has no local audio file (e.g. no narration)
           }
 
           const url = await GitHubService.uploadFile(jobId, localPath, 'audio');
           scene.audio.file = url;
-          anyUploaded = true;
-        }
+          return true;
+        });
+        if (uploadedScenes.some(Boolean)) anyUploaded = true;
 
         if (anyUploaded) {
           video.script = scriptData;
@@ -1035,11 +1059,13 @@ Rules:
         renderFiles = [];
       }
 
-      for (const fileName of renderFiles) {
-        const url = await GitHubService.uploadFile(jobId, path.join(renderDir, fileName), 'render');
-        if (/\.(mp4|mov|webm)$/i.test(fileName)) {
-          video.renderUrl = url;
-        }
+      if (renderFiles.length > 0) {
+        await mapWithConcurrency(renderFiles, 4, async (fileName) => {
+          const url = await GitHubService.uploadFile(jobId, path.join(renderDir, fileName), 'render');
+          if (/\.(mp4|mov|webm)$/i.test(fileName)) {
+            video.renderUrl = url;
+          }
+        });
         anyUploaded = true;
       }
 

@@ -116,7 +116,7 @@ const StudioPage = () => {
       setHasChanges(false);
       setSelectedSceneIndex(0);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to fetch job");
+      toast.error(err.friendlyMessage || "Failed to fetch job");
     } finally {
       setLoading(false);
     }
@@ -246,7 +246,7 @@ const StudioPage = () => {
       setHasChanges(false);
       toast.success("Scenes saved successfully!");
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to save scenes");
+      toast.error(err.friendlyMessage || "Failed to save scenes");
     } finally {
       setSaving(false);
     }
@@ -269,7 +269,7 @@ const StudioPage = () => {
         navigate(`/render?id=${jobId}`);
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to approve script");
+      toast.error(err.friendlyMessage || "Failed to approve script");
     } finally {
       setApproving(false);
     }
@@ -283,7 +283,7 @@ const StudioPage = () => {
       toast.success("Audio generation started!");
       navigate(`/render?id=${jobId}`);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to start audio generation");
+      toast.error(err.friendlyMessage || "Failed to start audio generation");
     } finally {
       setGeneratingAudio(false);
     }
@@ -297,7 +297,7 @@ const StudioPage = () => {
       toast.success("Rendering started!");
       navigate(`/render?id=${jobId}`);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to start rendering");
+      toast.error(err.friendlyMessage || "Failed to start rendering");
     } finally {
       setGeneratingRender(false);
     }
@@ -311,7 +311,7 @@ const StudioPage = () => {
       toast.success("Re-render started!");
       navigate(`/render?id=${jobId}`);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to start re-render");
+      toast.error(err.friendlyMessage || "Failed to start re-render");
     } finally {
       setRerendering(false);
     }

@@ -19,11 +19,6 @@ const config = Object.freeze({
     port: parseInt(process.env.REDIS_PORT, 10) || 6379,
   },
 
-  jwt: {
-    secret: process.env.JWT_SECRET || 'fallback-secret',
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  },
-
   lmStudio: {
     url: process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/chat/completions',
     model: process.env.LM_STUDIO_MODEL || 'google/gemma-4-e4b',

@@ -7,17 +7,6 @@ const {
 } = require('../constants');
 const { ID_PATTERN } = require('../utils/id');
 
-const registerSchema = z.object({
-  name: z.string().min(2).max(100),
-  email: z.string().email(),
-  password: z.string().min(6).max(128),
-});
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
 const createVideoSchema = z
   .object({
     topic: z.string().min(3).max(500).trim(),
@@ -87,8 +76,6 @@ const validate = (schema) => (data) => {
 };
 
 module.exports = {
-  registerSchema,
-  loginSchema,
   createVideoSchema,
   jobIdSchema,
   idSchema,
