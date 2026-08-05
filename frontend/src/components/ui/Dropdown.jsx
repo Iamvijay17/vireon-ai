@@ -49,6 +49,7 @@ export const DropdownItem = ({ icon = null, danger = false, className, children,
     className={cn(
       "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors",
       danger ? "text-danger-500 hover:bg-danger-500/10" : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
+      "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
       className
     )}
     {...props}

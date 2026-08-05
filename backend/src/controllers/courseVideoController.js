@@ -42,7 +42,7 @@ class CourseVideoController {
         throw { status: 400, message: `action must be one of: ${VALID_BULK_ACTIONS.join(', ')}` };
       }
 
-      const jobs = await CourseVideoService.prepareBulkJobs(videoIds, action);
+      const { jobs, skipped } = await CourseVideoService.prepareBulkJobs(videoIds, action);
 
       for (const job of jobs) {
         await courseQueue.add(job.action, { videoId: job.videoId, action: job.action });
@@ -52,9 +52,10 @@ class CourseVideoController {
         videos: videoIds.length,
         action,
         jobs: jobs.length,
+        skipped: skipped.length,
       });
 
-      res.json({ queued: videoIds.length, jobs: jobs.length });
+      res.json({ queued: videoIds.length - skipped.length, jobs: jobs.length, skipped });
     } catch (err) {
       next(err);
     }

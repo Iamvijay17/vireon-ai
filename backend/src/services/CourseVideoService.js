@@ -584,6 +584,9 @@ Rules:
     if (!video.script?.scenes?.length) {
       throw { status: 400, message: 'A script must exist before generating audio' };
     }
+    if (!video.approved) {
+      throw { status: 400, message: 'The script must be approved before generating audio' };
+    }
 
     video.status = VIDEO_STATUS.GENERATING_AUDIO;
     video.audioStatus = STAGE_STATUS.PROCESSING;
@@ -782,6 +785,10 @@ Rules:
     const video = await CourseVideo.findById(videoId);
     if (!video) {
       throw { status: 404, message: 'Video not found' };
+    }
+
+    if (!video.audioUrl) {
+      throw { status: 400, message: 'Audio must be generated before rendering the video' };
     }
 
     video.status = VIDEO_STATUS.RENDERING_VIDEO;
@@ -1022,8 +1029,29 @@ Rules:
       render: 'videoStatus',
     };
 
+    // Videos that don't meet the queued stage's prerequisite (script
+    // approved before audio, audio present before render) are skipped
+    // rather than queued - the server-side backstop for the same gating the
+    // lesson table's buttons apply client-side, so it holds even if a
+    // request bypasses the UI. 'generate-script'/'generate-full' have no
+    // prerequisite since they start the pipeline from the beginning.
     const jobs = [];
+    const skipped = [];
     for (const videoId of videoIds) {
+      const video = await CourseVideo.findById(videoId).select('approved audioUrl');
+      if (!video) {
+        skipped.push({ videoId, reason: 'Video not found' });
+        continue;
+      }
+      if (action === 'generate-audio' && !video.approved) {
+        skipped.push({ videoId, reason: 'Script must be approved before generating audio' });
+        continue;
+      }
+      if (action === 'render' && !video.audioUrl) {
+        skipped.push({ videoId, reason: 'Audio must be generated before rendering' });
+        continue;
+      }
+
       const update = {};
       for (const a of stageActions) {
         update[stageField[a]] = STAGE_STATUS.QUEUED;
@@ -1032,7 +1060,7 @@ Rules:
       await CourseVideo.findByIdAndUpdate(videoId, { $set: update });
     }
 
-    return jobs;
+    return { jobs, skipped };
   }
 
   /**

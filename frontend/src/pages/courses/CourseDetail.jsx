@@ -180,6 +180,48 @@ const stageActionLabel = (stageLabel, status) => {
   return `Generate ${stageLabel}`;
 };
 
+// A video mid-pipeline can't be re-queued into another stage until its
+// current job finishes (or is stopped) - matches the backend's
+// concurrency:1 course-video queue and CourseVideoService's per-stage
+// PROCESSING/QUEUED handling.
+const BUSY_STATUSES = [
+  "Generating Script",
+  "Generating Audio",
+  "Generating Scenes",
+  "Generating Images",
+  "Rendering Video",
+  "Uploading",
+];
+const isVideoBusy = (video) => BUSY_STATUSES.includes(video.status);
+const videoHasApprovedScript = (video) => Boolean(video.approved);
+const videoHasAudio = (video) => Boolean(video.audioUrl);
+const videoCanApprove = (video) => ["Script Generated", "Waiting for Approval"].includes(video.status) && !video.approved;
+
+// Per-video eligibility for each pipeline action, mirroring the same
+// prerequisites CourseVideoService enforces server-side (approveScript,
+// generateAudio, renderVideo, prepareBulkJobs) so the buttons never invite a
+// request the backend will just reject. `reason` is a function (not a fixed
+// string) so a busy video shows "already processing" rather than a stale
+// prerequisite message that no longer matches why the button is disabled.
+const ACTION_GATES = {
+  "generate-script": {
+    eligible: (v) => !isVideoBusy(v),
+    reason: () => "This lesson is already processing",
+  },
+  "generate-audio": {
+    eligible: (v) => !isVideoBusy(v) && videoHasApprovedScript(v),
+    reason: (v) => (isVideoBusy(v) ? "This lesson is already processing" : "Approve the script before generating audio"),
+  },
+  render: {
+    eligible: (v) => !isVideoBusy(v) && videoHasAudio(v),
+    reason: (v) => (isVideoBusy(v) ? "This lesson is already processing" : "Generate audio before rendering the video"),
+  },
+  "generate-full": {
+    eligible: (v) => !isVideoBusy(v),
+    reason: () => "This lesson is already processing",
+  },
+};
+
 const CourseDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -618,7 +660,16 @@ const CourseDetail = () => {
     setBulkActionLoading(action);
     try {
       const res = await bulkGenerateCourseVideos(videoIds, action);
-      toast.success(bulk ? `${videoIds.length} lesson(s) queued` : "Queued");
+      const queued = res.data.queued ?? videoIds.length;
+      const skipped = res.data.skipped || [];
+      if (queued > 0) toast.success(bulk ? `${queued} lesson(s) queued` : "Queued");
+      if (skipped.length > 0) {
+        toast.error(
+          bulk
+            ? `Skipped ${skipped.length} lesson(s) - not ready for this step`
+            : skipped[0]?.reason || "Not ready for this step"
+        );
+      }
       fetchVideos();
       if (bulk) setSelectedIds(new Set());
       return res;
@@ -737,6 +788,9 @@ const CourseDetail = () => {
     setSelectedIds((prev) => (prev.size === videos.length ? new Set() : new Set(videos.map((v) => v._id))));
   };
 
+  const selectedVideos = videos.filter((v) => selectedIds.has(v._id));
+  const canApproveSelected = selectedVideos.some(videoCanApprove);
+
   const totalVideos = course?.videoCount || 0;
   const completedVideos = course?.completedVideoCount || 0;
   const progressPercent = totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
@@ -841,16 +895,50 @@ const CourseDetail = () => {
                 <DropdownItem icon={<PlayCircle className="size-4" />} onClick={() => navigate(`/courses/${id}/videos/${video._id}`)}>
                   Open Video
                 </DropdownItem>
-                <DropdownItem icon={<FileText className="size-4" />} onClick={() => runGenerateAction([video._id], "generate-script")}>
+                <DropdownItem
+                  icon={<FileText className="size-4" />}
+                  disabled={!ACTION_GATES["generate-script"].eligible(video)}
+                  title={!ACTION_GATES["generate-script"].eligible(video) ? ACTION_GATES["generate-script"].reason(video) : undefined}
+                  onClick={() => runGenerateAction([video._id], "generate-script")}
+                >
                   {stageActionLabel("Script", video.scriptStatus || "Pending")}
                 </DropdownItem>
-                <DropdownItem icon={<AudioLines className="size-4" />} onClick={() => runGenerateAction([video._id], "generate-audio")}>
+                <DropdownItem
+                  icon={<CheckCircle2 className="size-4" />}
+                  disabled={!videoCanApprove(video)}
+                  title={
+                    !videoCanApprove(video)
+                      ? video.approved
+                        ? "Script is already approved"
+                        : "Generate a script first"
+                      : undefined
+                  }
+                  onClick={() => handleBulkApprove([video._id])}
+                >
+                  Approve Script
+                </DropdownItem>
+                <DropdownItem
+                  icon={<AudioLines className="size-4" />}
+                  disabled={!ACTION_GATES["generate-audio"].eligible(video)}
+                  title={!ACTION_GATES["generate-audio"].eligible(video) ? ACTION_GATES["generate-audio"].reason(video) : undefined}
+                  onClick={() => runGenerateAction([video._id], "generate-audio")}
+                >
                   {stageActionLabel("Audio", video.audioStatus || "Pending")}
                 </DropdownItem>
-                <DropdownItem icon={<Video className="size-4" />} onClick={() => runGenerateAction([video._id], "render")}>
+                <DropdownItem
+                  icon={<Video className="size-4" />}
+                  disabled={!ACTION_GATES.render.eligible(video)}
+                  title={!ACTION_GATES.render.eligible(video) ? ACTION_GATES.render.reason(video) : undefined}
+                  onClick={() => runGenerateAction([video._id], "render")}
+                >
                   {stageActionLabel("Video", video.videoStatus || "Pending")}
                 </DropdownItem>
-                <DropdownItem icon={<Zap className="size-4" />} onClick={() => runGenerateAction([video._id], "generate-full")}>
+                <DropdownItem
+                  icon={<Zap className="size-4" />}
+                  disabled={!ACTION_GATES["generate-full"].eligible(video)}
+                  title={!ACTION_GATES["generate-full"].eligible(video) ? ACTION_GATES["generate-full"].reason(video) : undefined}
+                  onClick={() => runGenerateAction([video._id], "generate-full")}
+                >
                   Generate Everything
                 </DropdownItem>
                 {video.status !== "Draft" && !["Completed", "Failed", "Cancelled"].includes(video.status) && (
@@ -996,22 +1084,29 @@ const CourseDetail = () => {
                 size="sm"
                 icon={<CheckCircle2 className="size-3.5" />}
                 loading={bulkActionLoading === "approve-script"}
+                disabled={!canApproveSelected}
+                title={!canApproveSelected ? "None of the selected lessons have a script ready to approve" : undefined}
                 onClick={() => handleBulkApprove(Array.from(selectedIds))}
               >
                 Approve Scripts
               </Button>
-              {BULK_ACTIONS.map(({ action, label, icon: Icon }) => (
-                <Button
-                  key={action}
-                  variant="secondary"
-                  size="sm"
-                  icon={<Icon className="size-3.5" />}
-                  loading={bulkActionLoading === action}
-                  onClick={() => runGenerateAction(Array.from(selectedIds), action, { bulk: true })}
-                >
-                  {label}
-                </Button>
-              ))}
+              {BULK_ACTIONS.map(({ action, label, icon: Icon }) => {
+                const eligible = selectedVideos.some(ACTION_GATES[action].eligible);
+                return (
+                  <Button
+                    key={action}
+                    variant="secondary"
+                    size="sm"
+                    icon={<Icon className="size-3.5" />}
+                    loading={bulkActionLoading === action}
+                    disabled={!eligible}
+                    title={!eligible ? "None of the selected lessons are eligible for this step" : undefined}
+                    onClick={() => runGenerateAction(Array.from(selectedIds), action, { bulk: true })}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
               <Button
                 variant="danger"
                 size="sm"
