@@ -5,6 +5,7 @@ const {
   LANGUAGES,
   STANDALONE_VIDEO_DURATIONS,
 } = require('../constants');
+const { ID_PATTERN } = require('../utils/id');
 
 const registerSchema = z.object({
   name: z.string().min(2).max(100),
@@ -62,6 +63,17 @@ const jobIdSchema = z.object({
   id: z.string().regex(/^job-[0-9A-Z]{8}$/, 'Invalid video job id'),
 });
 
+// Matches any entity id produced by utils/id.js (course, course-video,
+// scene, ...) - used for course-video routes, which aren't scoped to a
+// single prefix the way jobIdSchema is to "job-".
+const idSchema = z.object({
+  id: z.string().regex(ID_PATTERN, 'Invalid id'),
+});
+
+const idArraySchema = z.object({
+  videoIds: z.array(z.string().regex(ID_PATTERN, 'Invalid id')).min(1, 'videoIds must be a non-empty array'),
+});
+
 const validate = (schema) => (data) => {
   const result = schema.safeParse(data);
   if (!result.success) {
@@ -79,5 +91,7 @@ module.exports = {
   loginSchema,
   createVideoSchema,
   jobIdSchema,
+  idSchema,
+  idArraySchema,
   validate,
 };

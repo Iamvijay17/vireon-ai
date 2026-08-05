@@ -182,6 +182,52 @@ class CourseVideoService {
     return video;
   }
 
+  // Which stage-status field each single-video generation action gates on.
+  // 'retry' has no field of its own - it re-runs whichever stage is
+  // recorded as failed, gated by video.status below instead.
+  static STAGE_FIELD_FOR_ACTION = {
+    'generate-script': 'scriptStatus',
+    'regenerate-script': 'scriptStatus',
+    'generate-audio': 'audioStatus',
+    render: 'videoStatus',
+  };
+
+  /**
+   * Guard against double-dispatching the same generation action - e.g. a
+   * double-clicked "Generate Script" button, or a retried frontend request,
+   * queueing two BullMQ jobs for the same video/stage. With the worker at
+   * concurrency:1 those would run back-to-back rather than in parallel, but
+   * the second run still wastes an LLM/TTS/render call and can race writes
+   * to the video document. Marks the stage Queued immediately (same as
+   * prepareBulkJobs does for bulk actions) so a second call sees it's
+   * already in flight and is rejected instead of piling on another job.
+   */
+  static async claimStage(videoId, action) {
+    const video = await CourseVideo.findById(videoId);
+    if (!video) {
+      throw { status: 404, message: 'Video not found' };
+    }
+
+    if (action === 'retry') {
+      if (video.status !== VIDEO_STATUS.FAILED) {
+        throw { status: 409, message: `Video is in ${video.status} state, not Failed` };
+      }
+      return video;
+    }
+
+    const field = CourseVideoService.STAGE_FIELD_FOR_ACTION[action];
+    if (field) {
+      const current = video[field];
+      if (current === STAGE_STATUS.QUEUED || current === STAGE_STATUS.PROCESSING) {
+        throw { status: 409, message: `${action} is already ${current} for this video` };
+      }
+      video[field] = STAGE_STATUS.QUEUED;
+      await video.save();
+    }
+
+    return video;
+  }
+
   // Fields the client is allowed to edit via update(). Everything else
   // (status, approved, courseId, script, error, retryCount, ...) is
   // pipeline-managed state and must not be settable through this endpoint.

@@ -4,6 +4,7 @@ const courseQueue = require('../queues/courseQueue');
 const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
+const { validate, idSchema, idArraySchema } = require('../validators');
 
 const VALID_BULK_ACTIONS = ['generate-script', 'generate-audio', 'render', 'generate-full'];
 
@@ -33,11 +34,9 @@ class CourseVideoController {
    */
   static async bulkGenerate(req, res, next) {
     try {
-      const { videoIds, action } = req.body;
+      const { action } = req.body;
+      const { videoIds } = validate(idArraySchema)(req.body);
 
-      if (!Array.isArray(videoIds) || videoIds.length === 0) {
-        throw { status: 400, message: 'videoIds must be a non-empty array' };
-      }
       if (!VALID_BULK_ACTIONS.includes(action)) {
         throw { status: 400, message: `action must be one of: ${VALID_BULK_ACTIONS.join(', ')}` };
       }
@@ -66,7 +65,8 @@ class CourseVideoController {
    */
   static async getById(req, res, next) {
     try {
-      const video = await CourseVideoService.getById(req.params.id);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.getById(id);
       res.json({ video });
     } catch (err) {
       next(err);
@@ -78,7 +78,8 @@ class CourseVideoController {
    */
   static async update(req, res, next) {
     try {
-      const video = await CourseVideoService.update(req.params.id, req.body);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.update(id, req.body);
       res.json({ video });
     } catch (err) {
       next(err);
@@ -92,7 +93,7 @@ class CourseVideoController {
    */
   static async bulkDelete(req, res, next) {
     try {
-      const { videoIds } = req.body;
+      const { videoIds } = validate(idArraySchema)(req.body);
       const result = await CourseVideoService.bulkDelete(videoIds);
       res.json(result);
     } catch (err) {
@@ -105,13 +106,14 @@ class CourseVideoController {
    */
   static async delete(req, res, next) {
     try {
-      const video = await CourseVideoService.getById(req.params.id);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.getById(id);
       const courseId = video.courseId.toString();
 
-      const result = await CourseVideoService.delete(req.params.id);
+      const result = await CourseVideoService.delete(id);
 
       SocketService.emitToCourse(courseId, SOCKET_EVENTS.COURSE_VIDEO_DELETED, {
-        videoId: req.params.id,
+        videoId: id,
       });
 
       res.json(result);
@@ -126,16 +128,17 @@ class CourseVideoController {
    */
   static async generateScript(req, res, next) {
     try {
-      const video = await CourseVideoService.getById(req.params.id);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.claimStage(id, 'generate-script');
 
       // Dispatch to worker queue instead of running in API process
       await courseQueue.add('generate-script', {
-        videoId: req.params.id,
+        videoId: id,
         action: 'generate-script',
       });
 
       LoggerService.info('Course video script generation dispatched to worker', {
-        videoId: req.params.id,
+        videoId: id,
       });
 
       res.json({
@@ -153,7 +156,8 @@ class CourseVideoController {
    */
   static async approveScript(req, res, next) {
     try {
-      const video = await CourseVideoService.approveScript(req.params.id);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.approveScript(id);
       res.json({ video });
     } catch (err) {
       next(err);
@@ -167,11 +171,7 @@ class CourseVideoController {
    */
   static async bulkApproveScript(req, res, next) {
     try {
-      const { videoIds } = req.body;
-
-      if (!Array.isArray(videoIds) || videoIds.length === 0) {
-        throw { status: 400, message: 'videoIds must be a non-empty array' };
-      }
+      const { videoIds } = validate(idArraySchema)(req.body);
 
       const result = await CourseVideoService.bulkApproveScripts(videoIds);
       res.json(result);
@@ -185,8 +185,9 @@ class CourseVideoController {
    */
   static async updateScript(req, res, next) {
     try {
+      const { id } = validate(idSchema)({ id: req.params.id });
       const { script } = req.body;
-      const video = await CourseVideoService.updateScript(req.params.id, script);
+      const video = await CourseVideoService.updateScript(id, script);
       res.json({ video });
     } catch (err) {
       next(err);
@@ -199,16 +200,17 @@ class CourseVideoController {
    */
   static async regenerateScript(req, res, next) {
     try {
-      const video = await CourseVideoService.getById(req.params.id);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.claimStage(id, 'regenerate-script');
 
       // Dispatch to worker queue instead of running in API process
       await courseQueue.add('regenerate-script', {
-        videoId: req.params.id,
+        videoId: id,
         action: 'regenerate-script',
       });
 
       LoggerService.info('Course video script regeneration dispatched to worker', {
-        videoId: req.params.id,
+        videoId: id,
       });
 
       res.json({
@@ -227,16 +229,17 @@ class CourseVideoController {
    */
   static async generateAudio(req, res, next) {
     try {
-      const video = await CourseVideoService.getById(req.params.id);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.claimStage(id, 'generate-audio');
 
       // Dispatch to worker queue instead of running in API process
       await courseQueue.add('generate-audio', {
-        videoId: req.params.id,
+        videoId: id,
         action: 'generate-audio',
       });
 
       LoggerService.info('Course video audio generation dispatched to worker', {
-        videoId: req.params.id,
+        videoId: id,
       });
 
       res.json({
@@ -255,16 +258,17 @@ class CourseVideoController {
    */
   static async render(req, res, next) {
     try {
-      const video = await CourseVideoService.getById(req.params.id);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.claimStage(id, 'render');
 
       // Dispatch to worker queue instead of running in API process
       await courseQueue.add('render', {
-        videoId: req.params.id,
+        videoId: id,
         action: 'render',
       });
 
       LoggerService.info('Course video rendering dispatched to worker', {
-        videoId: req.params.id,
+        videoId: id,
       });
 
       res.json({
@@ -282,7 +286,8 @@ class CourseVideoController {
    */
   static async getActivityLogs(req, res, next) {
     try {
-      const logs = await ActivityLogService.getByVideo(req.params.id);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const logs = await ActivityLogService.getByVideo(id);
       res.json({ logs });
     } catch (err) {
       next(err);
@@ -297,7 +302,8 @@ class CourseVideoController {
    */
   static async stop(req, res, next) {
     try {
-      const video = await CourseVideoService.stop(req.params.id);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.stop(id);
       res.json({ video });
     } catch (err) {
       next(err);
@@ -311,12 +317,13 @@ class CourseVideoController {
    */
   static async regenerateSceneAudio(req, res, next) {
     try {
+      const { id } = validate(idSchema)({ id: req.params.id });
       const sceneNumber = parseInt(req.params.sceneNumber, 10);
       if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
         throw { status: 400, message: 'sceneNumber must be a positive integer' };
       }
 
-      const result = await CourseVideoService.regenerateSceneAudio(req.params.id, sceneNumber);
+      const result = await CourseVideoService.regenerateSceneAudio(id, sceneNumber);
       res.json(result);
     } catch (err) {
       next(err);
@@ -329,16 +336,17 @@ class CourseVideoController {
    */
   static async retry(req, res, next) {
     try {
-      const video = await CourseVideoService.getById(req.params.id);
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.claimStage(id, 'retry');
 
       // Dispatch to worker queue instead of running in API process
       await courseQueue.add('retry', {
-        videoId: req.params.id,
+        videoId: id,
         action: 'retry',
       });
 
       LoggerService.info('Course video retry dispatched to worker', {
-        videoId: req.params.id,
+        videoId: id,
       });
 
       res.json({

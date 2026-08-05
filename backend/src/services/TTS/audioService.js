@@ -274,21 +274,33 @@ class AudioService {
           },
         );
 
-        // Connect to Gradio Qwen3-TTS server
+        // Connect to Gradio Qwen3-TTS server. Always closed below, even on
+        // failure, so a run of TTS retries/scenes doesn't leak one
+        // websocket connection per attempt.
         const client = await Client.connect(
           config.tts.url.replace(/\/generate$/, "").replace(/\/$/, ""),
         );
 
-        const result =
-          resolved.mode === "clone"
-            ? await this._generateClone(client, resolved, text, seed)
-            : await this._generateCustom(client, resolved, text, seed);
+        let result;
+        try {
+          result =
+            resolved.mode === "clone"
+              ? await this._generateClone(client, resolved, text, seed)
+              : await this._generateCustom(client, resolved, text, seed);
+        } finally {
+          client.close();
+        }
 
         const audio = result.data[0];
 
         if (audio && audio.url) {
           // Download the generated audio
           const outputResponse = await fetch(audio.url);
+          if (!outputResponse.ok) {
+            throw new Error(
+              `Failed to download generated audio: ${outputResponse.status} ${outputResponse.statusText}`,
+            );
+          }
           const outputAudioBuffer = await outputResponse.arrayBuffer();
           await fs.writeFile(outputFile, Buffer.from(outputAudioBuffer));
 
