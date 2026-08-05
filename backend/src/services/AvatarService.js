@@ -43,6 +43,19 @@ class AvatarService {
     await fs.mkdir(avatarDir, { recursive: true });
     const outputFile = path.join(avatarDir, `scene${scene.sceneNumber}.mp4`);
 
+    // Fail fast with an actionable message instead of a bare "fetch failed"
+    // for the two setup steps documented in assets/avatars/README.md: a
+    // running local avatar server and a reference clip on disk. Checked
+    // once per scene (not once per job) so a mid-batch failure - e.g. the
+    // server crashing between scenes - is caught with the same clarity.
+    try {
+      await fs.access(config.avatar.referenceVideoPath);
+    } catch {
+      throw new Error(
+        `No avatar reference video found at ${config.avatar.referenceVideoPath}. Add one (see backend/assets/avatars/README.md) or set AVATAR_REFERENCE_VIDEO in backend/.env.`
+      );
+    }
+
     let lastError = null;
     for (let attempt = 1; attempt <= config.avatar.maxRetries; attempt++) {
       try {
@@ -51,9 +64,14 @@ class AvatarService {
           { audioPath }
         );
 
-        const client = await Client.connect(
-          config.avatar.url.replace(/\/$/, "")
-        );
+        let client;
+        try {
+          client = await Client.connect(config.avatar.url.replace(/\/$/, ""));
+        } catch (connectErr) {
+          throw new Error(
+            `Could not reach the avatar server at ${config.avatar.url} (${connectErr.message}). Make sure your local MuseTalk Gradio app is running and AVATAR_API_URL in backend/.env points at it.`
+          );
+        }
 
         const result = await this._generateLipsync(client, audioPath);
         const avatar = result.data?.[0];
