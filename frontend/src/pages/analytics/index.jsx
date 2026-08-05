@@ -1,5 +1,19 @@
 import { useEffect, useState } from "react";
-import { FolderKanban, CheckCircle2, Timer, GraduationCap, RefreshCw, AlertTriangle } from "lucide-react";
+import {
+  FolderKanban,
+  CheckCircle2,
+  Timer,
+  GraduationCap,
+  RefreshCw,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Activity,
+  Layers,
+  MonitorPlay,
+  BookOpen,
+} from "lucide-react";
 import { getAnalyticsOverview } from "../../services/api";
 import { PageHeader, LoadingState, EmptyState } from "../../components";
 import { Card, CardHeader } from "../../components/ui/Card";
@@ -9,6 +23,7 @@ import { Badge } from "../../components/ui/Badge";
 import { TrendChart } from "../../components/charts/TrendChart";
 import { BarList } from "../../components/charts/BarList";
 import { StatusStackedBar } from "../../components/charts/StatusStackedBar";
+import { Sparkline } from "../../components/charts/Sparkline";
 import { toast } from "../../components/ui/toastBus";
 
 const RANGE_OPTIONS = [
@@ -26,6 +41,66 @@ const formatDuration = (ms) => {
 };
 
 const formatPercent = (v) => (v === null || v === undefined ? "—" : `${v}%`);
+
+// Splits a trend series in half and returns the % change of `key`'s sum
+// (or, for `ratio`, the completed/created ratio) between the two halves -
+// a lightweight period-over-period delta without needing a backend call.
+const trendDelta = (trend, key) => {
+  const n = trend?.length || 0;
+  if (n < 4) return null;
+  const mid = Math.floor(n / 2);
+  const sum = (rows) => rows.reduce((s, r) => s + (r[key] || 0), 0);
+  const prev = sum(trend.slice(0, mid));
+  const curr = sum(trend.slice(mid));
+  if (!prev && !curr) return null;
+  if (!prev) return { pct: 100, curr, prev };
+  return { pct: Math.round(((curr - prev) / prev) * 100), curr, prev };
+};
+
+const successRateSeries = (trend) =>
+  (trend || []).map((d) => {
+    const resolved = d.jobsCompleted + d.jobsFailed;
+    return resolved ? Math.round((d.jobsCompleted / resolved) * 100) : 0;
+  });
+
+const DeltaBadge = ({ delta, suffix = "%" }) => {
+  if (!delta || delta.pct === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-text-tertiary">
+        <Minus className="size-3" /> flat
+      </span>
+    );
+  }
+  const positive = delta.pct > 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-medium ${
+        positive ? "text-success-600 dark:text-success-500" : "text-danger-600 dark:text-danger-500"
+      }`}
+    >
+      {positive ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+      {positive ? "+" : ""}
+      {delta.pct}
+      {suffix}
+    </span>
+  );
+};
+
+const toneCls = {
+  accent: "bg-gradient-to-br from-accent-500/20 to-accent-500/5 text-accent",
+  warning: "bg-gradient-to-br from-warning-500/20 to-warning-500/5 text-warning-600 dark:text-warning-500",
+  success: "bg-gradient-to-br from-success-500/20 to-success-500/5 text-success-600 dark:text-success-500",
+  danger: "bg-gradient-to-br from-danger-500/20 to-danger-500/5 text-danger-600 dark:text-danger-500",
+  info: "bg-gradient-to-br from-info-500/20 to-info-500/5 text-info-600 dark:text-info-500",
+};
+
+const toneLine = {
+  accent: "var(--color-accent-500)",
+  warning: "var(--color-warning-500)",
+  success: "var(--color-success-500)",
+  danger: "var(--color-danger-500)",
+  info: "var(--color-info-500)",
+};
 
 const Analytics = () => {
   const [days, setDays] = useState("30");
@@ -61,29 +136,57 @@ const Analytics = () => {
   }
 
   const summary = data?.summary || {};
-  const hasActivity = (data?.trend || []).some(
+  const trend = data?.trend || [];
+  const hasActivity = trend.some(
     (d) => d.jobsCreated || d.jobsCompleted || d.jobsFailed || d.courseVideosRendered
   );
 
   const stats = [
-    { title: "Total Video Jobs", value: summary.totalVideoJobs ?? 0, icon: FolderKanban, tone: "accent" },
-    { title: "Job Success Rate", value: formatPercent(summary.jobSuccessRate), icon: CheckCircle2, tone: "success" },
-    { title: "Avg. Render Time", value: formatDuration(summary.avgRenderTimeMs), icon: Timer, tone: "warning" },
+    {
+      title: "Total Video Jobs",
+      value: summary.totalVideoJobs ?? 0,
+      icon: FolderKanban,
+      tone: "accent",
+      spark: trend.map((d) => d.jobsCreated),
+      delta: trendDelta(trend, "jobsCreated"),
+    },
+    {
+      title: "Job Success Rate",
+      value: formatPercent(summary.jobSuccessRate),
+      icon: CheckCircle2,
+      tone: "success",
+      spark: successRateSeries(trend),
+      delta: (() => {
+        const rates = successRateSeries(trend);
+        const n = rates.length;
+        if (n < 4) return null;
+        const mid = Math.floor(n / 2);
+        const avg = (arr) => arr.reduce((s, v) => s + v, 0) / (arr.length || 1);
+        const prev = avg(rates.slice(0, mid));
+        const curr = avg(rates.slice(mid));
+        if (!prev) return null;
+        return { pct: Math.round(curr - prev) };
+      })(),
+      deltaSuffix: "pt",
+    },
+    {
+      title: "Avg. Render Time",
+      value: formatDuration(summary.avgRenderTimeMs),
+      icon: Timer,
+      tone: "warning",
+      spark: trend.map((d) => d.jobsCompleted),
+      delta: null,
+      caption: `${summary.completedVideoJobs ?? 0} completed jobs`,
+    },
     {
       title: "Course Completion",
       value: formatPercent(summary.courseCompletionRate),
       icon: GraduationCap,
       tone: "info",
+      spark: trend.map((d) => d.courseVideosRendered),
+      delta: trendDelta(trend, "courseVideosRendered"),
     },
   ];
-
-  const toneCls = {
-    accent: "bg-accent-subtle text-accent",
-    warning: "bg-warning-500/10 text-warning-600 dark:text-warning-500",
-    success: "bg-success-500/10 text-success-600 dark:text-success-500",
-    danger: "bg-danger-500/10 text-danger-600 dark:text-danger-500",
-    info: "bg-info-500/10 text-info-600 dark:text-info-500",
-  };
 
   const trendSeries = [
     { key: "jobsCreated", label: "Jobs created", color: "var(--color-accent-500)" },
@@ -110,19 +213,38 @@ const Analytics = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((s, i) => (
-          <Card key={s.title} hoverable className="animate-slide-up p-5" style={{ "--stagger-index": i }}>
-            <div className={`mb-3 flex size-10 items-center justify-center rounded-[10px] ${toneCls[s.tone]}`}>
-              <s.icon className="size-[19px]" />
+          <Card
+            key={s.title}
+            hoverable
+            className="animate-slide-up overflow-hidden p-5"
+            style={{ "--stagger-index": i }}
+          >
+            <div className="flex items-start justify-between">
+              <div className={`flex size-10 items-center justify-center rounded-[10px] ${toneCls[s.tone]}`}>
+                <s.icon className="size-[19px]" />
+              </div>
+              {s.delta && <DeltaBadge delta={s.delta} suffix={s.deltaSuffix || "%"} />}
             </div>
-            <p className="text-xs font-medium text-text-tertiary">{s.title}</p>
-            <p className="mt-1 text-2xl font-semibold text-text-primary">{s.value}</p>
+            <p className="mt-3 text-xs font-medium text-text-tertiary">{s.title}</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight text-text-primary">{s.value}</p>
+            {s.caption && <p className="mt-0.5 text-[11px] text-text-tertiary">{s.caption}</p>}
+            <div className="-mx-1 -mb-1 mt-3">
+              <Sparkline values={s.spark} color={toneLine[s.tone]} />
+            </div>
           </Card>
         ))}
       </div>
 
       {/* Trend */}
       <Card className="mt-6 animate-slide-up" style={{ "--stagger-index": 4 }}>
-        <CardHeader title="Render Activity" subtitle={`Jobs and course videos over the last ${days} days`} />
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <Activity className="size-4 text-text-tertiary" /> Render Activity
+            </span>
+          }
+          subtitle={`Jobs and course videos over the last ${days} days`}
+        />
         <div className="p-5">
           {hasActivity ? (
             <TrendChart data={data.trend} series={trendSeries} />
@@ -135,7 +257,13 @@ const Analytics = () => {
       {/* Breakdown row 1 */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="animate-slide-up" style={{ "--stagger-index": 5 }}>
-          <CardHeader title="Video Jobs by Status" />
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Layers className="size-4 text-text-tertiary" /> Video Jobs by Status
+              </span>
+            }
+          />
           <div className="p-5">
             {(data?.jobsByStatus || []).length === 0 ? (
               <EmptyState description="No video jobs yet." />
@@ -146,7 +274,13 @@ const Analytics = () => {
         </Card>
 
         <Card className="animate-slide-up" style={{ "--stagger-index": 6 }}>
-          <CardHeader title="Video Jobs by Type" />
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <MonitorPlay className="size-4 text-text-tertiary" /> Video Jobs by Type
+              </span>
+            }
+          />
           <div className="p-5">
             <BarList rows={data?.jobsByType || []} color="var(--color-accent-500)" emptyLabel="No video jobs yet." />
           </div>
@@ -163,7 +297,13 @@ const Analytics = () => {
         </Card>
 
         <Card className="animate-slide-up" style={{ "--stagger-index": 8 }}>
-          <CardHeader title="Courses by Category" />
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <BookOpen className="size-4 text-text-tertiary" /> Courses by Category
+              </span>
+            }
+          />
           <div className="p-5">
             <BarList rows={data?.coursesByCategory || []} color="var(--color-accent-500)" emptyLabel="No courses yet." />
           </div>
@@ -182,7 +322,19 @@ const Analytics = () => {
 
       {/* Recent failures */}
       <Card className="mt-6 animate-slide-up" style={{ "--stagger-index": 10 }}>
-        <CardHeader title="Recent Failures" subtitle="Latest failed video jobs and course video stages" />
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <AlertTriangle className="size-4 text-text-tertiary" /> Recent Failures
+            </span>
+          }
+          subtitle="Latest failed video jobs and course video stages"
+          extra={
+            (data?.recentFailures || []).length > 0 && (
+              <Badge variant="danger">{data.recentFailures.length}</Badge>
+            )
+          }
+        />
         <div className="p-2">
           {(data?.recentFailures || []).length === 0 ? (
             <EmptyState description="No failures — everything is running smoothly." />

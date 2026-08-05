@@ -8,7 +8,7 @@ const LoggerService = require("./LoggerService");
 /**
  * Service for generating a lip-synced talking-avatar clip per scene via a
  * local MuseTalk Gradio server. Mirrors TTS/audioService.js's Gradio client
- * pattern (same local-first, HTTP-to-a-sibling-process shape as TTS/ComfyUI).
+ * pattern (same local-first, HTTP-to-a-sibling-process shape as TTS).
  *
  * MuseTalk animates the mouth region of an existing reference video rather
  * than generating motion from a still photo, so every scene reuses the same

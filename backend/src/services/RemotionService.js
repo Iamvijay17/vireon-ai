@@ -59,7 +59,6 @@ class RemotionService {
            imagePrompt: scene.imagePrompt,
            cameraMotion: scene.cameraMotion,
            animation: scene.animation,
-           // Generated image URL from ComfyUI
            imageUrl: scene.imageUrl || '',
             // Template-based rendering fields
             templateId: scene.templateId || '',

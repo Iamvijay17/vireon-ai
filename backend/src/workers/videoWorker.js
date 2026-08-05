@@ -23,7 +23,6 @@ const RemotionService = require('../services/RemotionService');
 const StorageService = require('../services/StorageService');
 const GitHubService = require('../services/GitHubService');
 const SocketService = require('../services/SocketService');
-const ImageService = require('../services/ImageService');
 const { JOB_STATUS } = require('../constants');
 
 const connection = {
@@ -46,7 +45,7 @@ class JobCancelledError extends Error {
 
 /**
  * Checkpoint called between pipeline steps and per-scene loop iterations.
- * There's no way to kill an in-flight LM Studio/TTS/ComfyUI/Remotion/upload
+ * There's no way to kill an in-flight LM Studio/TTS/Remotion/upload
  * call directly, so cancellation only takes effect at these checkpoints -
  * the worker can be mid-step for a while after a stop request before it
  * actually notices and bails out.
@@ -321,90 +320,6 @@ const worker = new Worker(
       }
 
       await bailIfCancelled(jobId);
-
-      // ── Step 5: Image Generation via ComfyUI
-      // Only generate images for scenes with sceneType === "image"
-      const imageScenes = script.scenes.filter(s => s.sceneType === 'image' && !s.imageUrl);
-      const nonImageScenes = script.scenes.filter(s => s.sceneType !== 'image');
-
-      if (imageScenes.length > 0) {
-        currentStep = JOB_STATUS.GENERATING_IMAGES;
-        await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_IMAGES, { progress: 55 });
-        SocketService.emitJobProgress({ _id: jobId, progress: 55, status: JOB_STATUS.GENERATING_IMAGES, currentStep: JOB_STATUS.GENERATING_IMAGES, currentScene: 0 });
-
-        LoggerService.info('Starting image generation via ComfyUI', {
-          jobId,
-          type: videoJob.type,
-          totalScenes: script.scenes.length,
-          imageScenes: imageScenes.length,
-          skippedScenes: nonImageScenes.length,
-        });
-        await ActivityLogService.add(jobId, 'Image generation started');
-
-        // For podcast/business types with image scenes, generate a SINGLE background image used by all image scenes
-        // For other types, generate per-scene images
-        const isSingleImageType = ['podcast', 'business'].includes(videoJob.type);
-
-        // If a cover image already exists on any image-type scene (e.g. the
-        // user manually pasted one in the Studio Editor during the approval
-        // pause), reuse it for the rest instead of generating a new one.
-        const existingCoverUrl = script.scenes.find(s => s.sceneType === 'image' && s.imageUrl)?.imageUrl;
-
-        if (isSingleImageType && existingCoverUrl) {
-          LoggerService.info('Single-image mode: reusing manually-set cover image for remaining scenes', {
-            jobId,
-            type: videoJob.type,
-          });
-          for (const scene of imageScenes) {
-            await VideoService.updateSceneImage(jobId, scene.sceneNumber, { imageUrl: existingCoverUrl });
-          }
-        } else if (isSingleImageType && imageScenes.length > 0) {
-          // Generate just ONE image from the first image scene's prompt, use as background for all images scenes
-          LoggerService.info('Single-image mode: generating one background image for all image scenes', {
-            jobId,
-            type: videoJob.type,
-          });
-          const scenesWithImages = await ImageService.generateAllImages(jobId, imageScenes, { singleImage: true, checkCancelled: () => bailIfCancelled(jobId) });
-
-          // Update ALL image scenes with the same image URL
-          for (const updatedScene of scenesWithImages) {
-            await VideoService.updateSceneImage(jobId, updatedScene.sceneNumber, {
-              imageUrl: updatedScene.imageUrl,
-            });
-          }
-        } else {
-          // Generate per-scene images for image scenes only
-          const scenesWithImages = await ImageService.generateAllImages(jobId, imageScenes, { checkCancelled: () => bailIfCancelled(jobId) });
-
-          // Update scenes with generated image URLs
-          for (const updatedScene of scenesWithImages) {
-            await VideoService.updateSceneImage(jobId, updatedScene.sceneNumber, {
-              imageUrl: updatedScene.imageUrl,
-            });
-          }
-        }
-
-        // Re-fetch script with updated image URLs
-        const jobWithImages = await VideoService.getById(jobId);
-        script = jobWithImages.script;
-
-        // Catches a cancellation that landed after the last scene's image
-        // finished but before IMAGE_COMPLETED gets written below.
-        await bailIfCancelled(jobId);
-
-        // Mark image generation complete
-        await VideoService.updateStatus(jobId, JOB_STATUS.IMAGE_COMPLETED, { progress: 60 });
-        SocketService.emitJobProgress({ _id: jobId, progress: 60, status: JOB_STATUS.IMAGE_COMPLETED, currentStep: JOB_STATUS.IMAGE_COMPLETED, currentScene: script.scenes.length });
-
-        const scenesWithImageCount = script.scenes.filter(s => s.imageUrl).length;
-        LoggerService.success('Image generation complete', {
-          scenes: scenesWithImageCount,
-          mode: isSingleImageType ? 'single' : 'per-scene',
-        });
-        await ActivityLogService.add(jobId, 'Image generation complete');
-      } else {
-        LoggerService.info('No image scenes found or all images generated, skipping image step');
-      }
 
       // ── Step 6: Prepare Assets (always regenerate to include latest imageUrl and templateId)
       // Delete old assets.json if it exists to force regeneration with updated data

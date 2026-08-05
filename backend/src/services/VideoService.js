@@ -327,7 +327,7 @@ class VideoService {
    * started processing yet, the caller (VideoController.stop) also removes
    * it from the BullMQ queue so it never starts. If it's already mid-flight,
    * there's no way to kill the in-progress external call (LM Studio/TTS/
-   * ComfyUI/Remotion/upload) directly, so the worker itself checks for
+   * Remotion/upload) directly, so the worker itself checks for
    * CANCELLED at each step boundary and between per-scene iterations, and
    * bails out as soon as it notices - see videoWorker.js's `bailIfCancelled`.
    */

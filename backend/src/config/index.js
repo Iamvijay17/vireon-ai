@@ -52,12 +52,6 @@ const config = Object.freeze({
     uploadRetries: parseInt(process.env.GITHUB_UPLOAD_RETRIES, 10) || 3,
   },
 
-  comfyui: {
-    url: process.env.COMFYUI_URL || 'http://localhost:8188',
-    timeout: parseInt(process.env.COMFYUI_TIMEOUT, 10) || 120000,
-    maxRetries: parseInt(process.env.COMFYUI_MAX_RETRIES, 10) || 3,
-  },
-
   avatar: {
     url: process.env.AVATAR_API_URL || 'http://localhost:7861',
     referenceVideoPath: process.env.AVATAR_REFERENCE_VIDEO || path.resolve(__dirname, '../../assets/avatars/default.mp4'),

@@ -46,6 +46,7 @@ import {
   stopCourseVideo,
   getCourseVideos,
   createCourseVideo,
+  updateCourseVideo,
   deleteCourseVideo,
   getVoices,
   generateCourseCurriculum,
@@ -252,6 +253,12 @@ const CourseDetail = () => {
   const [formValues, setFormValues] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const [videoEditModalVisible, setVideoEditModalVisible] = useState(false);
+  const [editingVideoId, setEditingVideoId] = useState(null);
+  const [videoEditForm, setVideoEditForm] = useState(EMPTY_FORM);
+  const [videoEditError, setVideoEditError] = useState("");
+  const [videoEditSubmitting, setVideoEditSubmitting] = useState(false);
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
@@ -517,6 +524,37 @@ const CourseDetail = () => {
       toast.error(err.response?.data?.message || "Failed to create video");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const showVideoEditModal = (video) => {
+    setEditingVideoId(video._id);
+    setVideoEditForm({
+      title: video.title || "",
+      topic: video.topic || "",
+      duration: video.duration || EMPTY_FORM.duration,
+      voice: video.voice || EMPTY_FORM.voice,
+      style: video.style || EMPTY_FORM.style,
+      additionalInstructions: video.additionalInstructions || "",
+      avatarEnabled: Boolean(video.avatarEnabled),
+    });
+    setVideoEditError("");
+    setVideoEditModalVisible(true);
+  };
+
+  const handleSaveVideoEdit = async () => {
+    if (!videoEditForm.title.trim()) return setVideoEditError("Please enter a video title");
+    if (!videoEditForm.topic.trim()) return setVideoEditError("Please enter a topic");
+    try {
+      setVideoEditSubmitting(true);
+      await updateCourseVideo(editingVideoId, videoEditForm);
+      toast.success("Video details updated");
+      setVideoEditModalVisible(false);
+      fetchVideos();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to update video");
+    } finally {
+      setVideoEditSubmitting(false);
     }
   };
 
@@ -915,6 +953,14 @@ const CourseDetail = () => {
                   Open Video
                 </DropdownItem>
                 <DropdownItem
+                  icon={<Pencil className="size-4" />}
+                  disabled={isVideoBusy(video)}
+                  title={isVideoBusy(video) ? "This lesson is already processing" : undefined}
+                  onClick={() => showVideoEditModal(video)}
+                >
+                  Edit Details
+                </DropdownItem>
+                <DropdownItem
                   icon={<FileText className="size-4" />}
                   disabled={!ACTION_GATES["generate-script"].eligible(video)}
                   title={!ACTION_GATES["generate-script"].eligible(video) ? ACTION_GATES["generate-script"].reason(video) : undefined}
@@ -1252,6 +1298,89 @@ const CourseDetail = () => {
               className="size-4 cursor-pointer accent-accent"
               checked={formValues.avatarEnabled}
               onChange={(e) => setFormValues((prev) => ({ ...prev, avatarEnabled: e.target.checked }))}
+            />
+            Enable talking avatar (adds a lip-synced picture-in-picture overlay before render)
+          </label>
+        </div>
+      </Modal>
+
+      {/* Edit Video Details Modal */}
+      <Modal
+        open={videoEditModalVisible}
+        onClose={() => setVideoEditModalVisible(false)}
+        title="Edit Video Details"
+        width="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setVideoEditModalVisible(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" loading={videoEditSubmitting} onClick={handleSaveVideoEdit}>
+              Save Changes
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <Label required>Video Title</Label>
+            <Input
+              placeholder="e.g., Introduction to React"
+              value={videoEditForm.title}
+              onChange={(e) => setVideoEditForm((prev) => ({ ...prev, title: e.target.value }))}
+              error={Boolean(videoEditError) && !videoEditForm.title.trim()}
+            />
+          </div>
+          <div>
+            <Label required>Topic</Label>
+            <Textarea
+              rows={2}
+              placeholder="e.g., Explain React from scratch for beginners."
+              value={videoEditForm.topic}
+              onChange={(e) => setVideoEditForm((prev) => ({ ...prev, topic: e.target.value }))}
+              error={Boolean(videoEditError) && !videoEditForm.topic.trim()}
+            />
+          </div>
+          {videoEditError && <p className="text-xs text-danger-500">{videoEditError}</p>}
+          <FieldHint>
+            Changing these fields won't touch an already-generated script, audio, or render - regenerate the
+            relevant stage afterward if you want it to reflect the new title/topic.
+          </FieldHint>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label>Duration</Label>
+              <Select options={DURATION_OPTIONS} value={videoEditForm.duration} onChange={(v) => setVideoEditForm((prev) => ({ ...prev, duration: v }))} />
+            </div>
+            <div>
+              <Label>Voice</Label>
+              <VoiceSelect
+                options={voiceOptions}
+                value={videoEditForm.voice}
+                onChange={(v) => setVideoEditForm((prev) => ({ ...prev, voice: v }))}
+                isFavorite={isFavorite}
+                onToggleFavorite={toggleFavorite}
+              />
+            </div>
+            <div>
+              <Label>Style</Label>
+              <Select options={STYLE_OPTIONS} value={videoEditForm.style} onChange={(v) => setVideoEditForm((prev) => ({ ...prev, style: v }))} />
+            </div>
+          </div>
+          <div>
+            <Label>Additional Instructions (optional)</Label>
+            <Textarea
+              rows={2}
+              placeholder="Any specific instructions for the AI..."
+              value={videoEditForm.additionalInstructions}
+              onChange={(e) => setVideoEditForm((prev) => ({ ...prev, additionalInstructions: e.target.value }))}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-[13px] font-medium text-text-secondary">
+            <input
+              type="checkbox"
+              className="size-4 cursor-pointer accent-accent"
+              checked={videoEditForm.avatarEnabled}
+              onChange={(e) => setVideoEditForm((prev) => ({ ...prev, avatarEnabled: e.target.checked }))}
             />
             Enable talking avatar (adds a lip-synced picture-in-picture overlay before render)
           </label>

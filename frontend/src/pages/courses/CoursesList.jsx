@@ -10,6 +10,9 @@ import {
   PlayCircle,
   ChevronLeft,
   ChevronRight,
+  Layers,
+  Globe2,
+  GraduationCap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { EmptyState } from "../../components";
@@ -18,13 +21,13 @@ import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { Badge } from "../../components/ui/Badge";
-import { Table } from "../../components/ui/Table";
-import { Tooltip } from "../../components/ui/Tooltip";
+import { Progress } from "../../components/ui/Progress";
 import { Modal } from "../../components/ui/Modal";
 import { Label, Textarea } from "../../components/ui/Input";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 import { getCourses, createCourse, updateCourse, deleteCourse } from "../../services/api";
+import { timeAgo } from "../../lib/timeAgo";
 
 const STATUS_VARIANT = {
   Draft: "neutral",
@@ -76,6 +79,114 @@ const STATUS_OPTIONS = [
 ];
 
 const EMPTY_FORM = { title: "", description: "", category: "Other", difficulty: "Beginner", language: "english" };
+
+// Deterministic category -> gradient tone, so the same category always reads
+// the same color across cards without needing a fixed lookup table.
+const CATEGORY_TONES = [
+  "bg-gradient-to-br from-accent-500/20 to-accent-500/5 text-accent",
+  "bg-gradient-to-br from-info-500/20 to-info-500/5 text-info-600 dark:text-info-500",
+  "bg-gradient-to-br from-success-500/20 to-success-500/5 text-success-600 dark:text-success-500",
+  "bg-gradient-to-br from-warning-500/20 to-warning-500/5 text-warning-600 dark:text-warning-500",
+  "bg-gradient-to-br from-danger-500/20 to-danger-500/5 text-danger-600 dark:text-danger-500",
+];
+const toneForCategory = (category = "") => {
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) hash = (hash * 31 + category.charCodeAt(i)) >>> 0;
+  return CATEGORY_TONES[hash % CATEGORY_TONES.length];
+};
+
+const toneCls = {
+  accent: "bg-gradient-to-br from-accent-500/20 to-accent-500/5 text-accent",
+  info: "bg-gradient-to-br from-info-500/20 to-info-500/5 text-info-600 dark:text-info-500",
+  success: "bg-gradient-to-br from-success-500/20 to-success-500/5 text-success-600 dark:text-success-500",
+  neutral: "bg-surface-hover text-text-secondary",
+};
+
+const CourseCard = ({ course, onOpen, onEdit, onDelete }) => {
+  const StatusIcon = STATUS_ICON[course.status] || BookOpen;
+  const total = course.videoCount || 0;
+  const completed = course.completedVideoCount || 0;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(course)}
+      onKeyDown={(e) => e.key === "Enter" && onOpen(course)}
+      className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-border bg-surface transition-all hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <div className="flex items-start justify-between p-5 pb-3">
+        <div className={`flex size-11 items-center justify-center rounded-[10px] ${toneForCategory(course.category)}`}>
+          <GraduationCap className="size-5" />
+        </div>
+        <Badge variant={STATUS_VARIANT[course.status] || "neutral"} icon={<StatusIcon className="size-3" />}>
+          {course.status}
+        </Badge>
+      </div>
+
+      <div className="flex-1 px-5 pb-4">
+        <h3 className="line-clamp-1 text-[15px] font-semibold text-text-primary transition-colors group-hover:text-accent">
+          {course.title}
+        </h3>
+        <p className="mt-1 line-clamp-2 min-h-[2.25rem] text-xs leading-relaxed text-text-tertiary">
+          {course.description || "No description yet."}
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-text-tertiary">
+          <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-hover px-2 py-0.5">
+            <Layers className="size-3" /> {course.category}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-hover px-2 py-0.5">
+            {course.difficulty}
+          </span>
+          {course.language && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-hover px-2 py-0.5 capitalize">
+              <Globe2 className="size-3" /> {course.language}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="px-5 pb-4">
+        <div className="mb-1.5 flex items-center justify-between text-xs">
+          <span className="text-text-tertiary">Videos</span>
+          <span className="font-medium text-text-secondary">
+            {completed}/{total}
+          </span>
+        </div>
+        <Progress percent={pct} showLabel={false} size="sm" status={pct === 100 && total > 0 ? "success" : "active"} />
+      </div>
+
+      <div className="mt-auto flex items-center justify-between border-t border-border-light px-5 py-3">
+        <span className="text-[11px] text-text-tertiary">Updated {timeAgo(course.updatedAt)}</span>
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            aria-label={`Edit ${course.title}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(course);
+            }}
+            icon={<Pencil className="size-3.5" />}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            aria-label={`Delete ${course.title}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(course);
+            }}
+            icon={<Trash2 className="size-3.5 text-danger-500" />}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const CoursesList = () => {
   const navigate = useNavigate();
@@ -165,70 +276,12 @@ const CoursesList = () => {
     }
   };
 
-  const columns = [
-    {
-      key: "title",
-      title: "Title",
-      render: (r) => (
-        <button onClick={() => navigate(`/courses/${r._id}`)} className="text-left text-[13px] font-semibold text-text-primary hover:text-accent">
-          {r.title}
-        </button>
-      ),
-    },
-    {
-      key: "status",
-      title: "Status",
-      render: (r) => {
-        const Icon = STATUS_ICON[r.status] || BookOpen;
-        return (
-          <Badge variant={STATUS_VARIANT[r.status] || "neutral"} icon={<Icon className="size-3" />}>
-            {r.status}
-          </Badge>
-        );
-      },
-    },
-    { key: "category", title: "Category", render: (r) => r.category },
-    { key: "difficulty", title: "Difficulty", render: (r) => r.difficulty },
-    {
-      key: "videos",
-      title: "Videos",
-      render: (r) => `${r.completedVideoCount || 0} / ${r.videoCount || 0}`,
-    },
-    {
-      key: "updatedAt",
-      title: "Updated",
-      render: (r) => new Date(r.updatedAt).toLocaleDateString(),
-    },
-    {
-      key: "actions",
-      title: "",
-      align: "right",
-      render: (r) => (
-        <div className="flex items-center justify-end gap-1">
-          <Tooltip content="Edit">
-            <Button variant="ghost" size="sm" iconOnly aria-label={`Edit ${r.title}`} onClick={() => showEditModal(r)} icon={<Pencil className="size-4" />} />
-          </Tooltip>
-          <Tooltip content="Delete">
-            <Button variant="ghost" size="sm" iconOnly aria-label={`Delete ${r.title}`} onClick={() => handleDelete(r)} icon={<Trash2 className="size-4 text-danger-500" />} />
-          </Tooltip>
-        </div>
-      ),
-    },
-  ];
-
   const stats = [
     { title: "Total Courses", value: pagination.total, icon: BookOpen, tone: "accent" },
     { title: "In Progress", value: courses.filter((c) => c.status === "In Progress").length, icon: PlayCircle, tone: "info" },
     { title: "Completed", value: courses.filter((c) => c.status === "Completed").length, icon: CheckCircle2, tone: "success" },
     { title: "Draft", value: courses.filter((c) => c.status === "Draft").length, icon: BookOpen, tone: "neutral" },
   ];
-
-  const toneCls = {
-    accent: "bg-accent-subtle text-accent",
-    info: "bg-info-500/10 text-info-600 dark:text-info-500",
-    success: "bg-success-500/10 text-success-600 dark:text-success-500",
-    neutral: "bg-surface-hover text-text-secondary",
-  };
 
   const totalPages = pagination.pages || Math.ceil(pagination.total / pagination.limit) || 1;
 
@@ -244,8 +297,21 @@ const CoursesList = () => {
         </Button>
       </div>
 
+      {/* Stats */}
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {stats.map((s, i) => (
+          <Card key={s.title} hoverable className="animate-slide-up overflow-hidden p-5" style={{ "--stagger-index": i }}>
+            <div className={`mb-3 flex size-10 items-center justify-center rounded-[10px] ${toneCls[s.tone]}`}>
+              <s.icon className="size-[18px]" />
+            </div>
+            <p className="text-xs font-medium text-text-tertiary">{s.title}</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight text-text-primary">{s.value}</p>
+          </Card>
+        ))}
+      </div>
+
       {/* Filters */}
-      <Card className="mb-4 p-4">
+      <Card className="mb-6 p-4">
         <div className="flex flex-wrap gap-3">
           <Input
             placeholder="Search courses..."
@@ -270,40 +336,40 @@ const CoursesList = () => {
         </div>
       </Card>
 
-      {/* Stats */}
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s) => (
-          <Card key={s.title} className="p-5">
-            <div className={`mb-3 flex size-10 items-center justify-center rounded-[10px] ${toneCls[s.tone]}`}>
-              <s.icon className="size-[18px]" />
+      {/* Grid */}
+      {!loading && courses.length === 0 ? (
+        <Card>
+          <EmptyState description="No courses yet" actionLabel="Create Your First Course" onAction={showCreateModal} />
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {loading && courses.length === 0
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-64 animate-pulse rounded-2xl border border-border bg-surface-hover" />
+                ))
+              : courses.map((course, i) => (
+                  <div key={course._id} className="animate-slide-up" style={{ "--stagger-index": Math.min(i, 8) }}>
+                    <CourseCard
+                      course={course}
+                      onOpen={(c) => navigate(`/courses/${c._id}`)}
+                      onEdit={showEditModal}
+                      onDelete={handleDelete}
+                    />
+                  </div>
+                ))}
+          </div>
+          {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <span className="mr-2 text-xs text-text-tertiary">
+                Page {pagination.page} of {totalPages}
+              </span>
+              <Button variant="secondary" size="sm" iconOnly disabled={pagination.page <= 1} onClick={() => fetchCourses(pagination.page - 1)} icon={<ChevronLeft className="size-4" />} />
+              <Button variant="secondary" size="sm" iconOnly disabled={pagination.page >= totalPages} onClick={() => fetchCourses(pagination.page + 1)} icon={<ChevronRight className="size-4" />} />
             </div>
-            <p className="text-xs font-medium text-text-tertiary">{s.title}</p>
-            <p className="mt-1 text-2xl font-semibold text-text-primary">{s.value}</p>
-          </Card>
-        ))}
-      </div>
-
-      {/* Table */}
-      <Card>
-        <div className="p-2">
-          {!loading && courses.length === 0 ? (
-            <EmptyState description="No courses yet" actionLabel="Create Your First Course" onAction={showCreateModal} />
-          ) : (
-            <>
-              <Table columns={columns} data={courses} rowKey="_id" loading={loading} />
-              {totalPages > 1 && (
-                <div className="flex items-center justify-end gap-2 border-t border-border-light px-3 py-3">
-                  <span className="mr-2 text-xs text-text-tertiary">
-                    Page {pagination.page} of {totalPages}
-                  </span>
-                  <Button variant="secondary" size="sm" iconOnly disabled={pagination.page <= 1} onClick={() => fetchCourses(pagination.page - 1)} icon={<ChevronLeft className="size-4" />} />
-                  <Button variant="secondary" size="sm" iconOnly disabled={pagination.page >= totalPages} onClick={() => fetchCourses(pagination.page + 1)} icon={<ChevronRight className="size-4" />} />
-                </div>
-              )}
-            </>
           )}
-        </div>
-      </Card>
+        </>
+      )}
 
       {/* Create/Edit Modal */}
       <Modal
