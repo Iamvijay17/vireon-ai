@@ -351,6 +351,7 @@ Return ONLY valid JSON with this structure:
 }
 
 Rules:
+- This is ONE lesson video from a larger course, not a full-course summary. Cover ONLY the specific topic given above - do not introduce, preview, or teach content that belongs to other lessons in the course.
 - Total narration: ~${wordCount} words across all scenes
 - Exactly ${sceneCount} scenes total: 1 intro, ${contentSceneCount} content, 1 summary
 - Scene duration: about ${avgSceneSeconds} seconds each

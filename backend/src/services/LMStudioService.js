@@ -121,14 +121,16 @@ class LMStudioService {
 Return ONLY valid JSON with this structure:
 {
   "lessons": [
-    { "order": 1, "title": "Introduction", "topic": "Course overview and what students will learn", "description": "Short one-sentence summary" }
+    { "order": 1, "title": "Welcome to the Course", "topic": "A short welcome that introduces the instructor and names the topics covered ahead, without teaching any of them yet", "description": "Short one-sentence summary" }
   ]
 }
 
 Rules:
-- Produce 12-20 lessons, ordered logically like a real Udemy course: start with an intro/overview, cover fundamentals, then core concepts one at a time, then a practical/project lesson, then a course summary/next-steps lesson.
+- Produce 12-20 lessons, ordered logically like a real Udemy course: start with a short welcome/orientation lesson, cover fundamentals, then core concepts one at a time, then a practical/project lesson, then a course summary/next-steps lesson.
 - "title" is the short lesson name shown in a course outline (e.g., "What is React?", "Components", "State").
-- "topic" is 1-2 sentences describing exactly what that lesson's video should teach - this is used later to generate that lesson's script, so make it specific and actionable.
+- "topic" is 1-2 sentences describing exactly what THAT ONE lesson's video should teach - this is used later to generate that lesson's script IN ISOLATION, with no knowledge of the other lessons, so it must be narrow and self-contained.
+- Each lesson's "topic" must cover ONLY that lesson's own slice of the subject. Do not let one lesson's topic summarize, preview, or teach content assigned to other lessons.
+- The first lesson's "topic" must be a brief welcome/orientation only (who this course is for, what topics are ahead) - it must NOT preview or teach any actual technical content, since that belongs to the later lessons.
 - "description" is a short one-sentence summary for display purposes.
 - Return ONLY valid JSON, no markdown, no code blocks, no commentary.`;
 
