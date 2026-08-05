@@ -5,6 +5,16 @@ const LoggerService = require('./LoggerService');
 const { SOCKET_EVENTS, VIDEO_STATUS, REDIS_CHANNEL } = require('../constants');
 const VideoService = require('./VideoService');
 const courseQueue = require('../queues/courseQueue');
+const { ID_PATTERN } = require('../utils/id');
+
+// Matches both entity ids (utils/id.js's "prefix-XXXXXXXX" shape) and the
+// legacy "job-XXXXXXXX"/standalone-job style ids already in use elsewhere,
+// so join/joinCourse reject garbage room names instead of letting a socket
+// join an arbitrary string-keyed room. This is NOT an ownership/authz
+// check - there's no user/session concept in this single-user app, so any
+// client can still join any *valid* job/course id's room. It only guards
+// against malformed input.
+const ROOM_ID_PATTERN = ID_PATTERN;
 
 let io = null;
 let redisSubscriber = null;
@@ -56,6 +66,9 @@ class SocketService {
 
       socket.on(SOCKET_EVENTS.JOIN, async (jobId, callback) => {
         try {
+          if (typeof jobId !== 'string' || !ROOM_ID_PATTERN.test(jobId)) {
+            throw new Error('Invalid jobId');
+          }
           await socket.join(`job:${jobId}`);
           LoggerService.debug(`Socket ${socket.id} joined job:${jobId}`);
           
@@ -77,6 +90,9 @@ class SocketService {
       // Join a course room for course video events
       socket.on('joinCourse', async (courseId, callback) => {
         try {
+          if (typeof courseId !== 'string' || !ROOM_ID_PATTERN.test(courseId)) {
+            throw new Error('Invalid courseId');
+          }
           await socket.join(`course:${courseId}`);
           LoggerService.debug(`Socket ${socket.id} joined course:${courseId}`);
           

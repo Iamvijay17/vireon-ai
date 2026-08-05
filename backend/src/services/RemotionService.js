@@ -1,4 +1,4 @@
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
 const config = require('../config');
@@ -187,15 +187,15 @@ class RemotionService {
         ];
 
         LoggerService.render('Remotion command args', { args });
+        LoggerService.render('Executing Remotion command', { binaryPath, args });
 
-        const command = `node "${binaryPath}" ${args.map(a => `"${a}"`).join(' ')}`;
-        LoggerService.render('Executing Remotion command', { command: command.substring(0, 300) });
-
-        const stdout = execSync(command, {
+        // execFileSync spawns node directly with an argv array - no shell
+        // involved, so paths with spaces work without manual quoting and no
+        // argument can break out into a second shell command.
+        const stdout = execFileSync(process.execPath, [binaryPath, ...args], {
           cwd: remotionRoot,
           timeout: config.remotion.timeout,
           stdio: ['pipe', 'pipe', 'pipe'],
-          shell: true,
         });
 
         LoggerService.render('Remotion stdout', { stdout: stdout.toString().substring(0, 1000) });

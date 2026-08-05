@@ -1,9 +1,21 @@
 const axios = require('axios');
+const crypto = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
 const config = require('../../config');
 const LoggerService = require('../LoggerService');
 const StorageProvider = require('./StorageProvider');
+
+/**
+ * Git's own blob hash (sha1 of "blob <size>\0<content>"), computed locally
+ * so uploadFile can tell whether the local file already matches what's on
+ * GitHub without needing a second round-trip. Comparable directly against
+ * the `sha` field GitHub's contents API returns.
+ */
+function gitBlobSha(buffer) {
+  const header = Buffer.from(`blob ${buffer.length}\0`);
+  return crypto.createHash('sha1').update(Buffer.concat([header, buffer])).digest('hex');
+}
 
 /**
  * GitHub Repository Storage Provider.
@@ -22,6 +34,28 @@ class GitHubStorageProvider extends StorageProvider {
 
   #baseUrl;
 
+  // One promise chain per jobId, so concurrent upload/delete calls for the
+  // *same* job (e.g. a rerender racing the original still-in-flight upload)
+  // run one at a time instead of interleaving GET-for-SHA/PUT/DELETE calls
+  // against the same remote paths - that GET-then-write pattern isn't
+  // atomic on GitHub's side, so two overlapping writers can each read a
+  // stale SHA and clobber or 409 on each other's PUT.
+  #jobLocks = new Map();
+
+  async #withJobLock(jobId, fn) {
+    const previous = this.#jobLocks.get(jobId) || Promise.resolve();
+    const tail = previous.then(fn, fn);
+    const settleTail = tail.then(() => {}, () => {});
+    this.#jobLocks.set(jobId, settleTail);
+    try {
+      return await tail;
+    } finally {
+      if (this.#jobLocks.get(jobId) === settleTail) {
+        this.#jobLocks.delete(jobId);
+      }
+    }
+  }
+
   /**
    * Build request headers for GitHub API.
    */
@@ -35,7 +69,8 @@ class GitHubStorageProvider extends StorageProvider {
 
   /**
    * Upload a single file to GitHub under `videos/{jobId}/{category}/{fileName}`.
-   * Implements retry logic with exponential backoff.
+   * Implements retry logic with exponential backoff. Serialized per jobId -
+   * see #withJobLock.
    *
    * @param {string} jobId
    * @param {string} filePath - Absolute path to local file.
@@ -43,6 +78,10 @@ class GitHubStorageProvider extends StorageProvider {
    * @returns {Promise<string>} Raw GitHub download URL.
    */
   async uploadFile(jobId, filePath, category) {
+    return this.#withJobLock(jobId, () => this.#uploadFileLocked(jobId, filePath, category));
+  }
+
+  async #uploadFileLocked(jobId, filePath, category) {
     const fileName = path.basename(filePath);
     const remotePath = this.getRemotePath(jobId, category, fileName);
 
@@ -65,6 +104,18 @@ class GitHubStorageProvider extends StorageProvider {
             headers: this.#headers(),
           });
           sha = existing.data.sha;
+
+          // Same content already on GitHub - skip the PUT entirely. Without
+          // this, a BullMQ retry that re-runs a job whose upload step
+          // already partially succeeded re-uploads every already-uploaded
+          // file from scratch, burning GitHub API calls/rate limit for no
+          // reason.
+          if (sha === gitBlobSha(fileContent)) {
+            LoggerService.upload(`Skipping upload - ${category}/${fileName} already up to date on GitHub`, {
+              remotePath,
+            });
+            return existing.data.download_url || '';
+          }
         } catch {
           // File doesn't exist yet — that's fine
         }
@@ -132,11 +183,16 @@ class GitHubStorageProvider extends StorageProvider {
   /**
    * Delete all assets for a given job from GitHub.
    * Iterates through all files at `videos/{jobId}/` and deletes them.
+   * Serialized per jobId - see #withJobLock.
    *
    * @param {string} jobId
    * @returns {Promise<void>}
    */
   async deleteJob(jobId) {
+    return this.#withJobLock(jobId, () => this.#deleteJobLocked(jobId));
+  }
+
+  async #deleteJobLocked(jobId) {
     const jobPath = this.getJobPath(jobId);
 
     try {
