@@ -216,9 +216,9 @@ class AudioService {
    */
   static _alignCaptions(audioFilePath) {
     try {
-      const { execSync } = require("child_process");
+      const { execFileSync } = require("child_process");
       const script = path.resolve(__dirname, "alignCaptions.py");
-      const stdout = execSync(`python "${script}" "${audioFilePath}"`, {
+      const stdout = execFileSync("python", [script, audioFilePath], {
         encoding: "utf8",
         timeout: 60000,
       }).trim();
@@ -293,10 +293,11 @@ class AudioService {
           await fs.writeFile(outputFile, Buffer.from(outputAudioBuffer));
 
           // Get exact duration by decoding the audio file via helper ESM script
-          const { execSync } = require("child_process");
+          const { execFileSync } = require("child_process");
           const helperScript = path.resolve(__dirname, "getAudioDuration.mjs");
-          const durationStr = execSync(
-            `node "${helperScript}" "${outputFile}"`,
+          const durationStr = execFileSync(
+            "node",
+            [helperScript, outputFile],
             { encoding: "utf8", timeout: 30000 },
           ).trim();
           const duration = Math.round(parseFloat(durationStr) * 100) / 100;

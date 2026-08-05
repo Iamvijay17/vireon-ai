@@ -182,13 +182,23 @@ class CourseVideoService {
     return video;
   }
 
+  // Fields the client is allowed to edit via update(). Everything else
+  // (status, approved, courseId, script, error, retryCount, ...) is
+  // pipeline-managed state and must not be settable through this endpoint.
+  static UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'additionalInstructions'];
+
   /**
    * Update a video.
    */
   static async update(videoId, data) {
+    const update = {};
+    for (const field of CourseVideoService.UPDATABLE_FIELDS) {
+      if (data[field] !== undefined) update[field] = data[field];
+    }
+
     const video = await CourseVideo.findByIdAndUpdate(
       videoId,
-      { $set: data },
+      { $set: update },
       { new: true, runValidators: true }
     );
     if (!video) {

@@ -33,6 +33,9 @@ class ScriptParserService {
     } else {
       scriptData.scenes.forEach((scene, index) => {
         if (!scene.sceneNumber) errors.push(`Scene ${index}: missing sceneNumber`);
+        else if (!Number.isInteger(scene.sceneNumber) || scene.sceneNumber < 1) {
+          errors.push(`Scene ${index}: sceneNumber must be a positive integer`);
+        }
         if (!scene.audio?.text) errors.push(`Scene ${index}: missing audio text`);
 
         // Normalize legacy scene types from old prompts
