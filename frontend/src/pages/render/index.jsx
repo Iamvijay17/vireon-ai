@@ -441,7 +441,7 @@ const RenderPage = () => {
         )}
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold tracking-tight text-text-primary">{job?.topic || "Render Progress"}</h1>
         <span className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-text-secondary">
           <span className={`size-2 rounded-full ${socketDotCls[socketStatus]}`} />
@@ -449,160 +449,185 @@ const RenderPage = () => {
         </span>
       </div>
 
-      {/* Overall Progress */}
-      <Card className="mb-6 animate-slide-up p-6">
-        <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[auto_1fr]">
-          <div className="flex flex-col items-center gap-3 py-2">
-            <CircularProgress percent={job?.progress || 0} error={isFailed} />
-            <Badge
-              variant={isComplete ? "success" : isFailed ? "danger" : isCancelled ? "neutral" : "accent"}
-              icon={
-                isComplete ? <CheckCircle2 className="size-3" /> :
-                isFailed ? <XCircle className="size-3" /> :
-                isCancelled ? <CircleSlash className="size-3" /> :
-                <RefreshCw className="size-3 animate-spin" />
-              }
-            >
-              {job?.status?.replace(/_/g, " ")}
-            </Badge>
-          </div>
-          <DescriptionList items={details} columns={2} />
-        </div>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        {/* Left Column - primary progress + output */}
+        <div className="flex flex-col gap-4">
+          {/* Progress + Pipeline */}
+          <Card className="animate-slide-up p-6">
+            <div className="flex flex-col items-center gap-3 border-b border-border-light pb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <div className="flex items-center gap-4">
+                <CircularProgress percent={job?.progress || 0} error={isFailed} />
+                <div>
+                  <Badge
+                    variant={isComplete ? "success" : isFailed ? "danger" : isCancelled ? "neutral" : "accent"}
+                    icon={
+                      isComplete ? <CheckCircle2 className="size-3" /> :
+                      isFailed ? <XCircle className="size-3" /> :
+                      isCancelled ? <CircleSlash className="size-3" /> :
+                      <RefreshCw className="size-3 animate-spin" />
+                    }
+                  >
+                    {job?.status?.replace(/_/g, " ")}
+                  </Badge>
+                  {isActive && job?.currentScene ? (
+                    <p className="mt-1.5 text-xs text-text-tertiary">Scene {job.currentScene}</p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
 
-      {/* Pipeline Steps */}
-      <Card className="mb-6 animate-slide-up p-6" style={{ "--stagger-index": 1 }}>
-        <h3 className="mb-6 text-[15px] font-semibold text-text-primary">Pipeline</h3>
-        <Steps
-          items={PIPELINE_STEPS}
-          current={currentStepIndex >= 0 ? currentStepIndex : 0}
-          status={isFailed || isCancelled ? "error" : isComplete ? "finish" : "process"}
-        />
+            <div className="pt-6">
+              <Steps
+                items={PIPELINE_STEPS}
+                current={currentStepIndex >= 0 ? currentStepIndex : 0}
+                status={isFailed || isCancelled ? "error" : isComplete ? "finish" : "process"}
+              />
 
-        {isActive && job?.currentStep && (
-          <Alert type="info" className="mt-5">
-            <span className="flex items-center gap-2">
-              <RefreshCw className="size-3.5 animate-spin" />
-              {job.currentStep.replace(/_/g, " ")}
-              {job.currentScene ? ` — Scene ${job.currentScene}` : ""}
-            </span>
-          </Alert>
-        )}
+              {isFailed && job?.error && (
+                <Alert type="error" className="mt-5">
+                  {typeof job.error === "string" ? job.error : job.error?.message || "An error occurred"}
+                </Alert>
+              )}
 
-        {isFailed && job?.error && (
-          <Alert type="error" className="mt-5">
-            {typeof job.error === "string" ? job.error : job.error?.message || "An error occurred"}
-          </Alert>
-        )}
+              {isCancelled && (
+                <Alert type="info" className="mt-5">
+                  Stopped before reaching {job?.error?.step?.replace(/_/g, " ") || "completion"}. Use Restart Job to pick back up from here.
+                </Alert>
+              )}
 
-        {isCancelled && (
-          <Alert type="info" className="mt-5">
-            Stopped before reaching {job?.error?.step?.replace(/_/g, " ") || "completion"}. Use Restart Job to pick back up from here.
-          </Alert>
-        )}
+              {isComplete && (
+                <Alert type="success" title="Video generation completed successfully!" className="mt-5 animate-scale-in" />
+              )}
+            </div>
+          </Card>
 
-        {isComplete && (
-          <Alert type="success" title="Video generation completed successfully!" className="mt-5 animate-scale-in" />
-        )}
-      </Card>
+          {/* Per-Scene Audio Progress */}
+          {job?.script?.scenes?.length > 0 && (() => {
+            const scenes = job.script.scenes;
+            const readyScenes = scenes.filter((s) => s.audio?.file);
+            return (
+              <Card className="animate-slide-up p-6" style={{ "--stagger-index": 1 }}>
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h3 className="flex items-center gap-2 text-[15px] font-semibold text-text-primary">
+                    <AudioLines className="size-[18px] text-accent" /> Scene Audio
+                  </h3>
+                  <span className="text-xs font-medium text-text-tertiary">{readyScenes.length}/{scenes.length} ready</span>
+                </div>
 
-      {/* Activity Log */}
-      <Card className="mb-6 animate-slide-up" style={{ "--stagger-index": 1.7 }}>
-        <CardHeader title="Activity Log" />
-        <div className="p-5">
-          {activityLog.length === 0 ? (
-            <p className="text-[13px] text-text-tertiary">No activity yet</p>
-          ) : (
-            <Timeline
-              items={activityLog.slice(0, 20).map((entry) => ({ title: entry.text, timestamp: entry.time }))}
-            />
-          )}
-        </div>
-      </Card>
-
-      {/* Per-Scene Audio Progress */}
-      {job?.script?.scenes?.length > 0 && (
-        <Card className="mb-6 animate-slide-up p-6" style={{ "--stagger-index": 1.5 }}>
-          <h3 className="mb-4 flex items-center gap-2 text-[15px] font-semibold text-text-primary">
-            <AudioLines className="size-[18px] text-accent" /> Scene Audio ({job.script.scenes.filter((s) => s.audio?.file).length}/{job.script.scenes.length})
-          </h3>
-          <div className="flex flex-wrap gap-3">
-            {job.script.scenes.map((scene) => {
-              const audioFile = scene.audio?.file;
-              const ready = Boolean(audioFile);
-              const sceneAudioUrl = ready
-                ? (/^https?:\/\//i.test(audioFile) ? audioFile : resolveMediaUrl(`/public/${job._id}/audio/${audioFile}`))
-                : null;
-              return (
-                <div
-                  key={scene.sceneNumber}
-                  className="min-w-70 flex-1 basis-[calc(50%-0.375rem)] rounded-xl border border-border-light p-3"
-                >
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="text-[13px] font-medium text-text-primary">Scene {scene.sceneNumber}</span>
-                    {!ready && (
-                      <span className="flex items-center gap-1 text-[11px] text-text-tertiary">
-                        <RefreshCw className="size-3 animate-spin" /> Pending
+                <div className="mb-4 flex flex-wrap gap-1.5">
+                  {scenes.map((scene) => {
+                    const ready = Boolean(scene.audio?.file);
+                    const isCurrent = isActive && job?.currentScene === scene.sceneNumber;
+                    return (
+                      <span
+                        key={scene.sceneNumber}
+                        title={`Scene ${scene.sceneNumber}${ready ? " — ready" : isCurrent ? " — generating" : " — pending"}`}
+                        className={`flex size-7 items-center justify-center rounded-md border text-[11px] font-medium ${
+                          ready
+                            ? "border-success-500/30 bg-success-500/10 text-success-600"
+                            : isCurrent
+                            ? "animate-pulse border-accent bg-accent/10 text-accent"
+                            : "border-border text-text-tertiary"
+                        }`}
+                      >
+                        {scene.sceneNumber}
                       </span>
-                    )}
+                    );
+                  })}
+                </div>
+
+                {readyScenes.length > 0 ? (
+                  <div className="flex flex-col gap-2 border-t border-border-light pt-4">
+                    {readyScenes.map((scene) => {
+                      const audioFile = scene.audio.file;
+                      const sceneAudioUrl = /^https?:\/\//i.test(audioFile)
+                        ? audioFile
+                        : resolveMediaUrl(`/public/${job._id}/audio/${audioFile}`);
+                      return (
+                        <div key={scene.sceneNumber} className="flex items-center gap-3">
+                          <span className="w-16 shrink-0 text-[13px] font-medium text-text-secondary">Scene {scene.sceneNumber}</span>
+                          <AudioPlayer src={sceneAudioUrl} className="min-w-0 flex-1" />
+                        </div>
+                      );
+                    })}
                   </div>
-                  {ready ? (
-                    <AudioPlayer src={sceneAudioUrl} className="w-full" />
-                  ) : (
-                    <div className="h-9 w-full rounded-full bg-surface-active" />
+                ) : (
+                  <p className="border-t border-border-light pt-4 text-[13px] text-text-tertiary">Audio will appear here as scenes finish generating.</p>
+                )}
+              </Card>
+            );
+          })()}
+
+          {/* Video / Player section */}
+          {isComplete && job?.videoUrl && (
+            <Card className="animate-slide-up p-6" style={{ "--stagger-index": 2 }}>
+              <h3 className="mb-5 flex items-center gap-2 text-[15px] font-semibold text-text-primary">
+                <PlayCircle className="size-[18px] text-accent" /> Output Video
+              </h3>
+
+              <div className="mx-auto max-w-2xl overflow-hidden rounded-xl bg-black shadow-lg">
+                <video
+                  ref={videoRef}
+                  src={job.videoUrl}
+                  controls
+                  autoPlay
+                  poster={job.thumbnailUrl || undefined}
+                  className="block w-full object-contain"
+                  style={{ aspectRatio: isPortraitResolution(job?.resolution) ? "9/16" : "16/9" }}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-4 text-[13px] text-text-secondary">
+                  {job.resolution && (
+                    <span>
+                      Resolution: <span className="font-semibold text-text-primary">{job.resolution}</span>
+                    </span>
+                  )}
+                  {job.duration && (
+                    <span>
+                      Duration: <span className="font-semibold text-text-primary">{job.duration}s</span>
+                    </span>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
+                <div className="flex items-center gap-2">
+                  <Button href={job.videoUrl} target="_blank" rel="noopener noreferrer" variant="primary" icon={<PlayCircle className="size-4" />}>
+                    Open in new tab
+                  </Button>
+                  <Button href={job.videoUrl} target="_blank" rel="noopener noreferrer" download variant="secondary" icon={<Download className="size-4" />}>
+                    Download
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
 
-      {/* Video / Player section */}
-      {isComplete && job?.videoUrl && (
-        <Card className="animate-slide-up p-6" style={{ "--stagger-index": 2 }}>
-          <h3 className="mb-5 flex items-center gap-2 text-[15px] font-semibold text-text-primary">
-            <PlayCircle className="size-[18px] text-accent" /> Output Video
-          </h3>
+        {/* Right Column - details + activity log */}
+        <div className="flex flex-col gap-4">
+          <Card className="h-fit animate-slide-up" style={{ "--stagger-index": 0.5 }}>
+            <CardHeader title="Details" />
+            <div className="p-5">
+              <DescriptionList items={details} columns={1} />
+            </div>
+          </Card>
 
-          <div className="mx-auto max-w-2xl overflow-hidden rounded-xl bg-black shadow-lg">
-            <video
-              ref={videoRef}
-              src={job.videoUrl}
-              controls
-              autoPlay
-              poster={job.thumbnailUrl || undefined}
-              className="block w-full object-contain"
-              style={{ aspectRatio: isPortraitResolution(job?.resolution) ? "9/16" : "16/9" }}
-            >
-              Your browser does not support the video tag.
-            </video>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-4 text-[13px] text-text-secondary">
-              {job.resolution && (
-                <span>
-                  Resolution: <span className="font-semibold text-text-primary">{job.resolution}</span>
-                </span>
-              )}
-              {job.duration && (
-                <span>
-                  Duration: <span className="font-semibold text-text-primary">{job.duration}s</span>
-                </span>
+          <Card className="h-fit animate-slide-up" style={{ "--stagger-index": 1 }}>
+            <CardHeader title="Activity Log" />
+            <div className="p-5">
+              {activityLog.length === 0 ? (
+                <p className="text-[13px] text-text-tertiary">No activity yet</p>
+              ) : (
+                <Timeline
+                  items={activityLog.slice(0, 20).map((entry) => ({ title: entry.text, timestamp: entry.time }))}
+                />
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button href={job.videoUrl} target="_blank" rel="noopener noreferrer" variant="primary" icon={<PlayCircle className="size-4" />}>
-                Open in new tab
-              </Button>
-              <Button href={job.videoUrl} target="_blank" rel="noopener noreferrer" download variant="secondary" icon={<Download className="size-4" />}>
-                Download
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };
