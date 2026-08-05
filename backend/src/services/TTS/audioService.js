@@ -299,7 +299,7 @@ class AudioService {
             `node "${helperScript}" "${outputFile}"`,
             { encoding: "utf8", timeout: 30000 },
           ).trim();
-          const duration = parseFloat(durationStr);
+          const duration = Math.round(parseFloat(durationStr) * 100) / 100;
 
           // Real per-word caption timing via forced alignment (faster-whisper
           // ASR on the finished clip - accurate here because it's synthetic
