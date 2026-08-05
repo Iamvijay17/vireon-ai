@@ -1,11 +1,11 @@
 {
   "title": "Did You Know",
-  "description": "Fact or insight display with lightbulb icon and bold text.",
+  "description": "Simple bold-statement layout pairing a short title with a single body statement. Best for a single strong content point.",
   "scene_meta": {
-    "sceneType": "fact",
+    "sceneType": "content",
     "content": [
-      "Fact title",
-      "Fact body text"
+      "Statement title",
+      "Statement body text"
     ]
   }
 }

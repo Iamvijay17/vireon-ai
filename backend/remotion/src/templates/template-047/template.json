@@ -1,11 +1,11 @@
 {
   "title": "Motivational",
-  "description": "Inspirational layout with bold message and call to action.",
+  "description": "Bold closing statement layout with a large message and supporting line, built to end the video on an inspiring, call-to-action note.",
   "scene_meta": {
-    "sceneType": "call_to_action",
+    "sceneType": "outro",
     "content": [
-      "Motivational title",
-      "Inspirational body text"
+      "Closing statement title",
+      "Supporting closing body text"
     ]
   }
 }

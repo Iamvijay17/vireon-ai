@@ -13,7 +13,7 @@ export const templateNames = {
   'template-009': '009-Bullet-List',
   'template-010': '010-Split-Hero',
   'template-011': '011-Team-Profiles',
-  'template-012': '012-Countdown',
+  'template-012': '012-Hook-Opener',
   'template-013': '013-Steps-HowTo',
   'template-014': '014-Bar-Chart',
   'template-015': '015-Feature-Grid',

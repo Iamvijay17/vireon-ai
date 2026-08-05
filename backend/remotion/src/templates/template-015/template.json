@@ -1,11 +1,11 @@
 {
   "title": "Feature Grid",
-  "description": "Two-column grid of feature cards with icons, titles, and descriptions.",
+  "description": "Grid of content points, each with an icon, title, and short description. Great for listing features, benefits, or takeaways.",
   "scene_meta": {
-    "sceneType": "feature_list",
+    "sceneType": "content",
     "content": [
-      "Features title",
-      "Feature items with icon, title, description"
+      "Section title",
+      "Content items with icon, title, description"
     ]
   }
 }

@@ -22,6 +22,7 @@ export const SceneTypeCategories = {
   title: [
     'template-001',  // Educational Card - Title + subtitle + image
     'template-010',  // Split Hero - Hero section split layout
+    'template-012',  // Hook Opener - Bold hero-style opener
     'template-019',  // Parallax Hero - Parallax scrolling effect
     'template-030',  // Report Summary - Report layout
     'template-041',  // Modern Minimal - Clean modern look
@@ -40,36 +41,32 @@ export const SceneTypeCategories = {
    * Best for: Explanations, bullet points, steps, data, features
    */
   content: [
-    'template-004',  // Timeline - Chronological flow
-    'template-005',  // Comparison - Side-by-side comparison
-    'template-006',  // Quote Testimonial - Quote-focused display
+    'template-004',  // Timeline - Sequential content flow
+    'template-005',  // Comparison - Two-column content comparison
     'template-007',  // Stats Dashboard - Statistics/metrics
     'template-008',  // Pill Tags - Tag/chip display
     'template-009',  // Bullet List - Clear bullet points
     'template-011',  // Team Profiles - People/team display
-    'template-012',  // Countdown - Countdown/timer
     'template-013',  // Steps How-To - Sequential steps
     'template-014',  // Bar Chart - Data visualization
-    'template-015',  // Feature Grid - Grid of features
+    'template-015',  // Feature Grid - Grid of content points
     'template-016',  // Image Collage Grid - Image grid layout
     'template-017',  // Story Image Text - Image + text narrative
     'template-018',  // Masonry Wall - Dynamic masonry layout
-    'template-021',  // Vignette Story - Vignette style
     'template-022',  // Polaroid Collage - Collage style
     'template-023',  // Story Cards - Card sequence
     'template-024',  // Split Reveal - Split animation reveal
     'template-025',  // Curtain Reveal - Curtain-style reveal
     'template-026',  // Definition Glossary - Term definitions
     'template-027',  // Checklist Points - Checklist style
-    'template-028',  // Comparison Table - Comparison table
-    'template-029',  // Did You Know - Fact/insight display
-    'template-031',  // Expert Quote - Expert citation
+    'template-028',  // Comparison Table - Two-column row list
+    'template-029',  // Did You Know - Bold statement display
     'template-032',  // Step Guide - Numbered guide
-    'template-033',  // Benefits Row - Benefits highlights
+    'template-033',  // Benefits Row - Horizontal content highlights
     'template-034',  // Learning Paths - Path/flow visualization
     'template-035',  // Tech Tags - Technology tags
     'template-036',  // Case Study - Case study layout
-    'template-037',  // Milestones - Progress/achievement
+    'template-037',  // Milestones - Vertical content list
     'template-038',  // Metrics Grid - Business metrics
     'template-039',  // Profile Spotlight - Speaker highlight
     'template-040',  // Skills Chips - Skills display
@@ -77,13 +74,11 @@ export const SceneTypeCategories = {
     'template-044',  // Social Media - Social media optimized
     'template-045',  // Cinematic - Cinematic layout
     'template-046',  // Tech Review - Review format
-    'template-047',  // Motivational - Inspirational layout
     'template-048',  // Interview - Interview format
     'template-054',  // Educational - Dedicated educational
     'template-055',  // Corporate - Professional corporate
     'template-056',  // Music - Audio-focused
     'template-057',  // Science - Scientific layout
-    'template-058',  // Storytelling - Storytelling focused
   ],
 
   /**
@@ -95,10 +90,12 @@ export const SceneTypeCategories = {
     'template-016',  // Image Collage Grid - Image grid layout
     'template-017',  // Story Image Text - Image + text narrative
     'template-020',  // Image Card Story - Card-based story
+    'template-021',  // Vignette Story - Cinematic vignette image
     'template-022',  // Polaroid Collage - Collage style
     'template-024',  // Split Reveal - Split animation reveal
     'template-025',  // Curtain Reveal - Curtain-style reveal
     'template-045',  // Cinematic - Cinematic layout
+    'template-058',  // Storytelling - Cinematic parchment-framed image
   ],
 
   /**
@@ -107,8 +104,8 @@ export const SceneTypeCategories = {
    */
   end: [
     'template-006',  // Quote Testimonial - Good for inspirational closing
-    'template-012',  // Countdown - Good for countdown endings
     'template-030',  // Report Summary - Summary/recap
+    'template-031',  // Expert Quote - Closing message with glow
     'template-041',  // Modern Minimal - Clean closing
     'template-047',  // Motivational - Inspirational closing
     'template-059',  // Event - Good for event closing
@@ -245,40 +242,40 @@ export const getVideoTypes = () => {
 const templateNames = {
   'template-001': 'Educational Card (title + subtitle + image)',
   'template-003': 'Image Focus (image-forward layout)',
-  'template-004': 'Timeline (chronological flow)',
-  'template-005': 'Comparison (side-by-side comparison)',
-  'template-006': 'Quote Testimonial (quote-focused display)',
+  'template-004': 'Timeline (sequential alternating-card content flow)',
+  'template-005': 'Comparison (two-column content comparison)',
+  'template-006': 'Quote Testimonial (closing message with attribution)',
   'template-007': 'Stats Dashboard (statistics/metrics)',
   'template-008': 'Pill Tags (tag/chip display)',
   'template-009': 'Bullet List (clear bullet points)',
   'template-010': 'Split Hero (split hero layout)',
   'template-011': 'Team Profiles (people/team display)',
-  'template-012': 'Countdown (countdown/timer)',
+  'template-012': 'Hook Opener (bold hero-style opening scene)',
   'template-013': 'Steps How-To (sequential steps)',
   'template-014': 'Bar Chart (data visualization)',
-  'template-015': 'Feature Grid (grid of features)',
+  'template-015': 'Feature Grid (grid of content points)',
   'template-016': 'Image Collage Grid (image grid layout)',
   'template-017': 'Story Image Text (image + text narrative)',
   'template-018': 'Masonry Wall (dynamic masonry layout)',
-  'template-019': 'Parallax Hero (parallax scrolling effect)',
+  'template-019': 'Parallax Hero (parallax hero opener)',
   'template-020': 'Image Card Story (card-based story)',
-  'template-021': 'Vignette Story (vignette style)',
+  'template-021': 'Vignette Story (cinematic vignette image scene)',
   'template-022': 'Polaroid Collage (collage style)',
   'template-023': 'Story Cards (card sequence)',
   'template-024': 'Split Reveal (split animation reveal)',
   'template-025': 'Curtain Reveal (curtain-style reveal)',
   'template-026': 'Definition Glossary (term definitions)',
   'template-027': 'Checklist Points (checklist style)',
-  'template-028': 'Comparison Table (comparison table)',
-  'template-029': 'Did You Know (fact/insight display)',
+  'template-028': 'Comparison Table (two-column content row list)',
+  'template-029': 'Did You Know (bold statement display)',
   'template-030': 'Report Summary (report layout)',
-  'template-031': 'Expert Quote (expert citation)',
+  'template-031': 'Expert Quote (closing message with radial glow)',
   'template-032': 'Step Guide (numbered guide)',
-  'template-033': 'Benefits Row (benefits highlights)',
+  'template-033': 'Benefits Row (horizontal content highlights)',
   'template-034': 'Learning Paths (path/flow visualization)',
   'template-035': 'Tech Tags (technology tags)',
   'template-036': 'Case Study (case study layout)',
-  'template-037': 'Milestones (progress/achievement)',
+  'template-037': 'Milestones (vertical numbered content list)',
   'template-038': 'Metrics Grid (business metrics)',
   'template-039': 'Profile Spotlight (speaker highlight)',
   'template-040': 'Skills Chips (skills display)',
@@ -288,7 +285,7 @@ const templateNames = {
   'template-044': 'Social Media (social media optimized)',
   'template-045': 'Cinematic (cinematic layout)',
   'template-046': 'Tech Review (review format)',
-  'template-047': 'Motivational (inspirational layout)',
+  'template-047': 'Motivational (bold closing statement)',
   'template-048': 'Interview (interview format)',
   'template-049': 'Tutorial (tutorial layout)',
   'template-050': 'Gaming (gaming style)',
@@ -299,7 +296,7 @@ const templateNames = {
   'template-055': 'Corporate (professional corporate)',
   'template-056': 'Music (audio-focused)',
   'template-057': 'Science (scientific layout)',
-  'template-058': 'Storytelling (storytelling focused)',
+  'template-058': 'Storytelling (cinematic parchment-framed image scene)',
   'template-059': 'Event (event highlights)',
   'template-060': 'Comedy (fun/entertaining)',
 };

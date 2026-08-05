@@ -1,10 +1,12 @@
 {
   "title": "Vignette Story",
-  "description": "Cinematic vignette-style story presentation with dark borders and centered content.",
+  "description": "Cinematic image-forward scene with a dark vignette, small label, and caption overlay. Ideal for narrative or atmospheric visuals.",
   "scene_meta": {
-    "sceneType": "story",
+    "sceneType": "image",
     "content": [
-      "Story paragraphs array"
+      "Background image URL",
+      "Caption text",
+      "Optional label"
     ]
   }
 }

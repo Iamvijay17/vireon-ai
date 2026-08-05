@@ -1,12 +1,12 @@
 {
-  "title": "Countdown",
-  "description": "Large countdown timer with time blocks and optional message. Perfect for event countdowns.",
+  "title": "Hook Opener",
+  "description": "Bold hero-style opening scene with a large title, supporting subtitle, and optional image. Grabs attention in the first seconds of the video.",
   "scene_meta": {
-    "sceneType": "countdown",
+    "sceneType": "intro",
     "content": [
-      "Countdown title",
-      "Time values for days, hours, minutes, seconds",
-      "Message text"
+      "Hook title",
+      "Supporting subtitle",
+      "Optional hero image URL"
     ]
   }
 }

@@ -1,11 +1,11 @@
 {
   "title": "Timeline",
-  "description": "Vertical timeline with alternating left and right cards showing chronological events or milestones.",
+  "description": "Sequential content flow with alternating left and right cards, each presenting a heading and supporting text. Ideal for step-by-step points or ordered ideas.",
   "scene_meta": {
-    "sceneType": "timeline",
+    "sceneType": "content",
     "content": [
-      "Timeline title",
-      "Event dates and descriptions"
+      "Section title",
+      "Ordered content points, each with a heading and text"
     ]
   }
 }

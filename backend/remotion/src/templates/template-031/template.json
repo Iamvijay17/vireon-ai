@@ -1,13 +1,12 @@
 {
   "title": "Expert Quote",
-  "description": "Expert citation display with quote badge and author highlight.",
+  "description": "Closing-scene layout distinct from Quote Testimonial, built around a centered glow, final message, and attribution badge.",
   "scene_meta": {
-    "sceneType": "quote",
+    "sceneType": "outro",
     "content": [
-      "Quote text",
-      "Expert name",
-      "Expert title",
-      "Expert image URL"
+      "Closing quote or message",
+      "Attribution / author line",
+      "Optional badge label"
     ]
   }
 }

@@ -1,12 +1,11 @@
 {
   "title": "Parallax Hero",
-  "description": "Full-bleed parallax image with overlaid title, subtitle, and call-to-action.",
+  "description": "Full-bleed hero opener with a slow parallax image, bold title, and subtitle. Designed to open a video with strong visual impact.",
   "scene_meta": {
-    "sceneType": "hero",
+    "sceneType": "intro",
     "content": [
       "Hero title",
       "Hero subtitle",
-      "Call-to-action text",
       "Background image URL"
     ]
   }

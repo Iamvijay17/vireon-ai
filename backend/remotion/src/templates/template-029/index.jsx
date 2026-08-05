@@ -1,34 +1,52 @@
 import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
-import { styles } from './styles';
-import { useTemplate029Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { useFadeInOut, useSlideUp, usePop } from '../../animations';
+
+/**
+ * Template 029 - Did You Know (Content)
+ * Layout: Simple bold-statement content card with a lightbulb accent.
+ *
+ * JSON data format:
+ * {
+ *   templateId: "template-029",
+ *   elements: {
+ *     title: "string",
+ *     body: "string",
+ *     backgroundColor: "#hex" (optional)
+ *   },
+ *   audio: { file: "path" },
+ *   duration: number
+ * }
+ */
+const s = {
+  container: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '60px 100px', boxSizing: 'border-box', position: 'relative', overflow: 'hidden', textAlign: 'center' },
+  icon: { fontSize: 56, marginBottom: 20 },
+  title: { color: '#fbbf24', fontSize: 30, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 22 },
+  body: { color: '#ffffff', fontSize: 42, fontWeight: 700, lineHeight: 1.35, maxWidth: '82%', margin: 0 },
+};
 
 const Template029 = React.memo(({ scene }) => {
   const e = scene?.elements || {};
   const title = e.title || '';
-  const subtitle = e.subtitle || '';
-  const facts = e.facts || e.items || [];
+  const body = e.body || e.subtitle || '';
   const bgColor = e.backgroundColor || backgroundColors.dark;
-  const anim = useTemplate029Animations({ frameOffset: 0 });
+
+  const iconPop = usePop({ startAt: 3 });
+  const titleFade = useFadeInOut({ fadeIn: 12, fadeInDuration: 12 });
+  const bodySlide = useSlideUp({ startAt: 20, distance: 40 });
+
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
-      <div style={{ ...styles.container, ...anim.bgStyle }}>
-        {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
-        {subtitle && <div style={{ ...styles.subtitle, ...anim.subStyle }}>{subtitle}</div>}
-        {facts.map((f, i) => (
-          <div key={i} style={{ ...styles.factRow, ...anim.getFactAnim(i) }}>
-            <div style={styles.factIcon}>{f.icon || '\uD83D\uDCA1'}</div>
-            <div style={styles.factContent}>
-              <div style={styles.factTitle}>{f.title}</div>
-              <div style={styles.factDesc}>{f.description || f.text}</div>
-            </div>
-          </div>
-        ))}
+      <div style={s.container}>
+        <div style={{ ...s.icon, ...iconPop }}>&#128161;</div>
+        {title && <div style={{ ...s.title, opacity: titleFade }}>{title}</div>}
+        {body && <p style={{ ...s.body, ...bodySlide }}>{body}</p>}
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}
     </AbsoluteFill>
   );
 });
+
 Template029.displayName = 'Template029';
 export default Template029;

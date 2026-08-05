@@ -193,15 +193,15 @@ class ScriptParserService {
     // videoType so that longer scripts (more scenes) actually surface
     // more visual variety instead of repeating a handful of templates.
     const CONTENT_TEMPLATES = [
-      'template-004', 'template-005', 'template-006', 'template-007', 'template-008',
-      'template-009', 'template-011', 'template-012', 'template-013', 'template-014',
-      'template-015', 'template-016', 'template-017', 'template-018', 'template-021',
+      'template-004', 'template-005', 'template-007', 'template-008',
+      'template-009', 'template-011', 'template-013', 'template-014',
+      'template-015', 'template-016', 'template-017', 'template-018',
       'template-022', 'template-023', 'template-024', 'template-025', 'template-026',
-      'template-027', 'template-028', 'template-029', 'template-031', 'template-032',
+      'template-027', 'template-028', 'template-029', 'template-032',
       'template-033', 'template-034', 'template-035', 'template-036', 'template-037',
       'template-038', 'template-039', 'template-040', 'template-043', 'template-044',
-      'template-045', 'template-046', 'template-047', 'template-048', 'template-054',
-      'template-055', 'template-056', 'template-057', 'template-058',
+      'template-045', 'template-046', 'template-048', 'template-054',
+      'template-055', 'template-056', 'template-057',
     ];
 
     const templateMap = {
@@ -298,40 +298,40 @@ class ScriptParserService {
     const templateElements = {
       'template-001': { ...base, image: '' },
       'template-003': { image: '', caption: scene.subtitle || '', label: 'Featured' },
-      'template-004': { title: scene.title || '', items: [{ date: '', text: scene.subtitle || '' }] },
-      'template-005': { header: scene.title || '', leftCard: { title: '', body: '' }, rightCard: { title: '', body: '' } },
-      'template-006': { quote: scene.title || '', author: '', authorTitle: '' },
+      'template-004': { title: scene.title || '', items: [{ heading: '', text: scene.subtitle || '' }] },
+      'template-005': { title: scene.title || '', columns: [{ heading: '', body: '' }, { heading: '', body: '' }] },
+      'template-006': { title: scene.title || '', body: scene.subtitle || '', badge: '' },
       'template-007': { title: scene.title || '', stats: [{ value: '', label: '' }] },
       'template-008': { title: scene.title || '', tags: [{ text: '', icon: '' }] },
       'template-009': { title: scene.title || '', items: [{ text: scene.subtitle || '', icon: '✅' }] },
       'template-010': { ...base, stats: [{ value: '', label: '' }] },
       'template-011': { title: scene.title || '', members: [{ name: '', role: '', bio: '' }] },
-      'template-012': { title: scene.title || '', message: '', timeBlocks: [{ value: '', label: '' }] },
+      'template-012': { ...base, image: '' },
       'template-013': { title: scene.title || '', emoji: '🚀', steps: [{ title: '', description: '' }] },
       'template-014': { title: scene.title || '', bars: [{ label: '', value: '0' }] },
-      'template-015': { title: scene.title || '', features: [{ icon: '', title: '', description: '' }] },
+      'template-015': { title: scene.title || '', items: [{ icon: '', title: '', description: '' }] },
       'template-016': { images: [{ url: '' }], caption: scene.subtitle || '' },
       'template-017': { ...base, body: scene.subtitle || '', image: '', badge: '' },
       'template-018': { images: [{ url: '' }], caption: scene.subtitle || '' },
-      'template-019': { ...base, image: '', cta: '' },
+      'template-019': { ...base, image: '' },
       'template-020': { ...base, body: scene.subtitle || '', image: '', label: '' },
-      'template-021': { ...base, body: scene.subtitle || '', image: '' },
+      'template-021': { image: '', caption: scene.subtitle || '', label: '' },
       'template-022': { title: scene.title || '', photos: [{ url: '', caption: '' }] },
       'template-023': { title: scene.title || '', cards: [{ image: '', title: '', description: '' }] },
       'template-024': { ...base, label: '', topImage: '', bottomImage: '' },
       'template-025': { ...base, body: scene.subtitle || '', image: '', tag: '' },
       'template-026': { term: '', title: scene.title || '', definition: scene.subtitle || '', example: '' },
       'template-027': { title: scene.title || '', points: [{ text: scene.subtitle || '', icon: '✓' }] },
-      'template-028': { ...base, headers: ['Feature', 'Value'], rows: [{ cells: ['', ''] }] },
-      'template-029': { title: scene.title || '', subtitle: scene.subtitle || '', facts: [{ icon: '', title: '', description: '' }] },
+      'template-028': { title: scene.title || '', items: [{ left: '', right: '' }] },
+      'template-029': { title: scene.title || '', body: scene.subtitle || '' },
       'template-030': { badge: '', ...base, body: scene.subtitle || '', stats: [{ value: '', label: '' }] },
-      'template-031': { title: scene.title || '', meta: '', quote: scene.subtitle || '', author: '', source: '' },
+      'template-031': { title: scene.title || '', body: scene.subtitle || '', badge: '' },
       'template-032': { ...base, steps: [{ num: 1, title: '', description: '' }] },
-      'template-033': { ...base, items: [{ icon: '', title: '', description: '' }] },
+      'template-033': { ...base, items: [{ icon: '', text: '' }] },
       'template-034': { title: scene.title || '', items: [{ level: '', title: '', description: '', tags: [] }] },
       'template-035': { ...base, items: [{ text: '', icon: '' }] },
       'template-036': { label: '', ...base, body: scene.subtitle || '', image: '', stat: '' },
-      'template-037': { title: scene.title || '', sub: '', items: [{ year: '', title: '', description: '' }] },
+      'template-037': { title: scene.title || '', items: [{ heading: '', text: '' }] },
       'template-038': { title: scene.title || '', items: [{ icon: '', title: '', description: '' }] },
       'template-039': { name: scene.title || '', role: scene.subtitle || '', bio: '', image: '', stats: [{ value: '', label: '' }] },
       'template-040': { ...base, items: [{ text: '', icon: '' }] },
@@ -341,7 +341,7 @@ class ScriptParserService {
       'template-044': { ...base, body: '', profileImage: '', username: '', likes: '0', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-045': { ...base, backgroundImage: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-046': { ...base, deviceImage: '', specs: [], caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
-      'template-047': { quote: scene.title || '', author: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
+      'template-047': { title: scene.title || '', body: scene.subtitle || '' },
       'template-048': { ...base, guestName: '', guestTitle: '', guestImage: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-049': { ...base, step: '', body: scene.subtitle || '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-050': { ...base, caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
@@ -352,7 +352,7 @@ class ScriptParserService {
       'template-055': { ...base, image: '', stats: [], caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-056': { ...base, caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-057': { ...base, image: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
-      'template-058': { ...base, body: scene.subtitle || '', image: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
+      'template-058': { image: '', caption: scene.audio?.text || scene.subtitle || '', label: '' },
       'template-059': { ...base, image: '', date: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-060': { ...base, caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-061': {
@@ -370,11 +370,11 @@ class ScriptParserService {
    * Maps content sentences to template-specific element structures.
    */
   static _createContentElementsFromMeta(templateId, contentItems, scene) {
-    // Timeline templates: map contentItems to {date, text} pairs
+    // Timeline/milestones templates: map contentItems to {heading, text} pairs
     if (['template-004', 'template-037'].includes(templateId)) {
       return {
         title: scene.title || '',
-        items: contentItems.map((text, i) => ({ date: '', text })),
+        items: contentItems.map((text) => ({ heading: '', text })),
       };
     }
 
@@ -409,11 +409,19 @@ class ScriptParserService {
     }
 
     // For fact/feature templates
-    if (['template-029', 'template-033', 'template-038'].includes(templateId)) {
+    if (['template-038'].includes(templateId)) {
       return {
         title: scene.title || '',
         subtitle: scene.subtitle || '',
         items: contentItems.map(text => ({ text, description: '' })),
+      };
+    }
+
+    // Did You Know / simple bold-statement templates
+    if (['template-029'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        body: contentItems.join(' '),
       };
     }
 
@@ -427,23 +435,45 @@ class ScriptParserService {
       };
     }
 
-    // Comparison templates
-    if (['template-005', 'template-028'].includes(templateId)) {
+    // Two-column comparison content templates
+    if (['template-005'].includes(templateId)) {
       return {
-        header: scene.title || '',
-        leftCard: { title: '', body: contentItems[0] || '' },
-        rightCard: { title: '', body: contentItems[1] || '' },
+        title: scene.title || '',
+        columns: [
+          { heading: '', body: contentItems[0] || '' },
+          { heading: '', body: contentItems[1] || '' },
+        ],
       };
     }
 
-    // Quote/message templates
-    if (['template-006', 'template-047'].includes(templateId)) {
+    // Two-column row-list content templates
+    if (['template-028'].includes(templateId)) {
+      const items = [];
+      for (let i = 0; i < contentItems.length; i += 2) {
+        items.push({ left: contentItems[i] || '', right: contentItems[i + 1] || '' });
+      }
       return {
-        quote: contentItems[0] || scene.title || '',
-        author: '',
-        authorTitle: '',
+        title: scene.title || '',
+        items: items.length ? items : [{ left: '', right: '' }],
       };
-    };
+    }
+
+    // Closing statement / outro-style templates
+    if (['template-006', 'template-031'].includes(templateId)) {
+      return {
+        title: contentItems[0] || scene.title || '',
+        body: contentItems.slice(1).join(' '),
+        badge: '',
+      };
+    }
+
+    // Bold closing statement templates (no badge)
+    if (['template-047'].includes(templateId)) {
+      return {
+        title: contentItems[0] || scene.title || '',
+        body: contentItems.slice(1).join(' '),
+      };
+    }
 
     // Team/person templates
     if (['template-011', 'template-039', 'template-042', 'template-048'].includes(templateId)) {
@@ -472,11 +502,20 @@ class ScriptParserService {
     }
 
     // Text/body templates
-    if (['template-021', 'template-036', 'template-058'].includes(templateId)) {
+    if (['template-036'].includes(templateId)) {
       return {
         title: scene.title || '',
         body: contentItems.join(' '),
         image: '',
+      };
+    }
+
+    // Cinematic image/caption templates
+    if (['template-021', 'template-058'].includes(templateId)) {
+      return {
+        image: '',
+        caption: contentItems.join(' '),
+        label: '',
       };
     }
 
@@ -575,12 +614,12 @@ class ScriptParserService {
       };
     }
 
-    // Countdown templates
+    // Hook opener / intro templates
     if (['template-012'].includes(templateId)) {
       return {
         title: scene.title || '',
-        message: contentItems.join(' '),
-        timeBlocks: contentItems.map(() => ({ value: '', label: '' })),
+        subtitle: contentItems.join(' '),
+        image: '',
       };
     }
 
@@ -596,7 +635,7 @@ class ScriptParserService {
     if (['template-015'].includes(templateId)) {
       return {
         title: scene.title || '',
-        features: contentItems.map(text => ({ icon: '', title: text, description: '' })),
+        items: contentItems.map(text => ({ icon: '', title: text, description: '' })),
       };
     }
 
@@ -607,15 +646,6 @@ class ScriptParserService {
         title: scene.title || '',
         body: contentItems.join(' '),
         stats: contentItems.map(text => ({ value: text, label: '' })),
-      };
-    }
-
-    // Milestones/year templates
-    if (['template-031', 'template-037'].includes(templateId)) {
-      return {
-        title: scene.title || '',
-        meta: '',
-        items: contentItems.map(text => ({ year: '', title: text, description: '' })),
       };
     }
 
