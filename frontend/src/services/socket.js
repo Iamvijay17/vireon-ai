@@ -125,11 +125,6 @@ export const onCourseVideoRenderReady = (callback) => {
   return () => socket.off('courseVideoRenderReady', callback);
 };
 
-export const onCourseVideoAvatarReady = (callback) => {
-  socket.on('courseVideoAvatarReady', callback);
-  return () => socket.off('courseVideoAvatarReady', callback);
-};
-
 // Pushed whenever the backend's course-video worker connects/disconnects, so
 // the frontend doesn't need to poll GET /api/course-videos/worker-status.
 export const onCourseWorkerStatus = (callback) => {

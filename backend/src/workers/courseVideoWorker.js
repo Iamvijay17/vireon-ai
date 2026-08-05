@@ -5,7 +5,6 @@ const LoggerService = require('../services/LoggerService');
 const CourseVideoService = require('../services/CourseVideoService');
 const SocketService = require('../services/SocketService');
 const StorageService = require('../services/StorageService');
-const { VIDEO_STATUS } = require('../constants');
 
 // Connect to MongoDB on worker startup
 mongoose.connect(config.mongodb.uri, {
@@ -69,9 +68,6 @@ const courseVideoWorker = new Worker(
         case 'generate-audio':
           await CourseVideoService.generateAudio(videoId);
           break;
-        case 'generate-avatar':
-          await CourseVideoService.generateAvatar(videoId);
-          break;
         case 'render':
           await CourseVideoService.renderVideo(videoId);
           break;
@@ -103,21 +99,23 @@ const courseVideoWorker = new Worker(
         stack: config.isDev ? err.stack : undefined,
       });
 
-       // Try to update job status to failed and emit socket event
+      // Every action above (generateScript/generateAudio/renderVideo, and
+      // retryStep by delegating to one of those) already sets
+      // video.status/error to a human-readable step label ('Script
+      // Generation', 'Audio Generation', ...) and emits
+      // emitCourseVideoFailed from its own try/catch before rethrowing -
+      // that's what retryStep()'s switch matches against. Duplicating that
+      // write here with the raw action slug (e.g. 'generate-audio') would
+      // silently break Retry (falls through to the switch's default case)
+      // and double-count retryCount, so this is now just a safety-net log
+      // for the case a video record couldn't be found/loaded at all.
       try {
         const video = await CourseVideoService.getById(videoId);
-        if (video) {
-          video.status = VIDEO_STATUS.FAILED;
-          video.error = {
-            message: err.message,
-            step: action,
-            retryCount: (video.error?.retryCount || 0) + 1,
-          };
-          await video.save();
-          SocketService.emitCourseVideoFailed(video, err.message, action);
+        if (!video) {
+          LoggerService.error('Course video not found while handling job failure', { videoId, action });
         }
       } catch (dbErr) {
-        LoggerService.error('Failed to update course video job status in DB', { error: dbErr.message });
+        LoggerService.error('Failed to load course video after job failure', { error: dbErr.message });
       }
 
       throw err;

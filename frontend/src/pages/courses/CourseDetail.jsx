@@ -16,7 +16,6 @@ import {
   RotateCw,
   Square,
   Ban,
-  UserCircle,
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { EmptyState, LoadingState } from "../../components";
@@ -125,7 +124,7 @@ const STYLE_OPTIONS = [
   { value: "business", label: "Business" },
 ];
 
-const EMPTY_FORM = { title: "", topic: "", duration: 5, voice: "female-1", style: "educational", additionalInstructions: "", avatarEnabled: false };
+const EMPTY_FORM = { title: "", topic: "", duration: 5, voice: "female-1", style: "educational", additionalInstructions: "" };
 
 const CATEGORY_OPTIONS = [
   { value: "Web Development", label: "Web Development" },
@@ -160,7 +159,6 @@ const COURSE_EDIT_EMPTY_FORM = { title: "", description: "", category: "Other", 
 const BULK_ACTIONS = [
   { action: "generate-script", label: "Generate Scripts", icon: FileText },
   { action: "generate-audio", label: "Generate Audio", icon: AudioLines },
-  { action: "generate-avatar", label: "Generate Avatars", icon: UserCircle },
   { action: "render", label: "Render Videos", icon: Video },
   { action: "generate-full", label: "Generate Everything", icon: Zap },
 ];
@@ -190,7 +188,6 @@ const stageActionLabel = (stageLabel, status) => {
 const BUSY_STATUSES = [
   "Generating Script",
   "Generating Audio",
-  "Generating Avatar",
   "Generating Scenes",
   "Generating Images",
   "Rendering Video",
@@ -199,7 +196,6 @@ const BUSY_STATUSES = [
 const isVideoBusy = (video) => BUSY_STATUSES.includes(video.status);
 const videoHasApprovedScript = (video) => Boolean(video.approved);
 const videoHasAudio = (video) => Boolean(video.audioUrl);
-const videoHasAvatar = (video) => video.avatarStatus === "Completed";
 const videoCanApprove = (video) => ["Script Generated", "Waiting for Approval"].includes(video.status) && !video.approved;
 
 // Per-video eligibility for each pipeline action, mirroring the same
@@ -217,21 +213,9 @@ const ACTION_GATES = {
     eligible: (v) => !isVideoBusy(v) && videoHasApprovedScript(v),
     reason: (v) => (isVideoBusy(v) ? "This lesson is already processing" : "Approve the script before generating audio"),
   },
-  "generate-avatar": {
-    eligible: (v) => !isVideoBusy(v) && v.avatarEnabled && videoHasAudio(v),
-    reason: (v) => {
-      if (isVideoBusy(v)) return "This lesson is already processing";
-      if (!v.avatarEnabled) return "Enable the talking avatar for this lesson first";
-      return "Generate audio before generating the avatar";
-    },
-  },
   render: {
-    eligible: (v) => !isVideoBusy(v) && videoHasAudio(v) && (!v.avatarEnabled || videoHasAvatar(v)),
-    reason: (v) => {
-      if (isVideoBusy(v)) return "This lesson is already processing";
-      if (!videoHasAudio(v)) return "Generate audio before rendering the video";
-      return "Generate the avatar before rendering the video";
-    },
+    eligible: (v) => !isVideoBusy(v) && videoHasAudio(v),
+    reason: (v) => (isVideoBusy(v) ? "This lesson is already processing" : "Generate audio before rendering the video"),
   },
   "generate-full": {
     eligible: (v) => !isVideoBusy(v),
@@ -536,7 +520,6 @@ const CourseDetail = () => {
       voice: video.voice || EMPTY_FORM.voice,
       style: video.style || EMPTY_FORM.style,
       additionalInstructions: video.additionalInstructions || "",
-      avatarEnabled: Boolean(video.avatarEnabled),
     });
     setVideoEditError("");
     setVideoEditModalVisible(true);
@@ -906,9 +889,6 @@ const CourseDetail = () => {
         <div className="flex items-center gap-1">
           <StageDot label="Script" status={video.scriptStatus || "Pending"} error={video.scriptError} icon={FileText} />
           <StageDot label="Audio" status={video.audioStatus || "Pending"} error={video.audioError} icon={AudioLines} />
-          {video.avatarEnabled && (
-            <StageDot label="Avatar" status={video.avatarStatus || "Pending"} error={video.avatarError} icon={UserCircle} />
-          )}
           <StageDot label="Video" status={video.videoStatus || "Pending"} error={video.videoError} icon={Video} />
         </div>
       ),
@@ -990,16 +970,6 @@ const CourseDetail = () => {
                 >
                   {stageActionLabel("Audio", video.audioStatus || "Pending")}
                 </DropdownItem>
-                {video.avatarEnabled && (
-                  <DropdownItem
-                    icon={<UserCircle className="size-4" />}
-                    disabled={!ACTION_GATES["generate-avatar"].eligible(video)}
-                    title={!ACTION_GATES["generate-avatar"].eligible(video) ? ACTION_GATES["generate-avatar"].reason(video) : undefined}
-                    onClick={() => runGenerateAction([video._id], "generate-avatar")}
-                  >
-                    {stageActionLabel("Avatar", video.avatarStatus || "Pending")}
-                  </DropdownItem>
-                )}
                 <DropdownItem
                   icon={<Video className="size-4" />}
                   disabled={!ACTION_GATES.render.eligible(video)}
@@ -1292,15 +1262,6 @@ const CourseDetail = () => {
               onChange={(e) => setFormValues((prev) => ({ ...prev, additionalInstructions: e.target.value }))}
             />
           </div>
-          <label className="flex items-center gap-2 text-[13px] font-medium text-text-secondary">
-            <input
-              type="checkbox"
-              className="size-4 cursor-pointer accent-accent"
-              checked={formValues.avatarEnabled}
-              onChange={(e) => setFormValues((prev) => ({ ...prev, avatarEnabled: e.target.checked }))}
-            />
-            Enable talking avatar (adds a lip-synced picture-in-picture overlay before render)
-          </label>
         </div>
       </Modal>
 
@@ -1375,15 +1336,6 @@ const CourseDetail = () => {
               onChange={(e) => setVideoEditForm((prev) => ({ ...prev, additionalInstructions: e.target.value }))}
             />
           </div>
-          <label className="flex items-center gap-2 text-[13px] font-medium text-text-secondary">
-            <input
-              type="checkbox"
-              className="size-4 cursor-pointer accent-accent"
-              checked={videoEditForm.avatarEnabled}
-              onChange={(e) => setVideoEditForm((prev) => ({ ...prev, avatarEnabled: e.target.checked }))}
-            />
-            Enable talking avatar (adds a lip-synced picture-in-picture overlay before render)
-          </label>
         </div>
       </Modal>
 
@@ -1469,15 +1421,6 @@ const CourseDetail = () => {
                 <Select options={STYLE_OPTIONS} value={curriculumForm.style} onChange={(v) => setCurriculumForm((prev) => ({ ...prev, style: v }))} />
               </div>
             </div>
-            <label className="flex items-center gap-2 text-[13px] font-medium text-text-secondary">
-              <input
-                type="checkbox"
-                className="size-4 cursor-pointer accent-accent"
-                checked={curriculumForm.avatarEnabled}
-                onChange={(e) => setCurriculumForm((prev) => ({ ...prev, avatarEnabled: e.target.checked }))}
-              />
-              Enable talking avatar for every lesson (adds a lip-synced picture-in-picture overlay before render)
-            </label>
           </div>
         ) : (
           <div className="space-y-3">

@@ -2,7 +2,6 @@ import React, { Suspense } from "react";
 import {
   AbsoluteFill,
   Sequence,
-  Video,
   interpolate,
   useCurrentFrame,
 } from "remotion";
@@ -130,38 +129,6 @@ const resolveTemplate = (templateId) => {
   return Template;
 };
 
-/**
- * Picture-in-picture talking-avatar overlay, rendered once here rather than
- * per-template so all 61+ templates get it for free. `muted` because the
- * scene's own narration audio is already played by the template (see the
- * comment on Scene below) - the avatar clip supplies picture only.
- */
-const AvatarOverlay = ({ avatar }) => {
-  if (!avatar?.file) return null;
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        bottom: 40,
-        right: 40,
-        width: 280,
-        height: 280,
-        borderRadius: "50%",
-        overflow: "hidden",
-        border: "4px solid rgba(255,255,255,0.9)",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-      }}
-    >
-      <Video
-        src={avatar.file}
-        muted
-        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-      />
-    </div>
-  );
-};
-
 // Scene component that dynamically selects and renders the correct template
 // Each template handles its own audio rendering internally
 const Scene = React.memo(({ scene, jobId }) => {
@@ -173,7 +140,6 @@ const Scene = React.memo(({ scene, jobId }) => {
       <Suspense fallback={<TemplateLoadingFallback />}>
         <Template scene={scene} />
       </Suspense>
-      <AvatarOverlay avatar={scene?.avatar} />
     </AbsoluteFill>
   );
 });

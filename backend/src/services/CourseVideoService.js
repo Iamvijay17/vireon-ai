@@ -7,7 +7,6 @@ const SocketService = require('./SocketService');
 const ActivityLogService = require('./ActivityLogService');
 const LMStudioService = require('./LMStudioService');
 const AudioService = require('./TTS/audioService');
-const AvatarService = require('./AvatarService');
 const RemotionService = require('./RemotionService');
 const ScriptParserService = require('./ScriptParserService');
 const StorageService = require('./StorageService');
@@ -68,7 +67,6 @@ class CourseVideoService {
       voice: data.voice || 'female-1',
       style: data.style || 'educational',
       additionalInstructions: data.additionalInstructions || '',
-      avatarEnabled: Boolean(data.avatarEnabled),
       status: VIDEO_STATUS.DRAFT,
     });
 
@@ -105,7 +103,7 @@ class CourseVideoService {
    * appends after existing lessons, never replaces them.
    */
   static async createFromLessons(courseId, lessons, options) {
-    const { voice, style, duration, additionalInstructions, avatarEnabled } = options;
+    const { voice, style, duration, additionalInstructions } = options;
 
     if (!Array.isArray(lessons) || lessons.length === 0) {
       throw { status: 400, message: 'lessons must be a non-empty array' };
@@ -125,7 +123,6 @@ class CourseVideoService {
         voice: voice || 'female-1',
         style: style || 'educational',
         additionalInstructions: additionalInstructions || '',
-        avatarEnabled: Boolean(avatarEnabled),
         status: VIDEO_STATUS.DRAFT,
       });
       videos.push(video);
@@ -727,88 +724,6 @@ Rules:
   }
 
   /**
-   * Generate the talking-avatar overlay clip for each scene, synced to that
-   * scene's already-generated narration audio. Opt-in per video
-   * (avatarEnabled) - requires audio to exist first, same shape as
-   * generateAudio requiring an approved script.
-   */
-  static async generateAvatar(videoId) {
-    const video = await CourseVideo.findById(videoId);
-    if (!video) {
-      throw { status: 404, message: 'Video not found' };
-    }
-
-    if (!video.audioUrl) {
-      throw { status: 400, message: 'Audio must be generated before generating the avatar' };
-    }
-
-    video.status = VIDEO_STATUS.GENERATING_AVATAR;
-    video.avatarStatus = STAGE_STATUS.PROCESSING;
-    await video.save();
-
-    await ActivityLogService.add(videoId, 'Avatar generation started');
-    SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_AVATAR, 45, 'Generating talking avatar...');
-
-    try {
-      const scenes = video.script.scenes;
-
-      const avatarResults = await AvatarService.generateAllAvatars(
-        video._id.toString(),
-        scenes,
-        async (sceneNumber, result) => {
-          await CourseVideo.updateOne(
-            { _id: videoId, 'script.scenes.sceneNumber': sceneNumber },
-            {
-              $set: {
-                'script.scenes.$.avatar.file': result.file,
-                'script.scenes.$.avatar.duration': result.duration,
-              },
-            }
-          );
-          await ActivityLogService.add(videoId, `Scene ${sceneNumber} avatar generated`);
-        },
-        () => bailIfCancelled(videoId)
-      );
-
-      video.status = VIDEO_STATUS.AVATAR_GENERATED;
-      video.avatarStatus = STAGE_STATUS.COMPLETED;
-      video.avatarGeneratedAt = new Date();
-      await video.save();
-
-      LoggerService.info('Course video avatar generated', {
-        videoId,
-        courseId: video.courseId,
-        scenes: avatarResults.length,
-      });
-
-      await ActivityLogService.add(videoId, 'Avatar generated successfully.', video.avatarGeneratedAt);
-      SocketService.emitCourseVideoAvatarReady(video, 'Avatar generated successfully.');
-
-      return video;
-    } catch (err) {
-      if (err.cancelled) {
-        await ActivityLogService.add(videoId, 'Avatar generation stopped by user');
-        throw err;
-      }
-
-      video.status = VIDEO_STATUS.FAILED;
-      video.avatarStatus = STAGE_STATUS.FAILED;
-      video.avatarError = { message: err.message, failedAt: new Date() };
-      video.error = {
-        message: err.message,
-        step: 'Avatar Generation',
-        retryCount: (video.error?.retryCount || 0) + 1,
-      };
-      await video.save();
-
-      await ActivityLogService.add(videoId, `Avatar generation failed: ${err.message}`);
-      SocketService.emitCourseVideoFailed(video, err.message, 'Avatar Generation');
-
-      throw err;
-    }
-  }
-
-  /**
    * Regenerate audio for a single scene, rather than the whole lesson.
    * Runs synchronously (not queued) since it's one TTS call, not a batch -
    * mirrors AudioService.generateAllAudio's per-scene persistence pattern
@@ -874,9 +789,6 @@ Rules:
 
     if (!video.audioUrl) {
       throw { status: 400, message: 'Audio must be generated before rendering the video' };
-    }
-    if (video.avatarEnabled && video.avatarStatus !== STAGE_STATUS.COMPLETED) {
-      throw { status: 400, message: 'Avatar must be generated before rendering the video' };
     }
 
     video.status = VIDEO_STATUS.RENDERING_VIDEO;
@@ -1107,24 +1019,26 @@ Rules:
    * without needing a dedicated composite worker action.
    */
   static async prepareBulkJobs(videoIds, action) {
+    const stageActions = action === 'generate-full'
+      ? ['generate-script', 'generate-audio', 'render']
+      : [action];
+
     const stageField = {
       'generate-script': 'scriptStatus',
       'generate-audio': 'audioStatus',
-      'generate-avatar': 'avatarStatus',
       render: 'videoStatus',
     };
 
     // Videos that don't meet the queued stage's prerequisite (script
-    // approved before audio, audio present before avatar/render, avatar
-    // completed before render when enabled) are skipped rather than queued -
-    // the server-side backstop for the same gating the lesson table's
-    // buttons apply client-side, so it holds even if a request bypasses the
-    // UI. 'generate-script'/'generate-full' have no prerequisite since they
-    // start the pipeline from the beginning.
+    // approved before audio, audio present before render) are skipped
+    // rather than queued - the server-side backstop for the same gating the
+    // lesson table's buttons apply client-side, so it holds even if a
+    // request bypasses the UI. 'generate-script'/'generate-full' have no
+    // prerequisite since they start the pipeline from the beginning.
     const jobs = [];
     const skipped = [];
     for (const videoId of videoIds) {
-      const video = await CourseVideo.findById(videoId).select('approved audioUrl avatarEnabled avatarStatus');
+      const video = await CourseVideo.findById(videoId).select('approved audioUrl');
       if (!video) {
         skipped.push({ videoId, reason: 'Video not found' });
         continue;
@@ -1133,26 +1047,10 @@ Rules:
         skipped.push({ videoId, reason: 'Script must be approved before generating audio' });
         continue;
       }
-      if (action === 'generate-avatar' && !video.audioUrl) {
-        skipped.push({ videoId, reason: 'Audio must be generated before generating the avatar' });
-        continue;
-      }
       if (action === 'render' && !video.audioUrl) {
         skipped.push({ videoId, reason: 'Audio must be generated before rendering' });
         continue;
       }
-      if (action === 'render' && video.avatarEnabled && video.avatarStatus !== STAGE_STATUS.COMPLETED) {
-        skipped.push({ videoId, reason: 'Avatar must be generated before rendering' });
-        continue;
-      }
-
-      // 'generate-full' chains contiguously through the queue (see doc
-      // comment above) so with concurrency:1 each stage only starts once
-      // the previous one for this same video has finished. Avatar is only
-      // part of the chain when this particular video opted into it.
-      const stageActions = action === 'generate-full'
-        ? ['generate-script', 'generate-audio', ...(video.avatarEnabled ? ['generate-avatar'] : []), 'render']
-        : [action];
 
       const update = {};
       for (const a of stageActions) {
@@ -1192,8 +1090,6 @@ Rules:
         return this.generateScript(videoId);
       case 'Audio Generation':
         return this.generateAudio(videoId);
-      case 'Avatar Generation':
-        return this.generateAvatar(videoId);
       case 'Rendering':
         return this.renderVideo(videoId);
       default:

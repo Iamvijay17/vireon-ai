@@ -53,13 +53,6 @@ const courseVideoSchema = new mongoose.Schema(
       default: '',
       maxlength: 1000,
     },
-    // Opt-in per lesson - the talking-avatar overlay is a separate pipeline
-    // stage gated on audio existing (see CourseVideoService.generateAvatar),
-    // so videos that don't want it just never queue that stage.
-    avatarEnabled: {
-      type: Boolean,
-      default: false,
-    },
     status: {
       type: String,
       enum: Object.values(VIDEO_STATUS),
@@ -81,12 +74,6 @@ const courseVideoSchema = new mongoose.Schema(
       default: STAGE_STATUS.PENDING,
       index: true,
     },
-    avatarStatus: {
-      type: String,
-      enum: STAGE_STATUS_VALUES,
-      default: STAGE_STATUS.PENDING,
-      index: true,
-    },
     videoStatus: {
       type: String,
       enum: STAGE_STATUS_VALUES,
@@ -98,10 +85,6 @@ const courseVideoSchema = new mongoose.Schema(
       failedAt: { type: Date, default: null },
     },
     audioError: {
-      message: { type: String, default: '' },
-      failedAt: { type: Date, default: null },
-    },
-    avatarError: {
       message: { type: String, default: '' },
       failedAt: { type: Date, default: null },
     },
@@ -139,10 +122,6 @@ const courseVideoSchema = new mongoose.Schema(
       default: 0,
     },
     audioGeneratedAt: {
-      type: Date,
-      default: null,
-    },
-    avatarGeneratedAt: {
       type: Date,
       default: null,
     },

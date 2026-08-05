@@ -664,7 +664,7 @@ const RenderPage = () => {
 
           <Card className="h-fit animate-slide-up" style={{ "--stagger-index": 1 }}>
             <CardHeader title="Activity Log" />
-            <div className="p-5">
+            <div className="h-[420px] overflow-y-auto p-5">
               {activityLog.length === 0 ? (
                 <p className="text-[13px] text-text-tertiary">No activity yet</p>
               ) : (

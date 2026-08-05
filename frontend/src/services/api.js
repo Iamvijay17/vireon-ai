@@ -114,9 +114,6 @@ export const regenerateCourseVideoScript = (id) =>
 export const generateCourseVideoAudio = (id) =>
   api.post(`/api/course-videos/${id}/generate-audio`);
 
-export const generateCourseVideoAvatar = (id) =>
-  api.post(`/api/course-videos/${id}/generate-avatar`);
-
 export const renderCourseVideo = (id) =>
   api.post(`/api/course-videos/${id}/render`);
 

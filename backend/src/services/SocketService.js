@@ -237,11 +237,6 @@ class SocketService {
           io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_SCENE_AUDIO_READY, data);
         }
         break;
-      case 'courseVideoAvatarReady':
-        if (courseId) {
-          io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_AVATAR_READY, data);
-        }
-        break;
       case 'courseVideoRenderReady':
         if (courseId) {
           io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_RENDER_READY, data);
@@ -547,26 +542,6 @@ class SocketService {
       io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_SCENE_AUDIO_READY, data);
     } else {
       SocketService.publishToCourse(video.courseId.toString(), 'courseVideoSceneAudioReady', data);
-    }
-  }
-
-  /**
-   * Emit course video avatar ready event.
-   * In the main process, emits via Socket.IO directly.
-   * In the worker process, publishes via Redis pub/sub.
-   */
-  static emitCourseVideoAvatarReady(video, message) {
-    const data = {
-      videoId: video._id,
-      status: video.status,
-      avatarStatus: video.avatarStatus,
-      message,
-    };
-
-    if (io) {
-      io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_AVATAR_READY, data);
-    } else {
-      SocketService.publishToCourse(video.courseId.toString(), 'courseVideoAvatarReady', data);
     }
   }
 

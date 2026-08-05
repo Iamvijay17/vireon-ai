@@ -52,13 +52,6 @@ const config = Object.freeze({
     uploadRetries: parseInt(process.env.GITHUB_UPLOAD_RETRIES, 10) || 3,
   },
 
-  avatar: {
-    url: process.env.AVATAR_API_URL || 'http://localhost:7861',
-    referenceVideoPath: process.env.AVATAR_REFERENCE_VIDEO || path.resolve(__dirname, '../../assets/avatars/default.mp4'),
-    timeout: parseInt(process.env.AVATAR_TIMEOUT, 10) || 180000,
-    maxRetries: parseInt(process.env.AVATAR_MAX_RETRIES, 10) || 2,
-  },
-
   cors: {
     // CORS_ORIGIN accepts a comma-separated list (e.g. for LAN access from multiple hosts)
     origins: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://172.24.0.1:5173,http://192.168.1.7:5173')
