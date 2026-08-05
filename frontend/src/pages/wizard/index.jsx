@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createVideoJob, getVoices } from "../../services/api";
+import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 import { loadSettings } from "../../shared/settingsStorage";
 import { LoadingState } from "../../components";
 import { Card } from "../../components/ui/Card";
@@ -99,6 +100,7 @@ const Wizard = () => {
   const [result, setResult] = useState(null);
   const [copied, setCopied] = useState(false);
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
+  const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
   useEffect(() => {
     let cancelled = false;
@@ -256,6 +258,8 @@ const Wizard = () => {
                         value={values.hostVoice}
                         onChange={(v) => setField("hostVoice", v)}
                         error={Boolean(errors.hostVoice)}
+                        isFavorite={isFavorite}
+                        onToggleFavorite={toggleFavorite}
                       />
                       <FieldHint error={Boolean(errors.hostVoice)}>{errors.hostVoice}</FieldHint>
                     </div>
@@ -268,6 +272,8 @@ const Wizard = () => {
                         value={values.guestVoice}
                         onChange={(v) => setField("guestVoice", v)}
                         error={Boolean(errors.guestVoice)}
+                        isFavorite={isFavorite}
+                        onToggleFavorite={toggleFavorite}
                       />
                       <FieldHint error={Boolean(errors.guestVoice)}>
                         The host and guest take turns in the conversation, each with their own voice.
@@ -277,7 +283,13 @@ const Wizard = () => {
                 ) : (
                   <div className="mb-5">
                     <Label>Voice</Label>
-                    <VoiceSelect options={voiceOptions} value={values.voice} onChange={(v) => setField("voice", v)} />
+                    <VoiceSelect
+                      options={voiceOptions}
+                      value={values.voice}
+                      onChange={(v) => setField("voice", v)}
+                      isFavorite={isFavorite}
+                      onToggleFavorite={toggleFavorite}
+                    />
                     <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/. Click the play button to hear a sample.</FieldHint>
                   </div>
                 )}

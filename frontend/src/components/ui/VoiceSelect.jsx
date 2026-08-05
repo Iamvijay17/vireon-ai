@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { Check, ChevronDown, Play, Pause } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Check, ChevronDown, Play, Pause, Star } from "lucide-react";
 import { cn } from "./cn";
 import { useClickOutside, useEscapeKey } from "./hooks";
 import { resolveMediaUrl } from "../../services/api";
@@ -8,6 +8,9 @@ import { resolveMediaUrl } from "../../services/api";
 // user can hear a sample before picking a voice. `options` is
 // [{ value, label, description?, previewUrl? }] - previewUrl is optional,
 // options without one just don't show a play button.
+// `isFavorite`/`onToggleFavorite` are optional - pass both to show a star
+// toggle per option and float favorites to the top of the list (see
+// shared/useFavoriteVoices.js for the DB-backed source of truth).
 export const VoiceSelect = ({
   value,
   onChange,
@@ -17,6 +20,8 @@ export const VoiceSelect = ({
   panelClassName,
   disabled = false,
   error = false,
+  isFavorite,
+  onToggleFavorite,
 }) => {
   const [open, setOpen] = useState(false);
   const [playingValue, setPlayingValue] = useState(null);
@@ -25,6 +30,13 @@ export const VoiceSelect = ({
   useEscapeKey(() => setOpen(false), open);
 
   const selected = options.find((o) => o.value === value);
+
+  const sortedOptions = useMemo(() => {
+    if (!isFavorite) return options;
+    const favorites = options.filter((o) => isFavorite(o.value));
+    const rest = options.filter((o) => !isFavorite(o.value));
+    return [...favorites, ...rest];
+  }, [options, isFavorite]);
 
   useEffect(() => {
     const audio = new Audio();
@@ -91,8 +103,9 @@ export const VoiceSelect = ({
           {options.length === 0 && (
             <div className="px-3 py-2 text-sm text-text-tertiary">No options</div>
           )}
-          {options.map((opt) => {
+          {sortedOptions.map((opt) => {
             const isPlaying = playingValue === opt.value;
+            const favorite = isFavorite?.(opt.value);
             return (
               <button
                 key={opt.value}
@@ -108,6 +121,30 @@ export const VoiceSelect = ({
                     : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
                 )}
               >
+                {onToggleFavorite && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label={favorite ? `Unfavorite ${opt.label}` : `Favorite ${opt.label}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleFavorite(opt.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onToggleFavorite(opt.value);
+                      }
+                    }}
+                    className={cn(
+                      "flex size-6 shrink-0 items-center justify-center rounded-full transition-colors",
+                      favorite ? "text-amber-400 hover:text-amber-500" : "text-text-tertiary hover:text-amber-400"
+                    )}
+                  >
+                    <Star className="size-3.5" fill={favorite ? "currentColor" : "none"} />
+                  </span>
+                )}
                 {opt.previewUrl && (
                   <span
                     role="button"

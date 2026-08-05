@@ -19,6 +19,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { EmptyState, LoadingState } from "../../components";
 import { useSetBreadcrumbLabel } from "../../shared/breadcrumbContextValue";
 import { loadSettings } from "../../shared/settingsStorage";
+import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -187,6 +188,7 @@ const CourseDetail = () => {
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
+  const { isFavorite, toggleFavorite } = useFavoriteVoices();
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
   const [workerRunning, setWorkerRunning] = useState(null); // null = unknown, boolean once checked
   const unsubscribesRef = useRef([]);
@@ -1017,7 +1019,13 @@ const CourseDetail = () => {
             </div>
             <div>
               <Label>Voice</Label>
-              <VoiceSelect options={voiceOptions} value={formValues.voice} onChange={(v) => setFormValues((prev) => ({ ...prev, voice: v }))} />
+              <VoiceSelect
+                options={voiceOptions}
+                value={formValues.voice}
+                onChange={(v) => setFormValues((prev) => ({ ...prev, voice: v }))}
+                isFavorite={isFavorite}
+                onToggleFavorite={toggleFavorite}
+              />
               <FieldHint>Custom presets or cloned from your reference .wav files</FieldHint>
             </div>
             <div>
@@ -1106,7 +1114,13 @@ const CourseDetail = () => {
               </div>
               <div>
                 <Label>Voice</Label>
-                <VoiceSelect options={voiceOptions} value={curriculumForm.voice} onChange={(v) => setCurriculumForm((prev) => ({ ...prev, voice: v }))} />
+                <VoiceSelect
+                  options={voiceOptions}
+                  value={curriculumForm.voice}
+                  onChange={(v) => setCurriculumForm((prev) => ({ ...prev, voice: v }))}
+                  isFavorite={isFavorite}
+                  onToggleFavorite={toggleFavorite}
+                />
               </div>
               <div>
                 <Label>Style</Label>

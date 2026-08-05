@@ -60,6 +60,13 @@ export const getVideoJobActivityLogs = (id) => api.get(`/api/videos/${id}/activi
 
 export const getVoices = () => api.get('/api/voices');
 
+export const getFavoriteVoices = () => api.get('/api/voices/favorites');
+
+export const addFavoriteVoice = (voiceId) => api.post('/api/voices/favorites', { voiceId });
+
+export const removeFavoriteVoice = (voiceId) =>
+  api.delete('/api/voices/favorites', { data: { voiceId } });
+
 // ─── Courses ────────────────────────────────────────────────────────────────────
 
 export const createCourse = (data) => api.post('/api/courses', data);

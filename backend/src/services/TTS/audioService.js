@@ -75,7 +75,7 @@ class AudioService {
   }
 
   /**
-   * List cloneable voices, discovered from the .wav files in backend/voices/.
+   * List cloneable voices, discovered from the .wav/.mp3 files in backend/voices/.
    */
   static async listCloneVoices() {
     let files;
@@ -86,12 +86,12 @@ class AudioService {
     }
 
     return files
-      .filter((file) => file.toLowerCase().endsWith(".wav"))
+      .filter((file) => /\.(wav|mp3)$/i.test(file))
       .map((file) => ({
         id: `clone:${file}`,
         file,
         label: file
-          .replace(/\.wav$/i, "")
+          .replace(/\.(wav|mp3)$/i, "")
           .replace(/[_-]+/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase()),
       }));
@@ -104,8 +104,8 @@ class AudioService {
   static async resolveVoice(voice) {
     if (typeof voice === "string" && voice.startsWith("clone:")) {
       const file = path.basename(voice.slice("clone:".length));
-      if (!file.toLowerCase().endsWith(".wav")) {
-        throw new Error(`Invalid clone voice "${file}": must be a .wav file`);
+      if (!/\.(wav|mp3)$/i.test(file)) {
+        throw new Error(`Invalid clone voice "${file}": must be a .wav or .mp3 file`);
       }
 
       const filePath = path.join(VOICES_DIR, file);
@@ -142,7 +142,8 @@ class AudioService {
 
     try {
       const audioBuffer = await fs.readFile(filePath);
-      const audioBlob = new Blob([audioBuffer], { type: "audio/wav" });
+      const mimeType = filePath.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : "audio/wav";
+      const audioBlob = new Blob([audioBuffer], { type: mimeType });
       const result = await client.predict("/transcribe_audio", {
         audio: audioBlob,
       });
@@ -190,7 +191,8 @@ class AudioService {
       resolved.file,
     );
     const refAudioBuffer = await fs.readFile(resolved.filePath);
-    const refAudioBlob = new Blob([refAudioBuffer], { type: "audio/wav" });
+    const refMimeType = resolved.file.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : "audio/wav";
+    const refAudioBlob = new Blob([refAudioBuffer], { type: refMimeType });
 
     return client.predict("/generate_voice_clone", {
       ref_audio: refAudioBlob,

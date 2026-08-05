@@ -12,6 +12,7 @@ import { toast } from "../../components/ui/toastBus";
 import { ThemeContext } from "../../shared/themeContextValue";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../../shared/settingsStorage";
 import { getVoices, getHealth, getCourseWorkerStatus } from "../../services/api";
+import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 
 const FALLBACK_VOICE_OPTIONS = [
   { value: "female-1", label: "Female Voice 1" },
@@ -74,6 +75,7 @@ const SettingsPage = () => {
 
   const [settings, setSettings] = useState(loadSettings);
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
+  const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
   const [health, setHealth] = useState(null);
   const [healthError, setHealthError] = useState(false);
@@ -167,7 +169,14 @@ const SettingsPage = () => {
           />
           <CardBody className="divide-y divide-border-light">
             <SettingsRow label="Default Voice" hint="Used across both the Wizard and Course video creation">
-              <VoiceSelect options={voiceOptions} value={settings.defaultVoice} onChange={(v) => updateSetting("defaultVoice", v)} placeholder="No preference" />
+              <VoiceSelect
+                options={voiceOptions}
+                value={settings.defaultVoice}
+                onChange={(v) => updateSetting("defaultVoice", v)}
+                placeholder="No preference"
+                isFavorite={isFavorite}
+                onToggleFavorite={toggleFavorite}
+              />
             </SettingsRow>
             <SettingsRow label="Default Language" hint="Used when creating course videos">
               <Select options={LANGUAGE_OPTIONS} value={settings.defaultLanguage} onChange={(v) => updateSetting("defaultLanguage", v)} />
