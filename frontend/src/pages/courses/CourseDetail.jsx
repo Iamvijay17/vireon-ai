@@ -12,7 +12,6 @@ import {
   Clock,
   MoreHorizontal,
   Sparkles,
-  Loader2,
   Zap,
   RotateCw,
 } from "lucide-react";
@@ -87,14 +86,14 @@ const VIDEO_STATUS = {
   Failed: { variant: "danger", icon: Clock },
 };
 
-// Independent per-stage status badges (Script/Audio/Video columns), separate
-// from the overall VIDEO_STATUS above.
-const STAGE_BADGE = {
-  Pending: { variant: "neutral" },
-  Queued: { variant: "info" },
-  Processing: { variant: "accent", spin: true },
-  Completed: { variant: "success" },
-  Failed: { variant: "danger" },
+// Independent per-stage status (Script/Audio/Video), shown as a compact icon
+// chip in the table's Pipeline column instead of a separate column each.
+const STAGE_DOT_CLASSES = {
+  Pending: "border-border text-text-tertiary",
+  Queued: "border-accent/40 bg-accent/10 text-accent",
+  Processing: "border-accent bg-accent/10 text-accent animate-pulse",
+  Completed: "border-success-500/40 bg-success-500/10 text-success-600",
+  Failed: "border-danger-500/40 bg-danger-500/10 text-danger-500",
 };
 
 const DURATION_OPTIONS = [
@@ -155,17 +154,16 @@ const BULK_ACTIONS = [
   { action: "generate-full", label: "Generate Everything", icon: Zap },
 ];
 
-const StageBadge = ({ status, error }) => {
-  const meta = STAGE_BADGE[status] || STAGE_BADGE.Pending;
-  const badge = (
-    <Badge variant={meta.variant} icon={meta.spin ? <Loader2 className="size-3 animate-spin" /> : undefined}>
-      {status}
-    </Badge>
+const StageDot = ({ label, status, error, icon: Icon }) => {
+  const cls = STAGE_DOT_CLASSES[status] || STAGE_DOT_CLASSES.Pending;
+  const tooltip = `${label}: ${status}${status === "Failed" && error?.message ? ` — ${error.message}` : ""}`;
+  return (
+    <Tooltip content={tooltip}>
+      <span className={`flex size-6 items-center justify-center rounded-md border ${cls}`}>
+        <Icon className="size-3.5" />
+      </span>
+    </Tooltip>
   );
-  if (status === "Failed" && error?.message) {
-    return <Tooltip content={error.message}>{badge}</Tooltip>;
-  }
-  return badge;
 };
 
 const stageActionLabel = (stageLabel, status) => {
@@ -736,19 +734,15 @@ const CourseDetail = () => {
       ),
     },
     {
-      key: "scriptStatus",
-      title: "Script",
-      render: (video) => <StageBadge status={video.scriptStatus || "Pending"} error={video.scriptError} />,
-    },
-    {
-      key: "audioStatus",
-      title: "Audio",
-      render: (video) => <StageBadge status={video.audioStatus || "Pending"} error={video.audioError} />,
-    },
-    {
-      key: "videoStatus",
-      title: "Video",
-      render: (video) => <StageBadge status={video.videoStatus || "Pending"} error={video.videoError} />,
+      key: "pipeline",
+      title: "Pipeline",
+      render: (video) => (
+        <div className="flex items-center gap-1">
+          <StageDot label="Script" status={video.scriptStatus || "Pending"} error={video.scriptError} icon={FileText} />
+          <StageDot label="Audio" status={video.audioStatus || "Pending"} error={video.audioError} icon={AudioLines} />
+          <StageDot label="Video" status={video.videoStatus || "Pending"} error={video.videoError} icon={Video} />
+        </div>
+      ),
     },
     {
       key: "status",
@@ -766,9 +760,9 @@ const CourseDetail = () => {
     {
       key: "_actions",
       title: "",
-      width: 100,
+      width: 48,
       render: (video) => (
-        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
           <Dropdown
             trigger={({ toggle }) => (
               <Button
@@ -786,6 +780,9 @@ const CourseDetail = () => {
           >
             {() => (
               <>
+                <DropdownItem icon={<PlayCircle className="size-4" />} onClick={() => navigate(`/courses/${id}/videos/${video._id}`)}>
+                  Open Video
+                </DropdownItem>
                 <DropdownItem icon={<FileText className="size-4" />} onClick={() => runGenerateAction([video._id], "generate-script")}>
                   {stageActionLabel("Script", video.scriptStatus || "Pending")}
                 </DropdownItem>
@@ -798,33 +795,12 @@ const CourseDetail = () => {
                 <DropdownItem icon={<Zap className="size-4" />} onClick={() => runGenerateAction([video._id], "generate-full")}>
                   Generate Everything
                 </DropdownItem>
+                <DropdownItem danger icon={<Trash2 className="size-4" />} onClick={() => handleDeleteVideo(video)}>
+                  Delete
+                </DropdownItem>
               </>
             )}
           </Dropdown>
-          <Tooltip content="Open Video">
-            <Button
-              variant="ghost"
-              size="sm"
-              iconOnly
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/courses/${id}/videos/${video._id}`);
-              }}
-              icon={<PlayCircle className="size-4" />}
-            />
-          </Tooltip>
-          <Tooltip content="Delete">
-            <Button
-              variant="ghost"
-              size="sm"
-              iconOnly
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDeleteVideo(video);
-              }}
-              icon={<Trash2 className="size-4 text-danger-500" />}
-            />
-          </Tooltip>
         </div>
       ),
     },
