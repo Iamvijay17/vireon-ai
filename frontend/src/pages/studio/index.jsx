@@ -35,6 +35,7 @@ import { templateNames } from "vireon-remotion-templates/src/templateNames";
 import { LoadingState, EmptyState } from "../../components";
 import { ScenePreview } from "../../components/video/ScenePreview";
 import { SceneThumbnail } from "../../components/video/SceneThumbnail";
+import { TemplatePickerModal } from "../../components/video/TemplatePickerModal";
 import { useForceSidebarCollapsed } from "../../shared/sidebarContextValue";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -42,11 +43,10 @@ import { Badge } from "../../components/ui/Badge";
 import { Alert } from "../../components/ui/Alert";
 import { Select } from "../../components/ui/Select";
 import { Input, Textarea, NumberInput, Label } from "../../components/ui/Input";
+import { ColorInput } from "../../components/ui/ColorInput";
 import { cn } from "../../components/ui/cn";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
-
-const TEMPLATE_OPTIONS = Object.entries(templateNames).map(([value, label]) => ({ value, label }));
 
 const SCENE_TYPE_OPTIONS = [
   { value: "intro", label: "Intro" },
@@ -104,6 +104,7 @@ const StudioPage = () => {
   const [selectedSceneIndex, setSelectedSceneIndex] = useState(0);
   const dragIndexRef = useRef(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
 
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
@@ -498,11 +499,31 @@ const StudioPage = () => {
             <div className="flex-1 space-y-5 overflow-y-auto p-4">
               <div>
                 <SectionLabel icon={LayoutTemplate}>Template</SectionLabel>
-                <Select
-                  value={scene.templateId}
-                  onChange={(v) => handleFieldChange(selectedSceneIndex, "templateId", v)}
-                  options={TEMPLATE_OPTIONS}
+                <button
+                  type="button"
+                  onClick={() => canEdit && setTemplatePickerOpen(true)}
                   disabled={!canEdit}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg border border-border bg-surface p-1.5 text-left transition-colors",
+                    "hover:border-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border"
+                  )}
+                >
+                  <div className="aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-black">
+                    <SceneThumbnail scene={scene} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium text-text-primary">
+                      {templateNames[scene.templateId] || scene.templateId || "Choose a template"}
+                    </p>
+                    <p className="text-[11px] text-text-tertiary">Click to preview &amp; choose</p>
+                  </div>
+                </button>
+                <TemplatePickerModal
+                  open={templatePickerOpen}
+                  onClose={() => setTemplatePickerOpen(false)}
+                  scene={scene}
+                  value={scene.templateId}
+                  onSelect={(id) => handleFieldChange(selectedSceneIndex, "templateId", id)}
                 />
               </div>
 
@@ -523,7 +544,7 @@ const StudioPage = () => {
                   <NumberInput min={1} max={60} value={scene.duration} onChange={(e) => handleFieldChange(selectedSceneIndex, "duration", Number(e.target.value))} disabled={!canEdit} />
                 </Field>
                 <Field label="Background Color">
-                  <Input value={scene.backgroundColor || ""} onChange={(e) => handleFieldChange(selectedSceneIndex, "backgroundColor", e.target.value)} disabled={!canEdit} />
+                  <ColorInput value={scene.backgroundColor} onChange={(v) => handleFieldChange(selectedSceneIndex, "backgroundColor", v)} disabled={!canEdit} />
                 </Field>
               </div>
 
