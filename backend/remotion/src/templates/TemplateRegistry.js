@@ -14,7 +14,6 @@ import { lazy } from 'react';
 // Lazy load templates for better performance
 // Each template is loaded only when needed
 const Template001 = lazy(() => import('./template-001'));
-const Template002 = lazy(() => import('./template-002'));
 const Template003 = lazy(() => import('./template-003'));
 const Template004 = lazy(() => import('./template-004'));
 const Template005 = lazy(() => import('./template-005'));
@@ -82,7 +81,6 @@ const Template061 = lazy(() => import('./template-061'));
  */
 const TemplateRegistry = {
   'template-001': Template001,
-  'template-002': Template002,
   'template-003': Template003,
   'template-004': Template004,
   'template-005': Template005,

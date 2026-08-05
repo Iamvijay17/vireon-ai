@@ -4,7 +4,6 @@
  */
 export const templateNames = {
   'template-001': '001-Educational-Card',
-  'template-002': '002-Question-Answer',
   'template-003': '003-Image-Focus',
   'template-004': '004-Timeline',
   'template-005': '005-Comparison',

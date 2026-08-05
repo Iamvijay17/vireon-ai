@@ -14,16 +14,6 @@ export const sampleScenes = {
     },
     "duration": 8
   },
-  "template-002": {
-    "templateId": "template-002",
-    "elements": {
-      "question": "What is Artificial Intelligence?",
-      "answer": "AI is the simulation of human intelligence by machines.",
-      "questionIcon": "❓",
-      "answerIcon": "💡"
-    },
-    "duration": 8
-  },
   "template-003": {
     "templateId": "template-003",
     "elements": {

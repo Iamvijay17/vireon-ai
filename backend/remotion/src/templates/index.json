@@ -9,15 +9,6 @@
     }
   },
   {
-    "templateId": "template-002",
-    "title": "Question & Answer",
-    "description": "Interactive Q&A format with question card sliding in followed by answer card. Great for educational dialogues.",
-    "scene_meta": {
-      "sceneType": "content",
-      "content": ["Question text", "Answer text", "Question icon emoji", "Answer icon emoji"]
-    }
-  },
-  {
     "templateId": "template-003",
     "title": "Image Focus",
     "description": "Full-screen image with zoom and blur reveal effect, featuring a caption at the bottom.",

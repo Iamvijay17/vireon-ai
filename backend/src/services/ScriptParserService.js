@@ -297,7 +297,6 @@ class ScriptParserService {
     // Each template has unique element field requirements
     const templateElements = {
       'template-001': { ...base, image: '' },
-      'template-002': { question: scene.title || '', answer: scene.subtitle || '', questionIcon: '❓', answerIcon: '💡' },
       'template-003': { image: '', caption: scene.subtitle || '', label: 'Featured' },
       'template-004': { title: scene.title || '', items: [{ date: '', text: scene.subtitle || '' }] },
       'template-005': { header: scene.title || '', leftCard: { title: '', body: '' }, rightCard: { title: '', body: '' } },
@@ -434,16 +433,6 @@ class ScriptParserService {
         header: scene.title || '',
         leftCard: { title: '', body: contentItems[0] || '' },
         rightCard: { title: '', body: contentItems[1] || '' },
-      };
-    }
-
-    // Q&A / flashcard templates
-    if (['template-002'].includes(templateId)) {
-      return {
-        question: scene.title || '',
-        answer: contentItems.join(' '),
-        questionIcon: '❓',
-        answerIcon: '💡',
       };
     }
 

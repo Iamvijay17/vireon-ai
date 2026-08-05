@@ -21,7 +21,6 @@ export const SceneTypeCategories = {
    */
   title: [
     'template-001',  // Educational Card - Title + subtitle + image
-    'template-002',  // Question Answer - Q&A format
     'template-010',  // Split Hero - Hero section split layout
     'template-019',  // Parallax Hero - Parallax scrolling effect
     'template-030',  // Report Summary - Report layout
@@ -194,7 +193,6 @@ export const TemplateCategories = {
     'template-018',
   ],
   general: [
-    'template-002',
     'template-008',
     'template-012',
     'template-035',
@@ -246,7 +244,6 @@ export const getVideoTypes = () => {
  */
 const templateNames = {
   'template-001': 'Educational Card (title + subtitle + image)',
-  'template-002': 'Question Answer (Q&A format)',
   'template-003': 'Image Focus (image-forward layout)',
   'template-004': 'Timeline (chronological flow)',
   'template-005': 'Comparison (side-by-side comparison)',
