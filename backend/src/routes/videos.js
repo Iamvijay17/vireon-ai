@@ -16,5 +16,6 @@ router.post('/:id/generate-render', authenticate, VideoController.generateRender
 router.post('/:id/rerender', authenticate, VideoController.rerender);
 router.post('/:id/stop', authenticate, VideoController.stop);
 router.put('/:id/scenes', authenticate, SceneController.updateScenes);
+router.get('/:id/activity-logs', authenticate, VideoController.getActivityLogs);
 
 module.exports = router;

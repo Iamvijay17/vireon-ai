@@ -14,6 +14,7 @@ mongoose.connect(config.mongodb.uri, {
   process.exit(1);
 });
 const VideoService = require('../services/VideoService');
+const ActivityLogService = require('../services/ActivityLogService');
 const PromptService = require('../services/PromptService');
 const LMStudioService = require('../services/LMStudioService');
 const ScriptParserService = require('../services/ScriptParserService');
@@ -104,6 +105,7 @@ const worker = new Worker(
         SocketService.emitJobProgress({ _id: jobId, progress: 10, status: JOB_STATUS.SCRIPT_GENERATION, currentStep: JOB_STATUS.SCRIPT_GENERATION, currentScene: 0 });
 
         LoggerService.info('Starting script generation', { topic: videoJob.topic, type: videoJob.type });
+        await ActivityLogService.add(jobId, 'Script generation started');
 
         // ── Step 2: Derive an exact scene count from the requested duration.
         const durationMinutes = videoJob.duration || 5;
@@ -227,6 +229,7 @@ const worker = new Worker(
         SocketService.emitJobProgress({ _id: jobId, progress: 20, status: JOB_STATUS.AWAITING_APPROVAL, currentStep: JOB_STATUS.AWAITING_APPROVAL, currentScene: 0 });
 
         LoggerService.info('Script awaiting manual approval - pausing pipeline', { jobId });
+        await ActivityLogService.add(jobId, 'Script generated successfully. Please review and approve.');
 
         return { success: true, jobId, awaitingApproval: true };
       } else {
@@ -256,6 +259,7 @@ const worker = new Worker(
           alreadyGenerated: scenesWithAudio.length,
           pendingScenes: scenesToProcess.length,
         });
+        await ActivityLogService.add(jobId, 'Audio generation started');
 
         // Podcast turns already carry their own resolved host/guest voice on
         // scene.audio.voice (see ScriptParserService.validate) - don't pass a
@@ -295,6 +299,7 @@ const worker = new Worker(
       SocketService.emitJobProgress({ _id: jobId, progress: 50, status: JOB_STATUS.AUDIO_COMPLETED, currentStep: JOB_STATUS.AUDIO_COMPLETED, currentScene: script.scenes.length });
 
       LoggerService.success('Audio generation complete', { files: script.scenes.length });
+      await ActivityLogService.add(jobId, 'Audio generated successfully.');
 
       // ── Pause here for manual-mode jobs (fastGeneration: false): wait for
       // an explicit POST /:id/generate-render before spending image/render
@@ -334,6 +339,7 @@ const worker = new Worker(
           imageScenes: imageScenes.length,
           skippedScenes: nonImageScenes.length,
         });
+        await ActivityLogService.add(jobId, 'Image generation started');
 
         // For podcast/business types with image scenes, generate a SINGLE background image used by all image scenes
         // For other types, generate per-scene images
@@ -395,6 +401,7 @@ const worker = new Worker(
           scenes: scenesWithImageCount,
           mode: isSingleImageType ? 'single' : 'per-scene',
         });
+        await ActivityLogService.add(jobId, 'Image generation complete');
       } else {
         LoggerService.info('No image scenes found or all images generated, skipping image step');
       }
@@ -431,9 +438,12 @@ const worker = new Worker(
       await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING, { progress: 80 });
       SocketService.emitJobProgress({ _id: jobId, progress: 80, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
 
+      await ActivityLogService.add(jobId, 'Rendering started');
+
       const renderResult = await RemotionService.renderVideo(jobId);
 
       LoggerService.success('Video rendered', renderResult);
+      await ActivityLogService.add(jobId, 'Rendering complete. Uploading assets to cloud storage...');
 
       await bailIfCancelled(jobId);
 
@@ -450,6 +460,7 @@ const worker = new Worker(
         audio: uploaded.audio?.length || 0,
         render: uploaded.render?.length || 0,
       });
+      await ActivityLogService.add(jobId, 'Assets uploaded to cloud storage.');
 
       // ── Step 9: Complete Job
       const completedJob = await VideoService.complete(jobId, {
@@ -461,6 +472,7 @@ const worker = new Worker(
       });
 
       SocketService.emitJobCompleted(completedJob);
+      await ActivityLogService.add(jobId, 'Video generation completed!');
 
       LoggerService.border(`✅ Job Complete: ${jobId}`, 'success');
       LoggerService.success('Video generation pipeline finished', {
@@ -498,6 +510,7 @@ const worker = new Worker(
       try {
         const failedJob = await VideoService.fail(jobId, err.message, currentStep || 'PROCESSING');
         SocketService.emitJobFailed(failedJob, err.message);
+        await ActivityLogService.add(jobId, `${currentStep || 'Processing'} failed: ${err.message}`);
       } catch (dbErr) {
         LoggerService.error('Failed to update job status in DB', { error: dbErr.message });
       }

@@ -54,6 +54,8 @@ export const stopVideoJob = (id) => api.post(`/api/videos/${id}/stop`);
 
 export const updateVideoScenes = (id, scenes) => api.put(`/api/videos/${id}/scenes`, { scenes });
 
+export const getVideoJobActivityLogs = (id) => api.get(`/api/videos/${id}/activity-logs`);
+
 // ─── Voices ─────────────────────────────────────────────────────────────────────
 
 export const getVoices = () => api.get('/api/voices');

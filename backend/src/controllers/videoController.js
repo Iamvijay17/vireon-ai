@@ -1,4 +1,5 @@
 const VideoService = require('../services/VideoService');
+const ActivityLogService = require('../services/ActivityLogService');
 const videoQueue = require('../queues/videoQueue');
 const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
@@ -37,6 +38,7 @@ class VideoController {
     try {
       const data = validate(createVideoSchema)(req.body);
       const job = await VideoService.create(data);
+      await ActivityLogService.add(job._id.toString(), 'Job created and queued');
 
       // Emit socket event
       SocketService.emitJobCreated(job);
@@ -112,6 +114,7 @@ class VideoController {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
       const job = await VideoService.restart(id);
+      await ActivityLogService.add(id, 'Job restarted');
 
       // Emit socket event
       SocketService.emitJobCreated(job);
@@ -143,6 +146,7 @@ class VideoController {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
       const job = await VideoService.approve(id);
+      await ActivityLogService.add(id, 'Script approved');
 
       // Emit socket event
       SocketService.emitJobCreated(job);
@@ -237,6 +241,7 @@ class VideoController {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
       const job = await VideoService.rerender(id);
+      await ActivityLogService.add(id, 'Re-render started');
 
       // Emit socket event
       SocketService.emitJobCreated(job);
@@ -270,6 +275,7 @@ class VideoController {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
       const job = await VideoService.stop(id);
+      await ActivityLogService.add(id, 'Stopped by user');
 
       try {
         const bullJob = await videoQueue.getJob(id);
@@ -293,6 +299,19 @@ class VideoController {
         status: job.status,
         progress: job.progress,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/videos/:id/activity-logs - Get activity logs for a video job
+   */
+  static async getActivityLogs(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const logs = await ActivityLogService.getByVideo(id);
+      res.json({ logs });
     } catch (err) {
       next(err);
     }

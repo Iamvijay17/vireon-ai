@@ -25,6 +25,7 @@ import {
   rerenderVideoJob,
   stopVideoJob,
   resolveMediaUrl,
+  getVideoJobActivityLogs,
 } from "../../services/api";
 import {
   connect,
@@ -42,7 +43,8 @@ import {
 } from "../../services/socket";
 import { LoadingState, ErrorState } from "../../components";
 import RenderQueue from "./RenderQueue";
-import { Card } from "../../components/ui/Card";
+import { Card, CardHeader } from "../../components/ui/Card";
+import { Timeline } from "../../components/ui/Timeline";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { Alert } from "../../components/ui/Alert";
@@ -81,9 +83,62 @@ const RenderPage = () => {
   const [stopLoading, setStopLoading] = useState(false);
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
   const [copied, setCopied] = useState(false);
+  const [activityLog, setActivityLog] = useState([]);
 
   const unsubscribesRef = useRef([]);
   const videoRef = useRef(null);
+
+  const formatActivityTime = useCallback((timestamp) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay());
+    const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    const timeStr = date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).toLowerCase();
+
+    const diffDays = Math.round((today - target) / 86400000);
+
+    let label;
+    if (diffDays === 0) {
+      label = "today";
+    } else if (diffDays === 1) {
+      label = "yesterday";
+    } else if (diffDays > 1 && target >= startOfWeek) {
+      label = date.toLocaleDateString("en-US", { weekday: "long" });
+    } else if (diffDays <= 7) {
+      label = date.toLocaleDateString("en-US", { weekday: "long" });
+    } else if (diffDays <= 14) {
+      label = "last week";
+    } else if (diffDays <= 60) {
+      label = "last month";
+    } else {
+      label = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    }
+
+    return `${label} ${timeStr}`;
+  }, []);
+
+  const fetchActivityLogs = useCallback(async (currentJobId) => {
+    if (!currentJobId) return;
+    try {
+      const res = await getVideoJobActivityLogs(currentJobId);
+      setActivityLog(
+        (res.data.logs || []).map((log) => ({
+          text: log.text,
+          time: formatActivityTime(log.timestamp),
+        }))
+      );
+    } catch {
+      // Ignore errors fetching logs
+    }
+  }, [formatActivityTime]);
 
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
@@ -171,6 +226,7 @@ const RenderPage = () => {
             setJob((prev) =>
               prev ? { ...prev, progress: data.progress, status: data.status, currentStep: data.currentStep, currentScene: data.currentScene } : prev
             );
+            fetchActivityLogs(currentJobId);
           }
         })
       );
@@ -179,6 +235,7 @@ const RenderPage = () => {
         onJobCompleted((data) => {
           if (data.jobId === currentJobId) {
             setJob((prev) => (prev ? { ...prev, progress: 100, status: "COMPLETED", videoUrl: data.videoUrl, thumbnailUrl: data.thumbnailUrl } : prev));
+            fetchActivityLogs(currentJobId);
             toast.success("Video generation completed!");
           }
         })
@@ -188,6 +245,7 @@ const RenderPage = () => {
         onJobFailed((data) => {
           if (data.jobId === currentJobId) {
             setJob((prev) => (prev ? { ...prev, status: "FAILED", error: data.error } : prev));
+            fetchActivityLogs(currentJobId);
             toast.error("Video generation failed");
           }
         })
@@ -241,7 +299,7 @@ const RenderPage = () => {
         })
       );
     },
-    [cleanup, jobId]
+    [cleanup, jobId, fetchActivityLogs]
   );
 
   useEffect(() => {
@@ -251,6 +309,7 @@ const RenderPage = () => {
     }
 
     fetchJob();
+    fetchActivityLogs(jobId);
     connect();
     setupListeners(jobId);
     joinJobRoom(jobId);
@@ -259,7 +318,7 @@ const RenderPage = () => {
     return () => {
       leaveJobRoom(jobId);
     };
-  }, [jobId, fetchJob, setupListeners]);
+  }, [jobId, fetchJob, fetchActivityLogs, setupListeners]);
 
   if (!jobId) return <RenderQueue />;
 
@@ -445,6 +504,20 @@ const RenderPage = () => {
         {isComplete && (
           <Alert type="success" title="Video generation completed successfully!" className="mt-5 animate-scale-in" />
         )}
+      </Card>
+
+      {/* Activity Log */}
+      <Card className="mb-6 animate-slide-up" style={{ "--stagger-index": 1.7 }}>
+        <CardHeader title="Activity Log" />
+        <div className="p-5">
+          {activityLog.length === 0 ? (
+            <p className="text-[13px] text-text-tertiary">No activity yet</p>
+          ) : (
+            <Timeline
+              items={activityLog.slice(0, 20).map((entry) => ({ title: entry.text, timestamp: entry.time }))}
+            />
+          )}
+        </div>
       </Card>
 
       {/* Per-Scene Audio Progress */}
