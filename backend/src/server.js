@@ -35,6 +35,14 @@ app.use(
 );
 
 // ── Rate Limiting ────────────────────────────────────────────────────────────
+// Scoped to /api only - applying this globally also throttled /public static
+// media (course video audio/render files), which a single lesson page can
+// legitimately request well past this budget just from normal <audio>/<video>
+// playback (seeking, preloading, many scenes). Static asset requests that hit
+// the limiter also skipped past the static middleware's cross-origin
+// Cross-Origin-Resource-Policy header below, so a rate-limited audio request
+// surfaced in the browser as a confusing NotSameOrigin block instead of a
+// visible 429.
 const limiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.max,
@@ -42,7 +50,7 @@ const limiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
 });
-app.use(limiter);
+app.use('/api', limiter);
 
 // ── Body Parsing ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
