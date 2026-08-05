@@ -54,6 +54,9 @@ export const stopVideoJob = (id) => api.post(`/api/videos/${id}/stop`);
 
 export const updateVideoScenes = (id, scenes) => api.put(`/api/videos/${id}/scenes`, { scenes });
 
+export const regenerateVideoSceneAudio = (id, sceneNumber) =>
+  api.post(`/api/videos/${id}/scenes/${sceneNumber}/regenerate-audio`);
+
 export const getVideoJobActivityLogs = (id) => api.get(`/api/videos/${id}/activity-logs`);
 
 // ─── Voices ─────────────────────────────────────────────────────────────────────
@@ -79,6 +82,8 @@ export const getCourse = (id) => api.get(`/api/courses/${id}`);
 export const updateCourse = (id, data) => api.put(`/api/courses/${id}`, data);
 
 export const deleteCourse = (id) => api.delete(`/api/courses/${id}`);
+
+export const stopCourse = (id) => api.post(`/api/courses/${id}/stop`);
 
 // ─── Course Videos ──────────────────────────────────────────────────────────────
 
@@ -114,6 +119,12 @@ export const renderCourseVideo = (id) =>
 
 export const retryCourseVideo = (id) =>
   api.post(`/api/course-videos/${id}/retry`);
+
+export const stopCourseVideo = (id) =>
+  api.post(`/api/course-videos/${id}/stop`);
+
+export const regenerateCourseVideoSceneAudio = (id, sceneNumber) =>
+  api.post(`/api/course-videos/${id}/scenes/${sceneNumber}/regenerate-audio`);
 
 export const getCourseVideoActivityLogs = (id) =>
   api.get(`/api/course-videos/${id}/activity-logs`);

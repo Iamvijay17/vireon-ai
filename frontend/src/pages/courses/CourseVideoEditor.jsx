@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Check,
   Lock,
+  Square,
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { LoadingState } from "../../components";
@@ -39,6 +40,8 @@ import {
   generateCourseVideoAudio,
   renderCourseVideo,
   retryCourseVideo,
+  stopCourseVideo,
+  regenerateCourseVideoSceneAudio,
   getCourseVideoActivityLogs,
   resolveMediaUrl,
   getCourseWorkerStatus,
@@ -50,9 +53,11 @@ import {
   onCourseVideoProgress,
   onCourseVideoScriptReady,
   onCourseVideoAudioReady,
+  onCourseVideoSceneAudioReady,
   onCourseVideoRenderReady,
   onCourseVideoUpdated,
   onJobFailed,
+  onCourseWorkerStatus,
   onConnect,
   onDisconnect,
   isConnected,
@@ -274,6 +279,23 @@ const CourseVideoEditor = () => {
     );
 
     unsubscribesRef.current.push(
+      onCourseVideoSceneAudioReady((data) => {
+        if (data.videoId !== videoId) return;
+        setVideo((prev) => {
+          if (!prev?.script?.scenes) return prev;
+          const scenes = prev.script.scenes.map((scene) =>
+            scene.sceneNumber === data.sceneNumber
+              ? { ...scene, audio: { ...scene.audio, ...data.audio } }
+              : scene
+          );
+          return { ...prev, script: { ...prev.script, scenes } };
+        });
+        addActivity(`Scene ${data.sceneNumber} audio generated`);
+        fetchActivityLogs();
+      })
+    );
+
+    unsubscribesRef.current.push(
       onCourseVideoAudioReady((data) => {
         if (data.videoId !== videoId) return;
         setVideo((prev) =>
@@ -339,24 +361,23 @@ const CourseVideoEditor = () => {
     };
   }, [videoId, courseId, fetchVideo, fetchActivityLogs, cleanup]);
 
-  // Poll worker liveness so the Generate/Render buttons always reflect
-  // whether a job would actually get picked up right now.
+  // Worker liveness for the Generate/Render buttons' running/offline
+  // indicator: one REST call for the initial value, then the backend
+  // pushes courseWorkerStatus over the socket whenever it changes (see
+  // SocketService._pollWorkerStatus) instead of this tab polling on its own.
   useEffect(() => {
     let cancelled = false;
-    const checkWorker = () => {
-      getCourseWorkerStatus()
-        .then((res) => {
-          if (!cancelled) setWorkerRunning(res.data.running);
-        })
-        .catch(() => {
-          if (!cancelled) setWorkerRunning(false);
-        });
-    };
-    checkWorker();
-    const interval = setInterval(checkWorker, 5000);
+    getCourseWorkerStatus()
+      .then((res) => {
+        if (!cancelled) setWorkerRunning(res.data.running);
+      })
+      .catch(() => {
+        if (!cancelled) setWorkerRunning(false);
+      });
+    const unsubscribe = onCourseWorkerStatus((data) => setWorkerRunning(data.running));
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      unsubscribe();
     };
   }, []);
 
@@ -502,6 +523,52 @@ const CourseVideoEditor = () => {
     }
   };
 
+  const handleStop = async () => {
+    const ok = await confirmDialog({
+      title: "Stop this lesson?",
+      content:
+        "This will be marked cancelled. If it's still queued this stops it immediately; if it's actively processing, it stops as soon as the current step finishes checking in (may take a moment).",
+      confirmText: "Stop",
+      danger: true,
+    });
+    if (!ok) return;
+
+    setStepLoading("stop", true);
+    try {
+      await stopCourseVideo(videoId);
+      toast.success("Lesson stopped");
+      addActivity("Stopped by user");
+      fetchActivityLogs();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to stop");
+    } finally {
+      setStepLoading("stop", false);
+    }
+  };
+
+  const [regeneratingScene, setRegeneratingScene] = useState(null);
+  const handleRegenerateSceneAudio = async (sceneNumber) => {
+    setRegeneratingScene(sceneNumber);
+    try {
+      const res = await regenerateCourseVideoSceneAudio(videoId, sceneNumber);
+      setVideo((prev) => {
+        if (!prev?.script?.scenes) return prev;
+        const scenes = prev.script.scenes.map((scene) =>
+          scene.sceneNumber === sceneNumber
+            ? { ...scene, audio: { ...scene.audio, ...res.data.audio } }
+            : scene
+        );
+        return { ...prev, script: { ...prev.script, scenes } };
+      });
+      toast.success(`Scene ${sceneNumber} audio regenerated`);
+      fetchActivityLogs();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || `Failed to regenerate scene ${sceneNumber}`);
+    } finally {
+      setRegeneratingScene(null);
+    }
+  };
+
   const isProcessing = ["Generating Script", "Generating Audio", "Rendering Video", "Uploading", "Generating Scenes", "Generating Images"].includes(video?.status);
   const isUploading = video?.status === "Uploading";
   const isFailed = video?.status === "Failed";
@@ -613,6 +680,11 @@ const CourseVideoEditor = () => {
             </Tooltip>
           )}
         </div>
+        {isProcessing && (
+          <Button variant="danger" icon={<Square className="size-4" />} loading={actionLoading.stop} onClick={handleStop}>
+            Stop
+          </Button>
+        )}
         {isFailed && (
           <Button variant="danger" icon={<RotateCw className="size-4" />} loading={actionLoading.retry} onClick={handleRetry}>
             Retry
@@ -829,37 +901,66 @@ const CourseVideoEditor = () => {
                 </Button>
               </InlineEmpty>
             )}
-            {video?.status === "Generating Audio" && <InlineSpinner label="Generating audio narration..." />}
-            {hasAudio && scenes.length > 0 && (
-              <div>
-                <p className="mb-3 font-semibold text-text-primary">Per-Scene Audio ({scenes.length} scenes)</p>
-                <div className="flex flex-col divide-y divide-border-light rounded-xl border border-border-light">
-                  {scenes.map((scene, idx) => {
-                    const sceneNum = scene.sceneNumber || idx + 1;
-                    // After a successful cloud upload, the backend swaps
-                    // scene.audio.file for the full GitHub URL in place -
-                    // use it directly when present, otherwise fall back
-                    // to the locally-served file.
-                    const audioFile = scene.audio?.file;
-                    const sceneAudioUrl = audioFile && /^https?:\/\//i.test(audioFile)
-                      ? audioFile
-                      : `${audioBaseUrl}/${audioFile || `scene${sceneNum}.mp3`}`;
-                    const sceneTitle = scene.title || `Scene ${sceneNum}`;
-                    const sceneType = scene.sceneType || "content";
-                    return (
-                      <div key={idx} className="p-3">
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className="text-xs font-medium text-text-tertiary">{sceneNum}</span>
-                          <span className="text-[13px] font-semibold text-text-primary">{sceneTitle}</span>
-                          <Badge className="ml-auto shrink-0">{sceneType}</Badge>
-                        </div>
-                        <AudioPlayer src={sceneAudioUrl} className="w-full" />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+            {video?.status === "Generating Audio" && scenes.length === 0 && (
+              <InlineSpinner label="Generating audio narration..." />
             )}
+            {(hasAudio || video?.status === "Generating Audio") && scenes.length > 0 && (() => {
+              const readyCount = scenes.filter((s) => Boolean(s.audio?.file)).length;
+              return (
+                <div>
+                  <p className="mb-3 font-semibold text-text-primary">
+                    Per-Scene Audio ({readyCount}/{scenes.length} ready)
+                  </p>
+                  <div className="flex flex-col divide-y divide-border-light rounded-xl border border-border-light">
+                    {scenes.map((scene, idx) => {
+                      const sceneNum = scene.sceneNumber || idx + 1;
+                      // After a successful cloud upload, the backend swaps
+                      // scene.audio.file for the full GitHub URL in place -
+                      // use it directly when present, otherwise fall back
+                      // to the locally-served file.
+                      const audioFile = scene.audio?.file;
+                      const sceneReady = Boolean(audioFile);
+                      const sceneAudioUrl = sceneReady
+                        ? (/^https?:\/\//i.test(audioFile) ? audioFile : `${audioBaseUrl}/${audioFile}`)
+                        : null;
+                      const sceneTitle = scene.title || `Scene ${sceneNum}`;
+                      const sceneType = scene.sceneType || "content";
+                      const isRegenerating = regeneratingScene === sceneNum;
+                      return (
+                        <div key={idx} className="p-3">
+                          <div className="mb-2 flex items-center gap-2">
+                            <span className="text-xs font-medium text-text-tertiary">{sceneNum}</span>
+                            <span className="text-[13px] font-semibold text-text-primary">{sceneTitle}</span>
+                            <Badge className="ml-auto shrink-0">{sceneType}</Badge>
+                            {sceneReady && !isProcessing && (
+                              <Tooltip content="Regenerate just this scene's audio">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  iconOnly
+                                  aria-label={`Regenerate scene ${sceneNum} audio`}
+                                  icon={<RotateCw className={`size-3.5 ${isRegenerating ? "animate-spin" : ""}`} />}
+                                  disabled={isRegenerating}
+                                  onClick={() => handleRegenerateSceneAudio(sceneNum)}
+                                />
+                              </Tooltip>
+                            )}
+                          </div>
+                          {sceneReady && !isRegenerating ? (
+                            <AudioPlayer src={sceneAudioUrl} className="w-full" />
+                          ) : (
+                            <div className="flex items-center gap-2 rounded-lg border border-dashed border-border-light px-3 py-2 text-xs text-text-tertiary">
+                              <Spinner size="sm" />
+                              {isRegenerating ? "Regenerating this scene's audio..." : "Generating this scene's audio..."}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             {hasAudio && scenes.length === 0 && (
               <div>
                 <DescriptionList

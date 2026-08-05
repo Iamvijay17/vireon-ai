@@ -112,9 +112,24 @@ export const onCourseVideoAudioReady = (callback) => {
   return () => socket.off('courseVideoAudioReady', callback);
 };
 
+// Fires once per scene as its audio finishes, ahead of the whole-batch
+// courseVideoAudioReady event, so the detail page can show each scene's
+// player as soon as it's ready instead of waiting for every scene.
+export const onCourseVideoSceneAudioReady = (callback) => {
+  socket.on('courseVideoSceneAudioReady', callback);
+  return () => socket.off('courseVideoSceneAudioReady', callback);
+};
+
 export const onCourseVideoRenderReady = (callback) => {
   socket.on('courseVideoRenderReady', callback);
   return () => socket.off('courseVideoRenderReady', callback);
+};
+
+// Pushed whenever the backend's course-video worker connects/disconnects, so
+// the frontend doesn't need to poll GET /api/course-videos/worker-status.
+export const onCourseWorkerStatus = (callback) => {
+  socket.on('courseWorkerStatus', callback);
+  return () => socket.off('courseWorkerStatus', callback);
 };
 
 // ─── Live Server Logs ──────────────────────────────────────────────────────────

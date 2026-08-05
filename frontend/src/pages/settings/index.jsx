@@ -12,6 +12,7 @@ import { toast } from "../../components/ui/toastBus";
 import { ThemeContext } from "../../shared/themeContextValue";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../../shared/settingsStorage";
 import { getVoices, getHealth, getCourseWorkerStatus } from "../../services/api";
+import { connect, onCourseWorkerStatus } from "../../services/socket";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 
 const FALLBACK_VOICE_OPTIONS = [
@@ -135,6 +136,12 @@ const SettingsPage = () => {
 
   useEffect(() => {
     fetchStatus();
+
+    // Once the initial REST fetch above resolves, keep the worker indicator
+    // live via the socket push instead of re-polling on a timer.
+    connect();
+    const unsubscribe = onCourseWorkerStatus((data) => setWorkerRunning(data.running));
+    return unsubscribe;
   }, []);
 
   return (

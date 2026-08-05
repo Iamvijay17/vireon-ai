@@ -91,6 +91,24 @@ class CourseController {
   }
 
   /**
+   * POST /api/courses/:id/stop - Stop every not-yet-finished lesson in this
+   * course at once.
+   */
+  static async stop(req, res, next) {
+    try {
+      // CourseVideoService.stop() already emits a per-video
+      // courseVideoProgress event for each stopped lesson (see
+      // CourseService.stopAll), so the frontend's existing per-video
+      // listener picks up each row's new status without a separate
+      // course-wide event here.
+      const result = await CourseService.stopAll(req.params.id);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * GET /api/courses/:id/videos - Get all videos for a course
    */
   static async listVideos(req, res, next) {

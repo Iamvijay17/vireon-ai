@@ -1,7 +1,7 @@
 const Course = require('../models/Course');
 const CourseVideo = require('../models/CourseVideo');
 const LoggerService = require('./LoggerService');
-const { COURSE_STATUS } = require('../constants');
+const { COURSE_STATUS, VIDEO_STATUS } = require('../constants');
 
 /**
  * Service for managing courses.
@@ -166,6 +166,31 @@ class CourseService {
     LoggerService.info('Course deleted', { courseId });
 
     return { message: 'Course deleted successfully' };
+  }
+
+  /**
+   * Stop every not-yet-finished lesson in a course at once. Lazily requires
+   * CourseVideoService (rather than a top-level require) to avoid a
+   * circular require - CourseVideoService.js already requires CourseService.
+   */
+  static async stopAll(courseId) {
+    const course = await Course.findById(courseId);
+    if (!course) {
+      throw { status: 404, message: 'Course not found' };
+    }
+
+    const terminalStatuses = [VIDEO_STATUS.COMPLETED, VIDEO_STATUS.FAILED, VIDEO_STATUS.CANCELLED];
+    const videos = await CourseVideo.find({ courseId, status: { $nin: terminalStatuses } }).select('_id').lean();
+
+    const CourseVideoService = require('./CourseVideoService');
+    const results = await Promise.allSettled(videos.map((v) => CourseVideoService.stop(v._id)));
+    const stopped = results.filter((r) => r.status === 'fulfilled').length;
+
+    LoggerService.info('Course stopped by user', { courseId, requested: videos.length, stopped });
+
+    await CourseService.recalculateStatus(courseId);
+
+    return { stopped, requested: videos.length };
   }
 
   /**

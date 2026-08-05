@@ -18,12 +18,14 @@ import {
   Download,
   Pencil,
   Copy,
+  RotateCw,
 } from "lucide-react";
 import {
   getVideoJob,
   restartVideoJob,
   rerenderVideoJob,
   stopVideoJob,
+  regenerateVideoSceneAudio,
   resolveMediaUrl,
   getVideoJobActivityLogs,
 } from "../../services/api";
@@ -52,6 +54,8 @@ import { Steps } from "../../components/ui/Steps";
 import { DescriptionList } from "../../components/ui/DescriptionList";
 import { CircularProgress } from "../../components/ui/CircularProgress";
 import { AudioPlayer } from "../../components/ui/AudioPlayer";
+import { Tooltip } from "../../components/ui/Tooltip";
+import { Spinner } from "../../components/ui/Spinner";
 import { isPortraitResolution } from "../../shared/resolution";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
@@ -195,6 +199,29 @@ const RenderPage = () => {
       toast.error(err.response?.data?.error || "Failed to stop job");
     } finally {
       setStopLoading(false);
+    }
+  };
+
+  const [regeneratingScene, setRegeneratingScene] = useState(null);
+  const handleRegenerateScene = async (sceneNumber) => {
+    if (!jobId) return;
+    setRegeneratingScene(sceneNumber);
+    try {
+      const res = await regenerateVideoSceneAudio(jobId, sceneNumber);
+      setJob((prev) => {
+        if (!prev?.script?.scenes) return prev;
+        const scenes = prev.script.scenes.map((scene) =>
+          scene.sceneNumber === sceneNumber
+            ? { ...scene, audio: { ...scene.audio, ...res.data.audio } }
+            : scene
+        );
+        return { ...prev, script: { ...prev.script, scenes } };
+      });
+      toast.success(`Scene ${sceneNumber} audio regenerated`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || `Failed to regenerate scene ${sceneNumber}`);
+    } finally {
+      setRegeneratingScene(null);
     }
   };
 
@@ -543,10 +570,31 @@ const RenderPage = () => {
                       const sceneAudioUrl = /^https?:\/\//i.test(audioFile)
                         ? audioFile
                         : resolveMediaUrl(`/public/${job._id}/audio/${audioFile}`);
+                      const isRegenerating = regeneratingScene === scene.sceneNumber;
                       return (
                         <div key={scene.sceneNumber} className="flex items-center gap-3">
                           <span className="w-16 shrink-0 text-[13px] font-medium text-text-secondary">Scene {scene.sceneNumber}</span>
-                          <AudioPlayer src={sceneAudioUrl} className="min-w-0 flex-1" />
+                          {isRegenerating ? (
+                            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-dashed border-border-light px-3 py-2 text-xs text-text-tertiary">
+                              <Spinner size="sm" />
+                              Regenerating this scene's audio...
+                            </div>
+                          ) : (
+                            <AudioPlayer src={sceneAudioUrl} className="min-w-0 flex-1" />
+                          )}
+                          {!isActive && (
+                            <Tooltip content="Regenerate just this scene's audio">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                iconOnly
+                                aria-label={`Regenerate scene ${scene.sceneNumber} audio`}
+                                icon={<RotateCw className={`size-3.5 ${isRegenerating ? "animate-spin" : ""}`} />}
+                                disabled={isRegenerating}
+                                onClick={() => handleRegenerateScene(scene.sceneNumber)}
+                              />
+                            </Tooltip>
+                          )}
                         </div>
                       );
                     })}

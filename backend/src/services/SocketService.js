@@ -4,10 +4,18 @@ const config = require('../config');
 const LoggerService = require('./LoggerService');
 const { SOCKET_EVENTS, VIDEO_STATUS, REDIS_CHANNEL } = require('../constants');
 const VideoService = require('./VideoService');
+const courseQueue = require('../queues/courseQueue');
 
 let io = null;
 let redisSubscriber = null;
 let redisPublisher = null;
+let workerStatusInterval = null;
+
+// Last broadcast worker status, so a newly-connecting socket gets the
+// current state immediately instead of waiting up to WORKER_STATUS_POLL_MS
+// for the next poll tick.
+let lastWorkerStatus = null;
+const WORKER_STATUS_POLL_MS = 5000;
 
 // Ring buffer of recent server log entries so a client opening the Live Logs
 // page gets immediate context instead of a blank screen until the next line
@@ -38,6 +46,13 @@ class SocketService {
 
     io.on(SOCKET_EVENTS.CONNECTION, (socket) => {
       LoggerService.info(`Socket connected: ${socket.id}`);
+
+      // Send the last-known course-worker status immediately so the
+      // client's running/offline indicator doesn't sit blank until the
+      // next poll tick.
+      if (lastWorkerStatus) {
+        socket.emit(SOCKET_EVENTS.COURSE_WORKER_STATUS, lastWorkerStatus);
+      }
 
       socket.on(SOCKET_EVENTS.JOIN, async (jobId, callback) => {
         try {
@@ -97,7 +112,36 @@ class SocketService {
     });
 
     LoggerService.info('Socket.IO initialized');
+
+    SocketService._startWorkerStatusPolling();
+
     return io;
+  }
+
+  /**
+   * Poll BullMQ for connected course-video workers and broadcast changes to
+   * every connected client, so the frontend's running/offline indicator can
+   * rely on a pushed event instead of each open tab polling the REST
+   * endpoint (GET /api/course-videos/worker-status) on its own timer.
+   */
+  static async _pollWorkerStatus() {
+    try {
+      const workers = await courseQueue.getWorkers();
+      const status = { running: workers.length > 0, count: workers.length };
+
+      if (!lastWorkerStatus || status.running !== lastWorkerStatus.running || status.count !== lastWorkerStatus.count) {
+        lastWorkerStatus = status;
+        if (io) io.emit(SOCKET_EVENTS.COURSE_WORKER_STATUS, status);
+      }
+    } catch (err) {
+      LoggerService.error('Failed to poll course worker status', { error: err.message });
+    }
+  }
+
+  static _startWorkerStatusPolling() {
+    if (workerStatusInterval) return;
+    SocketService._pollWorkerStatus();
+    workerStatusInterval = setInterval(SocketService._pollWorkerStatus, WORKER_STATUS_POLL_MS);
   }
 
   /**
@@ -186,6 +230,11 @@ class SocketService {
       case 'courseVideoAudioReady':
         if (courseId) {
           io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_AUDIO_READY, data);
+        }
+        break;
+      case 'courseVideoSceneAudioReady':
+        if (courseId) {
+          io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_SCENE_AUDIO_READY, data);
         }
         break;
       case 'courseVideoRenderReady':
@@ -468,6 +517,31 @@ class SocketService {
       io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_AUDIO_READY, data);
     } else {
       SocketService.publishToCourse(video.courseId.toString(), 'courseVideoAudioReady', data);
+    }
+  }
+
+  /**
+   * Emit a single course video scene's audio-ready event, as soon as that
+   * scene finishes (rather than waiting for the whole batch to complete),
+   * so the course video detail page can show each scene's player as it
+   * becomes available instead of only after every scene is done.
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitCourseVideoSceneAudioReady(video, sceneNumber, audioData) {
+    const data = {
+      videoId: video._id,
+      sceneNumber,
+      audio: {
+        file: audioData.file,
+        duration: audioData.duration,
+      },
+    };
+
+    if (io) {
+      io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_SCENE_AUDIO_READY, data);
+    } else {
+      SocketService.publishToCourse(video.courseId.toString(), 'courseVideoSceneAudioReady', data);
     }
   }
 

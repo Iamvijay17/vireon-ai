@@ -10,6 +10,7 @@ router.get('/', authenticate, CourseController.list);
 router.get('/:id', authenticate, CourseController.getById);
 router.put('/:id', authenticate, CourseController.update);
 router.delete('/:id', authenticate, CourseController.delete);
+router.post('/:id/stop', authenticate, CourseController.stop);
 
 // Course Videos
 router.get('/:id/videos', authenticate, CourseController.listVideos);

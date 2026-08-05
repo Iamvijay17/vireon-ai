@@ -1,6 +1,7 @@
 const VideoJob = require('../models/VideoJob');
 const { validate, jobIdSchema } = require('../validators');
 const LoggerService = require('../services/LoggerService');
+const VideoService = require('../services/VideoService');
 const { JOB_STATUS } = require('../constants');
 
 class SceneController {
@@ -47,6 +48,26 @@ class SceneController {
         job: updatedJob,
         message: 'Scenes updated successfully. Ready for re-render.',
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/videos/:id/scenes/:sceneNumber/regenerate-audio - Regenerate
+   * just one scene's audio instead of the whole job's. Runs synchronously
+   * (not queued) since it's a single TTS call.
+   */
+  static async regenerateSceneAudio(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const sceneNumber = parseInt(req.params.sceneNumber, 10);
+      if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
+        throw { status: 400, message: 'sceneNumber must be a positive integer' };
+      }
+
+      const result = await VideoService.regenerateSceneAudio(id, sceneNumber);
+      res.json(result);
     } catch (err) {
       next(err);
     }

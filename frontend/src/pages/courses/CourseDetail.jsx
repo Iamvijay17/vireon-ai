@@ -14,6 +14,8 @@ import {
   Sparkles,
   Zap,
   RotateCw,
+  Square,
+  Ban,
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { EmptyState, LoadingState } from "../../components";
@@ -39,6 +41,8 @@ import {
   getCourse,
   updateCourse,
   deleteCourse,
+  stopCourse,
+  stopCourseVideo,
   getCourseVideos,
   createCourseVideo,
   deleteCourseVideo,
@@ -64,6 +68,7 @@ import {
   onCourseVideoRenderReady,
   onCourseVideoUpdated,
   onJobFailed,
+  onCourseWorkerStatus,
   onConnect,
   onDisconnect,
   isConnected,
@@ -85,6 +90,7 @@ const VIDEO_STATUS = {
   Uploading: { variant: "accent", icon: Video },
   Completed: { variant: "success", icon: CheckCircle2 },
   Failed: { variant: "danger", icon: Clock },
+  Cancelled: { variant: "neutral", icon: Ban },
 };
 
 // Independent per-stage status (Script/Audio/Video), shown as a compact icon
@@ -95,6 +101,7 @@ const STAGE_DOT_CLASSES = {
   Processing: "border-accent bg-accent/10 text-accent animate-pulse",
   Completed: "border-success-500/40 bg-success-500/10 text-success-600",
   Failed: "border-danger-500/40 bg-danger-500/10 text-danger-500",
+  Cancelled: "border-border text-text-tertiary",
 };
 
 const DURATION_OPTIONS = [
@@ -278,24 +285,23 @@ const CourseDetail = () => {
     return () => clearTimeout(draftSaveTimeoutRef.current);
   }, [id, curriculumForm, curriculumLessons, curriculumStep]);
 
-  // Poll worker liveness so the "Generate/Render" buttons always reflect
-  // whether a job would actually get picked up right now.
+  // Worker liveness for the "Generate/Render" buttons' running/offline
+  // indicator: one REST call for the initial value, then the backend
+  // pushes courseWorkerStatus over the socket whenever it changes (see
+  // SocketService._pollWorkerStatus) instead of this tab polling on its own.
   useEffect(() => {
     let cancelled = false;
-    const checkWorker = () => {
-      getCourseWorkerStatus()
-        .then((res) => {
-          if (!cancelled) setWorkerRunning(res.data.running);
-        })
-        .catch(() => {
-          if (!cancelled) setWorkerRunning(false);
-        });
-    };
-    checkWorker();
-    const interval = setInterval(checkWorker, 5000);
+    getCourseWorkerStatus()
+      .then((res) => {
+        if (!cancelled) setWorkerRunning(res.data.running);
+      })
+      .catch(() => {
+        if (!cancelled) setWorkerRunning(false);
+      });
+    const unsubscribe = onCourseWorkerStatus((data) => setWorkerRunning(data.running));
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      unsubscribe();
     };
   }, []);
 
@@ -640,6 +646,56 @@ const CourseDetail = () => {
     }
   };
 
+  const handleStopCourse = async () => {
+    const ok = await confirmDialog({
+      title: "Stop this course?",
+      content: "This stops every lesson that isn't already completed, failed, or cancelled. Actively-processing lessons stop as soon as their current step finishes checking in.",
+      confirmText: "Stop Course",
+      danger: true,
+    });
+    if (!ok) return;
+
+    setBulkActionLoading("stop-course");
+    try {
+      const res = await stopCourse(id);
+      toast.success(`Stopped ${res.data.stopped} lesson${res.data.stopped === 1 ? "" : "s"}`);
+      fetchVideos();
+      fetchCourse();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to stop course");
+    } finally {
+      setBulkActionLoading(null);
+    }
+  };
+
+  const handleStopVideo = async (videoId) => {
+    setBulkActionLoading(`stop-${videoId}`);
+    try {
+      await stopCourseVideo(videoId);
+      toast.success("Lesson stopped");
+      fetchVideos();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to stop lesson");
+    } finally {
+      setBulkActionLoading(null);
+    }
+  };
+
+  const handleBulkStop = async (videoIds) => {
+    setBulkActionLoading("bulk-stop");
+    try {
+      const results = await Promise.allSettled(videoIds.map((vid) => stopCourseVideo(vid)));
+      const stopped = results.filter((r) => r.status === "fulfilled").length;
+      toast.success(`Stopped ${stopped} lesson${stopped === 1 ? "" : "s"}`);
+      setSelectedIds(new Set());
+      fetchVideos();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to stop lessons");
+    } finally {
+      setBulkActionLoading(null);
+    }
+  };
+
   const handleBulkDelete = async (videoIds) => {
     const selectedVideos = videos.filter((v) => videoIds.includes(v._id));
     const names = selectedVideos
@@ -797,6 +853,11 @@ const CourseDetail = () => {
                 <DropdownItem icon={<Zap className="size-4" />} onClick={() => runGenerateAction([video._id], "generate-full")}>
                   Generate Everything
                 </DropdownItem>
+                {video.status !== "Draft" && !["Completed", "Failed", "Cancelled"].includes(video.status) && (
+                  <DropdownItem danger icon={<Square className="size-4" />} onClick={() => handleStopVideo(video._id)}>
+                    Stop
+                  </DropdownItem>
+                )}
                 <DropdownItem danger icon={<Trash2 className="size-4" />} onClick={() => handleDeleteVideo(video)}>
                   Delete
                 </DropdownItem>
@@ -836,6 +897,16 @@ const CourseDetail = () => {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {videos.some((v) => v.status !== "Draft" && !["Completed", "Failed", "Cancelled"].includes(v.status)) && (
+            <Button
+              variant="danger"
+              icon={<Square className="size-4" />}
+              loading={bulkActionLoading === "stop-course"}
+              onClick={handleStopCourse}
+            >
+              Stop Course
+            </Button>
+          )}
           <Button variant="secondary" icon={<Sparkles className="size-4" />} onClick={showCurriculumModal}>
             Generate Udemy Course Structure
           </Button>
@@ -941,6 +1012,15 @@ const CourseDetail = () => {
                   {label}
                 </Button>
               ))}
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Square className="size-3.5" />}
+                loading={bulkActionLoading === "bulk-stop"}
+                onClick={() => handleBulkStop(Array.from(selectedIds))}
+              >
+                Stop
+              </Button>
               <Button
                 variant="danger"
                 size="sm"

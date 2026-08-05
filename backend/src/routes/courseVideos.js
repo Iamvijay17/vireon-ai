@@ -28,6 +28,14 @@ router.post('/:id/generate-audio', authenticate, requireCourseWorker, CourseVide
 router.post('/:id/render', authenticate, requireCourseWorker, CourseVideoController.render);
 router.post('/:id/retry', authenticate, requireCourseWorker, CourseVideoController.retry);
 
+// Stop doesn't require the worker to be running - a user should be able to
+// mark a lesson cancelled even if the worker process is down.
+router.post('/:id/stop', authenticate, CourseVideoController.stop);
+
+// Runs synchronously in the API process (a single TTS call), not queued,
+// so it doesn't need requireCourseWorker either.
+router.post('/:id/scenes/:sceneNumber/regenerate-audio', authenticate, CourseVideoController.regenerateSceneAudio);
+
 // Activity logs
 router.get('/:id/activity-logs', authenticate, CourseVideoController.getActivityLogs);
 

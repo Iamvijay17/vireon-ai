@@ -289,6 +289,40 @@ class CourseVideoController {
   }
 
   /**
+   * POST /api/course-videos/:id/stop - Stop this lesson's in-progress
+   * generation. Marks it CANCELLED and removes any not-yet-started jobs for
+   * it from the queue; an already-running stage notices at its next
+   * checkpoint (see CourseVideoService.bailIfCancelled) and stops there.
+   */
+  static async stop(req, res, next) {
+    try {
+      const video = await CourseVideoService.stop(req.params.id);
+      res.json({ video });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/course-videos/:id/scenes/:sceneNumber/regenerate-audio -
+   * Regenerate just one scene's audio instead of the whole lesson's.
+   * Runs synchronously (not queued) since it's a single TTS call.
+   */
+  static async regenerateSceneAudio(req, res, next) {
+    try {
+      const sceneNumber = parseInt(req.params.sceneNumber, 10);
+      if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
+        throw { status: 400, message: 'sceneNumber must be a positive integer' };
+      }
+
+      const result = await CourseVideoService.regenerateSceneAudio(req.params.id, sceneNumber);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * POST /api/course-videos/:id/retry - Retry failed step
    * Dispatches to BullMQ worker - returns immediately.
    */

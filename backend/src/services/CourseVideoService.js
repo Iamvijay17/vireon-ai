@@ -11,7 +11,36 @@ const RemotionService = require('./RemotionService');
 const ScriptParserService = require('./ScriptParserService');
 const StorageService = require('./StorageService');
 const GitHubService = require('./GitHubService');
+const courseQueue = require('../queues/courseQueue');
 const { VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../constants');
+
+/**
+ * Thrown when a course video is found to be CANCELLED at one of the
+ * pipeline's checkpoints. Caught specially in generateScript/generateAudio/
+ * renderVideo (and by courseVideoWorker.js's outer catch) so cancellation
+ * doesn't get treated as a failure (no FAILED status, no BullMQ retry).
+ */
+class CourseVideoCancelledError extends Error {
+  constructor(videoId) {
+    super(`Course video ${videoId} was cancelled`);
+    this.name = 'CourseVideoCancelledError';
+    this.cancelled = true;
+  }
+}
+
+/**
+ * Checkpoint called at the start of each pipeline stage and between
+ * per-scene audio iterations. There's no way to kill an in-flight LM
+ * Studio/TTS/Remotion call directly, so cancellation only takes effect at
+ * these checkpoints - mirrors videoWorker.js's `bailIfCancelled` for the
+ * standalone VideoJob pipeline.
+ */
+async function bailIfCancelled(videoId) {
+  const current = await CourseVideo.findById(videoId).select('status').lean().catch(() => null);
+  if (current?.status === VIDEO_STATUS.CANCELLED) {
+    throw new CourseVideoCancelledError(videoId);
+  }
+}
 
 /**
  * Service for managing course videos.
@@ -238,6 +267,62 @@ class CourseVideoService {
   }
 
   /**
+   * Stop a running lesson. Marks it CANCELLED immediately and removes any
+   * not-yet-started jobs for it from the queue (e.g. the audio/render legs
+   * of a 'generate-full' chain that haven't run yet). If a stage is already
+   * mid-flight, there's no way to kill the in-progress external call
+   * directly - the worker itself checks for CANCELLED at each stage's
+   * checkpoints (see bailIfCancelled above) and bails as soon as it notices,
+   * same pattern as VideoService.stop for the standalone VideoJob pipeline.
+   */
+  static async stop(videoId) {
+    const video = await CourseVideo.findById(videoId);
+    if (!video) {
+      throw { status: 404, message: 'Video not found' };
+    }
+
+    const terminalStatuses = [VIDEO_STATUS.COMPLETED, VIDEO_STATUS.FAILED, VIDEO_STATUS.CANCELLED];
+    if (terminalStatuses.includes(video.status)) {
+      throw { status: 400, message: `Video is in ${video.status} state and cannot be stopped - it isn't running.` };
+    }
+
+    const previousStatus = video.status;
+    video.status = VIDEO_STATUS.CANCELLED;
+    video.error = {
+      message: 'Stopped by user',
+      step: previousStatus,
+      retryCount: video.error?.retryCount || 0,
+    };
+    // Mark whichever stage(s) were in flight as cancelled too, for the
+    // per-stage Script/Audio/Video columns in the lesson table.
+    const inFlightStages = [STAGE_STATUS.PROCESSING, STAGE_STATUS.QUEUED];
+    if (inFlightStages.includes(video.scriptStatus)) video.scriptStatus = STAGE_STATUS.CANCELLED;
+    if (inFlightStages.includes(video.audioStatus)) video.audioStatus = STAGE_STATUS.CANCELLED;
+    if (inFlightStages.includes(video.videoStatus)) video.videoStatus = STAGE_STATUS.CANCELLED;
+    await video.save();
+
+    // Course jobs don't reuse the videoId as the BullMQ jobId (a single
+    // video can have multiple jobs queued back-to-back for 'generate-full'),
+    // so find not-yet-started jobs by their data.videoId instead of a
+    // direct getJob(id) lookup.
+    try {
+      const waitingJobs = await courseQueue.getJobs(['waiting', 'delayed', 'paused']);
+      const toRemove = waitingJobs.filter((j) => j.data?.videoId === videoId);
+      await Promise.all(toRemove.map((j) => j.remove()));
+      if (toRemove.length > 0) {
+        LoggerService.info('Removed not-yet-started course video jobs from queue', { videoId, count: toRemove.length });
+      }
+    } catch (queueErr) {
+      LoggerService.warn('Could not remove queued course video jobs during stop', { videoId, error: queueErr.message });
+    }
+
+    SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.CANCELLED, 0, 'Stopped by user');
+    LoggerService.info('Course video stopped by user', { videoId, previousStatus });
+
+    return video;
+  }
+
+  /**
    * Generate script for a video using LM Studio.
    */
   static async generateScript(videoId) {
@@ -291,6 +376,11 @@ class CourseVideoService {
 
       return video;
     } catch (err) {
+      if (err.cancelled) {
+        await ActivityLogService.add(videoId, 'Script generation stopped by user');
+        throw err;
+      }
+
       video.status = VIDEO_STATUS.FAILED;
       video.scriptStatus = STAGE_STATUS.FAILED;
       video.scriptError = { message: err.message, failedAt: new Date() };
@@ -528,9 +618,36 @@ Rules:
         };
       });
 
-      // Generate audio for all scenes - use videoId as job directory
+      // Generate audio for all scenes - use videoId as job directory.
+      // onSceneComplete persists + broadcasts each scene's audio as soon as
+      // it's ready, so the course video detail page can show scenes
+      // incrementally instead of waiting for the whole batch to finish.
       const jobId = video._id.toString();
-      const audioResults = await AudioService.generateAllAudio(jobId, audioScenes, video.voice);
+      let sceneAudioDoneCount = 0;
+      const audioResults = await AudioService.generateAllAudio(
+        jobId,
+        audioScenes,
+        video.voice,
+        async (sceneNumber, result) => {
+          await CourseVideo.updateOne(
+            { _id: videoId, 'script.scenes.sceneNumber': sceneNumber },
+            {
+              $set: {
+                'script.scenes.$.audio.file': result.file,
+                'script.scenes.$.audio.duration': result.duration,
+                'script.scenes.$.duration': result.duration,
+              },
+            }
+          );
+          sceneAudioDoneCount += 1;
+          await ActivityLogService.add(
+            videoId,
+            `Scene ${sceneNumber} audio generated (${sceneAudioDoneCount}/${audioScenes.length})`
+          );
+          SocketService.emitCourseVideoSceneAudioReady(video, sceneNumber, result);
+        },
+        () => bailIfCancelled(videoId)
+      );
 
       // Update each scene with actual audio duration
       for (const result of audioResults) {
@@ -581,6 +698,11 @@ Rules:
 
       return video;
     } catch (err) {
+      if (err.cancelled) {
+        await ActivityLogService.add(videoId, 'Audio generation stopped by user');
+        throw err;
+      }
+
       video.status = VIDEO_STATUS.FAILED;
       video.audioStatus = STAGE_STATUS.FAILED;
       video.audioError = { message: err.message, failedAt: new Date() };
@@ -594,6 +716,59 @@ Rules:
       await ActivityLogService.add(videoId, `Audio generation failed: ${err.message}`);
       SocketService.emitCourseVideoFailed(video, err.message, 'Audio Generation');
 
+      throw err;
+    }
+  }
+
+  /**
+   * Regenerate audio for a single scene, rather than the whole lesson.
+   * Runs synchronously (not queued) since it's one TTS call, not a batch -
+   * mirrors AudioService.generateAllAudio's per-scene persistence pattern
+   * but for exactly one scene, on demand.
+   */
+  static async regenerateSceneAudio(videoId, sceneNumber) {
+    const video = await CourseVideo.findById(videoId);
+    if (!video) {
+      throw { status: 404, message: 'Video not found' };
+    }
+
+    const scene = video.script?.scenes?.find((s) => s.sceneNumber === sceneNumber);
+    if (!scene) {
+      throw { status: 404, message: `Scene ${sceneNumber} not found` };
+    }
+
+    const jobId = video._id.toString();
+    const audioScene = {
+      sceneNumber,
+      sceneType: scene.sceneType || 'content',
+      audio: { text: scene.audio?.text || scene.title || '' },
+    };
+
+    try {
+      const [result] = await AudioService.generateAllAudio(jobId, [audioScene], video.voice);
+      if (!result) {
+        throw new Error('Audio generation returned no result');
+      }
+
+      await CourseVideo.updateOne(
+        { _id: videoId, 'script.scenes.sceneNumber': sceneNumber },
+        {
+          $set: {
+            'script.scenes.$.audio.file': result.file,
+            'script.scenes.$.audio.duration': result.duration,
+            'script.scenes.$.duration': result.duration,
+          },
+        }
+      );
+
+      await ActivityLogService.add(videoId, `Scene ${sceneNumber} audio regenerated`);
+      SocketService.emitCourseVideoSceneAudioReady(video, sceneNumber, result);
+
+      LoggerService.info('Course video scene audio regenerated', { videoId, sceneNumber });
+
+      return { sceneNumber, audio: { file: result.file, duration: result.duration } };
+    } catch (err) {
+      await ActivityLogService.add(videoId, `Scene ${sceneNumber} audio regeneration failed: ${err.message}`);
       throw err;
     }
   }
@@ -726,6 +901,11 @@ Rules:
 
       return video;
     } catch (err) {
+      if (err.cancelled) {
+        await ActivityLogService.add(videoId, 'Rendering stopped by user');
+        throw err;
+      }
+
       video.status = VIDEO_STATUS.FAILED;
       video.videoStatus = STAGE_STATUS.FAILED;
       video.videoError = { message: err.message, failedAt: new Date() };

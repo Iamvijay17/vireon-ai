@@ -84,6 +84,15 @@ const courseVideoWorker = new Worker(
         videoId,
       });
     } catch (err) {
+      // A cancelled video's status/stage fields were already set to
+      // CANCELLED by CourseVideoService.stop() the moment the user hit
+      // Stop - don't overwrite that with FAILED, and don't let BullMQ treat
+      // this as a failed job (no retry, no "failed" listener alarm).
+      if (err.cancelled) {
+        LoggerService.info('Course video job stopped by user', { jobId: job.id, videoId, action });
+        return { success: false, videoId, cancelled: true };
+      }
+
       LoggerService.error('Course video job processing failed', {
         error: err.message,
         videoId,

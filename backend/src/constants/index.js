@@ -38,6 +38,7 @@ const VIDEO_STATUS = Object.freeze({
   UPLOADING: 'Uploading',
   COMPLETED: 'Completed',
   FAILED: 'Failed',
+  CANCELLED: 'Cancelled',
 });
 
 // Independent per-stage status for the Script/Audio/Video pipeline, tracked
@@ -49,6 +50,7 @@ const STAGE_STATUS = Object.freeze({
   PROCESSING: 'Processing',
   COMPLETED: 'Completed',
   FAILED: 'Failed',
+  CANCELLED: 'Cancelled',
 });
 
 const JOB_STEPS = Object.freeze({
@@ -168,6 +170,8 @@ const SOCKET_EVENTS = Object.freeze({
   COURSE_VIDEO_PROGRESS: 'courseVideoProgress',
   COURSE_VIDEO_SCRIPT_READY: 'courseVideoScriptReady',
   COURSE_VIDEO_AUDIO_READY: 'courseVideoAudioReady',
+  COURSE_VIDEO_SCENE_AUDIO_READY: 'courseVideoSceneAudioReady',
+  COURSE_WORKER_STATUS: 'courseWorkerStatus',
   COURSE_VIDEO_RENDER_READY: 'courseVideoRenderReady',
   // Live server log stream
   SERVER_LOG: 'serverLog',
