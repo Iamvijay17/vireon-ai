@@ -30,6 +30,8 @@ const VIDEO_STATUS = Object.freeze({
   APPROVED: 'Approved',
   GENERATING_AUDIO: 'Generating Audio',
   AUDIO_GENERATED: 'Audio Generated',
+  GENERATING_AVATAR: 'Generating Avatar',
+  AVATAR_GENERATED: 'Avatar Generated',
   GENERATING_SCENES: 'Generating Scenes',
   SCENES_GENERATED: 'Scenes Generated',
   GENERATING_IMAGES: 'Generating Images',
@@ -171,6 +173,7 @@ const SOCKET_EVENTS = Object.freeze({
   COURSE_VIDEO_SCRIPT_READY: 'courseVideoScriptReady',
   COURSE_VIDEO_AUDIO_READY: 'courseVideoAudioReady',
   COURSE_VIDEO_SCENE_AUDIO_READY: 'courseVideoSceneAudioReady',
+  COURSE_VIDEO_AVATAR_READY: 'courseVideoAvatarReady',
   COURSE_WORKER_STATUS: 'courseWorkerStatus',
   COURSE_VIDEO_RENDER_READY: 'courseVideoRenderReady',
   // Live server log stream

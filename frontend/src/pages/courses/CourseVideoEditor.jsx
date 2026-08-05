@@ -38,6 +38,7 @@ import {
   updateCourseVideoScript,
   regenerateCourseVideoScript,
   generateCourseVideoAudio,
+  generateCourseVideoAvatar,
   renderCourseVideo,
   retryCourseVideo,
   stopCourseVideo,
@@ -54,6 +55,7 @@ import {
   onCourseVideoScriptReady,
   onCourseVideoAudioReady,
   onCourseVideoSceneAudioReady,
+  onCourseVideoAvatarReady,
   onCourseVideoRenderReady,
   onCourseVideoUpdated,
   onJobFailed,
@@ -63,7 +65,10 @@ import {
   isConnected,
 } from "../../services/socket";
 
-const getCurrentStep = (status) => {
+// When avatarEnabled, an extra "Avatar" step is inserted between Audio and
+// Render, shifting Render/Complete's index by one - see stepItems below,
+// which conditionally includes the matching "Avatar" entry.
+const getCurrentStep = (status, avatarEnabled) => {
   const stepMap = {
     Draft: 0,
     "Generating Script": 0,
@@ -76,9 +81,11 @@ const getCurrentStep = (status) => {
     "Scenes Generated": 2,
     "Generating Images": 2,
     "Images Generated": 2,
-    "Rendering Video": 3,
-    Uploading: 3,
-    Completed: 4,
+    "Generating Avatar": avatarEnabled ? 3 : 2,
+    "Avatar Generated": avatarEnabled ? 3 : 2,
+    "Rendering Video": avatarEnabled ? 4 : 3,
+    Uploading: avatarEnabled ? 4 : 3,
+    Completed: avatarEnabled ? 5 : 4,
     Failed: -1,
   };
   return stepMap[status] ?? 0;
@@ -308,6 +315,19 @@ const CourseVideoEditor = () => {
     );
 
     unsubscribesRef.current.push(
+      onCourseVideoAvatarReady((data) => {
+        if (data.videoId !== videoId) return;
+        setVideo((prev) => (prev ? { ...prev, status: data.status, avatarStatus: data.avatarStatus } : prev));
+        setActionLoading({});
+        addActivity(data.message || "Avatar ready");
+        fetchActivityLogs();
+        // Per-scene avatar.file fields aren't in this socket payload -
+        // refetch so the scene count shown in the Avatar step is accurate.
+        fetchVideo();
+      })
+    );
+
+    unsubscribesRef.current.push(
       onCourseVideoRenderReady((data) => {
         if (data.videoId !== videoId) return;
         setVideo((prev) =>
@@ -475,6 +495,34 @@ const CourseVideoEditor = () => {
     }
   };
 
+  const handleGenerateAvatar = async () => {
+    setStepLoading("avatar", true);
+    try {
+      await generateCourseVideoAvatar(videoId);
+      toast.info("Avatar generation started");
+      addActivity("Avatar generation started");
+      fetchActivityLogs();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to start avatar generation");
+      setStepLoading("avatar", false);
+    }
+  };
+
+  const handleRegenerateAvatar = async () => {
+    const ok = await confirmDialog({ title: "Regenerate Avatar", content: "This will regenerate the talking avatar for every scene. Are you sure?" });
+    if (!ok) return;
+    setStepLoading("avatar", true);
+    try {
+      await generateCourseVideoAvatar(videoId);
+      toast.info("Avatar regeneration started");
+      addActivity("Avatar regeneration started");
+      fetchActivityLogs();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to regenerate avatar");
+      setStepLoading("avatar", false);
+    }
+  };
+
   const handleRender = async () => {
     setStepLoading("render", true);
     try {
@@ -569,13 +617,15 @@ const CourseVideoEditor = () => {
     }
   };
 
-  const isProcessing = ["Generating Script", "Generating Audio", "Rendering Video", "Uploading", "Generating Scenes", "Generating Images"].includes(video?.status);
+  const isProcessing = ["Generating Script", "Generating Audio", "Generating Avatar", "Rendering Video", "Uploading", "Generating Scenes", "Generating Images"].includes(video?.status);
   const isUploading = video?.status === "Uploading";
   const isFailed = video?.status === "Failed";
   const isCompleted = video?.status === "Completed";
   const hasScript = Boolean(video?.script?.scenes?.length);
   const isApproved = video?.approved;
   const hasAudio = video?.audioUrl && video.audioUrl.length > 0;
+  const avatarEnabled = Boolean(video?.avatarEnabled);
+  const hasAvatar = video?.avatarStatus === "Completed";
   const scenes = video?.script?.scenes || [];
   const audioBaseUrl = video?._id ? resolveMediaUrl(`/public/${video._id}/audio`) : null;
 
@@ -592,11 +642,12 @@ const CourseVideoEditor = () => {
     );
   }
 
-  const currentStep = getCurrentStep(video.status);
+  const currentStep = getCurrentStep(video.status, avatarEnabled);
   const stepItems = [
     { title: "Draft" },
     { title: "Script", description: isApproved ? "Approved" : hasScript ? "Ready" : undefined },
     { title: "Audio", description: hasAudio ? `${Math.round(video.audioDuration)}s` : undefined },
+    ...(avatarEnabled ? [{ title: "Avatar", description: hasAvatar ? "Ready" : undefined }] : []),
     { title: "Render" },
     { title: "Complete" },
   ];
@@ -613,7 +664,7 @@ const CourseVideoEditor = () => {
     },
   ];
 
-  // Per-card state for the collapsible Script/Audio/Render steps below.
+  // Per-card state for the collapsible Script/Audio/Avatar/Render steps below.
   const failedStep = (video.error?.step || "").toLowerCase();
   const scriptState = isFailed && failedStep.includes("script") ? "error" : isApproved ? "done" : "active";
   const audioState = isFailed && failedStep.includes("audio")
@@ -623,17 +674,31 @@ const CourseVideoEditor = () => {
     : isApproved
     ? "active"
     : "locked";
+  const avatarState = isFailed && failedStep.includes("avatar")
+    ? "error"
+    : hasAvatar
+    ? "done"
+    : hasAudio
+    ? "active"
+    : "locked";
+  // Render additionally waits on the avatar step when this video opted in.
   const renderState = isFailed && (failedStep.includes("render") || failedStep.includes("upload"))
     ? "error"
     : isCompleted
     ? "done"
-    : hasAudio
+    : hasAudio && (!avatarEnabled || hasAvatar)
     ? "active"
     : "locked";
 
   // Auto-follow the pipeline: open whichever step isn't done yet, unless the
   // user has manually picked one.
-  const autoOpenStep = scriptState !== "done" ? "script" : audioState !== "done" ? "audio" : "render";
+  const autoOpenStep = scriptState !== "done"
+    ? "script"
+    : audioState !== "done"
+    ? "audio"
+    : avatarEnabled && avatarState !== "done"
+    ? "avatar"
+    : "render";
   const effectiveOpenStep = openStep ?? autoOpenStep;
   const toggleStep = (key) => setOpenStep(effectiveOpenStep === key ? "none" : key);
 
@@ -647,10 +712,16 @@ const CourseVideoEditor = () => {
     : audioState === "locked"
     ? "Waiting on script approval"
     : "Not generated yet";
+  const avatarReadyCount = scenes.filter((s) => Boolean(s.avatar?.file)).length;
+  const avatarSummary = avatarState === "done"
+    ? `${avatarReadyCount}/${scenes.length} scenes • Generated`
+    : avatarState === "locked"
+    ? "Waiting on audio"
+    : "Not generated yet";
   const renderSummary = renderState === "done"
     ? `Completed ${video.renderedAt ? new Date(video.renderedAt).toLocaleDateString() : ""}`
     : renderState === "locked"
-    ? "Waiting on audio"
+    ? (avatarEnabled && !hasAvatar ? "Waiting on avatar" : "Waiting on audio")
     : "Ready to render";
 
   return (
@@ -974,9 +1045,56 @@ const CourseVideoEditor = () => {
             )}
           </StepSection>
 
-          {/* STEP 3: RENDER */}
+          {/* STEP 3 (only when avatarEnabled): TALKING AVATAR */}
+          {avatarEnabled && (
+            <StepSection
+              number={3}
+              title="Talking Avatar"
+              state={avatarState}
+              isOpen={effectiveOpenStep === "avatar"}
+              onToggle={() => toggleStep("avatar")}
+              summary={avatarSummary}
+              actions={
+                <>
+                  <Button variant="ghost" size="sm" iconOnly aria-label="Refresh" icon={<RotateCw className="size-3.5" />} onClick={handleManualRefresh} />
+                  {hasAudio && !hasAvatar && video?.status !== "Generating Avatar" && (
+                    <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.avatar} onClick={handleGenerateAvatar}>
+                      Generate Avatar
+                    </Button>
+                  )}
+                  {hasAvatar && video?.status !== "Generating Avatar" && (
+                    <Button variant="secondary" size="sm" icon={<RotateCw className="size-3.5" />} loading={actionLoading.avatar} onClick={handleRegenerateAvatar}>
+                      Regenerate Avatar
+                    </Button>
+                  )}
+                </>
+              }
+            >
+              {!hasAudio && <InlineEmpty description="Generate audio first to generate the avatar" />}
+              {hasAudio && !hasAvatar && video?.status !== "Generating Avatar" && (
+                <InlineEmpty description="Avatar not yet generated">
+                  <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.avatar} onClick={handleGenerateAvatar} className="mt-1">
+                    Generate Avatar
+                  </Button>
+                </InlineEmpty>
+              )}
+              {video?.status === "Generating Avatar" && (
+                <InlineSpinner label="Generating talking avatar (lip-sync per scene)..." />
+              )}
+              {hasAvatar && (
+                <DescriptionList
+                  items={[
+                    { label: "Scenes Synced", value: `${avatarReadyCount}/${scenes.length}` },
+                    { label: "Generated", value: video.avatarGeneratedAt ? new Date(video.avatarGeneratedAt).toLocaleString() : "N/A" },
+                  ]}
+                />
+              )}
+            </StepSection>
+          )}
+
+          {/* STEP 3/4: RENDER */}
           <StepSection
-            number={3}
+            number={avatarEnabled ? 4 : 3}
             title="Video Render"
             state={renderState}
             isOpen={effectiveOpenStep === "render"}
@@ -985,7 +1103,7 @@ const CourseVideoEditor = () => {
             actions={
               <>
                 <Button variant="ghost" size="sm" iconOnly aria-label="Refresh" icon={<RotateCw className="size-3.5" />} onClick={handleManualRefresh} />
-                {hasAudio && !isCompleted && !isProcessing && (
+                {hasAudio && (!avatarEnabled || hasAvatar) && !isCompleted && !isProcessing && (
                   <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.render} onClick={handleRender}>
                     Render Video
                   </Button>
@@ -998,8 +1116,10 @@ const CourseVideoEditor = () => {
               </>
             }
           >
-            {!hasAudio && !isCompleted && <InlineEmpty description="Generate audio first to render the video" />}
-            {hasAudio && !isCompleted && !isProcessing && (
+            {!isCompleted && !(hasAudio && (!avatarEnabled || hasAvatar)) && (
+              <InlineEmpty description={avatarEnabled && !hasAvatar ? "Generate the avatar first to render the video" : "Generate audio first to render the video"} />
+            )}
+            {hasAudio && (!avatarEnabled || hasAvatar) && !isCompleted && !isProcessing && (
               <InlineEmpty description="Ready to render">
                 <Button variant="primary" size="sm" icon={<Zap className="size-3.5" />} loading={actionLoading.render} onClick={handleRender} className="mt-1">
                   Render Video

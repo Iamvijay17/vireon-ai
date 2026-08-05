@@ -25,6 +25,7 @@ router.post('/:id/approve-script', authenticate, CourseVideoController.approveSc
 router.put('/:id/script', authenticate, CourseVideoController.updateScript);
 router.post('/:id/regenerate-script', authenticate, requireCourseWorker, CourseVideoController.regenerateScript);
 router.post('/:id/generate-audio', authenticate, requireCourseWorker, CourseVideoController.generateAudio);
+router.post('/:id/generate-avatar', authenticate, requireCourseWorker, CourseVideoController.generateAvatar);
 router.post('/:id/render', authenticate, requireCourseWorker, CourseVideoController.render);
 router.post('/:id/retry', authenticate, requireCourseWorker, CourseVideoController.retry);
 

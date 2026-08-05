@@ -35,6 +35,13 @@ const sceneSchema = new mongoose.Schema(
       // null when alignment wasn't run or failed - see CaptionRenderer's estimated-pace fallback.
       captionTimestamps: { type: mongoose.Schema.Types.Mixed, default: null },
     },
+    // Populated by AvatarService.generateSceneAvatar once this scene's audio
+    // exists - a lip-synced clip of the default reference avatar, synced to
+    // audio.file. Only present when the video has avatarEnabled.
+    avatar: {
+      file: { type: String, default: '' },
+      duration: { type: Number, default: 0 },
+    },
   },
   { _id: false }
 );

@@ -5,7 +5,7 @@ const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
 
-const VALID_BULK_ACTIONS = ['generate-script', 'generate-audio', 'render', 'generate-full'];
+const VALID_BULK_ACTIONS = ['generate-script', 'generate-audio', 'generate-avatar', 'render', 'generate-full'];
 
 class CourseVideoController {
   /**
@@ -243,6 +243,34 @@ class CourseVideoController {
         videoId: video._id,
         status: 'Queued',
         message: 'Audio generation has been queued',
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/course-videos/:id/generate-avatar - Generate the talking
+   * avatar overlay clip. Dispatches to BullMQ worker - returns immediately.
+   */
+  static async generateAvatar(req, res, next) {
+    try {
+      const video = await CourseVideoService.getById(req.params.id);
+
+      // Dispatch to worker queue instead of running in API process
+      await courseQueue.add('generate-avatar', {
+        videoId: req.params.id,
+        action: 'generate-avatar',
+      });
+
+      LoggerService.info('Course video avatar generation dispatched to worker', {
+        videoId: req.params.id,
+      });
+
+      res.json({
+        videoId: video._id,
+        status: 'Queued',
+        message: 'Avatar generation has been queued',
       });
     } catch (err) {
       next(err);

@@ -69,6 +69,9 @@ const courseVideoWorker = new Worker(
         case 'generate-audio':
           await CourseVideoService.generateAudio(videoId);
           break;
+        case 'generate-avatar':
+          await CourseVideoService.generateAvatar(videoId);
+          break;
         case 'render':
           await CourseVideoService.renderVideo(videoId);
           break;

@@ -27,11 +27,11 @@ const LEVELS = [
 
 const LEVEL_META = Object.fromEntries(LEVELS.map((l) => [l.value, l]));
 
-const formatTime = (timestamp) => {
+const formatTime = (timestamp, hour12 = false) => {
   if (!timestamp) return "--:--:--";
   const d = new Date(timestamp);
   if (Number.isNaN(d.getTime())) return String(timestamp).slice(11, 19) || "--:--:--";
-  return d.toLocaleTimeString(undefined, { hour12: false });
+  return d.toLocaleTimeString(undefined, { hour12 });
 };
 
 // Every entry needs a stable key even though the backend doesn't assign
@@ -39,7 +39,7 @@ const formatTime = (timestamp) => {
 let seq = 0;
 const withKey = (entry) => ({ ...entry, _key: `${Date.now()}-${seq++}` });
 
-const LogRow = ({ entry, expanded, onToggle }) => {
+const LogRow = ({ entry, expanded, onToggle, hour12 }) => {
   const meta = LEVEL_META[entry.level] || { label: entry.level, dot: "bg-neutral-400", text: "text-neutral-600 dark:text-neutral-400" };
   const hasMeta = entry.meta && Object.keys(entry.meta).length > 0;
 
@@ -49,7 +49,7 @@ const LogRow = ({ entry, expanded, onToggle }) => {
         className={cn("flex items-start gap-3", hasMeta && "cursor-pointer")}
         onClick={hasMeta ? onToggle : undefined}
       >
-        <span className="shrink-0 text-neutral-400 dark:text-neutral-500">{formatTime(entry.timestamp)}</span>
+        <span className="shrink-0 text-neutral-400 dark:text-neutral-500">{formatTime(entry.timestamp, hour12)}</span>
         <span className={cn("shrink-0 w-[74px] font-semibold uppercase tracking-wide", meta.text)}>
           {meta.label}
         </span>
@@ -76,6 +76,7 @@ const LiveLogs = () => {
   const [paused, setPaused] = useState(false);
   const [expandedKey, setExpandedKey] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [hour12, setHour12] = useState(false);
 
   const scrollRef = useRef(null);
   const pausedBufferRef = useRef([]);
@@ -224,6 +225,27 @@ const LiveLogs = () => {
             <Switch checked={autoScroll} onChange={setAutoScroll} />
           </div>
 
+          <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+            <input
+              type="radio"
+              name="time-format"
+              checked={hour12}
+              onChange={() => setHour12(true)}
+              className="size-3.5 accent-accent"
+            />
+            12h
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+            <input
+              type="radio"
+              name="time-format"
+              checked={!hour12}
+              onChange={() => setHour12(false)}
+              className="size-3.5 accent-accent"
+            />
+            24h
+          </label>
+
           <Button variant="secondary" size="sm" onClick={togglePause}>
             {paused ? `Resume${pendingCount ? ` (${pendingCount})` : ""}` : "Pause"}
           </Button>
@@ -250,6 +272,7 @@ const LiveLogs = () => {
                   entry={entry}
                   expanded={expandedKey === entry._key}
                   onToggle={() => setExpandedKey((k) => (k === entry._key ? null : entry._key))}
+                  hour12={hour12}
                 />
               ))
             )}

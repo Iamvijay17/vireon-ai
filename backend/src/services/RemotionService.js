@@ -73,6 +73,14 @@ class RemotionService {
              file: `http://localhost:${config.port || 3000}/public/${jobId}/audio/scene${scene.sceneNumber}.mp3`,
              duration: scene.audio?.duration || 0,
            },
+           // Talking-avatar overlay clip, only present when the video has
+           // avatarEnabled and AvatarService has generated this scene's clip.
+           avatar: scene.avatar?.file
+             ? {
+                 file: `http://localhost:${config.port || 3000}/public/${jobId}/avatar/scene${scene.sceneNumber}.mp4`,
+                 duration: scene.avatar?.duration || 0,
+               }
+             : null,
            fonts: {
              primary: 'Inter',
              secondary: 'Roboto',
