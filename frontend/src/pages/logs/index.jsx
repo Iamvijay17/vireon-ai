@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Trash2, ChevronDown, ArrowDownToLine, Search } from "lucide-react";
 import { getRecentLogs } from "../../services/api";
 import { connect, onServerLog, onConnect, onDisconnect, isConnected } from "../../services/socket";
+import { loadSettings, saveSettings } from "../../shared/settingsStorage";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -76,7 +77,7 @@ const LiveLogs = () => {
   const [paused, setPaused] = useState(false);
   const [expandedKey, setExpandedKey] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
-  const [hour12, setHour12] = useState(false);
+  const [hour12, setHour12] = useState(() => loadSettings().timeFormat === "12h");
 
   const scrollRef = useRef(null);
   const pausedBufferRef = useRef([]);
@@ -174,6 +175,11 @@ const LiveLogs = () => {
 
   const clearLogs = () => setEntries([]);
 
+  const setTimeFormat = (value) => {
+    setHour12(value === "12h");
+    saveSettings({ ...loadSettings(), timeFormat: value });
+  };
+
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -230,7 +236,7 @@ const LiveLogs = () => {
               type="radio"
               name="time-format"
               checked={hour12}
-              onChange={() => setHour12(true)}
+              onChange={() => setTimeFormat("12h")}
               className="size-3.5 accent-accent"
             />
             12h
@@ -240,7 +246,7 @@ const LiveLogs = () => {
               type="radio"
               name="time-format"
               checked={!hour12}
-              onChange={() => setHour12(false)}
+              onChange={() => setTimeFormat("24h")}
               className="size-3.5 accent-accent"
             />
             24h

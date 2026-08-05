@@ -160,6 +160,30 @@ const SettingsPage = () => {
                 <Moon className="size-4 text-text-tertiary" />
               </div>
             </SettingsRow>
+            <SettingsRow label="Time Format" hint="Used for timestamps on the Live Logs page">
+              <div className="flex items-center justify-end gap-4">
+                <label className="flex items-center gap-1.5 text-sm text-text-primary">
+                  <input
+                    type="radio"
+                    name="time-format"
+                    checked={settings.timeFormat === "12h"}
+                    onChange={() => updateSetting("timeFormat", "12h")}
+                    className="size-3.5 accent-accent"
+                  />
+                  12-hour
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-text-primary">
+                  <input
+                    type="radio"
+                    name="time-format"
+                    checked={settings.timeFormat === "24h"}
+                    onChange={() => updateSetting("timeFormat", "24h")}
+                    className="size-3.5 accent-accent"
+                  />
+                  24-hour
+                </label>
+              </div>
+            </SettingsRow>
           </CardBody>
         </Card>
 

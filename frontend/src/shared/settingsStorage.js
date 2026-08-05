@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS = {
   defaultResolution: "1920x1080",
   defaultCourseStyle: "educational",
   defaultCourseDuration: 5,
+  timeFormat: "24h",
 };
 
 export const loadSettings = () => {
