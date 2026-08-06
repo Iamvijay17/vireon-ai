@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS } = require('../constants');
+const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS, SHORTS_VIDEO_DURATIONS } = require('../constants');
 const { generateVideoJobId } = require('../utils/id');
 const sceneSchema = require('./schemas/sceneSchema');
 
@@ -44,10 +44,14 @@ const videoJobSchema = new mongoose.Schema(
     },
     // Requested video length in minutes - drives both prompt generation
     // (PromptService, converted to an exact scene count) and total duration
-    // estimate in the worker.
+    // estimate in the worker. Mongoose's enum can't be conditional on
+    // `type`, so this is the union of both duration scales - createVideoSchema's
+    // superRefine is what actually enforces youtube_shorts vs. everything
+    // else at request time; this just needs to accept whatever a valid
+    // request could contain.
     duration: {
       type: Number,
-      enum: STANDALONE_VIDEO_DURATIONS,
+      enum: [...STANDALONE_VIDEO_DURATIONS, ...SHORTS_VIDEO_DURATIONS],
       default: 5,
     },
     resolution: {
