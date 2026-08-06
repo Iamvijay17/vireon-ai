@@ -1,8 +1,12 @@
 const { Client } = require("@gradio/client");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
 const fs = require("fs").promises;
 const path = require("path");
 const config = require("../../config");
 const LoggerService = require("../LoggerService");
+
+const execFileAsync = promisify(execFile);
 
 // Qwen3-TTS built-in speaker presets (used for "custom voice" mode).
 const QWEN_SPEAKERS = Object.freeze([
@@ -251,17 +255,23 @@ class AudioService {
    * (missing python/faster-whisper, timeout, etc.) rather than throwing,
    * since a missing alignment just means CaptionRenderer's estimated-pace
    * fallback kicks in instead.
+   *
+   * Async (execFile, not execFileSync) so this ~7s subprocess doesn't block
+   * Node's event loop - with the worker's `concurrency: 3`, a blocking call
+   * here previously froze every other concurrently-processing job for its
+   * entire duration, not just the one it belongs to. Also lets
+   * generateAllAudio overlap one scene's alignment with the next scene's
+   * TTS call instead of paying for both serially.
    */
-  static _alignCaptions(audioFilePath) {
+  static async _alignCaptions(audioFilePath) {
     try {
-      const { execFileSync } = require("child_process");
       const script = path.resolve(__dirname, "alignCaptions.py");
-      const stdout = execFileSync("python", [script, audioFilePath], {
+      const { stdout } = await execFileAsync("python", [script, audioFilePath], {
         encoding: "utf8",
         timeout: 60000,
-      }).trim();
+      });
 
-      const lastLine = stdout.split("\n").filter(Boolean).pop() || "[]";
+      const lastLine = stdout.trim().split("\n").filter(Boolean).pop() || "[]";
       const words = JSON.parse(lastLine);
       return Array.isArray(words) && words.length > 0 ? words : null;
     } catch (err) {
@@ -273,10 +283,16 @@ class AudioService {
   }
 
   /**
-   * Generate audio for a single scene's text.
-   * Implements retry with exponential backoff.
+   * Synthesize + download a single scene's audio and resolve its final
+   * timeline duration. Implements retry with exponential backoff.
+   * Deliberately does NOT run caption alignment (see _alignCaptions) -
+   * that's a separate ~7s CPU-bound step with no dependency on the next
+   * scene's TTS call, so generateAllAudio pipelines it against the next
+   * scene's synthesis instead of paying for both serially. generateSceneAudio
+   * below (the public single-scene entry point) still does both together for
+   * standalone callers like "regenerate this one scene's audio".
    */
-  static async generateSceneAudio(jobId, scene, voice) {
+  static async _synthesizeSceneAudio(jobId, scene, voice) {
     const { text } = scene.audio;
     if (!text) {
       LoggerService.warn("Scene has no audio text, skipping", {
@@ -344,27 +360,17 @@ class AudioService {
           await fs.writeFile(outputFile, Buffer.from(outputAudioBuffer));
 
           // Get exact duration by decoding the audio file via helper ESM script
-          const { execFileSync } = require("child_process");
           const helperScript = path.resolve(__dirname, "getAudioDuration.mjs");
-          const durationStr = execFileSync(
+          const { stdout: durationStr } = await execFileAsync(
             "node",
             [helperScript, outputFile],
             { encoding: "utf8", timeout: 30000 },
-          ).trim();
+          );
           const duration = Math.round(parseFloat(durationStr) * 100) / 100;
-
-          // Real per-word caption timing via forced alignment (faster-whisper
-          // ASR on the finished clip - accurate here because it's synthetic
-          // speech reading back a known script, not noisy real-world audio).
-          // Best-effort: caption rendering already falls back to an estimated
-          // pace when this comes back empty, so a failure here shouldn't fail
-          // the whole audio-generation step.
-          const captionTimestamps = this._alignCaptions(outputFile);
 
           LoggerService.tts(`Audio generated for scene ${scene.sceneNumber}`, {
             file: `scene${scene.sceneNumber}.mp3`,
             duration: duration,
-            words: captionTimestamps?.length || 0,
           });
 
           const spokenDuration = duration || Math.ceil(text.split(" ").length * 0.4); // fallback: ~0.4s per word
@@ -387,7 +393,6 @@ class AudioService {
             file: `scene${scene.sceneNumber}.mp3`,
             path: outputFile,
             duration: spokenDuration + turnGapSeconds,
-            captionTimestamps,
           };
         }
 
@@ -414,6 +419,18 @@ class AudioService {
   }
 
   /**
+   * Public single-scene entry point: synthesize + align in one call. Used
+   * by standalone "regenerate this one scene" callers that have no next
+   * scene to pipeline alignment against (see _synthesizeSceneAudio).
+   */
+  static async generateSceneAudio(jobId, scene, voice) {
+    const result = await this._synthesizeSceneAudio(jobId, scene, voice);
+    if (!result) return null;
+    const captionTimestamps = await this._alignCaptions(result.path);
+    return { ...result, captionTimestamps };
+  }
+
+  /**
    * Generate audio for all scenes in a script.
    * If `onSceneComplete(sceneNumber, result)` is provided, it is invoked
    * immediately after each individual scene's audio finishes, so callers can
@@ -421,6 +438,13 @@ class AudioService {
    * If `checkCancelled` is provided, it's awaited before each scene - it
    * should throw to abort the batch (used to let a "stop job" request take
    * effect between scenes instead of only after the whole batch finishes).
+   *
+   * Pipelined: scene N's caption alignment (~7s, CPU-bound, local subprocess)
+   * runs concurrently with scene N+1's TTS synthesis (network/GPU-bound,
+   * ~45-65s) instead of paying for both back to back - they're independent
+   * resources with no reason to serialize. This never has two TTS requests
+   * in flight at once, so it doesn't depend on the TTS server supporting
+   * concurrent generation.
    */
   static async generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled) {
     LoggerService.tts("Starting batch audio generation", {
@@ -430,21 +454,38 @@ class AudioService {
     });
 
     const results = [];
-    for (let i = 0; i < scenes.length; i++) {
-      if (typeof checkCancelled === "function") {
-        await checkCancelled();
+    // Holds the previous scene's synthesized result plus its in-flight
+    // alignment promise, so it can be settled and flushed (persisted, via
+    // onSceneComplete) once the *next* scene's synthesis has already been
+    // kicked off - not before.
+    let pending = null;
+
+    for (let i = 0; i <= scenes.length; i++) {
+      const scene = scenes[i]; // undefined on the final flush-only pass
+
+      let synthesizing = null;
+      if (scene) {
+        if (typeof checkCancelled === "function") {
+          await checkCancelled();
+        }
+        synthesizing = this._synthesizeSceneAudio(jobId, scene, voice || scene.audio?.voice);
       }
-      const scene = scenes[i];
-      const result = await this.generateSceneAudio(
-        jobId,
-        scene,
-        voice || scene.audio?.voice,
-      );
-      if (result) {
+
+      if (pending) {
+        const captionTimestamps = await pending.alignmentPromise;
+        const result = { ...pending.synthResult, captionTimestamps };
         results.push(result);
         if (typeof onSceneComplete === "function") {
-          await onSceneComplete(scene.sceneNumber, result);
+          await onSceneComplete(pending.scene.sceneNumber, result);
         }
+      }
+      pending = null;
+
+      if (!scene) break;
+
+      const synthResult = await synthesizing;
+      if (synthResult) {
+        pending = { scene, synthResult, alignmentPromise: this._alignCaptions(synthResult.path) };
       }
     }
 

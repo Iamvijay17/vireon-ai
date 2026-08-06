@@ -128,7 +128,11 @@ const courseVideoWorker = new Worker(
     // starts (also what makes 'generate-full' correctly chain script ->
     // audio -> render for a single video without a dedicated composite action).
     concurrency: 1,
-    lockDuration: 3_600_000, // 60 minutes - video rendering can take a long time
+    // See videoWorker.js's identical setting for why this is 5 minutes, not
+    // 60 - BullMQ auto-renews the lock while the process is alive, so a
+    // long render doesn't need a long lockDuration. It only bounds how long
+    // a crashed worker's abandoned lock blocks reclaiming the job.
+    lockDuration: 300_000,
     stalledInterval: 60_000,  // Check for stalled jobs every 60 seconds
     maxStalledCount: 3,       // Allow up to 3 stalled checks before failing
     limiter: {
@@ -152,6 +156,12 @@ courseVideoWorker.on('failed', (job, err) => {
 
 courseVideoWorker.on('error', (err) => {
   LoggerService.error('Course video worker error', { error: err.message });
+});
+
+// See videoWorker.js's identical handler - logs when a crashed worker's
+// abandoned job gets reclaimed, so a recurring pattern is visible.
+courseVideoWorker.on('stalled', (jobId) => {
+  LoggerService.warn(`Job ${jobId} stalled - its worker likely crashed mid-processing, reclaiming for reprocessing`);
 });
 
 LoggerService.border('🎥 Course Video Worker Started', 'event');

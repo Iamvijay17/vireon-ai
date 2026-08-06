@@ -437,7 +437,18 @@ const worker = new Worker(
   {
     connection,
     concurrency: 3, // Process up to 3 jobs concurrently
-    lockDuration: 3_600_000, // 60 minutes - video rendering can take a long time
+    // BullMQ auto-renews this lock (roughly every lockDuration/2) for as
+    // long as the worker process is alive and actively processing - a long
+    // render doesn't need a long lockDuration, it just needs the process to
+    // stay up. lockDuration only controls how long a *dead* worker's
+    // abandoned lock lingers before another worker can reclaim the job. This
+    // was set to 60 minutes on the mistaken assumption it needed to cover a
+    // whole job's runtime, which meant a crashed/restarted worker left its
+    // in-progress job stuck (unreclaimable) for up to an hour - hit this
+    // directly (had to manually clear a stuck Redis lock to unstick a job).
+    // 5 minutes comfortably covers the renewal interval while keeping
+    // crash-recovery fast.
+    lockDuration: 300_000,
     stalledInterval: 60_000, // Check for stalled jobs every 60 seconds
     maxStalledCount: 3, // Allow up to 3 stalled checks before failing
     limiter: {
@@ -457,6 +468,15 @@ worker.on('failed', (job, err) => {
 
 worker.on('error', (err) => {
   LoggerService.error('Worker error', { error: err.message });
+});
+
+// Fires when a job's lock expired without renewal (its worker crashed/died
+// mid-processing) and BullMQ is reclaiming it for reprocessing. The pipeline
+// itself is resumable (script/audio/render steps each skip work already
+// persisted), so this is safe - logged so a recurring pattern is visible
+// instead of silently eating a few minutes of recovery time every time.
+worker.on('stalled', (jobId) => {
+  LoggerService.warn(`Job ${jobId} stalled - its worker likely crashed mid-processing, reclaiming for reprocessing`);
 });
 
 LoggerService.border('🎥 Video Worker Started', 'event');
