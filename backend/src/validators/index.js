@@ -4,6 +4,8 @@ const {
   RESOLUTIONS,
   LANGUAGES,
   STANDALONE_VIDEO_DURATIONS,
+  SHORTS_VIDEO_DURATIONS,
+  getAspectRatioForResolution,
 } = require('../constants');
 const { ID_PATTERN } = require('../utils/id');
 
@@ -13,14 +15,11 @@ const createVideoSchema = z
     type: z.enum(VIDEO_TYPES),
     language: z.enum(LANGUAGES).optional().default('english'),
     // Requested video length in minutes - the worker derives an exact scene
-    // count from this (see videoWorker.js).
-    duration: z
-      .number()
-      .refine((v) => STANDALONE_VIDEO_DURATIONS.includes(v), {
-        message: `Duration must be one of: ${STANDALONE_VIDEO_DURATIONS.join(', ')}`,
-      })
-      .optional()
-      .default(5),
+    // count from this (see videoWorker.js). Valid range depends on `type`
+    // (see superRefine below): youtube_shorts uses SHORTS_VIDEO_DURATIONS
+    // (YouTube caps Shorts at 3 minutes), every other type uses
+    // STANDALONE_VIDEO_DURATIONS.
+    duration: z.number().optional().default(5),
     // Accepts legacy keys ("female-1"), "custom:<Speaker>", or "clone:<file>.wav"
     // - see AudioService.resolveVoice for how this is interpreted.
     voice: z.string().min(1).max(200).optional().default('female-1'),
@@ -31,6 +30,8 @@ const createVideoSchema = z
     guestVoice: z.string().max(200).optional(),
     // Aspect ratio isn't independently selectable - it's fully implied by
     // resolution (see getAspectRatioForResolution), derived server-side.
+    // youtube_shorts is further restricted to vertical (9:16) resolutions
+    // only - see superRefine below.
     resolution: z.enum(RESOLUTIONS).optional().default('1920x1080'),
     // true: current auto flow (audio/images/render run automatically after
     // script approval). false: manual mode - audio and render each need an
@@ -45,6 +46,17 @@ const createVideoSchema = z
       if (!data.guestVoice) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['guestVoice'], message: 'Guest voice is required for podcast videos' });
       }
+    }
+
+    if (data.type === 'youtube_shorts') {
+      if (!SHORTS_VIDEO_DURATIONS.includes(data.duration)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['duration'], message: `YouTube Shorts duration must be one of: ${SHORTS_VIDEO_DURATIONS.join(', ')}` });
+      }
+      if (getAspectRatioForResolution(data.resolution) !== '9:16') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['resolution'], message: 'YouTube Shorts must use a vertical resolution' });
+      }
+    } else if (!STANDALONE_VIDEO_DURATIONS.includes(data.duration)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['duration'], message: `Duration must be one of: ${STANDALONE_VIDEO_DURATIONS.join(', ')}` });
     }
   });
 

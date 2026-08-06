@@ -39,7 +39,15 @@ const RESOLUTIONS = [
   { value: "1280x720", label: "720p (1280x720)" },
   { value: "720x1280", label: "720p Vertical (720x1280)" },
   { value: "3840x2160", label: "4K (3840x2160)" },
+  { value: "2160x3840", label: "4K Vertical (2160x3840)" },
 ];
+
+// YouTube Shorts must be vertical - backend rejects anything else for this
+// type (see createVideoSchema's superRefine).
+const VERTICAL_RESOLUTIONS = RESOLUTIONS.filter((r) => {
+  const [width, height] = r.value.split("x").map(Number);
+  return height > width;
+});
 
 // Shown while the real voice catalog is loading (or if it fails to load).
 const FALLBACK_VOICES = [
@@ -57,6 +65,14 @@ const DURATIONS = [
   { value: 20, label: "20 minutes" },
   { value: 25, label: "25 minutes" },
   { value: 30, label: "30 minutes" },
+];
+
+// YouTube Shorts have their own duration scale (YouTube caps Shorts at 3
+// minutes) - backend rejects anything else for this type.
+const SHORTS_DURATIONS = [
+  { value: 1, label: "1 minute" },
+  { value: 2, label: "2 minutes" },
+  { value: 3, label: "3 minutes" },
 ];
 
 const STEPS = [
@@ -78,16 +94,25 @@ const DEFAULT_VALUES = {
   fastGeneration: true,
 };
 
+const isVerticalResolution = (value) => VERTICAL_RESOLUTIONS.some((r) => r.value === value);
+
 // Applies the user's saved preferences (Settings page) on top of the base
 // defaults above - e.g. leaving `type` unselected still forces a choice.
 const buildInitialValues = () => {
   const prefs = loadSettings();
+  const type = VIDEO_TYPES.some((t) => t.value === prefs.defaultVideoType) ? prefs.defaultVideoType : DEFAULT_VALUES.type;
+  const resolution = prefs.defaultResolution || DEFAULT_VALUES.resolution;
+  const isShorts = type === "youtube_shorts";
   return {
     ...DEFAULT_VALUES,
-    type: VIDEO_TYPES.some((t) => t.value === prefs.defaultVideoType) ? prefs.defaultVideoType : DEFAULT_VALUES.type,
+    type,
     language: LANGUAGES.some((l) => l.value === prefs.defaultLanguage) ? prefs.defaultLanguage : DEFAULT_VALUES.language,
     voice: prefs.defaultVoice || DEFAULT_VALUES.voice,
-    resolution: prefs.defaultResolution || DEFAULT_VALUES.resolution,
+    // A saved default resolution/duration might not be valid for Shorts
+    // (e.g. a landscape default resolution) - fall back to a Shorts-valid
+    // default rather than starting the wizard in an invalid state.
+    duration: isShorts ? SHORTS_DURATIONS[0].value : DEFAULT_VALUES.duration,
+    resolution: isShorts && !isVerticalResolution(resolution) ? VERTICAL_RESOLUTIONS[0].value : resolution,
   };
 };
 
@@ -130,6 +155,25 @@ const Wizard = () => {
   if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
 
   const setField = (name, value) => setValues((prev) => ({ ...prev, [name]: value }));
+
+  // Duration and resolution are each constrained to a different set of
+  // valid options depending on video type (YouTube Shorts: 1-3 minutes,
+  // vertical only; everything else: 5-30 minutes, any resolution) - keep
+  // whichever of those two fields is still valid for the new type, and
+  // snap the other to a sensible default instead of leaving it pointed at
+  // an option that's no longer offered (and that the backend would reject).
+  const handleTypeChange = (type) => {
+    setValues((prev) => {
+      const next = { ...prev, type };
+      if (type === "youtube_shorts") {
+        if (!SHORTS_DURATIONS.some((d) => d.value === prev.duration)) next.duration = SHORTS_DURATIONS[0].value;
+        if (!isVerticalResolution(prev.resolution)) next.resolution = VERTICAL_RESOLUTIONS[0].value;
+      } else if (SHORTS_DURATIONS.some((d) => d.value === prev.duration)) {
+        next.duration = DEFAULT_VALUES.duration;
+      }
+      return next;
+    });
+  };
 
   const validateStep = (step) => {
     const next = {};
@@ -212,7 +256,7 @@ const Wizard = () => {
                     placeholder="Select video type"
                     options={VIDEO_TYPES}
                     value={values.type}
-                    onChange={(v) => setField("type", v)}
+                    onChange={handleTypeChange}
                     error={Boolean(errors.type)}
                   />
                   <FieldHint error={Boolean(errors.type)}>{errors.type}</FieldHint>
@@ -222,12 +266,14 @@ const Wizard = () => {
                   <Label required>Duration</Label>
                   <Select
                     placeholder="Select duration"
-                    options={DURATIONS}
+                    options={values.type === "youtube_shorts" ? SHORTS_DURATIONS : DURATIONS}
                     value={values.duration}
                     onChange={(v) => setField("duration", v)}
                     error={Boolean(errors.duration)}
                   />
-                  <FieldHint error={Boolean(errors.duration)}>{errors.duration}</FieldHint>
+                  <FieldHint error={Boolean(errors.duration)}>
+                    {errors.duration || (values.type === "youtube_shorts" ? "YouTube Shorts are capped at 3 minutes." : undefined)}
+                  </FieldHint>
                 </div>
 
                 <div className="mb-5">
@@ -312,8 +358,16 @@ const Wizard = () => {
 
                 <div className="mb-6">
                   <Label>Resolution</Label>
-                  <Select options={RESOLUTIONS} value={values.resolution} onChange={(v) => setField("resolution", v)} />
-                  <FieldHint>Aspect ratio is determined automatically by the resolution you pick.</FieldHint>
+                  <Select
+                    options={values.type === "youtube_shorts" ? VERTICAL_RESOLUTIONS : RESOLUTIONS}
+                    value={values.resolution}
+                    onChange={(v) => setField("resolution", v)}
+                  />
+                  <FieldHint>
+                    {values.type === "youtube_shorts"
+                      ? "YouTube Shorts are vertical-only."
+                      : "Aspect ratio is determined automatically by the resolution you pick."}
+                  </FieldHint>
                 </div>
 
                 <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">

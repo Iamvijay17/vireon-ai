@@ -189,6 +189,11 @@ const VIDEO_DURATIONS = Object.freeze([5, 10, 15]);
 // from course videos' VIDEO_DURATIONS since it's a distinct pipeline.
 const STANDALONE_VIDEO_DURATIONS = Object.freeze([5, 8, 10, 15, 20, 25, 30]);
 
+// YouTube Shorts have their own duration scale (YouTube caps Shorts at 3
+// minutes) - validated separately from STANDALONE_VIDEO_DURATIONS in
+// createVideoSchema.
+const SHORTS_VIDEO_DURATIONS = Object.freeze([1, 2, 3]);
+
 const CATEGORIES = Object.freeze([
   'Web Development',
   'Mobile Development',
@@ -227,6 +232,7 @@ module.exports = {
   DEFAULT_SCENE_DURATION,
   VIDEO_DURATIONS,
   STANDALONE_VIDEO_DURATIONS,
+  SHORTS_VIDEO_DURATIONS,
   CATEGORIES,
   DIFFICULTIES,
 };
