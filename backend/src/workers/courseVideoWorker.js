@@ -6,6 +6,18 @@ const CourseVideoService = require('../services/CourseVideoService');
 const SocketService = require('../services/SocketService');
 const StorageService = require('../services/StorageService');
 
+// See videoWorker.js's identical handlers for why this process needs them
+// (it shares the same AudioService, which is where the unhandled-rejection
+// risk actually comes from).
+process.on('uncaughtException', (err) => {
+  LoggerService.error('Course video worker uncaught exception', { error: err.message, stack: err.stack });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  LoggerService.error('Course video worker unhandled rejection', { reason: reason?.message || reason });
+});
+
 // Connect to MongoDB on worker startup
 mongoose.connect(config.mongodb.uri, {
   serverSelectionTimeoutMS: 5000,

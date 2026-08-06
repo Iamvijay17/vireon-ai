@@ -3,6 +3,26 @@ const mongoose = require('mongoose');
 const config = require('../config');
 const LoggerService = require('../services/LoggerService');
 
+// Mirrors server.js's handlers - this process had neither before, meaning
+// any unhandled rejection (e.g. @gradio/client's Client.close() aborting an
+// internal SSE reader it never itself catches AbortError on - see
+// audioService.js's _synthesizeSceneAudio) would crash the whole worker
+// process on Node's default unhandled-rejection behavior, silently killing
+// every job it was concurrently processing (concurrency: 3), not just the
+// one that happened to trigger it. uncaughtException still exits (the
+// process is in an undefined state past that point - Node's own default
+// behavior is the same, this just guarantees it's logged through
+// LoggerService first); unhandledRejection is logged and swallowed instead
+// of being fatal, same tradeoff server.js already made.
+process.on('uncaughtException', (err) => {
+  LoggerService.error('Worker uncaught exception', { error: err.message, stack: err.stack });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  LoggerService.error('Worker unhandled rejection', { reason: reason?.message || reason });
+});
+
 // Connect to MongoDB on worker startup
 mongoose.connect(config.mongodb.uri, {
   serverSelectionTimeoutMS: 5000,
