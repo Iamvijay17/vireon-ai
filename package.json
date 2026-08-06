@@ -5,5 +5,15 @@
   "workspaces": [
     "frontend",
     "backend/remotion"
-  ]
+  ],
+  "scripts": {
+    "dev": "concurrently -n API,WORKER,COURSE,WEB -c blue,green,yellow,magenta \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:course-worker\" \"npm:dev:frontend\"",
+    "dev:api": "npm run dev --prefix backend",
+    "dev:worker": "npm run worker:dev --prefix backend",
+    "dev:course-worker": "npm run course-worker:dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.4"
+  }
 }
