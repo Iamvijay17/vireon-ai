@@ -173,15 +173,53 @@ class AudioService {
     return hash >>> 0;
   }
 
-  static async _generateCustom(client, resolved, text, seed) {
+  /**
+   * Podcast voice-clone turns have no `instruct` param to hint delivery (see
+   * _instructFor) - the Qwen3 clone endpoint just doesn't expose one - so a
+   * shared per-job seed is the one place left that can vary. Reusing the
+   * exact same seed for all ~30 alternating turns (host and guest alike)
+   * makes every line land with byte-identical prosodic rhythm, which reads
+   * as robotic repetition rather than two people talking. Derive a seed
+   * per scene instead, still fully deterministic (jobId+sceneNumber) so
+   * resumed/retried scenes reproduce the same output. Non-podcast scenes
+   * (scene.speaker unset) keep the original one-seed-per-job behavior,
+   * which exists so a single narrator's pace/tone doesn't jump scene to
+   * scene.
+   */
+  static _seedForScene(jobId, scene) {
+    if (scene?.speaker === "host" || scene?.speaker === "guest") {
+      return this._seedFromJobId(`${jobId}:${scene.sceneNumber}`);
+    }
+    return this._seedFromJobId(jobId);
+  }
+
+  static async _generateCustom(client, resolved, text, seed, instruct = "") {
     return client.predict("/generate_custom_voice", {
       text,
       language: "Auto",
       speaker: resolved.speaker,
-      instruct: "",
+      instruct,
       model_size: config.tts.modelSize,
       seed,
     });
+  }
+
+  /**
+   * Podcast turns are synthesized one at a time with no awareness of the
+   * conversation around them, which is what made two alternating voices
+   * read as two monologues instead of people talking to each other. Give
+   * the TTS model an explicit conversational-delivery instruction based on
+   * the turn's role so host/guest lines actually sound like they're
+   * reacting to one another.
+   */
+  static _instructFor(scene) {
+    if (scene?.speaker === "host") {
+      return "Speak like a podcast host in a live conversation with a guest: warm, curious, reacting naturally to what was just said.";
+    }
+    if (scene?.speaker === "guest") {
+      return "Speak like a podcast guest responding to the host in a live conversation: natural, engaged, as if genuinely replying to their question.";
+    }
+    return "";
   }
 
   static async _generateClone(client, resolved, text, seed) {
@@ -257,9 +295,10 @@ class AudioService {
     // configuration error, not a transient failure, so don't retry on it.
     const resolved = await this.resolveVoice(voice);
 
-    // Fixed per-job seed so every scene (including later resumed ones)
-    // shares the same TTS prosody instead of a random seed per call.
-    const seed = this._seedFromJobId(jobId);
+    // Fixed per-job (or per-podcast-turn) seed so every scene, including
+    // later resumed ones, deterministically reproduces the same prosody
+    // instead of a random seed per call.
+    const seed = this._seedForScene(jobId, scene);
 
     for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
       try {
@@ -286,7 +325,7 @@ class AudioService {
           result =
             resolved.mode === "clone"
               ? await this._generateClone(client, resolved, text, seed)
-              : await this._generateCustom(client, resolved, text, seed);
+              : await this._generateCustom(client, resolved, text, seed, this._instructFor(scene));
         } finally {
           client.close();
         }
@@ -328,10 +367,26 @@ class AudioService {
             words: captionTimestamps?.length || 0,
           });
 
+          const spokenDuration = duration || Math.ceil(text.split(" ").length * 0.4); // fallback: ~0.4s per word
+
+          // Podcast turns are rendered back-to-back with zero gap (the next
+          // scene's Sequence starts the instant this one's declared duration
+          // ends), so the next speaker cut in immediately - reading as two
+          // people talking at/over each other rather than a real
+          // back-and-forth. Pad the timeline duration (not the clip itself)
+          // with a short natural beat so the next turn has a breath of space
+          // to land in. A fixed gap read as metronomic across 30 turns, so
+          // vary it (0.15-0.5s) using the same per-turn seed already derived
+          // above - still fully deterministic/resumable, just not identical
+          // every time. Non-podcast scenes (scene.speaker is unset) keep the
+          // exact audio length.
+          const turnGapSeconds =
+            scene.speaker === "host" || scene.speaker === "guest" ? 0.15 + (seed % 350) / 1000 : 0;
+
           return {
             file: `scene${scene.sceneNumber}.mp3`,
             path: outputFile,
-            duration: duration || Math.ceil(text.split(" ").length * 0.4), // fallback: ~0.4s per word
+            duration: spokenDuration + turnGapSeconds,
             captionTimestamps,
           };
         }
