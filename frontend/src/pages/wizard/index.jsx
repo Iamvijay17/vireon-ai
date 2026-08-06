@@ -91,7 +91,7 @@ const DEFAULT_VALUES = {
   hostVoice: "",
   guestVoice: "",
   resolution: "1920x1080",
-  fastGeneration: true,
+  fastGeneration: false,
 };
 
 const isVerticalResolution = (value) => VERTICAL_RESOLUTIONS.some((r) => r.value === value);
