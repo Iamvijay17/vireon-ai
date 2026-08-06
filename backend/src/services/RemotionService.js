@@ -1,8 +1,11 @@
-const { execFileSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const fs = require('fs').promises;
 const path = require('path');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Service for rendering videos using Remotion.
@@ -219,13 +222,22 @@ class RemotionService {
         LoggerService.render('Remotion command args', { args });
         LoggerService.render('Executing Remotion command', { binaryPath, args });
 
-        // execFileSync spawns node directly with an argv array - no shell
-        // involved, so paths with spaces work without manual quoting and no
-        // argument can break out into a second shell command.
-        const stdout = execFileSync(process.execPath, [binaryPath, ...args], {
+        // execFile (async, not execFileSync) spawns node directly with an
+        // argv array - no shell involved, so paths with spaces work without
+        // manual quoting and no argument can break out into a second shell
+        // command. Async matters here: this is the single longest-running
+        // step in the pipeline (up to config.remotion.timeout, 5 minutes by
+        // default, per attempt) - the sync version blocked Node's entire
+        // event loop for that whole duration, freezing every other
+        // concurrently-processing job under the worker's `concurrency: 3`
+        // setting, not just this one. maxBuffer raised well past the 1MB
+        // default since Remotion's per-frame progress output over a
+        // multi-minute render can exceed that easily.
+        const { stdout } = await execFileAsync(process.execPath, [binaryPath, ...args], {
           cwd: remotionRoot,
           timeout: config.remotion.timeout,
-          stdio: ['pipe', 'pipe', 'pipe'],
+          encoding: 'utf8',
+          maxBuffer: 50 * 1024 * 1024,
         });
 
         LoggerService.render('Remotion stdout', { stdout: stdout.toString().substring(0, 1000) });
