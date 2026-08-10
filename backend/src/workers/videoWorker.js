@@ -78,21 +78,6 @@ async function bailIfCancelled(jobId) {
 }
 
 /**
- * Check if render output exists on disk for a job.
- */
-async function renderExists(jobId) {
-  const fs = require('fs').promises;
-  const path = require('path');
-  const renderPath = path.resolve(__dirname, '../../jobs', jobId, 'render', 'video.mp4');
-  try {
-    await fs.access(renderPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Video rendering worker.
  * Processes jobs from the BullMQ queue through the 9-step pipeline.
  * Never crashes - all errors are caught and logged.
@@ -352,7 +337,7 @@ const worker = new Worker(
       await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS, { progress: 70 });
       SocketService.emitJobProgress({ _id: jobId, progress: 70, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
 
-      const assetsPath = await RemotionService.prepareAssets(jobId, script, {
+      const assets = await RemotionService.prepareAssets(jobId, script, {
         resolution: videoJob.resolution,
         aspectRatio: videoJob.aspectRatio,
         type: videoJob.type,
@@ -363,21 +348,32 @@ const worker = new Worker(
       await bailIfCancelled(jobId);
 
       // ── Step 7: Render Video
-      // Always re-render to ensure we have a valid, complete render
-      // Remove old render if it exists to force clean re-render
-      const renderPath = path.resolve(__dirname, '../../jobs', jobId, 'render', 'video.mp4');
-      try { await fs.rm(renderPath, { recursive: true, force: true }); } catch {}
-      try { await fs.rm(path.resolve(__dirname, '../../jobs', jobId, 'render'), { recursive: true, force: true }); } catch {}
-
       currentStep = JOB_STATUS.RENDERING;
       await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING, { progress: 80 });
       SocketService.emitJobProgress({ _id: jobId, progress: 80, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
 
-      await ActivityLogService.add(jobId, 'Rendering started');
+      // A crash/stalled-job recovery re-enters this step with the exact same
+      // assets it already rendered successfully - re-rendering (the most
+      // expensive step in the pipeline, often minutes) is pure waste in that
+      // case. isRenderCurrent only returns true when a prior render's
+      // recorded fingerprint matches these exact assets, so an edited
+      // scene/regenerated image (which changes assets content) still
+      // triggers a real re-render - see RemotionService.isRenderCurrent.
+      const renderIsCurrent = await RemotionService.isRenderCurrent(jobId, assets);
 
-      const renderResult = await RemotionService.renderVideo(jobId);
+      if (renderIsCurrent) {
+        LoggerService.info('Existing render already matches current assets - skipping re-render', { jobId });
+        await ActivityLogService.add(jobId, 'Using existing render (unchanged since last render)');
+      } else {
+        // Remove old render if it exists to force a clean re-render
+        try { await fs.rm(path.resolve(__dirname, '../../jobs', jobId, 'render'), { recursive: true, force: true }); } catch {}
 
-      LoggerService.success('Video rendered', renderResult);
+        await ActivityLogService.add(jobId, 'Rendering started');
+
+        const renderResult = await RemotionService.renderVideo(jobId, assets);
+
+        LoggerService.success('Video rendered', renderResult);
+      }
       await ActivityLogService.add(jobId, 'Rendering complete. Uploading assets to cloud storage...');
 
       await bailIfCancelled(jobId);

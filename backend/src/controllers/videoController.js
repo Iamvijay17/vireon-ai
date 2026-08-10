@@ -108,11 +108,28 @@ class VideoController {
   }
 
   /**
-   * POST /api/videos/:id/restart - Restart a failed job
+   * POST /api/videos/:id/restart - Restart a failed or stuck job
    */
   static async restart(req, res, next) {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
+
+      // VideoService.restart() only blocks restarting a COMPLETED job - a
+      // job that's genuinely still being processed by a live worker (not
+      // stuck, just legitimately mid-render) has the same intermediate
+      // status a stuck job would, so that check alone can't tell them
+      // apart. BullMQ's own job state can: 'active' means a worker
+      // currently holds its lock and is actively working it. Rewinding the
+      // DB status underneath a live worker wouldn't cause double-processing
+      // (enqueueJob's re-add is a no-op while the old record is still
+      // locked), but it would leave misleading status in the UI/API until
+      // the real worker finishes and overwrites it again - reject up front
+      // instead.
+      const existingBullJob = await videoQueue.getJob(id);
+      if (existingBullJob && (await existingBullJob.getState()) === 'active') {
+        throw { status: 400, message: 'Job is still actively being processed and cannot be restarted. If it appears stuck, wait a few minutes for automatic crash recovery, or stop it first.' };
+      }
+
       const job = await VideoService.restart(id);
       await ActivityLogService.add(id, 'Job restarted');
 

@@ -1,5 +1,6 @@
 const { execFile } = require('child_process');
 const { promisify } = require('util');
+const crypto = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
 const config = require('../config');
@@ -128,6 +129,40 @@ class RemotionService {
   }
 
   /**
+   * Deterministic fingerprint of an assets.json payload - used to tell
+   * whether an existing render/video.mp4 still reflects the scenes that
+   * would be rendered right now, or was produced from an older version
+   * (edited scene text, regenerated image, etc.).
+   */
+  static _fingerprintAssets(assetsFile) {
+    return crypto.createHash('sha256').update(JSON.stringify(assetsFile)).digest('hex');
+  }
+
+  /**
+   * Whether the existing render/video.mp4 for this job already matches the
+   * given assets - i.e. it's safe to skip re-rendering and go straight to
+   * upload. True only when both the video file and a fingerprint recorded
+   * at render time exist and that fingerprint matches assetsFile exactly.
+   * Any missing piece (no prior render, no fingerprint, mismatch, read
+   * failure) returns false, which just means "render it" - the same
+   * behavior as before this check existed, so this can only make things
+   * faster, never wrong.
+   */
+  static async isRenderCurrent(jobId, assetsFile) {
+    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    const videoPath = path.join(jobDir, 'render', 'video.mp4');
+    const fingerprintPath = path.join(jobDir, '.render-fingerprint');
+
+    try {
+      await fs.access(videoPath);
+      const stored = await fs.readFile(fingerprintPath, 'utf-8');
+      return stored.trim() === this._fingerprintAssets(assetsFile);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Execute Remotion render process.
    */
   static async renderVideo(jobId, assets = null) {
@@ -251,6 +286,19 @@ class RemotionService {
           size: `${(stats.size / (1024 * 1024)).toFixed(2)} MB`,
           path: videoPath,
         });
+
+        // Record what this render was made from, so a later crash-recovery
+        // retry can tell (via isRenderCurrent) whether this video.mp4 still
+        // reflects the current scenes and skip a redundant re-render instead
+        // of always redoing the most expensive step in the pipeline. Stored
+        // outside renderDir since StorageService.getUploadFiles uploads
+        // every file it finds there - this is internal bookkeeping, not a
+        // render output.
+        await fs.writeFile(
+          path.join(jobDir, '.render-fingerprint'),
+          this._fingerprintAssets(assetsFile),
+          'utf-8'
+        );
 
         return {
           video: 'render/video.mp4',
