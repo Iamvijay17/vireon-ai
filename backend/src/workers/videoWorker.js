@@ -40,8 +40,7 @@ mongoose.connect(config.mongodb.uri, {
 });
 const VideoService = require('../services/VideoService');
 const ActivityLogService = require('../services/ActivityLogService');
-const PromptService = require('../services/PromptService');
-const LMStudioService = require('../services/LMStudioService');
+const ChunkedScriptService = require('../services/ChunkedScriptService');
 const ScriptParserService = require('../services/ScriptParserService');
 const AudioService = require('../services/TTS/audioService');
 const RemotionService = require('../services/RemotionService');
@@ -164,46 +163,32 @@ const worker = new Worker(
           wordsPerScene = Math.round(wordCount / sceneCount);
         }
 
-        // ── Step 2: Render prompt template
-        const prompt = PromptService.render(videoJob.type, {
-          topic: videoJob.topic,
-          language: videoJob.language,
-          sceneCount: sceneCount,
-          wordCount: wordCount,
-          wordsPerScene: wordsPerScene,
-        });
-
-        // A fixed max_tokens doesn't scale with the requested duration - a
-        // longer script gets cut off mid-JSON ("Unexpected end of JSON
-        // input") once its response would exceed the old flat 10000-token
-        // budget. Estimate the actual response size instead: ~80 tokens/
-        // scene for the surrounding JSON structure (keys, punctuation,
-        // short field values like backgroundColor/transition), plus
-        // narration at ~1.4 tokens/word. Non-podcast types repeat the
-        // narration text twice per scene (once split into scene_meta.content
-        // sentences, once whole in audio.text), roughly doubling its token
-        // cost; podcast turns only carry it once (audio.text). A 25% buffer
-        // covers the model's per-token variance, floored at the old default
-        // (so short scripts are unaffected) and capped so a runaway
-        // estimate can't request something the model can't produce anyway.
-        const narrationMultiplier = videoJob.type === 'podcast' ? 1 : 2;
-        const estimatedTokens = Math.round(
-          (sceneCount * 80 + wordCount * 1.4 * narrationMultiplier) * 1.25
-        );
-        const scriptMaxTokens = Math.min(32000, Math.max(10000, estimatedTokens));
-        // Generating more tokens takes proportionally longer on a local
-        // model - scale the request timeout with it too, capped at 10
-        // minutes of *scaling* so it never falls below whatever the user
-        // has explicitly configured (LM_STUDIO_TIMEOUT).
-        const scriptTimeout = Math.max(config.lmStudio.timeout, Math.min(600000, scriptMaxTokens * 50));
-
         await bailIfCancelled(jobId);
 
         // ── Step 3: Call LM Studio
-        const rawScript = await LMStudioService.generateScript(prompt, {
-          maxTokens: scriptMaxTokens,
-          timeout: scriptTimeout,
+        // Scene count scales directly with requested duration for every
+        // video type, so a long video can ask for far more scenes than a
+        // single local-model response reliably finishes generating before
+        // it stops mid-JSON. Generate in bounded chunks instead (see
+        // ChunkedScriptService) - each a small independent call the model
+        // can actually complete; short scripts still resolve in one call.
+        const rawScript = await ChunkedScriptService.generate({
+          videoType: videoJob.type,
+          topic: videoJob.topic,
+          language: videoJob.language,
+          sceneCount,
+          wordCount,
+          wordsPerScene,
+          jobId,
+          checkCancelled: () => bailIfCancelled(jobId),
+          onProgress: async (chunkIndex, chunkCount, scenesGenerated) => {
+            if (chunkCount <= 1) return;
+            const progress = 10 + Math.round((chunkIndex / chunkCount) * 9); // 10-19%
+            await ActivityLogService.add(jobId, `Script generation: ${scenesGenerated} scenes written (chunk ${chunkIndex}/${chunkCount})`);
+            SocketService.emitJobProgress({ _id: jobId, progress, status: JOB_STATUS.SCRIPT_GENERATION, currentStep: JOB_STATUS.SCRIPT_GENERATION, currentScene: scenesGenerated });
+          },
         });
+
         script = ScriptParserService.validate(rawScript, videoJob.type, {
           hostVoice: videoJob.hostVoice,
           guestVoice: videoJob.guestVoice,
