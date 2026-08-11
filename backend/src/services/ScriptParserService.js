@@ -48,8 +48,11 @@ class ScriptParserService {
           errors.push(`Scene ${index}: invalid sceneType "${sceneType}". Must be one of: ${ScriptParserService.VALID_SCENE_TYPES.join(', ')}`);
         }
 
-        // Only require imagePrompt for "image" scene type
-        if (sceneType === 'image' && !scene.imagePrompt) {
+        // Only require imagePrompt for "image" scene type - except podcast,
+        // where every scene is tagged "image" but they all share ONE cover
+        // image (derived below from whichever scene happens to carry it,
+        // defaulting if none do) rather than each needing its own.
+        if (sceneType === 'image' && !scene.imagePrompt && videoType !== 'podcast') {
           errors.push(`Scene ${index}: missing imagePrompt for sceneType "image"`);
         }
       });

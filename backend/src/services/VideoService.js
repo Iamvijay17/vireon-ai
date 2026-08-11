@@ -334,6 +334,63 @@ class VideoService {
   }
 
   /**
+   * Regenerate just the script step for a job that already has one (e.g.
+   * awaiting approval, or completed) - clears the existing script/render
+   * output and resets to QUEUED so the worker's `needsScriptGeneration`
+   * check (script.scenes empty, or status === QUEUED) re-runs script
+   * generation from scratch through ChunkedScriptService, picking up
+   * whatever scene-count/prompt logic is current instead of reusing the
+   * stale script already on the job. Downstream audio/render artifacts are
+   * cleared too since they're tied to the old script's scene numbers and
+   * would otherwise dangle against a script that no longer matches them.
+   */
+  static async regenerateScript(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    const terminalOrRunning = [JOB_STATUS.CANCELLED];
+    if (terminalOrRunning.includes(job.status)) {
+      throw { status: 400, message: `Job is in ${job.status} state and cannot regenerate its script.` };
+    }
+
+    const fs = require('fs').promises;
+    const path = require('path');
+    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    // Delete generated audio/render output on disk (keep nothing to resume
+    // from - a fresh script means fresh scene numbers/durations).
+    try { await fs.rm(jobDir, { recursive: true, force: true }); } catch {}
+
+    const updatedJob = await VideoJob.findByIdAndUpdate(
+      jobId,
+      {
+        $set: {
+          status: JOB_STATUS.QUEUED,
+          progress: 0,
+          currentStep: JOB_STATUS.QUEUED,
+          script: null,
+          videoUrl: '',
+          thumbnailUrl: '',
+          scriptUrl: '',
+          audioUrls: [],
+          assetsUrl: '',
+        },
+        $unset: { error: '' },
+      },
+      { new: true }
+    );
+
+    LoggerService.info('Video job script regeneration triggered', {
+      jobId,
+      previousStatus: job.status,
+      previousSceneCount: job.script?.scenes?.length || 0,
+    });
+
+    return updatedJob;
+  }
+
+  /**
    * Stop a running job. Marks it CANCELLED immediately - if the job hasn't
    * started processing yet, the caller (VideoController.stop) also removes
    * it from the BullMQ queue so it never starts. If it's already mid-flight,

@@ -282,6 +282,48 @@ class VideoController {
   }
 
   /**
+   * POST /api/videos/:id/regenerate-script - Regenerate just the script
+   * step for a job that already has one (e.g. stuck at AWAITING_APPROVAL
+   * with a truncated/bad script). Clears the existing script and any
+   * downstream audio/render output, then re-queues from script generation.
+   */
+  static async regenerateScript(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+
+      // Same "actively processing" guard as restart - rewinding the DB
+      // status underneath a live worker wouldn't cause double-processing
+      // (enqueueJob's re-add is a no-op while the old record is still
+      // locked), but it would leave misleading status in the UI until the
+      // real worker finishes and overwrites it again.
+      const existingBullJob = await videoQueue.getJob(id);
+      if (existingBullJob && (await existingBullJob.getState()) === 'active') {
+        throw { status: 400, message: 'Job is still actively being processed and cannot regenerate its script. Stop it first if it appears stuck.' };
+      }
+
+      const job = await VideoService.regenerateScript(id);
+      await ActivityLogService.add(id, 'Script regeneration requested');
+
+      SocketService.emitJobCreated(job);
+
+      await enqueueJob(job._id.toString());
+
+      LoggerService.info('Video job script regeneration queued', {
+        jobId: job._id,
+        queue: 'video-rendering',
+      });
+
+      res.json({
+        jobId: job._id,
+        status: job.status,
+        progress: job.progress,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * POST /api/videos/:id/stop - Stop a running job. Marks it CANCELLED and
    * removes it from BullMQ if it hasn't started processing yet. A job that's
    * already actively running can't be removed from the queue mid-flight -
