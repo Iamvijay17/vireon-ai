@@ -2,7 +2,26 @@ const VideoJob = require('../models/VideoJob');
 const LoggerService = require('./LoggerService');
 const ActivityLogService = require('./ActivityLogService');
 const AudioService = require('./TTS/audioService');
-const { JOB_STATUS, getAspectRatioForResolution } = require('../constants');
+const {
+  JOB_STATUS,
+  getAspectRatioForResolution,
+  STANDALONE_VIDEO_DURATIONS,
+  SHORTS_VIDEO_DURATIONS,
+} = require('../constants');
+
+// A job actively being worked on by the worker can't have its details
+// edited underneath it - the same "actively processing" concern as
+// restart/regenerateScript, but for every processing stage rather than just
+// the active-BullMQ-lock check (editing during a paused stage like
+// AWAITING_APPROVAL or AUDIO_COMPLETED is fine and expected).
+const BUSY_STATUSES = [
+  JOB_STATUS.SCRIPT_GENERATION,
+  JOB_STATUS.GENERATING_AUDIO,
+  JOB_STATUS.GENERATING_IMAGES,
+  JOB_STATUS.PREPARING_ASSETS,
+  JOB_STATUS.RENDERING,
+  JOB_STATUS.UPLOADING,
+];
 
 /**
  * Service for managing video jobs.
@@ -99,6 +118,54 @@ class VideoService {
 
     LoggerService.info('Video job deleted', { jobId });
     return { message: 'Job deleted successfully' };
+  }
+
+  /**
+   * Update editable job details (topic, duration, language, voice(s),
+   * names, resolution). Doesn't touch anything already generated - the
+   * caller should regenerate the relevant stage afterward if they want it
+   * to reflect the new values, same as course videos' edit modal.
+   */
+  static async update(jobId, updates) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    if (BUSY_STATUSES.includes(job.status)) {
+      throw { status: 400, message: `Job is actively processing (${job.status}) and can't be edited right now.` };
+    }
+
+    // `type` isn't editable, so duration/resolution are re-validated against
+    // the job's existing type - mirrors createVideoSchema's superRefine.
+    const duration = updates.duration ?? job.duration;
+    const resolution = updates.resolution ?? job.resolution;
+    if (job.type === 'youtube_shorts') {
+      if (!SHORTS_VIDEO_DURATIONS.includes(duration)) {
+        throw { status: 400, message: `YouTube Shorts duration must be one of: ${SHORTS_VIDEO_DURATIONS.join(', ')}` };
+      }
+      if (getAspectRatioForResolution(resolution) !== '9:16') {
+        throw { status: 400, message: 'YouTube Shorts must use a vertical resolution' };
+      }
+    } else if (!STANDALONE_VIDEO_DURATIONS.includes(duration)) {
+      throw { status: 400, message: `Duration must be one of: ${STANDALONE_VIDEO_DURATIONS.join(', ')}` };
+    }
+
+    if (job.type === 'podcast') {
+      const hostVoice = updates.hostVoice ?? job.hostVoice;
+      const guestVoice = updates.guestVoice ?? job.guestVoice;
+      if (!hostVoice) throw { status: 400, message: 'Host voice is required for podcast videos' };
+      if (!guestVoice) throw { status: 400, message: 'Guest voice is required for podcast videos' };
+    }
+
+    Object.assign(job, updates);
+    job.duration = duration;
+    job.resolution = resolution;
+    job.aspectRatio = getAspectRatioForResolution(resolution);
+    await job.save();
+
+    LoggerService.info('Video job details updated', { jobId, fields: Object.keys(updates) });
+    return job;
   }
 
   /**

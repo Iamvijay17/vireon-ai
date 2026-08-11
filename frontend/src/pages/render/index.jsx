@@ -19,16 +19,21 @@ import {
   Pencil,
   Copy,
   RotateCw,
+  Settings2,
 } from "lucide-react";
 import {
   getVideoJob,
+  updateVideoJob,
   restartVideoJob,
   regenerateVideoJobScript,
   rerenderVideoJob,
   stopVideoJob,
+  generateVideoAudio,
+  generateVideoRender,
   regenerateVideoSceneAudio,
   resolveMediaUrl,
   getVideoJobActivityLogs,
+  getVoices,
 } from "../../services/api";
 import {
   connect,
@@ -57,6 +62,11 @@ import { CircularProgress } from "../../components/ui/CircularProgress";
 import { AudioPlayer } from "../../components/ui/AudioPlayer";
 import { Tooltip } from "../../components/ui/Tooltip";
 import { Spinner } from "../../components/ui/Spinner";
+import { Modal } from "../../components/ui/Modal";
+import { Select } from "../../components/ui/Select";
+import { VoiceSelect } from "../../components/ui/VoiceSelect";
+import { Textarea, Label, FieldHint } from "../../components/ui/Input";
+import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 import { isPortraitResolution } from "../../shared/resolution";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
@@ -75,6 +85,55 @@ const PIPELINE_STEPS = [
 
 const STEP_ORDER = PIPELINE_STEPS.map((s) => s.status);
 
+// A job actively being worked on by the worker can't have its details
+// edited or a stage re-triggered underneath it - matches the backend's
+// BUSY_STATUSES gate in VideoService.update.
+const BUSY_STATUSES = [
+  "SCRIPT_GENERATION",
+  "GENERATING_AUDIO",
+  "GENERATING_IMAGES",
+  "PREPARING_ASSETS",
+  "RENDERING",
+  "UPLOADING",
+];
+
+const DURATIONS = [
+  { value: 5, label: "5 minutes" },
+  { value: 8, label: "8 minutes" },
+  { value: 10, label: "10 minutes" },
+  { value: 15, label: "15 minutes" },
+  { value: 20, label: "20 minutes" },
+  { value: 25, label: "25 minutes" },
+  { value: 30, label: "30 minutes" },
+];
+
+const SHORTS_DURATIONS = [
+  { value: 1, label: "1 minute" },
+  { value: 2, label: "2 minutes" },
+  { value: 3, label: "3 minutes" },
+];
+
+const RESOLUTIONS = [
+  { value: "1920x1080", label: "1080p (1920x1080)" },
+  { value: "1080x1920", label: "1080p Vertical (1080x1920)" },
+  { value: "1280x720", label: "720p (1280x720)" },
+  { value: "720x1280", label: "720p Vertical (720x1280)" },
+  { value: "3840x2160", label: "4K (3840x2160)" },
+  { value: "2160x3840", label: "4K Vertical (2160x3840)" },
+];
+
+const VERTICAL_RESOLUTIONS = RESOLUTIONS.filter((r) => {
+  const [width, height] = r.value.split("x").map(Number);
+  return height > width;
+});
+
+const LANGUAGES = [{ value: "english", label: "English" }];
+
+const FALLBACK_VOICES = [
+  { value: "female-1", label: "Female Voice 1" },
+  { value: "male-1", label: "Male Voice 1" },
+];
+
 const RenderPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -87,9 +146,17 @@ const RenderPage = () => {
   const [regenerateScriptLoading, setRegenerateScriptLoading] = useState(false);
   const [rerenderLoading, setRerenderLoading] = useState(false);
   const [stopLoading, setStopLoading] = useState(false);
+  const [generateAudioLoading, setGenerateAudioLoading] = useState(false);
+  const [generateRenderLoading, setGenerateRenderLoading] = useState(false);
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
   const [copied, setCopied] = useState(false);
   const [activityLog, setActivityLog] = useState([]);
+  const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState("");
+  const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
   const unsubscribesRef = useRef([]);
   const videoRef = useRef(null);
@@ -262,6 +329,93 @@ const RenderPage = () => {
     }
   };
 
+  const handleGenerateAudio = async () => {
+    if (!jobId) return;
+    try {
+      setGenerateAudioLoading(true);
+      await generateVideoAudio(jobId);
+      toast.success("Audio generation started");
+      fetchJob();
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to generate audio");
+    } finally {
+      setGenerateAudioLoading(false);
+    }
+  };
+
+  const handleGenerateRender = async () => {
+    if (!jobId) return;
+    try {
+      setGenerateRenderLoading(true);
+      await generateVideoRender(jobId);
+      toast.success("Render started");
+      fetchJob();
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to start render");
+    } finally {
+      setGenerateRenderLoading(false);
+    }
+  };
+
+  const openEditModal = () => {
+    if (!job) return;
+    setEditForm({
+      topic: job.topic || "",
+      duration: job.duration,
+      language: job.language || "english",
+      resolution: job.resolution || "1920x1080",
+      voice: job.voice || "",
+      hostVoice: job.hostVoice || "",
+      guestVoice: job.guestVoice || "",
+      hostName: job.hostName || "",
+      guestName: job.guestName || "",
+    });
+    setEditError("");
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!jobId || !editForm) return;
+    if (!editForm.topic.trim() || editForm.topic.trim().length < 3) {
+      setEditError("Topic must be at least 3 characters");
+      return;
+    }
+    if (job?.type === "podcast" && (!editForm.hostVoice || !editForm.guestVoice)) {
+      setEditError("Host and guest voice are both required for podcasts");
+      return;
+    }
+    try {
+      setEditSubmitting(true);
+      const payload =
+        job?.type === "podcast"
+          ? {
+              topic: editForm.topic.trim(),
+              duration: editForm.duration,
+              language: editForm.language,
+              resolution: editForm.resolution,
+              hostVoice: editForm.hostVoice,
+              guestVoice: editForm.guestVoice,
+              hostName: editForm.hostName,
+              guestName: editForm.guestName,
+            }
+          : {
+              topic: editForm.topic.trim(),
+              duration: editForm.duration,
+              language: editForm.language,
+              resolution: editForm.resolution,
+              voice: editForm.voice,
+            };
+      await updateVideoJob(jobId, payload);
+      toast.success("Job details updated");
+      setEditModalOpen(false);
+      fetchJob();
+    } catch (err) {
+      setEditError(err.friendlyMessage || "Failed to update job details");
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   const cleanup = useCallback(() => {
     unsubscribesRef.current.forEach((unsubscribe) => unsubscribe && unsubscribe());
     unsubscribesRef.current = [];
@@ -371,6 +525,20 @@ const RenderPage = () => {
     };
   }, [jobId, fetchJob, fetchActivityLogs, setupListeners]);
 
+  useEffect(() => {
+    let cancelled = false;
+    getVoices()
+      .then((res) => {
+        if (!cancelled) setVoiceCatalog(res.data || { custom: [], clone: [] });
+      })
+      .catch(() => {
+        // Keep FALLBACK_VOICES if the catalog can't be loaded.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (!jobId) return <RenderQueue />;
 
   if (loading) return <LoadingState label="Loading job details..." />;
@@ -409,6 +577,54 @@ const RenderPage = () => {
   // (removes it from the queue before it ever starts).
   const canStop = isActive;
 
+  const isBusy = BUSY_STATUSES.includes(job?.status);
+  const canEditDetails = Boolean(job) && !isBusy;
+  const editDisabledReason = isBusy ? `Job is actively processing (${job.status.replace(/_/g, " ").toLowerCase()}) - wait for it to finish or pause.` : undefined;
+
+  // Per-stage pipeline actions, always shown (disabled + a reason when not
+  // eligible) rather than appearing/disappearing, so the whole flow reads
+  // clearly top to bottom - mirrors the course-video pipeline's per-stage
+  // buttons.
+  const canRegenerateScript = hasScript && !isActive && !isCancelled;
+  const scriptStageReason = !hasScript
+    ? "The script hasn't been generated yet"
+    : !canRegenerateScript
+    ? isCancelled
+      ? "Job was stopped - use Restart Job instead"
+      : "Job is currently active"
+    : undefined;
+
+  const approvalStageReason = showReviewScript
+    ? undefined
+    : !hasScript
+    ? "No script to review yet"
+    : STEP_ORDER.indexOf(job?.status) > STEP_ORDER.indexOf("AWAITING_APPROVAL")
+    ? "Already approved"
+    : "Not ready for review yet";
+
+  const audioStageReason = job?.fastGeneration
+    ? "Runs automatically after approval (Fast Generation is on)"
+    : showGenerateAudio
+    ? undefined
+    : job?.status === "AUDIO_COMPLETED" || STEP_ORDER.indexOf(job?.status) > STEP_ORDER.indexOf("AUDIO_COMPLETED")
+    ? "Audio already generated - regenerate individual scenes below"
+    : "Approve the script first";
+
+  const canReRenderComplete = isComplete;
+  const renderStageReason = job?.fastGeneration
+    ? "Runs automatically after approval (Fast Generation is on)"
+    : showGenerateRender
+    ? undefined
+    : canReRenderComplete
+    ? undefined
+    : "Generate audio first";
+
+  const voiceOptions = [
+    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom", previewUrl: v.previewUrl })),
+    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
+  ];
+  if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
+
   const copyJobId = async () => {
     await navigator.clipboard.writeText(job?._id || "");
     setCopied(true);
@@ -445,6 +661,16 @@ const RenderPage = () => {
         <Button variant="secondary" icon={<RefreshCw className="size-4" />} loading={loading} onClick={fetchJob}>
           Refresh
         </Button>
+        <Tooltip content={editDisabledReason || "Edit topic, duration, language, voice, or resolution"}>
+          <Button variant="secondary" icon={<Settings2 className="size-4" />} disabled={!canEditDetails} onClick={openEditModal}>
+            Edit Details
+          </Button>
+        </Tooltip>
+        {(showGenericStudio || isComplete) && (
+          <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
+            {isComplete ? "Studio Editor" : "Open Studio"}
+          </Button>
+        )}
         {(isFailed || canRestartCancelled) && (
           <Button variant="danger" icon={<Redo2 className="size-4" />} loading={restartLoading} onClick={() => handleRestart(false)}>
             Restart Job
@@ -460,41 +686,6 @@ const RenderPage = () => {
             Stop
           </Button>
         )}
-        {hasScript && !isActive && !isCancelled && (
-          <Button variant="secondary" icon={<RotateCw className="size-4" />} loading={regenerateScriptLoading} onClick={handleRegenerateScript}>
-            Regenerate Script
-          </Button>
-        )}
-        {showReviewScript && (
-          <Button variant="primary" icon={<Pencil className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
-            Review Script
-          </Button>
-        )}
-        {showGenerateAudio && (
-          <Button variant="primary" icon={<AudioLines className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
-            Generate Audio
-          </Button>
-        )}
-        {showGenerateRender && (
-          <Button variant="primary" icon={<Video className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
-            Generate Render
-          </Button>
-        )}
-        {showGenericStudio && (
-          <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
-            Studio
-          </Button>
-        )}
-        {isComplete && (
-          <>
-            <Button variant="primary" icon={<Pencil className="size-4" />} onClick={() => navigate(`/studio?id=${jobId}`)}>
-              Studio Editor
-            </Button>
-            <Button variant="primary" icon={<Redo2 className="size-4" />} loading={rerenderLoading} onClick={handleRerender}>
-              Re-render
-            </Button>
-          </>
-        )}
       </div>
 
       <div className="mb-5 flex flex-wrap items-center gap-3">
@@ -504,6 +695,65 @@ const RenderPage = () => {
           {socketLabel[socketStatus]}
         </span>
       </div>
+
+      {/* Pipeline Actions - one clearly-labeled button per stage, always
+          visible so the whole flow is scannable at a glance; disabled with a
+          tooltip explaining why when a stage isn't reachable yet. */}
+      <Card className="mb-5 animate-slide-up p-5">
+        <h3 className="mb-4 text-[13px] font-semibold text-text-primary">Pipeline Actions</h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Tooltip className="w-full" content={scriptStageReason || "Throws away the current script and regenerates it from scratch"}>
+            <Button
+              className="w-full"
+              variant="secondary"
+              icon={<RotateCw className="size-4" />}
+              loading={regenerateScriptLoading}
+              disabled={!canRegenerateScript}
+              onClick={handleRegenerateScript}
+            >
+              {hasScript ? "Regenerate Script" : "Generate Script"}
+            </Button>
+          </Tooltip>
+
+          <Tooltip className="w-full" content={approvalStageReason || "Review the generated script and approve it to continue"}>
+            <Button
+              className="w-full"
+              variant={showReviewScript ? "primary" : "secondary"}
+              icon={<Pencil className="size-4" />}
+              disabled={!showReviewScript}
+              onClick={() => navigate(`/studio?id=${jobId}`)}
+            >
+              Review & Approve
+            </Button>
+          </Tooltip>
+
+          <Tooltip className="w-full" content={audioStageReason || "Generate audio for every scene"}>
+            <Button
+              className="w-full"
+              variant={showGenerateAudio ? "primary" : "secondary"}
+              icon={<AudioLines className="size-4" />}
+              loading={generateAudioLoading}
+              disabled={!showGenerateAudio}
+              onClick={handleGenerateAudio}
+            >
+              Generate Audio
+            </Button>
+          </Tooltip>
+
+          <Tooltip className="w-full" content={renderStageReason || (showGenerateRender ? "Generate images and render the final video" : "Re-run rendering and upload")}>
+            <Button
+              className="w-full"
+              variant={showGenerateRender || canReRenderComplete ? "primary" : "secondary"}
+              icon={<Video className="size-4" />}
+              loading={generateRenderLoading || rerenderLoading}
+              disabled={!showGenerateRender && !canReRenderComplete}
+              onClick={showGenerateRender ? handleGenerateRender : handleRerender}
+            >
+              {showGenerateRender ? "Generate Render" : "Re-render"}
+            </Button>
+          </Tooltip>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         {/* Left Column - primary progress + output */}
@@ -705,6 +955,102 @@ const RenderPage = () => {
           </Card>
         </div>
       </div>
+
+      <Modal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title="Edit Video Details"
+        width="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setEditModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" loading={editSubmitting} onClick={handleSaveEdit}>
+              Save Changes
+            </Button>
+          </>
+        }
+      >
+        {editForm && (
+          <div className="space-y-4">
+            <div>
+              <Label required>Topic</Label>
+              <Textarea
+                rows={2}
+                value={editForm.topic}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, topic: e.target.value }))}
+                error={Boolean(editError) && editForm.topic.trim().length < 3}
+              />
+            </div>
+            {editError && <p className="text-xs text-danger-500">{editError}</p>}
+            <FieldHint>
+              Changing these fields won't touch an already-generated script, audio, or render - regenerate the
+              relevant stage afterward if you want it to reflect the new values.
+            </FieldHint>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Duration</Label>
+                <Select
+                  options={job?.type === "youtube_shorts" ? SHORTS_DURATIONS : DURATIONS}
+                  value={editForm.duration}
+                  onChange={(v) => setEditForm((prev) => ({ ...prev, duration: v }))}
+                />
+              </div>
+              <div>
+                <Label>Resolution</Label>
+                <Select
+                  options={job?.type === "youtube_shorts" ? VERTICAL_RESOLUTIONS : RESOLUTIONS}
+                  value={editForm.resolution}
+                  onChange={(v) => setEditForm((prev) => ({ ...prev, resolution: v }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Language</Label>
+              <Select options={LANGUAGES} value={editForm.language} onChange={(v) => setEditForm((prev) => ({ ...prev, language: v }))} />
+            </div>
+
+            {job?.type === "podcast" ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label required>Host Voice</Label>
+                  <VoiceSelect
+                    options={voiceOptions}
+                    value={editForm.hostVoice}
+                    onChange={(v) => setEditForm((prev) => ({ ...prev, hostVoice: v }))}
+                    isFavorite={isFavorite}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                </div>
+                <div>
+                  <Label required>Guest Voice</Label>
+                  <VoiceSelect
+                    options={voiceOptions}
+                    value={editForm.guestVoice}
+                    onChange={(v) => setEditForm((prev) => ({ ...prev, guestVoice: v }))}
+                    isFavorite={isFavorite}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <Label>Voice</Label>
+                <VoiceSelect
+                  options={voiceOptions}
+                  value={editForm.voice}
+                  onChange={(v) => setEditForm((prev) => ({ ...prev, voice: v }))}
+                  isFavorite={isFavorite}
+                  onToggleFavorite={toggleFavorite}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

@@ -3,7 +3,7 @@ const ActivityLogService = require('../services/ActivityLogService');
 const videoQueue = require('../queues/videoQueue');
 const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
-const { validate, createVideoSchema, jobIdSchema } = require('../validators');
+const { validate, createVideoSchema, updateVideoJobSchema, jobIdSchema } = require('../validators');
 
 /**
  * (Re-)enqueue a job for the worker, always under a BullMQ jobId matching
@@ -88,6 +88,26 @@ class VideoController {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
       const job = await VideoService.getById(id);
+      res.json({ job });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * PUT /api/videos/:id - Update editable job details (topic, duration,
+   * language, voice(s), names, resolution). Blocked while the job is
+   * actively processing - see VideoService.update.
+   */
+  static async update(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const data = validate(updateVideoJobSchema)(req.body);
+      const job = await VideoService.update(id, data);
+      await ActivityLogService.add(id, 'Job details updated');
+
+      SocketService.emitJobCreated(job);
+
       res.json({ job });
     } catch (err) {
       next(err);

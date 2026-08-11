@@ -8,6 +8,7 @@ const router = Router();
 router.post('/', authenticate, VideoController.create);
 router.get('/', authenticate, VideoController.list);
 router.get('/:id', authenticate, VideoController.getById);
+router.put('/:id', authenticate, VideoController.update);
 router.delete('/:id', authenticate, VideoController.delete);
 router.post('/:id/restart', authenticate, VideoController.restart);
 router.post('/:id/regenerate-script', authenticate, VideoController.regenerateScript);

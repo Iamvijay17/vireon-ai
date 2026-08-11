@@ -64,6 +64,24 @@ const createVideoSchema = z
     }
   });
 
+// Editing an existing job - same field shapes as createVideoSchema but all
+// optional (only changed fields need to be sent), and `type` isn't editable
+// (duration/resolution's valid ranges are keyed off it - VideoService.update
+// re-validates duration/resolution against the job's existing type).
+const updateVideoJobSchema = z
+  .object({
+    topic: z.string().min(3).max(500).trim().optional(),
+    language: z.enum(LANGUAGES).optional(),
+    duration: z.number().optional(),
+    voice: z.string().min(1).max(200).optional(),
+    hostVoice: z.string().max(200).optional(),
+    guestVoice: z.string().max(200).optional(),
+    hostName: z.string().max(80).trim().optional(),
+    guestName: z.string().max(80).trim().optional(),
+    resolution: z.enum(RESOLUTIONS).optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'No fields provided to update' });
+
 const jobIdSchema = z.object({
   id: z.string().regex(/^job-[0-9A-Z]{8}$/, 'Invalid video job id'),
 });
@@ -93,6 +111,7 @@ const validate = (schema) => (data) => {
 
 module.exports = {
   createVideoSchema,
+  updateVideoJobSchema,
   jobIdSchema,
   idSchema,
   idArraySchema,

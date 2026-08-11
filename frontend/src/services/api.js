@@ -55,6 +55,8 @@ export const getVideoJobs = (page = 1, limit = 20, filters = {}) =>
 
 export const getVideoJob = (id) => api.get(`/api/videos/${id}`);
 
+export const updateVideoJob = (id, data) => api.put(`/api/videos/${id}`, data);
+
 export const deleteVideoJob = (id) => api.delete(`/api/videos/${id}`);
 
 export const restartVideoJob = (id) => api.post(`/api/videos/${id}/restart`);
