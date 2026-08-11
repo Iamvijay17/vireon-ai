@@ -59,6 +59,8 @@ export const deleteVideoJob = (id) => api.delete(`/api/videos/${id}`);
 
 export const restartVideoJob = (id) => api.post(`/api/videos/${id}/restart`);
 
+export const regenerateVideoJobScript = (id) => api.post(`/api/videos/${id}/regenerate-script`);
+
 export const approveVideoJob = (id) => api.post(`/api/videos/${id}/approve`);
 
 // Manual mode only (fastGeneration: false) - each is a separate explicit

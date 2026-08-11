@@ -23,6 +23,7 @@ import {
 import {
   getVideoJob,
   restartVideoJob,
+  regenerateVideoJobScript,
   rerenderVideoJob,
   stopVideoJob,
   regenerateVideoSceneAudio,
@@ -83,6 +84,7 @@ const RenderPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [restartLoading, setRestartLoading] = useState(false);
+  const [regenerateScriptLoading, setRegenerateScriptLoading] = useState(false);
   const [rerenderLoading, setRerenderLoading] = useState(false);
   const [stopLoading, setStopLoading] = useState(false);
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
@@ -222,6 +224,28 @@ const RenderPage = () => {
       toast.error(err.friendlyMessage || `Failed to regenerate scene ${sceneNumber}`);
     } finally {
       setRegeneratingScene(null);
+    }
+  };
+
+  const handleRegenerateScript = async () => {
+    if (!jobId) return;
+    const ok = await confirmDialog({
+      title: "Regenerate script?",
+      content:
+        "This throws away the current script and any generated audio/render output, then re-generates the script from scratch. This can't be undone.",
+      confirmText: "Regenerate Script",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      setRegenerateScriptLoading(true);
+      await regenerateVideoJobScript(jobId);
+      toast.success("Script regeneration started");
+      navigate(`/render?id=${jobId}`);
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to regenerate script");
+    } finally {
+      setRegenerateScriptLoading(false);
     }
   };
 
@@ -434,6 +458,11 @@ const RenderPage = () => {
         {canStop && (
           <Button variant="danger" icon={<Square className="size-4" />} loading={stopLoading} onClick={handleStop}>
             Stop
+          </Button>
+        )}
+        {hasScript && !isActive && !isCancelled && (
+          <Button variant="secondary" icon={<RotateCw className="size-4" />} loading={regenerateScriptLoading} onClick={handleRegenerateScript}>
+            Regenerate Script
           </Button>
         )}
         {showReviewScript && (
