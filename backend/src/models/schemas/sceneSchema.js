@@ -31,6 +31,12 @@ const sceneSchema = new mongoose.Schema(
       file: { type: String, default: '' },
       duration: { type: Number, default: 0 },
       voice: { type: String, default: '' },
+      // Short delivery/emotion direction for this line (e.g. "wry and
+      // relatable, then a flash of genuine nervousness on 'terrifying'"),
+      // written by the script LLM since it's the one that knows the line's
+      // intended tone. Fed into Qwen3-TTS's instruct param - see
+      // AudioService._instructFor.
+      emotion: { type: String, default: '' },
       // Real per-word timestamps from forced alignment (AudioService._alignCaptions),
       // null when alignment wasn't run or failed - see CaptionRenderer's estimated-pace fallback.
       captionTimestamps: { type: mongoose.Schema.Types.Mixed, default: null },

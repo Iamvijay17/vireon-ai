@@ -217,13 +217,33 @@ class AudioService {
    * reacting to one another.
    */
   static _instructFor(scene) {
+    // A line can carry more than one emotion in a single breath (self-aware
+    // humor sliding into real nervousness, then curiosity) - no fixed
+    // per-role string captures that. The script LLM writes the line and
+    // already knows its intended emotional arc, so prefer its own
+    // scene.audio.emotion note (e.g. "wry and relatable at first, a flash
+    // of genuine nervousness on 'terrifying', landing on sincere
+    // curiosity") over a generic role-based default.
+    const emotion = scene?.audio?.emotion?.trim();
+
     if (scene?.speaker === "host") {
-      return "Speak like a podcast host in a live conversation with a guest: warm, curious, reacting naturally to what was just said.";
+      return emotion
+        ? `Speak like a podcast host in a live conversation with a guest, with this delivery: ${emotion}`
+        : "Speak like a podcast host in a live conversation with a guest: warm, curious, reacting naturally to what was just said.";
     }
     if (scene?.speaker === "guest") {
-      return "Speak like a podcast guest responding to the host in a live conversation: natural, engaged, as if genuinely replying to their question.";
+      return emotion
+        ? `Speak like a podcast guest responding to the host in a live conversation, with this delivery: ${emotion}`
+        : "Speak like a podcast guest responding to the host in a live conversation: natural, engaged, as if genuinely replying to their question.";
     }
-    return "";
+    if (emotion) {
+      return `Speak naturally like a human narrator, with this delivery: ${emotion}`;
+    }
+    // Default narrator delivery for non-podcast scenes. Without this the
+    // Qwen3-TTS custom-voice endpoint gets an empty instruct and falls back
+    // to a flat, monotone read-the-text-aloud delivery instead of sounding
+    // like a human narrator.
+    return "Speak naturally and expressively like a human narrator telling a story: vary your pitch, pace and emphasis, add warmth and emotion that fits the content, and avoid a flat monotone reading.";
   }
 
   static async _generateClone(client, resolved, text, seed) {

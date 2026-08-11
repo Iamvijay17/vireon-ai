@@ -166,6 +166,7 @@ class ScriptParserService {
           file: '',
           duration: 0, // No duration until audio is generated
           voice: resolvedVoice,
+          emotion: scene.audio?.emotion || scene.emotion || '',
         },
       };
     });
