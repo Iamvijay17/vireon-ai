@@ -4,6 +4,7 @@ import AppSidebar from "./sidebar";
 import AppNavbar from "./navbar";
 import Breadcrumbs from "./Breadcrumbs";
 import CommandPalette from "./CommandPalette";
+import LogDrawer from "../components/LogDrawer";
 import { LoadingState } from "../components";
 import { cn } from "../components/ui/cn";
 import { SidebarContext } from "../shared/sidebarContextValue";
@@ -83,6 +84,9 @@ const AppLayout = () => {
           Vireon AI &copy; {new Date().getFullYear()} &mdash; Built with precision
         </footer>
       </div>
+
+      {/* Right-edge hover-to-expand live logs drawer (available on every page) */}
+      <LogDrawer />
     </div>
   );
 };
