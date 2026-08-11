@@ -28,6 +28,10 @@ const createVideoSchema = z
     // require min(1) - the superRefine below enforces it for podcast only.
     hostVoice: z.string().max(200).optional(),
     guestVoice: z.string().max(200).optional(),
+    // Optional display names for the podcast host/guest - falls back to
+    // "Host"/"Guest" server-side when left blank (see ScriptParserService).
+    hostName: z.string().max(80).trim().optional(),
+    guestName: z.string().max(80).trim().optional(),
     // Aspect ratio isn't independently selectable - it's fully implied by
     // resolution (see getAspectRatioForResolution), derived server-side.
     // youtube_shorts is further restricted to vertical (9:16) resolutions

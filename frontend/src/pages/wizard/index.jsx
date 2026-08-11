@@ -18,7 +18,7 @@ import { Button } from "../../components/ui/Button";
 import { Steps } from "../../components/ui/Steps";
 import { Select } from "../../components/ui/Select";
 import { VoiceSelect } from "../../components/ui/VoiceSelect";
-import { Textarea, Label, FieldHint } from "../../components/ui/Input";
+import { Input, Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { Badge } from "../../components/ui/Badge";
 import { Switch } from "../../components/ui/Switch";
 import { toast } from "../../components/ui/toastBus";
@@ -69,28 +69,45 @@ const PODCAST_VOICE_PAIRS = [
     label: "Radio Host & Conversational",
     hostVoice: "clone:matt-dramatic-radio-podcast-host.mp3",
     guestVoice: "clone:eliza-conversational-podcast-host.mp3",
+    hostName: "Matt",
+    guestName: "Eliza",
   },
   {
     label: "Deep & Energetic",
     hostVoice: "clone:morgan-deep-powerful-and-confident.mp3",
     guestVoice: "clone:hope-vibrant-warm-and-innocent.mp3",
+    hostName: "Morgan",
+    guestName: "Hope",
   },
   {
     label: "Warm & Professional",
     hostVoice: "clone:chris-charismatic-warm-confident.mp3",
     guestVoice: "clone:victoria-warm-trustworthy-and-relatable.mp3",
+    hostName: "Chris",
+    guestName: "Victoria",
   },
   {
     label: "British Duo",
     hostVoice: "clone:nathaniel-engaging-british-and-calm.mp3",
     guestVoice: "clone:tamsin-engaging-british-storyteller-and-narrator.mp3",
+    hostName: "Nathaniel",
+    guestName: "Tamsin",
   },
   {
     label: "Storyteller & Mystery",
     hostVoice: "clone:william-deep-engaging-storyteller.mp3",
     guestVoice: "clone:valory-mysterious-calm-and-natural.mp3",
+    hostName: "William",
+    guestName: "Valory",
   },
 ];
+
+// Best-effort first name from a voice's catalog label - custom presets are
+// already a bare first name (e.g. "Aiden"), clone voices are titleized from
+// a "name-descriptive-words.ext" filename (e.g. "Matt Dramatic Radio
+// Podcast Host") so the first word is the name. Used to pre-fill the
+// Host/Guest name fields when a voice is picked without a Quick Pair.
+const deriveNameFromVoiceLabel = (label) => (label || "").trim().split(/\s+/)[0] || "";
 
 const DURATIONS = [
   { value: 5, label: "5 minutes" },
@@ -125,6 +142,8 @@ const DEFAULT_VALUES = {
   voice: "female-1",
   hostVoice: "",
   guestVoice: "",
+  hostName: "",
+  guestName: "",
   resolution: "1920x1080",
   fastGeneration: false,
 };
@@ -348,8 +367,13 @@ const Wizard = () => {
                                 key={pair.label}
                                 type="button"
                                 onClick={() => {
-                                  setField("hostVoice", pair.hostVoice);
-                                  setField("guestVoice", pair.guestVoice);
+                                  setValues((prev) => ({
+                                    ...prev,
+                                    hostVoice: pair.hostVoice,
+                                    guestVoice: pair.guestVoice,
+                                    hostName: pair.hostName,
+                                    guestName: pair.guestName,
+                                  }));
                                 }}
                                 className={cn(
                                   "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
@@ -369,35 +393,71 @@ const Wizard = () => {
                       </div>
                     )}
 
-                    <div className="mb-5">
-                      <Label required>Host Voice</Label>
-                      <VoiceSelect
-                        placeholder="Select host voice"
-                        options={voiceOptions}
-                        value={values.hostVoice}
-                        onChange={(v) => setField("hostVoice", v)}
-                        error={Boolean(errors.hostVoice)}
-                        isFavorite={isFavorite}
-                        onToggleFavorite={toggleFavorite}
-                      />
-                      <FieldHint error={Boolean(errors.hostVoice)}>{errors.hostVoice}</FieldHint>
+                    <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                      <div>
+                        <Label required>Host Voice</Label>
+                        <VoiceSelect
+                          placeholder="Select host voice"
+                          options={voiceOptions}
+                          value={values.hostVoice}
+                          onChange={(v) => {
+                            setValues((prev) => ({
+                              ...prev,
+                              hostVoice: v,
+                              // Only auto-fill if the user hasn't typed their own name yet.
+                              hostName: prev.hostName ? prev.hostName : deriveNameFromVoiceLabel(voiceOptions.find((o) => o.value === v)?.label),
+                            }));
+                          }}
+                          error={Boolean(errors.hostVoice)}
+                          isFavorite={isFavorite}
+                          onToggleFavorite={toggleFavorite}
+                        />
+                        <FieldHint error={Boolean(errors.hostVoice)}>{errors.hostVoice}</FieldHint>
+                      </div>
+                      <div>
+                        <Label>Host Name</Label>
+                        <Input
+                          placeholder="e.g. Alex"
+                          maxLength={80}
+                          value={values.hostName}
+                          onChange={(e) => setField("hostName", e.target.value)}
+                        />
+                      </div>
                     </div>
 
-                    <div className="mb-5">
-                      <Label required>Guest Voice</Label>
-                      <VoiceSelect
-                        placeholder="Select guest voice"
-                        options={voiceOptions}
-                        value={values.guestVoice}
-                        onChange={(v) => setField("guestVoice", v)}
-                        error={Boolean(errors.guestVoice)}
-                        isFavorite={isFavorite}
-                        onToggleFavorite={toggleFavorite}
-                      />
-                      <FieldHint error={Boolean(errors.guestVoice)}>
-                        The host and guest take turns in the conversation, each with their own voice.
-                      </FieldHint>
+                    <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                      <div>
+                        <Label required>Guest Voice</Label>
+                        <VoiceSelect
+                          placeholder="Select guest voice"
+                          options={voiceOptions}
+                          value={values.guestVoice}
+                          onChange={(v) => {
+                            setValues((prev) => ({
+                              ...prev,
+                              guestVoice: v,
+                              guestName: prev.guestName ? prev.guestName : deriveNameFromVoiceLabel(voiceOptions.find((o) => o.value === v)?.label),
+                            }));
+                          }}
+                          error={Boolean(errors.guestVoice)}
+                          isFavorite={isFavorite}
+                          onToggleFavorite={toggleFavorite}
+                        />
+                        <FieldHint error={Boolean(errors.guestVoice)}>{errors.guestVoice}</FieldHint>
+                      </div>
+                      <div>
+                        <Label>Guest Name</Label>
+                        <Input
+                          placeholder="e.g. Jordan"
+                          maxLength={80}
+                          value={values.guestName}
+                          onChange={(e) => setField("guestName", e.target.value)}
+                        />
+                      </div>
                     </div>
+                    <FieldHint>
+                      The host and guest take turns in the conversation, each with their own voice - and now their own name, shown on screen and used in the dialogue.
+                    </FieldHint>
                   </>
                 ) : (
                   <div className="mb-5">

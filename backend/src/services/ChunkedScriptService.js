@@ -19,7 +19,11 @@ const MIN_CHUNK_SCENES = 3;
 const MAX_CHUNK_SCENES = 30;
 
 const CLOSING_INSTRUCTIONS = {
-  podcast: "the last scene is the Host's closing/outro line, wrapping up the whole conversation",
+  // Podcast closing instruction needs the resolved host display name baked
+  // in, so this one is a function instead of a plain string - see the
+  // `typeof === 'function'` branches below wherever CLOSING_INSTRUCTIONS is
+  // read.
+  podcast: (hostName) => `the last scene is ${hostName}'s closing/outro line, wrapping up the whole conversation`,
   educational: 'End with a concise summary or key takeaway',
   marketing: 'End with a strong call-to-action and urgency',
   story: 'End with a satisfying resolution or thought-provoking conclusion',
@@ -52,16 +56,21 @@ class ChunkedScriptService {
    * the same shape LMStudioService.generateScript would for a single-shot
    * call, ready for ScriptParserService.validate.
    */
-  static async generate({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, jobId, checkCancelled, onProgress }) {
+  static async generate({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, hostName, guestName, jobId, checkCancelled, onProgress }) {
     const narrationMultiplier = videoType === 'podcast' ? 1 : 2;
     const tokensPerScene = 80 + wordsPerScene * 1.4 * narrationMultiplier;
     const chunkSceneCount = Math.min(
       MAX_CHUNK_SCENES,
       Math.max(MIN_CHUNK_SCENES, Math.round(TARGET_CHUNK_TOKENS / tokensPerScene))
     );
+    // Display names fed into the prompt so the Host/Guest can address each
+    // other naturally - falls back to plain "Host"/"Guest" (matching the
+    // pre-name-field behavior) whenever the job didn't set one.
+    const resolvedHostName = hostName || 'Host';
+    const resolvedGuestName = guestName || 'Guest';
 
     if (sceneCount <= chunkSceneCount) {
-      return this._generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier });
+      return this._generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier, hostName: resolvedHostName, guestName: resolvedGuestName });
     }
 
     const chunkCount = Math.ceil(sceneCount / chunkSceneCount);
@@ -77,8 +86,9 @@ class ChunkedScriptService {
       const thisChunkWordCount = Math.round(wordsPerScene * thisChunkSceneCount);
       const isFirst = i === 0;
       const isLast = i === chunkCount - 1;
+      const closingTemplate = CLOSING_INSTRUCTIONS[videoType] || CLOSING_INSTRUCTIONS.educational;
       const closingInstruction = isLast
-        ? (CLOSING_INSTRUCTIONS[videoType] || CLOSING_INSTRUCTIONS.educational)
+        ? (typeof closingTemplate === 'function' ? closingTemplate(resolvedHostName) : closingTemplate)
         : (CONTINUING_INSTRUCTIONS[videoType] || CONTINUING_INSTRUCTIONS.default);
 
       LoggerService.info(`Generating script chunk ${i + 1}/${chunkCount}`, {
@@ -94,6 +104,8 @@ class ChunkedScriptService {
           wordCount: thisChunkWordCount,
           wordsPerScene,
           closingInstruction,
+          hostName: resolvedHostName,
+          guestName: resolvedGuestName,
         });
         const parsed = await this._callChunk(prompt, thisChunkSceneCount, thisChunkWordCount, narrationMultiplier);
         meta = {
@@ -113,7 +125,9 @@ class ChunkedScriptService {
           wordsPerScene,
           startSceneNumber,
           closingInstruction,
-          recap: this._buildRecap(videoType, allScenes),
+          hostName: resolvedHostName,
+          guestName: resolvedGuestName,
+          recap: this._buildRecap(videoType, allScenes, resolvedHostName, resolvedGuestName),
         });
         const parsed = await this._callChunk(prompt, thisChunkSceneCount, thisChunkWordCount, narrationMultiplier);
         chunkScenes = parsed.scenes;
@@ -145,14 +159,17 @@ class ChunkedScriptService {
     return { ...meta, scenes: allScenes };
   }
 
-  static async _generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier }) {
+  static async _generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier, hostName, guestName }) {
+    const closingTemplate = CLOSING_INSTRUCTIONS[videoType] || CLOSING_INSTRUCTIONS.educational;
     const prompt = PromptService.render(videoType, {
       topic,
       language,
       sceneCount,
       wordCount,
       wordsPerScene,
-      closingInstruction: CLOSING_INSTRUCTIONS[videoType] || CLOSING_INSTRUCTIONS.educational,
+      closingInstruction: typeof closingTemplate === 'function' ? closingTemplate(hostName || 'Host') : closingTemplate,
+      hostName: hostName || 'Host',
+      guestName: guestName || 'Guest',
     });
     return this._callChunk(prompt, sceneCount, wordCount, narrationMultiplier);
   }
@@ -165,11 +182,11 @@ class ChunkedScriptService {
    * chunk can visually match without needing the full style-guidance
    * paragraph repeated.
    */
-  static _buildRecap(videoType, allScenes) {
+  static _buildRecap(videoType, allScenes, hostName = 'Host', guestName = 'Guest') {
     const recent = allScenes.slice(-4);
     if (videoType === 'podcast') {
       return recent
-        .map((s) => `${s.speaker === 'guest' ? 'Guest' : 'Host'}: "${s.audio?.text || ''}"`)
+        .map((s) => `${s.speaker === 'guest' ? guestName : hostName}: "${s.audio?.text || ''}"`)
         .join('\n');
     }
     return recent

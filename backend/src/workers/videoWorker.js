@@ -179,6 +179,8 @@ const worker = new Worker(
           sceneCount,
           wordCount,
           wordsPerScene,
+          hostName: videoJob.hostName,
+          guestName: videoJob.guestName,
           jobId,
           checkCancelled: () => bailIfCancelled(jobId),
           onProgress: async (chunkIndex, chunkCount, scenesGenerated) => {
@@ -192,6 +194,8 @@ const worker = new Worker(
         script = ScriptParserService.validate(rawScript, videoJob.type, {
           hostVoice: videoJob.hostVoice,
           guestVoice: videoJob.guestVoice,
+          hostName: videoJob.hostName,
+          guestName: videoJob.guestName,
           seed: jobId,
         });
 

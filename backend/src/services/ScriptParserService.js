@@ -21,7 +21,7 @@ class ScriptParserService {
   static VALID_SCENE_TYPES = ['intro', 'content', 'image'];
 
   static validate(scriptData, videoType = 'educational', options = {}) {
-    const { hostVoice = '', guestVoice = '', seed = '' } = options;
+    const { hostVoice = '', guestVoice = '', hostName = '', guestName = '', seed = '' } = options;
     const errors = [];
 
     if (!scriptData.title || typeof scriptData.title !== 'string') {
@@ -102,7 +102,7 @@ class ScriptParserService {
       // Ensure elements structure matches the template
       let elements = scene.elements || null;
       if (templateId) {
-        const defaultElements = ScriptParserService._createDefaultElements(templateId, scene);
+        const defaultElements = ScriptParserService._createDefaultElements(templateId, scene, { hostName, guestName });
         
         // Prefer scene_meta.content over empty defaults for content scenes
         if (sceneType === 'content' && scene.scene_meta?.content) {
@@ -294,7 +294,8 @@ class ScriptParserService {
    * Create default elements structure for a given template.
    * Ensures the template has the data it needs to render properly.
    */
-  static _createDefaultElements(templateId, scene) {
+  static _createDefaultElements(templateId, scene, names = {}) {
+    const { hostName = '', guestName = '' } = names;
     const base = {
       title: scene.title || '',
       subtitle: scene.subtitle || '',
@@ -342,7 +343,7 @@ class ScriptParserService {
       'template-039': { name: scene.title || '', role: scene.subtitle || '', bio: '', image: '', stats: [{ value: '', label: '' }] },
       'template-040': { ...base, items: [{ text: '', icon: '' }] },
       'template-041': { ...base, caption: scene.subtitle || '', captionTimestamps: null },
-      'template-042': { ...base, hostName: '', hostImage: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
+      'template-042': { ...base, hostName: hostName || 'Host', hostImage: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-043': { headline: scene.title || '', body: scene.subtitle || '', badge: '', image: '', caption: '', captionTimestamps: null },
       'template-044': { ...base, body: '', profileImage: '', username: '', likes: '0', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
       'template-045': { ...base, backgroundImage: '', caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
@@ -364,7 +365,7 @@ class ScriptParserService {
       'template-061': {
         caption: scene.audio?.text || scene.subtitle || '',
         captionTimestamps: null,
-        speakerLabel: scene.speaker === 'guest' ? 'Guest' : 'Host',
+        speakerLabel: scene.speaker === 'guest' ? (guestName || 'Guest') : (hostName || 'Host'),
       },
     };
 

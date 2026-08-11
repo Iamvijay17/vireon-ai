@@ -42,6 +42,23 @@ const videoJobSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Podcast type only: display names for the two speakers - shown as the
+    // on-screen nameplate (template-061) and, if set, used in the script
+    // prompt so the two speakers can address each other by name instead of
+    // generically. Falls back to "Host"/"Guest" wherever unset (see
+    // ScriptParserService and ChunkedScriptService).
+    hostName: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 80,
+    },
+    guestName: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 80,
+    },
     // Requested video length in minutes - drives both prompt generation
     // (PromptService, converted to an exact scene count) and total duration
     // estimate in the worker. Mongoose's enum can't be conditional on

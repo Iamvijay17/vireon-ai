@@ -20,6 +20,8 @@ class VideoService {
       voice: data.voice || 'female-1',
       hostVoice: data.hostVoice || '',
       guestVoice: data.guestVoice || '',
+      hostName: data.hostName || '',
+      guestName: data.guestName || '',
       duration: data.duration || 5,
       resolution: data.resolution || '1920x1080',
       // Not user-selectable - resolution alone determines it.
