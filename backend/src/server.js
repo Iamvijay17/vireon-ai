@@ -7,6 +7,12 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const config = require('./config');
 const LoggerService = require('./services/LoggerService');
+
+// Fire-and-forget: spawns a local redis-server if REDIS_HOST is localhost
+// and nothing's listening there yet, so the queue connections below don't
+// spend the next several minutes retrying against a dead port.
+require('./utils/ensureRedis')();
+
 const SocketService = require('./services/SocketService');
 const errorHandler = require('./middleware/errorHandler');
 const videoRoutes = require('./routes/videos');

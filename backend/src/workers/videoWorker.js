@@ -3,6 +3,11 @@ const mongoose = require('mongoose');
 const config = require('../config');
 const LoggerService = require('../services/LoggerService');
 
+// Fire-and-forget: spawns a local redis-server if REDIS_HOST is localhost
+// and nothing's listening there yet, so the queue connection below doesn't
+// spend the next several minutes retrying against a dead port.
+require('../utils/ensureRedis')();
+
 // Mirrors server.js's handlers - this process had neither before, meaning
 // any unhandled rejection (e.g. @gradio/client's Client.close() aborting an
 // internal SSE reader it never itself catches AbortError on - see
