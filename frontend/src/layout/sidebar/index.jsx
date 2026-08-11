@@ -25,7 +25,7 @@ const NAV_ITEMS = [
     label: "Editor",
     icon: Code2,
     children: [
-      { key: "wizard", label: "Wizard", icon: LayoutGrid, route: "/wizard" },
+      { key: "wizard", label: "New Video", icon: LayoutGrid, route: "/wizard" },
       { key: "complete", label: "Complete", icon: FileText, route: "/editor/complete" },
     ],
   },

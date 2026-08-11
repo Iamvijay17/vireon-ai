@@ -2,11 +2,14 @@ import { useState, useEffect } from "react";
 import {
   CheckCircle2,
   Rocket,
-  ArrowLeft,
-  ArrowRight,
   Send,
   Copy,
   Check,
+  Sparkles,
+  Mic2,
+  SlidersHorizontal,
+  ChevronDown,
+  Plus,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createVideoJob, getVoices } from "../../services/api";
@@ -15,14 +18,14 @@ import { loadSettings } from "../../shared/settingsStorage";
 import { LoadingState } from "../../components";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
-import { Steps } from "../../components/ui/Steps";
 import { Select } from "../../components/ui/Select";
 import { VoiceSelect } from "../../components/ui/VoiceSelect";
-import { Input, Textarea, Label, FieldHint } from "../../components/ui/Input";
+import { Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { Badge } from "../../components/ui/Badge";
 import { Switch } from "../../components/ui/Switch";
 import { toast } from "../../components/ui/toastBus";
 import { cn } from "../../components/ui/cn";
+import { useClickOutside, useEscapeKey } from "../../components/ui/hooks";
 
 const VIDEO_TYPES = [
   { value: "educational", label: "Educational" },
@@ -109,6 +112,22 @@ const PODCAST_VOICE_PAIRS = [
 // Host/Guest name fields when a voice is picked without a Quick Pair.
 const deriveNameFromVoiceLabel = (label) => (label || "").trim().split(/\s+/)[0] || "";
 
+// Sample names shown in the Host/Guest Name dropdown - the Quick Pair names
+// plus a few common extras, so there's always a reasonable starting list
+// even before a voice is picked. Users can still type their own via "Add
+// new name" in the same dropdown.
+const SUGGESTED_NAMES = Array.from(
+  new Set([
+    ...PODCAST_VOICE_PAIRS.flatMap((p) => [p.hostName, p.guestName]),
+    "Alex",
+    "Jordan",
+    "Sam",
+    "Taylor",
+    "Riley",
+    "Jamie",
+  ])
+);
+
 const DURATIONS = [
   { value: 5, label: "5 minutes" },
   { value: 8, label: "8 minutes" },
@@ -125,13 +144,6 @@ const SHORTS_DURATIONS = [
   { value: 1, label: "1 minute" },
   { value: 2, label: "2 minutes" },
   { value: 3, label: "3 minutes" },
-];
-
-const STEPS = [
-  { title: "Topic & Type" },
-  { title: "Voice & Language" },
-  { title: "Resolution" },
-  { title: "Done" },
 ];
 
 const DEFAULT_VALUES = {
@@ -170,9 +182,92 @@ const buildInitialValues = () => {
   };
 };
 
+// Dropdown of sample names for the Host/Guest Name fields, with a "Add new
+// name" row at the bottom for typing a custom one - a plain text input made
+// picking a name from the Quick Pair feel disconnected from typing your own.
+const NameSelect = ({ value, onChange, placeholder = "Select or add a name", options = SUGGESTED_NAMES }) => {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const ref = useClickOutside(() => setOpen(false), open);
+  useEscapeKey(() => setOpen(false), open);
+
+  const commitDraft = () => {
+    const name = draft.trim();
+    if (!name) return;
+    onChange?.(name);
+    setDraft("");
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3",
+          "text-left text-sm text-text-primary transition-colors outline-none",
+          "focus:border-accent focus:ring-4 focus:ring-accent/10"
+        )}
+      >
+        <span className={cn("truncate", !value && "text-text-tertiary")}>{value || placeholder}</span>
+        <ChevronDown className={cn("size-4 shrink-0 text-text-tertiary transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1.5 w-full rounded-xl border border-border bg-surface p-1.5 shadow-lg shadow-black/5 animate-scale-in">
+          <div className="max-h-48 overflow-auto">
+            {options.map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => {
+                  onChange?.(name);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                  name === value
+                    ? "bg-accent-subtle text-accent"
+                    : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+                )}
+              >
+                {name}
+                {name === value && <Check className="size-4 shrink-0" />}
+              </button>
+            ))}
+          </div>
+          <div className="mt-1 flex items-center gap-1.5 border-t border-border-light pt-1.5">
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitDraft();
+                }
+              }}
+              placeholder="Add new name"
+              maxLength={80}
+              className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-bg px-2.5 text-sm text-text-primary outline-none focus:border-accent"
+            />
+            <button
+              type="button"
+              onClick={commitDraft}
+              disabled={!draft.trim()}
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-opacity disabled:opacity-40"
+            >
+              <Plus className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Wizard = () => {
   const navigate = useNavigate();
-  const [current, setCurrent] = useState(0);
   const [values, setValues] = useState(buildInitialValues);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -234,14 +329,12 @@ const Wizard = () => {
     });
   };
 
-  const validateStep = (step) => {
+  const validateAll = () => {
     const next = {};
-    if (step === 0) {
-      if (!values.topic || values.topic.trim().length < 3) next.topic = "At least 3 characters";
-      if (!values.type) next.type = "Please select a type";
-      if (!values.duration) next.duration = "Please select a duration";
-    }
-    if (step === 1 && values.type === "podcast") {
+    if (!values.topic || values.topic.trim().length < 3) next.topic = "At least 3 characters";
+    if (!values.type) next.type = "Please select a type";
+    if (!values.duration) next.duration = "Please select a duration";
+    if (values.type === "podcast") {
       if (!values.hostVoice) next.hostVoice = "Please select a host voice";
       if (!values.guestVoice) next.guestVoice = "Please select a guest voice";
     }
@@ -249,24 +342,13 @@ const Wizard = () => {
     return Object.keys(next).length === 0;
   };
 
-  const handleNext = () => {
-    if (!validateStep(current)) return;
-    setCurrent((prev) => prev + 1);
-  };
-
-  const handleBack = () => setCurrent((prev) => prev - 1);
-
   const handleSubmit = async () => {
-    if (!validateStep(0)) {
-      setCurrent(0);
-      return;
-    }
+    if (!validateAll()) return;
     try {
       setLoading(true);
       const res = await createVideoJob(values);
       setResult(res.data);
       toast.success("Video job created! Processing started.");
-      setCurrent(3);
     } catch (err) {
       const errMsg =
         err.friendlyMessage || "Failed to create job";
@@ -283,253 +365,38 @@ const Wizard = () => {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  return (
-    <div>
-      <h1 className="mb-6 text-xl font-semibold tracking-tight text-text-primary">Create Video</h1>
+  // Section card with an icon header, always expanded.
+  const Section = ({ icon: Icon, title, description, className, children }) => (
+    <Card className={cn("p-6 sm:p-8", className)}>
+      <div className="mb-6 flex items-start gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-subtle text-accent">
+          <Icon className="size-4.5" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-text-primary">{title}</h2>
+          {description && <p className="mt-0.5 text-xs text-text-secondary">{description}</p>}
+        </div>
+      </div>
+      {children}
+    </Card>
+  );
 
-      <Steps items={STEPS} current={current} className="mb-10 max-w-2xl" />
+  if (loading) {
+    return (
+      <div>
+        <h1 className="mb-6 text-xl font-semibold tracking-tight text-text-primary">Create Video</h1>
+        <Card className="min-h-105 p-8">
+          <LoadingState label="Creating your video job..." />
+        </Card>
+      </div>
+    );
+  }
 
-      <Card className="min-h-105 p-8">
-        {current < 3 && (
-          <>
-            {/* ── Step 1: Topic & Type ──────────────────────────────────────── */}
-            {current === 0 && (
-              <div className="mx-auto max-w-lg animate-slide-up">
-                <h2 className="mb-6 text-base font-semibold text-text-primary">What do you want to create?</h2>
-
-                <div className="mb-5">
-                  <Label required>Video Topic</Label>
-                  <Textarea
-                    rows={3}
-                    placeholder="e.g., Introduction to Quantum Computing, The Future of AI, How to Start a Business..."
-                    value={values.topic}
-                    onChange={(e) => setField("topic", e.target.value)}
-                    error={Boolean(errors.topic)}
-                  />
-                  <FieldHint error={Boolean(errors.topic)}>{errors.topic}</FieldHint>
-                </div>
-
-                <div className="mb-5">
-                  <Label required>Video Type</Label>
-                  <Select
-                    placeholder="Select video type"
-                    options={VIDEO_TYPES}
-                    value={values.type}
-                    onChange={handleTypeChange}
-                    error={Boolean(errors.type)}
-                  />
-                  <FieldHint error={Boolean(errors.type)}>{errors.type}</FieldHint>
-                </div>
-
-                <div className="mb-5">
-                  <Label required>Duration</Label>
-                  <Select
-                    placeholder="Select duration"
-                    options={values.type === "youtube_shorts" ? SHORTS_DURATIONS : DURATIONS}
-                    value={values.duration}
-                    onChange={(v) => setField("duration", v)}
-                    error={Boolean(errors.duration)}
-                  />
-                  <FieldHint error={Boolean(errors.duration)}>
-                    {errors.duration || (values.type === "youtube_shorts" ? "YouTube Shorts are capped at 3 minutes." : undefined)}
-                  </FieldHint>
-                </div>
-
-                <div className="mb-5">
-                  <Label>Language</Label>
-                  <Select options={LANGUAGES} value={values.language} onChange={(v) => setField("language", v)} />
-                </div>
-
-                <div className="mt-8 flex justify-end">
-                  <Button variant="primary" onClick={handleNext} icon={<ArrowRight className="size-4" />}>
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 2: Voice & Language ──────────────────────────────────── */}
-            {current === 1 && (
-              <div className="mx-auto max-w-lg animate-slide-up">
-                <h2 className="mb-6 text-base font-semibold text-text-primary">Configure audio settings</h2>
-
-                {values.type === "podcast" ? (
-                  <>
-                    {availableVoicePairs.length > 0 && (
-                      <div className="mb-5">
-                        <Label>Quick Pair</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {availableVoicePairs.map((pair) => {
-                            const active =
-                              values.hostVoice === pair.hostVoice && values.guestVoice === pair.guestVoice;
-                            return (
-                              <button
-                                key={pair.label}
-                                type="button"
-                                onClick={() => {
-                                  setValues((prev) => ({
-                                    ...prev,
-                                    hostVoice: pair.hostVoice,
-                                    guestVoice: pair.guestVoice,
-                                    hostName: pair.hostName,
-                                    guestName: pair.guestName,
-                                  }));
-                                }}
-                                className={cn(
-                                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                                  active
-                                    ? "border-accent bg-accent-subtle text-accent"
-                                    : "border-border bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
-                                )}
-                              >
-                                {pair.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <FieldHint>
-                          Picks two clearly distinct voices for host and guest in one click - or choose your own below.
-                        </FieldHint>
-                      </div>
-                    )}
-
-                    <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-                      <div>
-                        <Label required>Host Voice</Label>
-                        <VoiceSelect
-                          placeholder="Select host voice"
-                          options={voiceOptions}
-                          value={values.hostVoice}
-                          onChange={(v) => {
-                            setValues((prev) => ({
-                              ...prev,
-                              hostVoice: v,
-                              // Only auto-fill if the user hasn't typed their own name yet.
-                              hostName: prev.hostName ? prev.hostName : deriveNameFromVoiceLabel(voiceOptions.find((o) => o.value === v)?.label),
-                            }));
-                          }}
-                          error={Boolean(errors.hostVoice)}
-                          isFavorite={isFavorite}
-                          onToggleFavorite={toggleFavorite}
-                        />
-                        <FieldHint error={Boolean(errors.hostVoice)}>{errors.hostVoice}</FieldHint>
-                      </div>
-                      <div>
-                        <Label>Host Name</Label>
-                        <Input
-                          placeholder="e.g. Alex"
-                          maxLength={80}
-                          value={values.hostName}
-                          onChange={(e) => setField("hostName", e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-                      <div>
-                        <Label required>Guest Voice</Label>
-                        <VoiceSelect
-                          placeholder="Select guest voice"
-                          options={voiceOptions}
-                          value={values.guestVoice}
-                          onChange={(v) => {
-                            setValues((prev) => ({
-                              ...prev,
-                              guestVoice: v,
-                              guestName: prev.guestName ? prev.guestName : deriveNameFromVoiceLabel(voiceOptions.find((o) => o.value === v)?.label),
-                            }));
-                          }}
-                          error={Boolean(errors.guestVoice)}
-                          isFavorite={isFavorite}
-                          onToggleFavorite={toggleFavorite}
-                        />
-                        <FieldHint error={Boolean(errors.guestVoice)}>{errors.guestVoice}</FieldHint>
-                      </div>
-                      <div>
-                        <Label>Guest Name</Label>
-                        <Input
-                          placeholder="e.g. Jordan"
-                          maxLength={80}
-                          value={values.guestName}
-                          onChange={(e) => setField("guestName", e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <FieldHint>
-                      The host and guest take turns in the conversation, each with their own voice - and now their own name, shown on screen and used in the dialogue.
-                    </FieldHint>
-                  </>
-                ) : (
-                  <div className="mb-5">
-                    <Label>Voice</Label>
-                    <VoiceSelect
-                      options={voiceOptions}
-                      value={values.voice}
-                      onChange={(v) => setField("voice", v)}
-                      isFavorite={isFavorite}
-                      onToggleFavorite={toggleFavorite}
-                    />
-                    <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/. Click the play button to hear a sample.</FieldHint>
-                  </div>
-                )}
-
-                <div className="mt-8 flex justify-between">
-                  <Button variant="secondary" onClick={handleBack} icon={<ArrowLeft className="size-4" />}>
-                    Back
-                  </Button>
-                  <Button variant="primary" onClick={handleNext} icon={<ArrowRight className="size-4" />}>
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 3: Resolution ─────────────────────────────────────────── */}
-            {current === 2 && (
-              <div className="mx-auto max-w-lg animate-slide-up">
-                <h2 className="mb-6 text-base font-semibold text-text-primary">Choose output quality</h2>
-
-                <div className="mb-6">
-                  <Label>Resolution</Label>
-                  <Select
-                    options={values.type === "youtube_shorts" ? VERTICAL_RESOLUTIONS : RESOLUTIONS}
-                    value={values.resolution}
-                    onChange={(v) => setField("resolution", v)}
-                  />
-                  <FieldHint>
-                    {values.type === "youtube_shorts"
-                      ? "YouTube Shorts are vertical-only."
-                      : "Aspect ratio is determined automatically by the resolution you pick."}
-                  </FieldHint>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
-                  <div>
-                    <Label className="mb-1">Fast Generation</Label>
-                    <p className="text-xs text-text-secondary">
-                      {values.fastGeneration
-                        ? "On: after you approve the script, audio, images, and the final video generate automatically."
-                        : "Off: you'll manually trigger each step — approve the script, then generate audio, then generate the video — reviewing in between, like course videos."}
-                    </p>
-                  </div>
-                  <Switch checked={values.fastGeneration} onChange={(v) => setField("fastGeneration", v)} />
-                </div>
-
-                <div className="mt-8 flex justify-between">
-                  <Button variant="secondary" onClick={handleBack} icon={<ArrowLeft className="size-4" />}>
-                    Back
-                  </Button>
-                  <Button variant="primary" size="lg" icon={<Send className="size-4" />} loading={loading} onClick={handleSubmit}>
-                    Create Video
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── Step 4: Result ─────────────────────────────────────────────────── */}
-        {current === 3 && result && (
+  if (result) {
+    return (
+      <div>
+        <h1 className="mb-6 text-xl font-semibold tracking-tight text-text-primary">Create Video</h1>
+        <Card className="p-8">
           <div className="mx-auto flex max-w-md flex-col items-center py-6 text-center animate-scale-in">
             <div className="mb-5 flex size-14 items-center justify-center rounded-full bg-success-500/10 text-success-500">
               <CheckCircle2 className="size-7" />
@@ -567,7 +434,6 @@ const Wizard = () => {
                 variant="secondary"
                 onClick={() => {
                   setResult(null);
-                  setCurrent(0);
                   setValues(buildInitialValues());
                 }}
               >
@@ -578,10 +444,213 @@ const Wizard = () => {
               </Button>
             </div>
           </div>
-        )}
+        </Card>
+      </div>
+    );
+  }
 
-        {current === 3 && !result && <LoadingState label="Creating your video job..." />}
-      </Card>
+  return (
+    <div>
+      <h1 className="text-xl font-semibold tracking-tight text-text-primary">Create Video</h1>
+      <p className="mt-1 mb-8 text-sm text-text-secondary">Fill in the details below, then create your video.</p>
+
+      <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* ── Topic & Type ──────────────────────────────────────────────── */}
+        <Section icon={Sparkles} title="What do you want to create?" className="lg:col-span-2">
+          <div className="mb-5">
+            <Label required>Video Topic</Label>
+            <Textarea
+              rows={3}
+              placeholder="e.g., Introduction to Quantum Computing, The Future of AI, How to Start a Business..."
+              value={values.topic}
+              onChange={(e) => setField("topic", e.target.value)}
+              error={Boolean(errors.topic)}
+            />
+            <FieldHint error={Boolean(errors.topic)}>{errors.topic}</FieldHint>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div>
+              <Label required>Video Type</Label>
+              <Select
+                placeholder="Select video type"
+                options={VIDEO_TYPES}
+                value={values.type}
+                onChange={handleTypeChange}
+                error={Boolean(errors.type)}
+              />
+              <FieldHint error={Boolean(errors.type)}>{errors.type}</FieldHint>
+            </div>
+
+            <div>
+              <Label required>Duration</Label>
+              <Select
+                placeholder="Select duration"
+                options={values.type === "youtube_shorts" ? SHORTS_DURATIONS : DURATIONS}
+                value={values.duration}
+                onChange={(v) => setField("duration", v)}
+                error={Boolean(errors.duration)}
+              />
+              <FieldHint error={Boolean(errors.duration)}>
+                {errors.duration || (values.type === "youtube_shorts" ? "YouTube Shorts are capped at 3 minutes." : undefined)}
+              </FieldHint>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <Label>Language</Label>
+            <Select options={LANGUAGES} value={values.language} onChange={(v) => setField("language", v)} />
+          </div>
+        </Section>
+
+        {/* ── Audio ─────────────────────────────────────────────────────── */}
+        <Section icon={Mic2} title="Configure audio settings" className={values.type === "podcast" ? "lg:col-span-2" : undefined}>
+          {values.type === "podcast" ? (
+            <>
+              {availableVoicePairs.length > 0 && (
+                <div className="mb-5">
+                  <Label>Quick Pair</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {availableVoicePairs.map((pair) => {
+                      const active =
+                        values.hostVoice === pair.hostVoice && values.guestVoice === pair.guestVoice;
+                      return (
+                        <button
+                          key={pair.label}
+                          type="button"
+                          onClick={() => {
+                            setValues((prev) => ({
+                              ...prev,
+                              hostVoice: pair.hostVoice,
+                              guestVoice: pair.guestVoice,
+                              hostName: pair.hostName,
+                              guestName: pair.guestName,
+                            }));
+                          }}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                            active
+                              ? "border-accent bg-accent-subtle text-accent"
+                              : "border-border bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+                          )}
+                        >
+                          {pair.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <FieldHint>
+                    Picks two clearly distinct voices for host and guest in one click - or choose your own below.
+                  </FieldHint>
+                </div>
+              )}
+
+              <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                <div>
+                  <Label required>Host Voice</Label>
+                  <VoiceSelect
+                    placeholder="Select host voice"
+                    options={voiceOptions}
+                    value={values.hostVoice}
+                    onChange={(v) => {
+                      setValues((prev) => ({
+                        ...prev,
+                        hostVoice: v,
+                        // Only auto-fill if the user hasn't typed their own name yet.
+                        hostName: prev.hostName ? prev.hostName : deriveNameFromVoiceLabel(voiceOptions.find((o) => o.value === v)?.label),
+                      }));
+                    }}
+                    error={Boolean(errors.hostVoice)}
+                    isFavorite={isFavorite}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                  <FieldHint error={Boolean(errors.hostVoice)}>{errors.hostVoice}</FieldHint>
+                </div>
+                <div>
+                  <Label>Host Name</Label>
+                  <NameSelect value={values.hostName} onChange={(v) => setField("hostName", v)} />
+                </div>
+              </div>
+
+              <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                <div>
+                  <Label required>Guest Voice</Label>
+                  <VoiceSelect
+                    placeholder="Select guest voice"
+                    options={voiceOptions}
+                    value={values.guestVoice}
+                    onChange={(v) => {
+                      setValues((prev) => ({
+                        ...prev,
+                        guestVoice: v,
+                        guestName: prev.guestName ? prev.guestName : deriveNameFromVoiceLabel(voiceOptions.find((o) => o.value === v)?.label),
+                      }));
+                    }}
+                    error={Boolean(errors.guestVoice)}
+                    isFavorite={isFavorite}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                  <FieldHint error={Boolean(errors.guestVoice)}>{errors.guestVoice}</FieldHint>
+                </div>
+                <div>
+                  <Label>Guest Name</Label>
+                  <NameSelect value={values.guestName} onChange={(v) => setField("guestName", v)} />
+                </div>
+              </div>
+              <FieldHint>
+                The host and guest take turns in the conversation, each with their own voice - and now their own name, shown on screen and used in the dialogue.
+              </FieldHint>
+            </>
+          ) : (
+            <div>
+              <Label>Voice</Label>
+              <VoiceSelect
+                options={voiceOptions}
+                value={values.voice}
+                onChange={(v) => setField("voice", v)}
+                isFavorite={isFavorite}
+                onToggleFavorite={toggleFavorite}
+              />
+              <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/. Click the play button to hear a sample.</FieldHint>
+            </div>
+          )}
+        </Section>
+
+        {/* ── Output ────────────────────────────────────────────────────── */}
+        <Section icon={SlidersHorizontal} title="Choose output quality">
+          <div className="mb-6">
+            <Label>Resolution</Label>
+            <Select
+              options={values.type === "youtube_shorts" ? VERTICAL_RESOLUTIONS : RESOLUTIONS}
+              value={values.resolution}
+              onChange={(v) => setField("resolution", v)}
+            />
+            <FieldHint>
+              {values.type === "youtube_shorts"
+                ? "YouTube Shorts are vertical-only."
+                : "Aspect ratio is determined automatically by the resolution you pick."}
+            </FieldHint>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
+            <div>
+              <Label className="mb-1">Fast Generation</Label>
+              <p className="text-xs text-text-secondary">
+                {values.fastGeneration
+                  ? "On: after you approve the script, audio, images, and the final video generate automatically."
+                  : "Off: you'll manually trigger each step — approve the script, then generate audio, then generate the video — reviewing in between, like course videos."}
+              </p>
+            </div>
+            <Switch checked={values.fastGeneration} onChange={(v) => setField("fastGeneration", v)} />
+          </div>
+        </Section>
+
+        <div className="flex justify-end pb-2 lg:col-span-2">
+          <Button variant="primary" size="lg" icon={<Send className="size-4" />} loading={loading} onClick={handleSubmit}>
+            Create Video
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };
