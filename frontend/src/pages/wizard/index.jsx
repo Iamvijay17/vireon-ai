@@ -22,6 +22,7 @@ import { Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { Badge } from "../../components/ui/Badge";
 import { Switch } from "../../components/ui/Switch";
 import { toast } from "../../components/ui/toastBus";
+import { cn } from "../../components/ui/cn";
 
 const VIDEO_TYPES = [
   { value: "educational", label: "Educational" },
@@ -56,6 +57,40 @@ const FALLBACK_VOICES = [
 ];
 
 const LANGUAGES = [{ value: "english", label: "English" }];
+
+// Curated host/guest voice pairs, picked for clear contrast (gender, tone,
+// or accent) so the two speakers are always easy to tell apart - a plain
+// "pick any two voices" UI lets people land on two similar-sounding voices,
+// which is what prompted this. Each pair is filtered against the loaded
+// voice catalog before being shown, since these reference specific clone
+// files that may not exist in every backend/voices/ directory.
+const PODCAST_VOICE_PAIRS = [
+  {
+    label: "Radio Host & Conversational",
+    hostVoice: "clone:matt-dramatic-radio-podcast-host.mp3",
+    guestVoice: "clone:eliza-conversational-podcast-host.mp3",
+  },
+  {
+    label: "Deep & Energetic",
+    hostVoice: "clone:morgan-deep-powerful-and-confident.mp3",
+    guestVoice: "clone:hope-vibrant-warm-and-innocent.mp3",
+  },
+  {
+    label: "Warm & Professional",
+    hostVoice: "clone:chris-charismatic-warm-confident.mp3",
+    guestVoice: "clone:victoria-warm-trustworthy-and-relatable.mp3",
+  },
+  {
+    label: "British Duo",
+    hostVoice: "clone:nathaniel-engaging-british-and-calm.mp3",
+    guestVoice: "clone:tamsin-engaging-british-storyteller-and-narrator.mp3",
+  },
+  {
+    label: "Storyteller & Mystery",
+    hostVoice: "clone:william-deep-engaging-storyteller.mp3",
+    guestVoice: "clone:valory-mysterious-calm-and-natural.mp3",
+  },
+];
 
 const DURATIONS = [
   { value: 5, label: "5 minutes" },
@@ -153,6 +188,11 @@ const Wizard = () => {
     ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
   ];
   if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
+
+  const voiceIds = new Set(voiceOptions.map((o) => o.value));
+  const availableVoicePairs = PODCAST_VOICE_PAIRS.filter(
+    (p) => voiceIds.has(p.hostVoice) && voiceIds.has(p.guestVoice)
+  );
 
   const setField = (name, value) => setValues((prev) => ({ ...prev, [name]: value }));
 
@@ -296,6 +336,39 @@ const Wizard = () => {
 
                 {values.type === "podcast" ? (
                   <>
+                    {availableVoicePairs.length > 0 && (
+                      <div className="mb-5">
+                        <Label>Quick Pair</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {availableVoicePairs.map((pair) => {
+                            const active =
+                              values.hostVoice === pair.hostVoice && values.guestVoice === pair.guestVoice;
+                            return (
+                              <button
+                                key={pair.label}
+                                type="button"
+                                onClick={() => {
+                                  setField("hostVoice", pair.hostVoice);
+                                  setField("guestVoice", pair.guestVoice);
+                                }}
+                                className={cn(
+                                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                                  active
+                                    ? "border-accent bg-accent-subtle text-accent"
+                                    : "border-border bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+                                )}
+                              >
+                                {pair.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <FieldHint>
+                          Picks two clearly distinct voices for host and guest in one click - or choose your own below.
+                        </FieldHint>
+                      </div>
+                    )}
+
                     <div className="mb-5">
                       <Label required>Host Voice</Label>
                       <VoiceSelect

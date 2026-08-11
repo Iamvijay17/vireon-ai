@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Check, ChevronDown, Play, Pause, Star } from "lucide-react";
+import { Check, ChevronDown, Play, Pause, Star, Search } from "lucide-react";
 import { cn } from "./cn";
 import { useClickOutside, useEscapeKey } from "./hooks";
 import { resolveMediaUrl } from "../../services/api";
@@ -25,7 +25,10 @@ export const VoiceSelect = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [playingValue, setPlayingValue] = useState(null);
+  const [search, setSearch] = useState("");
   const audioRef = useRef(null);
+  const searchRef = useRef(null);
+  const selectedRef = useRef(null);
   const ref = useClickOutside(() => setOpen(false), open);
   useEscapeKey(() => setOpen(false), open);
 
@@ -37,6 +40,27 @@ export const VoiceSelect = ({
     const rest = options.filter((o) => !isFavorite(o.value));
     return [...favorites, ...rest];
   }, [options, isFavorite]);
+
+  const filteredOptions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return sortedOptions;
+    return sortedOptions.filter((o) =>
+      `${o.label} ${o.description || ""}`.toLowerCase().includes(query)
+    );
+  }, [sortedOptions, search]);
+
+  // Reset the search box each time the dropdown closes, and jump the
+  // currently selected voice into view (scanning 70+ clone voices to find
+  // the one a Quick Pair just picked isn't obvious otherwise) plus focus
+  // the search box each time it opens.
+  useEffect(() => {
+    if (open) {
+      searchRef.current?.focus();
+      selectedRef.current?.scrollIntoView({ block: "nearest" });
+    } else {
+      setSearch("");
+    }
+  }, [open]);
 
   useEffect(() => {
     const audio = new Audio();
@@ -95,20 +119,40 @@ export const VoiceSelect = ({
       {open && (
         <div
           className={cn(
-            "absolute z-50 mt-1.5 max-h-64 w-full overflow-auto rounded-xl border border-border bg-surface p-1.5",
+            "absolute z-50 mt-1.5 w-full rounded-xl border border-border bg-surface p-1.5",
             "animate-scale-in shadow-lg shadow-black/5",
             panelClassName
           )}
         >
-          {options.length === 0 && (
-            <div className="px-3 py-2 text-sm text-text-tertiary">No options</div>
+          {options.length > 5 && (
+            <div className="relative mb-1.5">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-text-tertiary" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder="Search voices..."
+                className="h-8 w-full rounded-lg border border-border bg-bg pl-8 pr-2 text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent"
+              />
+            </div>
           )}
-          {sortedOptions.map((opt) => {
+
+          <div className="max-h-56 overflow-auto">
+            {options.length === 0 && (
+              <div className="px-3 py-2 text-sm text-text-tertiary">No options</div>
+            )}
+            {options.length > 0 && filteredOptions.length === 0 && (
+              <div className="px-3 py-2 text-sm text-text-tertiary">No voices match "{search}"</div>
+            )}
+            {filteredOptions.map((opt) => {
             const isPlaying = playingValue === opt.value;
             const favorite = isFavorite?.(opt.value);
             return (
               <button
                 key={opt.value}
+                ref={opt.value === value ? selectedRef : null}
                 type="button"
                 onClick={() => {
                   onChange?.(opt.value);
@@ -174,7 +218,8 @@ export const VoiceSelect = ({
                 {opt.value === value && <Check className="size-4 shrink-0" />}
               </button>
             );
-          })}
+            })}
+          </div>
         </div>
       )}
     </div>
