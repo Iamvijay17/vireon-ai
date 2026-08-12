@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
 import { backgroundColors } from '../../styles';
+import { mergeStyle } from '../../theme';
 
 /**
  * Template 041 - Modern Minimal
@@ -37,6 +38,7 @@ const Template041 = React.memo(({ scene }) => {
   const caption = elements.caption || '';
   const captionTimestamps = elements.captionTimestamps || null;
   const bgColor = elements.backgroundColor || backgroundColors.clean;
+  const overrides = elements.styleConfig || {};
 
   // Subtle gradient animation
   const gradientShift = useMemo(() => ({
@@ -85,7 +87,7 @@ const Template041 = React.memo(({ scene }) => {
       }}>
         {/* Title */}
         {title && (
-          <h1 style={{
+          <h1 style={mergeStyle({
             color: '#ffffff',
             fontSize: 72,
             fontWeight: 300,
@@ -97,7 +99,7 @@ const Template041 = React.memo(({ scene }) => {
             letterSpacing: '-0.02em',
             opacity: titleOpacity,
             transform: `translateY(${titleY}px)`,
-          }}>
+          }, overrides.title)}>
             {title}
           </h1>
         )}
@@ -107,7 +109,7 @@ const Template041 = React.memo(({ scene }) => {
           width: 80,
           height: 3,
           borderRadius: 2,
-          background: 'linear-gradient(90deg, #60a5fa, #a78bfa)',
+          background: overrides.accentColor || 'linear-gradient(90deg, #60a5fa, #a78bfa)',
           marginBottom: 24,
           transform: `scaleX(${lineScaleX})`,
           opacity: titleOpacity,
@@ -115,7 +117,7 @@ const Template041 = React.memo(({ scene }) => {
 
         {/* Subtitle */}
         {subtitle && (
-          <p style={{
+          <p style={mergeStyle({
             color: '#94a3b8',
             fontSize: 32,
             fontWeight: 400,
@@ -126,7 +128,7 @@ const Template041 = React.memo(({ scene }) => {
             maxWidth: '70%',
             lineHeight: 1.5,
             opacity: subOpacity,
-          }}>
+          }, overrides.subtitle)}>
             {subtitle}
           </p>
         )}
@@ -148,6 +150,7 @@ const Template041 = React.memo(({ scene }) => {
           borderRadius: 8,
           framesPerWord: 3,
           maxWidth: '75%',
+          ...overrides.captions,
         }}
         timestamps={captionTimestamps}
         fps={fps}

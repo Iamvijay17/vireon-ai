@@ -1,3 +1,5 @@
+import { spacing } from '../../theme';
+
 export const styles = {
   container: {
     width: '100%',
@@ -6,52 +8,42 @@ export const styles = {
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 60,
+    padding: spacing.xxl,
     boxSizing: 'border-box',
     position: 'relative',
     overflow: 'hidden',
   },
   title: {
     color: '#ffffff',
-    fontSize: 44,
-    fontWeight: 'bold',
+    fontSize: 56,
+    fontWeight: 300,
     textAlign: 'center',
-    marginBottom: 60,
+    marginBottom: spacing.xl,
   },
-  statsGrid: {
-    display: 'flex',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 30,
-    maxWidth: '90%',
-  },
-  statCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 20,
-    padding: '40px 50px',
-    minWidth: 220,
+  // Plain row list - no stat cards, no glassmorphism, no icon badges.
+  statList: {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
-    border: '1px solid rgba(255, 255, 255, 0.08)',
-    backdropFilter: 'blur(8px)',
+    gap: spacing.lg,
+    width: '100%',
+    maxWidth: '70%',
+  },
+  statRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    borderBottom: '1px solid rgba(255,255,255,0.1)',
+    paddingBottom: spacing.sm,
   },
   statValue: {
     color: '#60a5fa',
-    fontSize: 72,
-    fontWeight: 'bold',
-    lineHeight: 1,
-    marginBottom: 8,
+    fontSize: 44,
+    fontWeight: 600,
   },
   statLabel: {
     color: '#94a3b8',
     fontSize: 22,
-    fontWeight: 500,
-    textAlign: 'center',
-  },
-  statIcon: {
-    fontSize: 40,
-    marginBottom: 12,
+    fontWeight: 400,
   },
 };

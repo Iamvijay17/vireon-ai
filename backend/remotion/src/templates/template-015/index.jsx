@@ -1,41 +1,42 @@
 import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
-import { useFadeInOut, usePop } from '../../animations';
+import { spacing, mergeStyle } from '../../theme';
+import { useFadeInOut, useSlideUp } from '../../animations';
 
 /**
  * Template 015 - Feature Grid (Content)
- * Layout: Grid of content points, each with an icon, title, and description.
+ * Layout: Plain two-column list of feature rows (title + description) with a
+ * hairline divider - no icon badges, no card chrome.
  *
  * JSON data format:
  * {
  *   templateId: "template-015",
  *   elements: {
  *     title: "string",
- *     items: [{ icon: "string", title: "string", description: "string" }],
- *     backgroundColor: "#hex" (optional)
+ *     items: [{ title: "string", description: "string" }],
+ *     backgroundColor: "#hex" (optional),
+ *     styleConfig: { title: {...}, body: {...} }
  *   },
  *   audio: { file: "path" },
  *   duration: number
  * }
  */
 const s = {
-  container: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '60px 80px', boxSizing: 'border-box', position: 'relative', overflow: 'hidden' },
-  title: { color: '#ffffff', fontSize: 44, fontWeight: 'bold', textAlign: 'center', marginBottom: 34 },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
-  card: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: '24px 26px', border: '1px solid rgba(255,255,255,0.08)' },
-  icon: { fontSize: 32, marginBottom: 12 },
-  cardTitle: { color: '#ffffff', fontSize: 21, fontWeight: 700, marginBottom: 6 },
-  cardDesc: { color: '#94a3b8', fontSize: 16, lineHeight: 1.4 },
+  container: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: `${spacing.xxl}px ${spacing.xxxl}px`, boxSizing: 'border-box', position: 'relative', overflow: 'hidden' },
+  title: { color: '#ffffff', fontSize: 56, fontWeight: 300, textAlign: 'center', marginBottom: spacing.xl },
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.lg}px ${spacing.xxl}px` },
+  row: { borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: spacing.sm },
+  cardTitle: { color: '#ffffff', fontSize: 22, fontWeight: 600, marginBottom: spacing.xs },
+  cardDesc: { color: '#94a3b8', fontSize: 17, lineHeight: 1.4 },
 };
 
-const GridItem = ({ item, index }) => {
-  const pop = usePop({ startAt: 14 + index * 6 });
+const GridItem = ({ item, index, textStyle }) => {
+  const slide = useSlideUp({ startAt: 14 + index * 6, distance: 24 });
   return (
-    <div style={{ ...s.card, ...pop }}>
-      {item.icon && <div style={s.icon}>{item.icon}</div>}
+    <div style={{ ...s.row, ...slide }}>
       {item.title && <div style={s.cardTitle}>{item.title}</div>}
-      {item.description && <div style={s.cardDesc}>{item.description}</div>}
+      {item.description && <div style={{ ...s.cardDesc, ...textStyle }}>{item.description}</div>}
     </div>
   );
 };
@@ -45,15 +46,17 @@ const Template015 = React.memo(({ scene }) => {
   const title = elements.title || '';
   const items = elements.items || elements.features || [];
   const bgColor = elements.backgroundColor || backgroundColors.dark;
+  const overrides = elements.styleConfig || {};
   const titleFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 12 });
+  const titleStyle = mergeStyle(s.title, overrides.title);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={s.container}>
-        {title && <h1 style={{ ...s.title, opacity: titleFade }}>{title}</h1>}
+        {title && <h1 style={{ ...titleStyle, opacity: titleFade }}>{title}</h1>}
         <div style={s.grid}>
           {items.map((item, index) => (
-            <GridItem key={index} item={item} index={index} />
+            <GridItem key={index} item={item} index={index} textStyle={overrides.body} />
           ))}
         </div>
       </div>

@@ -17,6 +17,7 @@ import {
   Languages,
   AudioLines,
   Video,
+  Palette,
 } from "lucide-react";
 import { getVideoJob, updateVideoScenes, rerenderVideoJob, approveVideoJob, generateVideoAudio, generateVideoRender } from "../../services/api";
 import {
@@ -51,7 +52,32 @@ import { confirmDialog } from "../../components/ui/confirmBus";
 const SCENE_TYPE_OPTIONS = [
   { value: "intro", label: "Intro" },
   { value: "content", label: "Content" },
+  { value: "contentwithimage", label: "Content + Image" },
   { value: "image", label: "Image" },
+];
+
+// Only these templates currently read `elements.styleConfig` (see theme.js's
+// mergeStyle pattern) - keep in sync with any template that adds support.
+const STYLE_EDITABLE_TEMPLATE_IDS = ["template-041", "template-062", "template-063", "template-007", "template-038", "template-015", "template-017"];
+
+const FONT_WEIGHT_OPTIONS = [
+  { value: 300, label: "Light" },
+  { value: 400, label: "Regular" },
+  { value: 700, label: "Bold" },
+];
+
+const TEXT_POSITION_OPTIONS = [
+  { value: "left", label: "Left" },
+  { value: "center", label: "Center" },
+  { value: "right", label: "Right" },
+];
+
+const FONT_FAMILY_OPTIONS = [
+  { value: "'Helvetica Neue', Helvetica, Arial, sans-serif", label: "Helvetica" },
+  { value: "Georgia, 'Times New Roman', serif", label: "Georgia (serif)" },
+  { value: "'Courier New', Courier, monospace", label: "Courier (mono)" },
+  { value: "Verdana, Geneva, sans-serif", label: "Verdana" },
+  { value: "'Trebuchet MS', sans-serif", label: "Trebuchet" },
 ];
 
 const TRANSITION_OPTIONS = [
@@ -180,6 +206,47 @@ const StudioPage = () => {
 
   const handleFieldChange = (index, field, value) => {
     updateScene(index, (scene) => ({ ...scene, [field]: value }));
+  };
+
+  // Writes into scene.elements.styleConfig.<role> (or a flat key like
+  // "accentColor" when path has no "."), matching the mergeStyle({...theme,
+  // ...override}) pattern templates read via `elements.styleConfig` -
+  // see backend/remotion/src/theme.js and CaptionRenderer.jsx's identical
+  // {...defaultCaptionConfig, ...styleConfig} merge. No backend change is
+  // needed: `elements` is a schema-less Mixed field and scenes save as a
+  // full array replace.
+  const handleElementFieldChange = (index, path, value) => {
+    updateScene(index, (scene) => {
+      const styleConfig = { ...(scene.elements?.styleConfig || {}) };
+      if (path.includes(".")) {
+        const [role, prop] = path.split(".");
+        styleConfig[role] = { ...(styleConfig[role] || {}), [prop]: value };
+      } else {
+        styleConfig[path] = value;
+      }
+      return { ...scene, elements: { ...(scene.elements || {}), styleConfig } };
+    });
+  };
+
+  // Applies one style key (e.g. textAlign, fontFamily) to both the title and
+  // subtitle roles at once - a single "Text Position"/"Font" control reads
+  // more naturally than two separate title/subtitle pickers, and mergeStyle
+  // on the template side already accepts any style key passed through
+  // overrides.title/subtitle, so no template change is needed for this.
+  const handleTextStyleFieldChange = (index, key, value) => {
+    updateScene(index, (scene) => {
+      const styleConfig = { ...(scene.elements?.styleConfig || {}) };
+      styleConfig.title = { ...(styleConfig.title || {}), [key]: value };
+      styleConfig.subtitle = { ...(styleConfig.subtitle || {}), [key]: value };
+      return { ...scene, elements: { ...(scene.elements || {}), styleConfig } };
+    });
+  };
+
+  // "Background Color" (below) historically only set the outer
+  // transition-layer background, not the template-internal one templates
+  // actually read from `elements.backgroundColor` - this fixes that gap.
+  const handleElementBackgroundColorChange = (index, value) => {
+    updateScene(index, (scene) => ({ ...scene, elements: { ...(scene.elements || {}), backgroundColor: value } }));
   };
 
   const handleAudioTextChange = (index, value) => {
@@ -544,8 +611,105 @@ const StudioPage = () => {
                   <NumberInput min={1} max={60} value={scene.duration} onChange={(e) => handleFieldChange(selectedSceneIndex, "duration", Number(e.target.value))} disabled={!canEdit} />
                 </Field>
                 <Field label="Background Color">
-                  <ColorInput value={scene.backgroundColor} onChange={(v) => handleFieldChange(selectedSceneIndex, "backgroundColor", v)} disabled={!canEdit} />
+                  <ColorInput
+                    value={scene.backgroundColor}
+                    onChange={(v) => {
+                      handleFieldChange(selectedSceneIndex, "backgroundColor", v);
+                      handleElementBackgroundColorChange(selectedSceneIndex, v);
+                    }}
+                    disabled={!canEdit}
+                  />
                 </Field>
+              </div>
+
+              <div className="h-px bg-border-light" />
+
+              <div>
+                <SectionLabel icon={Palette}>Template Style</SectionLabel>
+                {STYLE_EDITABLE_TEMPLATE_IDS.includes(scene.templateId) ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Text Position">
+                        <Select
+                          value={scene.elements?.styleConfig?.title?.textAlign ?? "center"}
+                          onChange={(v) => handleTextStyleFieldChange(selectedSceneIndex, "textAlign", v)}
+                          options={TEXT_POSITION_OPTIONS}
+                          disabled={!canEdit}
+                        />
+                      </Field>
+                      <Field label="Font Family">
+                        <Select
+                          value={scene.elements?.styleConfig?.title?.fontFamily ?? FONT_FAMILY_OPTIONS[0].value}
+                          onChange={(v) => handleTextStyleFieldChange(selectedSceneIndex, "fontFamily", v)}
+                          options={FONT_FAMILY_OPTIONS}
+                          disabled={!canEdit}
+                        />
+                      </Field>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Title Size">
+                        <NumberInput
+                          min={24}
+                          max={96}
+                          value={scene.elements?.styleConfig?.title?.fontSize ?? ""}
+                          onChange={(e) => handleElementFieldChange(selectedSceneIndex, "title.fontSize", Number(e.target.value))}
+                          disabled={!canEdit}
+                        />
+                      </Field>
+                      <Field label="Title Weight">
+                        <Select
+                          value={scene.elements?.styleConfig?.title?.fontWeight ?? 300}
+                          onChange={(v) => handleElementFieldChange(selectedSceneIndex, "title.fontWeight", v)}
+                          options={FONT_WEIGHT_OPTIONS}
+                          disabled={!canEdit}
+                        />
+                      </Field>
+                    </div>
+                    <Field label="Title Color">
+                      <ColorInput
+                        value={scene.elements?.styleConfig?.title?.color || "#ffffff"}
+                        onChange={(v) => handleElementFieldChange(selectedSceneIndex, "title.color", v)}
+                        disabled={!canEdit}
+                      />
+                    </Field>
+                    <Field label="Subtitle Color">
+                      <ColorInput
+                        value={scene.elements?.styleConfig?.subtitle?.color || "#94a3b8"}
+                        onChange={(v) => handleElementFieldChange(selectedSceneIndex, "subtitle.color", v)}
+                        disabled={!canEdit}
+                      />
+                    </Field>
+                    <Field label="Accent Color">
+                      <ColorInput
+                        value={scene.elements?.styleConfig?.accentColor || "#60a5fa"}
+                        onChange={(v) => handleElementFieldChange(selectedSceneIndex, "accentColor", v)}
+                        disabled={!canEdit}
+                      />
+                    </Field>
+                    <div className="h-px bg-border-light" />
+                    <p className="text-[11px] font-medium text-text-tertiary">Captions</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Text Color">
+                        <ColorInput
+                          value={scene.elements?.styleConfig?.captions?.textColor || "#ffffff"}
+                          onChange={(v) => handleElementFieldChange(selectedSceneIndex, "captions.textColor", v)}
+                          disabled={!canEdit}
+                        />
+                      </Field>
+                      <Field label="Caption Size">
+                        <NumberInput
+                          min={16}
+                          max={64}
+                          value={scene.elements?.styleConfig?.captions?.fontSize ?? ""}
+                          onChange={(e) => handleElementFieldChange(selectedSceneIndex, "captions.fontSize", Number(e.target.value))}
+                          disabled={!canEdit}
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[12px] text-text-tertiary">Style editing not yet available for this template.</p>
+                )}
               </div>
 
               <div className="h-px bg-border-light" />

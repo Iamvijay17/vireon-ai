@@ -47,10 +47,10 @@
   {
     "templateId": "template-007",
     "title": "Stats Dashboard",
-    "description": "Grid-based statistics display with large numbers and labels. Perfect for showcasing metrics.",
+    "description": "Plain-row statistics list with value + label pairs and a hairline divider. No cards, no icon badges.",
     "scene_meta": {
       "sceneType": "content",
-      "content": ["Stats title", "Stat values and labels with icons"]
+      "content": ["Stats title", "Stat values and labels"]
     }
   },
   {
@@ -119,10 +119,10 @@
   {
     "templateId": "template-015",
     "title": "Feature Grid",
-    "description": "Grid of content points, each with an icon, title, and short description. Great for listing features, benefits, or takeaways.",
+    "description": "Plain two-column list of feature rows, each with a title and short description. No cards, no icon badges.",
     "scene_meta": {
       "sceneType": "content",
-      "content": ["Section title", "Content items with icon, title, description"]
+      "content": ["Section title", "Content items with title and description"]
     }
   },
   {
@@ -326,10 +326,10 @@
   {
     "templateId": "template-038",
     "title": "Metrics Grid",
-    "description": "Business metrics grid with large stat values and trend indicators.",
+    "description": "Plain-row business metrics list with title, value, and description. No cards, no icon badges.",
     "scene_meta": {
       "sceneType": "content",
-      "content": ["Metrics title", "Metric items with value, label, and trend"]
+      "content": ["Metrics title", "Metric items with title and description"]
     }
   },
   {
@@ -528,6 +528,24 @@
     "scene_meta": {
       "sceneType": "content",
       "content": ["Comedy title", "Joke or punchline", "Emoji reaction", "Caption text"]
+    }
+  },
+  {
+    "templateId": "template-062",
+    "title": "Title + Bullets",
+    "description": "Clean presentation-slide layout: title, accent line, and a plain bulleted list. No stat cards, no icon badges.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Slide title", "Bullet items with optional heading and text"]
+    }
+  },
+  {
+    "templateId": "template-063",
+    "title": "Title + Two-Column",
+    "description": "Clean presentation-slide layout: title with a two-column body (text column plus optional image). No stat cards, no icon badges.",
+    "scene_meta": {
+      "sceneType": "content",
+      "content": ["Slide title", "Two content columns, optionally with an image"]
     }
   }
 ]

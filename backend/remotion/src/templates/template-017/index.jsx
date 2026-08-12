@@ -3,10 +3,13 @@ import { AbsoluteFill, Audio, Img } from 'remotion';
 import { styles } from './styles';
 import { useTemplate017Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle } from '../../theme';
 
 /**
  * Template 017 - Storytelling (Image + Text split)
- * Layout: Left image with ken burns zoom, right text panel with badge/title/body
+ * Layout: Left image with ken burns zoom, right text panel with badge/title/body.
+ * Canonical template for the "contentwithimage" scene type - content
+ * delivery paired with a supporting image, no stat/icon chrome.
  */
 const Template017 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
@@ -15,8 +18,11 @@ const Template017 = React.memo(({ scene }) => {
   const image = elements.image || '';
   const badge = elements.badge || elements.label || '';
   const bgColor = elements.backgroundColor || backgroundColors.navy;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate017Animations({ frameOffset: 0 });
+  const titleStyle = mergeStyle(styles.title, overrides.title);
+  const bodyStyle = mergeStyle(styles.body, overrides.body);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
@@ -27,8 +33,8 @@ const Template017 = React.memo(({ scene }) => {
         </div>
         <div style={{ ...styles.textPanel, ...anim.bgStyle }}>
           {badge && <div style={{ ...styles.stepBadge, ...anim.badgeStyle }}>{badge}</div>}
-          {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
-          {body && <p style={{ ...styles.body, ...anim.bodyStyle }}>{body}</p>}
+          {title && <h1 style={{ ...titleStyle, ...anim.titleStyle }}>{title}</h1>}
+          {body && <p style={{ ...bodyStyle, ...anim.bodyStyle }}>{body}</p>}
         </div>
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

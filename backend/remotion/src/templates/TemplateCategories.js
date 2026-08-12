@@ -21,7 +21,6 @@ export const SceneTypeCategories = {
    */
   title: [
     'template-001',  // Educational Card - Title + subtitle + image
-    'template-010',  // Split Hero - Hero section split layout
     'template-012',  // Hook Opener - Bold hero-style opener
     'template-019',  // Parallax Hero - Parallax scrolling effect
     'template-030',  // Report Summary - Report layout
@@ -43,13 +42,13 @@ export const SceneTypeCategories = {
   content: [
     'template-004',  // Timeline - Sequential content flow
     'template-005',  // Comparison - Two-column content comparison
-    'template-007',  // Stats Dashboard - Statistics/metrics
     'template-008',  // Pill Tags - Tag/chip display
     'template-009',  // Bullet List - Clear bullet points
     'template-011',  // Team Profiles - People/team display
     'template-013',  // Steps How-To - Sequential steps
-    'template-014',  // Bar Chart - Data visualization
     'template-015',  // Feature Grid - Grid of content points
+    'template-062',  // Title + Bullets - Clean PPT-style bulleted slide
+    'template-063',  // Title + Two-Column - Clean PPT-style comparison slide
     'template-016',  // Image Collage Grid - Image grid layout
     'template-017',  // Story Image Text - Image + text narrative
     'template-018',  // Masonry Wall - Dynamic masonry layout
@@ -67,7 +66,6 @@ export const SceneTypeCategories = {
     'template-035',  // Tech Tags - Technology tags
     'template-036',  // Case Study - Case study layout
     'template-037',  // Milestones - Vertical content list
-    'template-038',  // Metrics Grid - Business metrics
     'template-039',  // Profile Spotlight - Speaker highlight
     'template-040',  // Skills Chips - Skills display
     'template-043',  // News - News-style layout
@@ -79,6 +77,16 @@ export const SceneTypeCategories = {
     'template-055',  // Corporate - Professional corporate
     'template-056',  // Music - Audio-focused
     'template-057',  // Science - Scientific layout
+  ],
+
+  /**
+   * Content-with-image scenes: content delivery paired with a supporting
+   * image (split image/text layout) - distinct from "image" (background-only)
+   * and "content" (text-only).
+   * Best for: Explanations that benefit from a supporting photo/illustration
+   */
+  contentwithimage: [
+    'template-017',  // Story Image Text - Split image/text panel, no card chrome
   ],
 
   /**
@@ -245,7 +253,7 @@ const templateNames = {
   'template-004': 'Timeline (sequential alternating-card content flow)',
   'template-005': 'Comparison (two-column content comparison)',
   'template-006': 'Quote Testimonial (closing message with attribution)',
-  'template-007': 'Stats Dashboard (statistics/metrics)',
+  'template-007': 'Stats Dashboard (plain-row statistics/metrics, no card chrome)',
   'template-008': 'Pill Tags (tag/chip display)',
   'template-009': 'Bullet List (clear bullet points)',
   'template-010': 'Split Hero (split hero layout)',
@@ -253,7 +261,7 @@ const templateNames = {
   'template-012': 'Hook Opener (bold hero-style opening scene)',
   'template-013': 'Steps How-To (sequential steps)',
   'template-014': 'Bar Chart (data visualization)',
-  'template-015': 'Feature Grid (grid of content points)',
+  'template-015': 'Feature Grid (plain two-column feature rows, no cards or icons)',
   'template-016': 'Image Collage Grid (image grid layout)',
   'template-017': 'Story Image Text (image + text narrative)',
   'template-018': 'Masonry Wall (dynamic masonry layout)',
@@ -276,7 +284,7 @@ const templateNames = {
   'template-035': 'Tech Tags (technology tags)',
   'template-036': 'Case Study (case study layout)',
   'template-037': 'Milestones (vertical numbered content list)',
-  'template-038': 'Metrics Grid (business metrics)',
+  'template-038': 'Metrics Grid (plain-row business metrics, no card chrome)',
   'template-039': 'Profile Spotlight (speaker highlight)',
   'template-040': 'Skills Chips (skills display)',
   'template-041': 'Modern Minimal (clean modern look)',
@@ -299,6 +307,8 @@ const templateNames = {
   'template-058': 'Storytelling (cinematic parchment-framed image scene)',
   'template-059': 'Event (event highlights)',
   'template-060': 'Comedy (fun/entertaining)',
+  'template-062': 'Title + Bullets (clean PPT-style bulleted slide, no cards or icons)',
+  'template-063': 'Title + Two-Column (clean PPT-style comparison slide, no cards or icons)',
 };
 
 /**
@@ -321,6 +331,7 @@ export const getAllSceneTypeHints = () => {
   const descriptions = {
     title: 'Use for introduction/title scenes (opening cards, chapter headers)',
     content: 'Use for main content scenes (explanations, bullet points, steps, data)',
+    contentwithimage: 'Use for content scenes that should show a supporting image alongside the text (split image/text layout, requires imagePrompt)',
     image: 'Use ONLY when the scene has an AI-generated background image (imagePrompt provided)',
     end: 'Use for closing/summary scenes (final cards, call-to-action, credits)',
   };

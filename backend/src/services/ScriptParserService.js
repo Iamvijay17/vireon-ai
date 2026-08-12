@@ -14,11 +14,13 @@ class ScriptParserService {
    *
    * Valid scene types.
    * Each scene can be one of:
-   *   - "intro":    Opening title card (text only, no image)
-   *   - "content":  Informational/educational content (text only, no image)
-   *   - "image":    Visual scene with image generation (requires imagePrompt)
+   *   - "intro":            Opening title card (text only, no image)
+   *   - "content":          Informational/educational content (text only, no image)
+   *   - "image":            Visual scene with image generation (requires imagePrompt)
+   *   - "contentwithimage": Content delivery paired with a supporting image
+   *                         (requires imagePrompt, same as "image")
    */
-  static VALID_SCENE_TYPES = ['intro', 'content', 'image'];
+  static VALID_SCENE_TYPES = ['intro', 'content', 'image', 'contentwithimage'];
 
   static validate(scriptData, videoType = 'educational', options = {}) {
     const { hostVoice = '', guestVoice = '', hostName = '', guestName = '', seed = '' } = options;
@@ -52,8 +54,8 @@ class ScriptParserService {
         // where every scene is tagged "image" but they all share ONE cover
         // image (derived below from whichever scene happens to carry it,
         // defaulting if none do) rather than each needing its own.
-        if (sceneType === 'image' && !scene.imagePrompt && videoType !== 'podcast') {
-          errors.push(`Scene ${index}: missing imagePrompt for sceneType "image"`);
+        if ((sceneType === 'image' || sceneType === 'contentwithimage') && !scene.imagePrompt && videoType !== 'podcast') {
+          errors.push(`Scene ${index}: missing imagePrompt for sceneType "${sceneType}"`);
         }
       });
     }
@@ -117,10 +119,10 @@ class ScriptParserService {
         }
       }
 
-      // Only keep imagePrompt for "image" scenes; clear for others to skip generation
+      // Only keep imagePrompt for "image"/"contentwithimage" scenes; clear for others to skip generation
       const imagePrompt = resolvedType === 'podcast'
         ? podcastSharedImagePrompt
-        : (sceneType === 'image' ? (scene.imagePrompt || '') : '');
+        : ((sceneType === 'image' || sceneType === 'contentwithimage') ? (scene.imagePrompt || '') : '');
 
       // Build scene_meta for content scenes: preserve LLM output if valid, otherwise auto-generate
       let scene_meta = null;
@@ -208,7 +210,7 @@ class ScriptParserService {
       'template-033', 'template-034', 'template-035', 'template-036', 'template-037',
       'template-038', 'template-039', 'template-040', 'template-043', 'template-044',
       'template-045', 'template-046', 'template-048', 'template-054',
-      'template-055', 'template-056', 'template-057',
+      'template-055', 'template-056', 'template-057', 'template-062', 'template-063',
     ];
 
     const templateMap = {
@@ -246,6 +248,19 @@ class ScriptParserService {
         motivational: 'template-003',
         business: 'template-036',
         youtube_shorts: 'template-016',
+      },
+      // Content-with-image scenes: content delivery paired with a supporting
+      // image (split image/text layout, no stat/icon chrome) - every video
+      // type uses the same template since it's a distinct layout need, not a
+      // tone/genre one.
+      contentwithimage: {
+        educational: 'template-017',
+        podcast: 'template-017',
+        marketing: 'template-017',
+        story: 'template-017',
+        motivational: 'template-017',
+        business: 'template-017',
+        youtube_shorts: 'template-017',
       },
     };
 
@@ -340,7 +355,7 @@ class ScriptParserService {
       'template-035': { ...base, items: [{ text: '', icon: '' }] },
       'template-036': { label: '', ...base, body: scene.subtitle || '', image: '', stat: '' },
       'template-037': { title: scene.title || '', items: [{ heading: '', text: '' }] },
-      'template-038': { title: scene.title || '', items: [{ icon: '', title: '', description: '' }] },
+      'template-038': { title: scene.title || '', items: [{ text: '', description: '' }] },
       'template-039': { name: scene.title || '', role: scene.subtitle || '', bio: '', image: '', stats: [{ value: '', label: '' }] },
       'template-040': { ...base, items: [{ text: '', icon: '' }] },
       'template-041': { ...base, caption: scene.subtitle || '', captionTimestamps: null },

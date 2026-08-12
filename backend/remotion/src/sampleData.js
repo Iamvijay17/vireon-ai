@@ -913,5 +913,32 @@ export const sampleScenes = {
       "caption": "Honestly, the moment I started shipping small features every week, everything clicked."
     },
     "duration": 8
+  },
+  "template-062": {
+    "templateId": "template-062",
+    "elements": {
+      "title": "Key Takeaways",
+      "items": [
+        { "heading": "Focus:", "text": "Ship the smallest version that proves the idea." },
+        { "heading": "Iterate:", "text": "Real usage beats speculation every time." },
+        { "heading": "Measure:", "text": "Track outcomes, not just activity." }
+      ],
+      "backgroundColor": "#1a1a2e",
+      "caption": "These three principles guide every decision we make."
+    },
+    "duration": 8
+  },
+  "template-063": {
+    "templateId": "template-063",
+    "elements": {
+      "title": "Before & After",
+      "columns": [
+        { "heading": "Before", "body": "Manual reviews took three days and blocked releases." },
+        { "heading": "After", "body": "Automated checks finish in minutes, releases ship daily." }
+      ],
+      "backgroundColor": "#16213e",
+      "caption": "Automation changed how the whole team works."
+    },
+    "duration": 8
   }
 };

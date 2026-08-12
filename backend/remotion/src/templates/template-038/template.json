@@ -1,11 +1,11 @@
 {
   "title": "Metrics Grid",
-  "description": "Business metrics grid with large stat values and trend indicators.",
+  "description": "Plain-row business metrics list with title, value, and description. No cards, no icon badges.",
   "scene_meta": {
     "sceneType": "content",
     "content": [
       "Metrics title",
-      "Metric items with value, label, and trend"
+      "Metric items with title and description"
     ]
   }
 }

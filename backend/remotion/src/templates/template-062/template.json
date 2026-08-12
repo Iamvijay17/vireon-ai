@@ -1,0 +1,11 @@
+{
+  "title": "Title + Bullets",
+  "description": "Clean presentation-slide layout: title, accent line, and a plain bulleted list. No stat cards, no icon badges - built for straightforward content delivery.",
+  "scene_meta": {
+    "sceneType": "content",
+    "content": [
+      "Slide title",
+      "Bullet items with optional heading and text"
+    ]
+  }
+}

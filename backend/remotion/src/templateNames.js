@@ -63,6 +63,8 @@ export const templateNames = {
   'template-059': '059-Event',
   'template-060': '060-Comedy',
   'template-061': '061-Podcast-Dialogue',
+  'template-062': '062-Title-Bullets',
+  'template-063': '063-Title-Two-Column',
 };
 
 export default templateNames;

@@ -1,11 +1,11 @@
 {
   "title": "Stats Dashboard",
-  "description": "Grid-based statistics display with large numbers and labels. Perfect for showcasing metrics.",
+  "description": "Plain-row statistics list with value + label pairs and a hairline divider. No cards, no icon badges.",
   "scene_meta": {
     "sceneType": "content",
     "content": [
       "Stats title",
-      "Stat values and labels with icons"
+      "Stat values and labels"
     ]
   }
 }
