@@ -5,7 +5,9 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const swaggerUi = require('swagger-ui-express');
 const config = require('./config');
+const swaggerSpec = require('./config/swagger');
 const LoggerService = require('./services/LoggerService');
 
 // Fire-and-forget: spawns a local redis-server if REDIS_HOST is localhost
@@ -26,7 +28,15 @@ const app = express();
 const server = http.createServer(app);
 
 // ── Security Middleware ──────────────────────────────────────────────────────
-app.use(helmet());
+// Swagger UI's bundled HTML relies on inline scripts/styles, which helmet's
+// default Content-Security-Policy blocks - skip the CSP-bearing default
+// helmet() for /api-docs and apply a CSP-free helmet() there instead (still
+// keeps the other security headers, just not the policy that'd break the UI).
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api-docs')) return next();
+  return helmet()(req, res, next);
+});
+app.use('/api-docs', helmet({ contentSecurityPolicy: false }));
 app.use(
   cors({
     origin(origin, callback) {
@@ -113,6 +123,10 @@ app.get('/health', (req, res) => {
   res.status(200).json(healthData);
 });
 
+// ── API Documentation ────────────────────────────────────────────────────────
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/api-docs.json', (req, res) => res.json(swaggerSpec));
+
 // ── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/videos', videoRoutes);
 app.use('/api/courses', courseRoutes);
@@ -147,6 +161,7 @@ async function startServer() {
       console.log(`\n  \x1b[32m➜\x1b[0m  \x1b[1mLocal:\x1b[0m    \x1b[4;36mhttp://localhost:${config.port}\x1b[0m`);
       console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mHealth:\x1b[0m  \x1b[4;36mhttp://localhost:${config.port}/health\x1b[0m`);
       console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mAPI:\x1b[0m     \x1b[4;36mhttp://localhost:${config.port}/api\x1b[0m`);
+      console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mDocs:\x1b[0m    \x1b[4;36mhttp://localhost:${config.port}/api-docs\x1b[0m`);
       console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mEnv:\x1b[0m     \x1b[37m${config.nodeEnv}\x1b[0m`);
       console.log();
     });
