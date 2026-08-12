@@ -118,8 +118,14 @@ const AudioPage = () => {
     }
     try {
       setGenerating(true);
-      const res = await generateAudio({ text: trimmed, voice, emotion: emotion.trim() });
-      setHistory((prev) => [res.data.audio, ...prev]);
+      const genPromise = generateAudio({ text: trimmed, voice, emotion: emotion.trim() });
+      // The DB record is created server-side before synthesis starts, so a
+      // quick refetch shortly after kicking things off surfaces it as
+      // "Pending" instead of leaving the history panel looking unchanged
+      // for the whole (possibly long) generation.
+      setTimeout(() => fetchHistory(), 700);
+      const res = await genPromise;
+      setHistory((prev) => [res.data.audio, ...prev.filter((h) => h._id !== res.data.audio._id)]);
       setHistoryError(null);
       toast.success("Audio generated");
     } catch (err) {
@@ -142,8 +148,13 @@ const AudioPage = () => {
     }
     try {
       setGenerating(true);
-      const res = await generateDialogueAudio({ script: trimmedScript, speakers: cleanSpeakers });
-      setHistory((prev) => [res.data.audio, ...prev]);
+      const genPromise = generateDialogueAudio({ script: trimmedScript, speakers: cleanSpeakers });
+      // Same reasoning as the single-voice path: the record exists
+      // server-side (status "Pending") well before the multi-turn synthesis
+      // finishes, so refetch shortly after kicking it off to reflect that.
+      setTimeout(() => fetchHistory(), 700);
+      const res = await genPromise;
+      setHistory((prev) => [res.data.audio, ...prev.filter((h) => h._id !== res.data.audio._id)]);
       setHistoryError(null);
       toast.success("Dialogue generated");
     } catch (err) {
