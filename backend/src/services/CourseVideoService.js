@@ -623,6 +623,13 @@ Rules:
 
     video.script = script;
     video.status = VIDEO_STATUS.WAITING_FOR_APPROVAL;
+    // An edit invalidates any prior approval - without this, a script that
+    // was approved and then edited ends up with status WAITING_FOR_APPROVAL
+    // but approved still true, which videoCanApprove() (frontend) reads as
+    // "not eligible to approve" while the status badge still says it's
+    // waiting, showing a permanently-disabled Approve button.
+    video.approved = false;
+    video.approvedAt = null;
     await video.save();
 
     await ActivityLogService.add(videoId, 'Script edited and saved');

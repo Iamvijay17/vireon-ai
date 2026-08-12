@@ -28,8 +28,8 @@ const s = {
 
 const StepItem = ({ item, index, fo }) => {
   const stepSlide = useSlideLeft({ startAt: fo + 15 + index * 6, distance: 40 });
-  const heading = item.heading || item.title || item.text || '';
-  const text = item.text && item.heading ? item.text : item.description || '';
+  const heading = item.heading || item.title || '';
+  const text = item.text || item.description || '';
   return (
     <div style={{ ...s.stepRow, ...stepSlide }}>
       <div style={s.numBadge}>{index + 1}</div>

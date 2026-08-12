@@ -19,8 +19,8 @@ const Row = ({ item, index, fo, textStyle }) => {
   // Back-compat: older scenes may still carry {text, description} or
   // {title, description} (both were produced by earlier code paths before
   // this was standardized on {heading, text}).
-  const heading = item.heading || item.text || item.title || '';
-  const text = item.text && item.heading ? item.text : item.description || '';
+  const heading = item.heading || item.title || '';
+  const text = item.text || item.description || '';
   return (
     <div style={{ ...s.row, ...rowAnim }}>
       <div style={s.rowTitle}>{heading}</div>
