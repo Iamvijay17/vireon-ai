@@ -181,6 +181,11 @@ const SOCKET_EVENTS = Object.freeze({
 // from worker processes to the main server process's Socket.IO instance.
 const REDIS_CHANNEL = 'vireon:job-events';
 
+// Redis list key persisting the recent-server-log ring buffer, so the Live
+// Logs page's history survives a server restart instead of resetting to
+// empty until new lines stream in.
+const REDIS_LOG_BUFFER_KEY = 'vireon:log-buffer';
+
 const DEFAULT_SCENE_DURATION = 8;
 
 const VIDEO_DURATIONS = Object.freeze([5, 10, 15]);
@@ -229,6 +234,7 @@ module.exports = {
   CAMERA_MOTIONS,
   SOCKET_EVENTS,
   REDIS_CHANNEL,
+  REDIS_LOG_BUFFER_KEY,
   DEFAULT_SCENE_DURATION,
   VIDEO_DURATIONS,
   STANDALONE_VIDEO_DURATIONS,

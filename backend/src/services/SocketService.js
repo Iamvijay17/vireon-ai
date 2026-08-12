@@ -2,7 +2,7 @@ const { Server } = require('socket.io');
 const Redis = require('ioredis');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
-const { SOCKET_EVENTS, VIDEO_STATUS, REDIS_CHANNEL } = require('../constants');
+const { SOCKET_EVENTS, VIDEO_STATUS, REDIS_CHANNEL, REDIS_LOG_BUFFER_KEY } = require('../constants');
 const VideoService = require('./VideoService');
 const courseQueue = require('../queues/courseQueue');
 const { ID_PATTERN } = require('../utils/id');
@@ -29,9 +29,10 @@ const WORKER_STATUS_POLL_MS = 5000;
 
 // Ring buffer of recent server log entries so a client opening the Live Logs
 // page gets immediate context instead of a blank screen until the next line
-// is emitted. Populated as 'serverLog' events arrive from Redis pub/sub.
+// is emitted. Persisted to a Redis list (REDIS_LOG_BUFFER_KEY) as 'serverLog'
+// events arrive from Redis pub/sub, so history survives a server restart
+// instead of resetting to empty.
 const LOG_BUFFER_MAX = 300;
-const logBuffer = [];
 
 /**
  * Socket.IO service for real-time job progress updates.
@@ -228,8 +229,7 @@ class SocketService {
         io.emit(SOCKET_EVENTS.JOB_CREATED, data);
         break;
       case 'serverLog':
-        logBuffer.push(data);
-        if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift();
+        SocketService._persistLog(data);
         io.emit(SOCKET_EVENTS.SERVER_LOG, data);
         break;
       // Course video events
@@ -266,6 +266,24 @@ class SocketService {
       default:
         LoggerService.warn('Unknown event type from Redis pub/sub', { type });
     }
+  }
+
+  /**
+   * Append a server log entry to the Redis-backed ring buffer, trimmed to
+   * LOG_BUFFER_MAX. Only the main server process calls this (from
+   * _forwardEvent, after receiving the event over Redis pub/sub), so there's
+   * a single writer and no cross-process race on the trim.
+   */
+  static _persistLog(data) {
+    if (!redisPublisher) return;
+    redisPublisher
+      .multi()
+      .rpush(REDIS_LOG_BUFFER_KEY, JSON.stringify(data))
+      .ltrim(REDIS_LOG_BUFFER_KEY, -LOG_BUFFER_MAX, -1)
+      .exec()
+      .catch((err) => {
+        LoggerService.error('Failed to persist log entry to Redis', { error: err.message });
+      });
   }
 
   /**
@@ -641,10 +659,24 @@ class SocketService {
 
   /**
    * Recent server log entries (newest last), for hydrating the Live Logs
-   * page on load before any new 'serverLog' events arrive.
+   * page on load before any new 'serverLog' events arrive. Backed by Redis
+   * so this survives a server restart.
    */
-  static getRecentLogs(limit = LOG_BUFFER_MAX) {
-    return logBuffer.slice(-limit);
+  static async getRecentLogs(limit = LOG_BUFFER_MAX) {
+    if (!redisPublisher) return [];
+    try {
+      const raw = await redisPublisher.lrange(REDIS_LOG_BUFFER_KEY, -limit, -1);
+      return raw.map((entry) => {
+        try {
+          return JSON.parse(entry);
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+    } catch (err) {
+      LoggerService.error('Failed to read log buffer from Redis', { error: err.message });
+      return [];
+    }
   }
 
   /**
