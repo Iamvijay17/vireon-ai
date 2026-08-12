@@ -95,6 +95,11 @@ class AudioController {
         );
         record.turns[i].file = `/public/audio-studio/${record._id}/${result.file}`;
         record.turns[i].duration = result.duration;
+        // Persist after each turn (not just once at the end) so the history
+        // list can show real "N of M turns done" progress instead of a bare
+        // "Pending" spinner, and so a crash mid-run leaves a record of how
+        // far it got instead of nothing at all.
+        await record.save();
       }
 
       const audioDir = path.resolve(__dirname, '../../jobs/audio-studio', record._id);

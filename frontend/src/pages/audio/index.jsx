@@ -149,11 +149,13 @@ const AudioPage = () => {
     try {
       setGenerating(true);
       const genPromise = generateDialogueAudio({ script: trimmedScript, speakers: cleanSpeakers });
-      // Same reasoning as the single-voice path: the record exists
-      // server-side (status "Pending") well before the multi-turn synthesis
-      // finishes, so refetch shortly after kicking it off to reflect that.
+      // The backend now saves the record after each turn (not just once at
+      // the end), so poll every few seconds while this is in flight to show
+      // real "N of M turns" progress instead of a static "Pending" spinner
+      // for the whole (possibly multi-minute) generation.
       setTimeout(() => fetchHistory(), 700);
-      const res = await genPromise;
+      const pollId = setInterval(() => fetchHistory(), 4000);
+      const res = await genPromise.finally(() => clearInterval(pollId));
       setHistory((prev) => [res.data.audio, ...prev.filter((h) => h._id !== res.data.audio._id)]);
       setHistoryError(null);
       toast.success("Dialogue generated");
@@ -199,6 +201,14 @@ const AudioPage = () => {
 
   const isSingle = mode === "single";
   const generateDisabled = isSingle ? generating || !text.trim() || !voice : generating || !script.trim();
+
+  // The Qwen3-TTS voice-clone endpoint has no delivery/style-instruction
+  // parameter at all (unlike the preset "custom" voices) - so "(laughing)"
+  // style notes in the script are parsed fine but have nowhere to go and are
+  // silently ignored for cloned speakers. Surface that up front instead of
+  // letting it look broken.
+  const hasCloneSpeaker = speakers.some((s) => s.voice.startsWith("clone:"));
+  const scriptHasEmotionNotes = /\([^)]+\):/.test(script);
 
   return (
     <div>
@@ -322,6 +332,13 @@ const AudioPage = () => {
                     e.g. "Guest (nervous, half-laughing): ...". Lines with no "Name:" prefix continue the previous
                     speaker's turn. {script.length}/{MAX_SCRIPT_CHARS} characters
                   </FieldHint>
+                  {hasCloneSpeaker && scriptHasEmotionNotes && (
+                    <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                      Cloned voices don't support delivery notes - the TTS engine has no style-instruction input for
+                      clone mode, so "(...)" notes will be ignored for {speakers.filter((s) => s.voice.startsWith("clone:")).map((s) => s.name).join(", ")}.
+                      Use a preset voice for that speaker if emotion matters here.
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -390,7 +407,13 @@ const AudioPage = () => {
                         ) : item.status === "FAILED" ? (
                           <Badge variant="danger">Failed{item.error ? `: ${item.error}` : ""}</Badge>
                         ) : (
-                          <Badge variant="neutral" icon={<Loader2 className="size-3 animate-spin" />}>Pending</Badge>
+                          <Badge variant="neutral" icon={<Loader2 className="size-3 animate-spin" />}>
+                            {(() => {
+                              const total = item.turns?.length || 0;
+                              const done = item.turns?.filter((t) => t.file).length || 0;
+                              return total > 0 ? `Generating turn ${Math.min(done + 1, total)} of ${total}` : "Pending";
+                            })()}
+                          </Badge>
                         )}
                       </>
                     ) : (

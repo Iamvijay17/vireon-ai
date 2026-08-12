@@ -146,10 +146,29 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 // ── Start Server ─────────────────────────────────────────────────────────────
+// Audio Studio generation (backend/src/controllers/audioController.js) is
+// fully synchronous per-request, not queued like video jobs - so a record
+// left in PENDING status can only mean the process died mid-generation
+// (crash, restart, nodemon reload) while a client was waiting on it. Nothing
+// resumes it, so it would otherwise sit there forever looking "in progress".
+// Sweep those into FAILED on every boot so the history list reflects reality
+// and the user can just regenerate instead of watching a stuck spinner.
+async function reapOrphanedAudioGenerations() {
+  const AudioGeneration = require('./models/AudioGeneration');
+  const result = await AudioGeneration.updateMany(
+    { status: 'PENDING' },
+    { $set: { status: 'FAILED', error: 'Generation was interrupted by a server restart. Please try again.' } }
+  );
+  if (result.modifiedCount > 0) {
+    LoggerService.warn(`Marked ${result.modifiedCount} orphaned audio generation(s) as failed after restart`);
+  }
+}
+
 async function startServer() {
   try {
     const { connectDatabase } = require('./config/database');
     await connectDatabase();
+    await reapOrphanedAudioGenerations();
     SocketService.init(server);
     SocketService.initRedis();
 
