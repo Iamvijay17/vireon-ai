@@ -10,8 +10,9 @@ const audioGenerationSchema = new mongoose.Schema(
       type: String,
       default: generateAudioGenerationId,
     },
-    // 'single': one voice, one output file (voice/audioUrl/duration below).
-    // 'dialogue': multi-speaker script, one output file per turn (turns below).
+    // 'single': one voice, straight to audioUrl/duration below.
+    // 'dialogue': multi-speaker script - each turn (below) is synthesized
+    // separately, then merged into that same audioUrl/duration as one file.
     mode: {
       type: String,
       enum: ['single', 'dialogue'],
@@ -45,6 +46,9 @@ const audioGenerationSchema = new mongoose.Schema(
       },
     ],
     // Dialogue mode only: one entry per parsed script line/turn, in order.
+    // `file`/`duration` here are each turn's individual pre-merge audio -
+    // kept as the source material behind the single merged audioUrl below,
+    // not meant to be played standalone by the frontend.
     turns: [
       {
         _id: false,
@@ -64,6 +68,9 @@ const audioGenerationSchema = new mongoose.Schema(
       enum: ['PENDING', 'COMPLETED', 'FAILED'],
       default: 'PENDING',
     },
+    // The playable/downloadable output for both modes: the single-voice
+    // clip, or (dialogue mode) all turns merged into one file with a short
+    // silence between speakers - see utils/wavAudio.concatWavFiles.
     audioUrl: {
       type: String,
       default: null,

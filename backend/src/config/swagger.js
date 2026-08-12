@@ -311,7 +311,9 @@ const definition = {
           },
           turns: {
             type: 'array',
-            description: 'Dialogue mode only, one entry per script turn in order',
+            description:
+              'Dialogue mode only, one entry per script turn in order. file/duration are each turn\'s ' +
+              'individual pre-merge audio, kept as source material - play audioUrl below instead.',
             items: {
               type: 'object',
               properties: {
@@ -326,8 +328,12 @@ const definition = {
             },
           },
           status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'FAILED'] },
-          audioUrl: { type: 'string', nullable: true, description: 'Single mode only' },
-          duration: { type: 'number', nullable: true, description: 'Single mode only' },
+          audioUrl: {
+            type: 'string',
+            nullable: true,
+            description: 'The playable output for both modes - single-voice clip, or all dialogue turns merged into one file',
+          },
+          duration: { type: 'number', nullable: true },
           error: { type: 'string', nullable: true },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },

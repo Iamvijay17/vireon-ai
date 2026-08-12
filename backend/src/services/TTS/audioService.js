@@ -551,11 +551,23 @@ class AudioService {
   }
 
   /**
+   * Deterministic small pause (0.25-0.55s) inserted before the given
+   * dialogue turn when merging per-turn audio into one file (see
+   * audioController.generateDialogue + utils/wavAudio.concatWavFiles) -
+   * keeps turns from butting up against each other while staying
+   * reproducible for a given generation id. Varied per turn (not a fixed
+   * gap) for the same reason _synthesizeSceneAudio varies podcast turn
+   * gaps - a fixed pause across many turns reads as metronomic.
+   */
+  static turnGapSeconds(seedKey) {
+    return 0.25 + (this._seedFromJobId(seedKey) % 300) / 1000;
+  }
+
+  /**
    * One turn of a multi-speaker dialogue script (Audio Studio "podcast"
-   * mode - see parseDialogueScript). Each turn is synthesized and stored
-   * separately (turn0.mp3, turn1.mp3, ...) rather than concatenated into a
-   * single file - the frontend plays them back in order, the same way
-   * per-scene podcast audio already works in the video pipeline.
+   * mode - see parseDialogueScript). Each turn is synthesized to its own
+   * file (turn0.mp3, turn1.mp3, ...); the controller merges them into a
+   * single output file afterward (see utils/wavAudio.concatWavFiles).
    */
   static async generateDialogueTurnAudio(id, turnIndex, text, voice, speakerName, emotion = "") {
     const audioDir = path.resolve(__dirname, "../../../jobs", "audio-studio", id);

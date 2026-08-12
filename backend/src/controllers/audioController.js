@@ -4,6 +4,7 @@ const AudioGeneration = require('../models/AudioGeneration');
 const AudioService = require('../services/TTS/audioService');
 const LoggerService = require('../services/LoggerService');
 const { parseDialogueScript } = require('../utils/parseDialogueScript');
+const { concatWavFiles } = require('../utils/wavAudio');
 const { createAudioSchema, audioIdSchema, createDialogueAudioSchema, validate } = require('../validators');
 
 class AudioController {
@@ -45,9 +46,10 @@ class AudioController {
    * POST /api/audio/generate-dialogue - Synthesize a multi-speaker script
    * (Audio Studio "podcast" mode). Each "Name: line" turn is parsed against
    * the given speaker roster and synthesized with that speaker's voice, one
-   * file per turn (see AudioService.generateDialogueTurnAudio) - turns are
-   * generated sequentially so a shared per-script seed base stays
-   * deterministic if this is ever retried.
+   * file per turn (see AudioService.generateDialogueTurnAudio), then merged
+   * into a single output file (audioUrl/duration, same fields single-voice
+   * mode uses) with a short silence between turns - the per-turn files stay
+   * on disk too, kept as the source material behind that merge.
    */
   static async generateDialogue(req, res, next) {
     let record;
@@ -95,7 +97,17 @@ class AudioController {
         record.turns[i].duration = result.duration;
       }
 
+      const audioDir = path.resolve(__dirname, '../../jobs/audio-studio', record._id);
+      const turnFilePaths = record.turns.map((t) => path.join(audioDir, path.basename(t.file)));
+      const merged = await concatWavFiles(turnFilePaths, (i) =>
+        AudioService.turnGapSeconds(`${record._id}:gap:${i}`),
+      );
+      const mergedFile = 'dialogue.mp3';
+      await fs.writeFile(path.join(audioDir, mergedFile), merged.buffer);
+
       record.status = 'COMPLETED';
+      record.audioUrl = `/public/audio-studio/${record._id}/${mergedFile}`;
+      record.duration = merged.durationSeconds;
       await record.save();
 
       res.status(201).json({ audio: record });

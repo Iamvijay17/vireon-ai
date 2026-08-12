@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { AudioLines, Wand2, Download, Trash2, Loader2, Plus, X, Mic2 } from "lucide-react";
+import { AudioLines, Wand2, Download, Trash2, Loader2, Plus, X, Mic2, RefreshCw } from "lucide-react";
 import {
   generateAudio,
   generateDialogueAudio,
@@ -54,6 +54,7 @@ const AudioPage = () => {
   const [generating, setGenerating] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
@@ -68,8 +69,14 @@ const AudioPage = () => {
       setHistoryLoading(true);
       const res = await getAudioGenerations(1, 50);
       setHistory(res.data?.items || []);
+      setHistoryError(null);
     } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to load audio history");
+      // Deliberately don't clear `history` here - a transient failure (the
+      // backend restarting, a network blip) would otherwise render exactly
+      // like "no generations yet" and make already-generated audio look
+      // like it vanished, when it's still safely in the DB. Show an
+      // explicit retry instead of silently looking empty.
+      setHistoryError(err.friendlyMessage || "Failed to load audio history");
     } finally {
       setHistoryLoading(false);
     }
@@ -113,6 +120,7 @@ const AudioPage = () => {
       setGenerating(true);
       const res = await generateAudio({ text: trimmed, voice, emotion: emotion.trim() });
       setHistory((prev) => [res.data.audio, ...prev]);
+      setHistoryError(null);
       toast.success("Audio generated");
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to generate audio");
@@ -136,6 +144,7 @@ const AudioPage = () => {
       setGenerating(true);
       const res = await generateDialogueAudio({ script: trimmedScript, speakers: cleanSpeakers });
       setHistory((prev) => [res.data.audio, ...prev]);
+      setHistoryError(null);
       toast.success("Dialogue generated");
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to generate dialogue audio");
@@ -333,6 +342,16 @@ const AudioPage = () => {
               <div className="flex justify-center py-8">
                 <Spinner size="sm" />
               </div>
+            ) : historyError ? (
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <p className="text-[13px] text-danger-500">{historyError}</p>
+                <p className="text-xs text-text-tertiary">
+                  Your generations are safe on the server - this just couldn't load them.
+                </p>
+                <Button variant="secondary" size="sm" icon={<RefreshCw className="size-3.5" />} onClick={fetchHistory}>
+                  Retry
+                </Button>
+              </div>
             ) : history.length === 0 ? (
               <p className="text-[13px] text-text-tertiary">Generated audio will appear here.</p>
             ) : (
@@ -347,22 +366,16 @@ const AudioPage = () => {
                             <Badge key={s.name} variant="neutral">{s.name}</Badge>
                           ))}
                         </div>
-                        {item.status === "COMPLETED" ? (
-                          <div className="flex flex-col gap-2">
-                            {(item.turns || []).map((turn) => (
-                              <div key={turn.order}>
-                                <p className="mb-1 text-[11px] font-medium text-text-tertiary">
-                                  {turn.speaker}
-                                  {turn.emotion && <span className="ml-1 font-normal italic">({turn.emotion})</span>}
-                                </p>
-                                {turn.file ? (
-                                  <AudioPlayer src={resolveMediaUrl(turn.file)} />
-                                ) : (
-                                  <p className="text-[11px] text-text-tertiary">No audio</p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                        <div className="mb-2 flex flex-col gap-0.5">
+                          {(item.turns || []).map((turn) => (
+                            <p key={turn.order} className="text-[11px] text-text-tertiary">
+                              <span className="font-medium">{turn.speaker}:</span> {turn.text}
+                              {turn.emotion && <span className="ml-1 italic">({turn.emotion})</span>}
+                            </p>
+                          ))}
+                        </div>
+                        {item.status === "COMPLETED" && item.audioUrl ? (
+                          <AudioPlayer src={resolveMediaUrl(item.audioUrl)} />
                         ) : item.status === "FAILED" ? (
                           <Badge variant="danger">Failed{item.error ? `: ${item.error}` : ""}</Badge>
                         ) : (
@@ -389,7 +402,7 @@ const AudioPage = () => {
                         {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
                       </span>
                       <div className="flex items-center gap-1">
-                        {item.mode !== "dialogue" && item.status === "COMPLETED" && item.audioUrl && (
+                        {item.status === "COMPLETED" && item.audioUrl && (
                           <Button
                             variant="ghost"
                             size="xs"
