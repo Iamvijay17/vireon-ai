@@ -96,7 +96,7 @@ const LogDrawer = () => {
     if (!autoScroll) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [entries.length, autoScroll]);
+  }, [entries, autoScroll]);
 
   // Persist the docked edge + position so the drawer stays where the user put it.
   useEffect(() => {
