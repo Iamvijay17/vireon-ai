@@ -83,6 +83,7 @@ export const regenerateVideoSceneAudio = (id, sceneNumber) =>
 export const remapSceneElementsForTemplate = (id, sceneNumber, templateId, currentScene) =>
   api.post(`/api/videos/${id}/scenes/${sceneNumber}/remap-template`, {
     templateId,
+    fromTemplateId: currentScene?.templateId,
     title: currentScene?.title,
     subtitle: currentScene?.subtitle,
     audioText: currentScene?.audio?.text,

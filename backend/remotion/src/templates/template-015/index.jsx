@@ -14,7 +14,7 @@ import { useFadeInOut, useSlideUp } from '../../animations';
  *   templateId: "template-015",
  *   elements: {
  *     title: "string",
- *     items: [{ title: "string", description: "string" }],
+ *     items: [{ heading: "string", text: "string" }],
  *     backgroundColor: "#hex" (optional),
  *     styleConfig: { title: {...}, body: {...} }
  *   },
@@ -33,10 +33,13 @@ const s = {
 
 const GridItem = ({ item, index, textStyle }) => {
   const slide = useSlideUp({ startAt: 14 + index * 6, distance: 24 });
+  // Back-compat: older scenes may still carry {title, description}.
+  const heading = item.heading || item.title || '';
+  const text = item.text || item.description || '';
   return (
     <div style={{ ...s.row, ...slide }}>
-      {item.title && <div style={s.cardTitle}>{item.title}</div>}
-      {item.description && <div style={{ ...s.cardDesc, ...textStyle }}>{item.description}</div>}
+      {heading && <div style={s.cardTitle}>{heading}</div>}
+      {text && <div style={{ ...s.cardDesc, ...textStyle }}>{text}</div>}
     </div>
   );
 };

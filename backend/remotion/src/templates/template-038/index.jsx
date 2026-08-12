@@ -16,15 +16,15 @@ const s = {
 
 const Row = ({ item, index, fo, textStyle }) => {
   const rowAnim = useSlideUp({ startAt: fo + 12 + index * 5, distance: 30 });
-  // _createContentElementsFromMeta (ScriptParserService.js) generates
-  // {text, description} for this template; _createDefaultElements's fallback
-  // shape used {title, description} instead - real generated scenes only
-  // ever populate `text`, so accept both to actually render either shape.
-  const heading = item.text || item.title || '';
+  // Back-compat: older scenes may still carry {text, description} or
+  // {title, description} (both were produced by earlier code paths before
+  // this was standardized on {heading, text}).
+  const heading = item.heading || item.text || item.title || '';
+  const text = item.text && item.heading ? item.text : item.description || '';
   return (
     <div style={{ ...s.row, ...rowAnim }}>
       <div style={s.rowTitle}>{heading}</div>
-      {item.description && <div style={{ ...s.rowDesc, ...textStyle }}>{item.description}</div>}
+      {text && <div style={{ ...s.rowDesc, ...textStyle }}>{text}</div>}
     </div>
   );
 };

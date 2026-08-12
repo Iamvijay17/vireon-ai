@@ -1,3 +1,5 @@
+import { spacing } from '../../theme';
+
 export const styles = {
   container: {
     width: '100%',
@@ -5,48 +7,48 @@ export const styles = {
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
-    padding: '80px 100px',
+    padding: `${spacing.xxl}px ${spacing.xxxl}px`,
     boxSizing: 'border-box',
     position: 'relative',
     overflow: 'hidden',
   },
   title: {
     color: '#ffffff',
-    fontSize: 44,
-    fontWeight: 'bold',
-    marginBottom: 50,
+    fontSize: 56,
+    fontWeight: 300,
+    marginBottom: spacing.xl,
   },
+  // Plain rows - no card chrome, no icon badges.
   list: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 24,
+    gap: spacing.lg,
     width: '100%',
   },
-  listItem: {
+  row: {
     display: 'flex',
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 20,
-    padding: '20px 30px',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: 14,
-    border: '1px solid rgba(255, 255, 255, 0.06)',
+    alignItems: 'flex-start',
+    gap: spacing.md,
   },
-  bulletIcon: {
-    fontSize: 32,
-    minWidth: 44,
-    height: 44,
+  bulletDot: {
+    flexShrink: 0,
+    width: 10,
+    height: 10,
     borderRadius: '50%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(96, 165, 250, 0.15)',
+    backgroundColor: '#60a5fa',
+    marginTop: 12,
   },
-  bulletText: {
+  heading: {
+    color: '#ffffff',
+    fontSize: 26,
+    fontWeight: 600,
+    marginBottom: 2,
+  },
+  text: {
     color: '#e2e8f0',
-    fontSize: 28,
-    fontWeight: 500,
-    lineHeight: 1.3,
-    flex: 1,
+    fontSize: 24,
+    fontWeight: 400,
+    lineHeight: 1.4,
   },
 };

@@ -326,13 +326,13 @@ class ScriptParserService {
       'template-006': { title: scene.title || '', body: scene.subtitle || '', badge: '' },
       'template-007': { title: scene.title || '', stats: [{ value: '', label: '' }] },
       'template-008': { title: scene.title || '', tags: [{ text: '', icon: '' }] },
-      'template-009': { title: scene.title || '', items: [{ text: scene.subtitle || '', icon: '✅' }] },
+      'template-009': { title: scene.title || '', items: [{ heading: '', text: scene.subtitle || '' }] },
       'template-010': { ...base, stats: [{ value: '', label: '' }] },
       'template-011': { title: scene.title || '', members: [{ name: '', role: '', bio: '' }] },
       'template-012': { ...base, image: '' },
-      'template-013': { title: scene.title || '', emoji: '🚀', steps: [{ title: '', description: '' }] },
+      'template-013': { title: scene.title || '', emoji: '🚀', items: [{ heading: '', text: '' }] },
       'template-014': { title: scene.title || '', bars: [{ label: '', value: '0' }] },
-      'template-015': { title: scene.title || '', items: [{ icon: '', title: '', description: '' }] },
+      'template-015': { title: scene.title || '', items: [{ heading: '', text: '' }] },
       'template-016': { images: [{ url: '' }], caption: scene.subtitle || '' },
       'template-017': { ...base, body: scene.subtitle || '', image: '', badge: '' },
       'template-018': { images: [{ url: '' }], caption: scene.subtitle || '' },
@@ -349,13 +349,13 @@ class ScriptParserService {
       'template-029': { title: scene.title || '', body: scene.subtitle || '' },
       'template-030': { badge: '', ...base, body: scene.subtitle || '', stats: [{ value: '', label: '' }] },
       'template-031': { title: scene.title || '', body: scene.subtitle || '', badge: '' },
-      'template-032': { ...base, steps: [{ num: 1, title: '', description: '' }] },
+      'template-032': { ...base, items: [{ heading: '', text: '' }] },
       'template-033': { ...base, items: [{ icon: '', text: '' }] },
       'template-034': { title: scene.title || '', items: [{ level: '', title: '', description: '', tags: [] }] },
       'template-035': { ...base, items: [{ text: '', icon: '' }] },
       'template-036': { label: '', ...base, body: scene.subtitle || '', image: '', stat: '' },
       'template-037': { title: scene.title || '', items: [{ heading: '', text: '' }] },
-      'template-038': { title: scene.title || '', items: [{ text: '', description: '' }] },
+      'template-038': { title: scene.title || '', items: [{ heading: '', text: '' }] },
       'template-039': { name: scene.title || '', role: scene.subtitle || '', bio: '', image: '', stats: [{ value: '', label: '' }] },
       'template-040': { ...base, items: [{ text: '', icon: '' }] },
       'template-041': { ...base, caption: scene.subtitle || '', captionTimestamps: null },
@@ -403,25 +403,25 @@ class ScriptParserService {
       };
     }
 
+    // Standardized {heading, text} list templates
+    if (['template-009', 'template-013', 'template-032'].includes(templateId)) {
+      return {
+        title: scene.title || '',
+        subtitle: scene.subtitle || '',
+        items: contentItems.map(text => ({ heading: '', text })),
+      };
+    }
+
     // For templates that use items/text arrays, populate from scene_meta.content
     const itemTemplates = [
-      'template-009', 'template-013', 'template-027', 'template-032',
-      'template-033', 'template-034', 'template-035', 'template-040'
+      'template-027', 'template-033', 'template-034', 'template-035', 'template-040'
     ];
-    
+
     if (itemTemplates.includes(templateId)) {
       return {
         title: scene.title || '',
         subtitle: scene.subtitle || '',
         items: contentItems.map(text => ({ text, icon: '' })),
-      };
-    }
-
-    // For bullet/point-style templates
-    if (['template-009', 'template-027'].includes(templateId)) {
-      return {
-        title: scene.title || '',
-        items: contentItems.map(text => ({ text, icon: '✅' })),
       };
     }
 
@@ -438,7 +438,7 @@ class ScriptParserService {
       return {
         title: scene.title || '',
         subtitle: scene.subtitle || '',
-        items: contentItems.map(text => ({ text, description: '' })),
+        items: contentItems.map(text => ({ heading: '', text })),
       };
     }
 
@@ -660,7 +660,7 @@ class ScriptParserService {
     if (['template-015'].includes(templateId)) {
       return {
         title: scene.title || '',
-        items: contentItems.map(text => ({ icon: '', title: text, description: '' })),
+        items: contentItems.map(text => ({ heading: text, text: '' })),
       };
     }
 

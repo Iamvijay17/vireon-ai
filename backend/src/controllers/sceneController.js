@@ -11,6 +11,15 @@ const { JOB_STATUS } = require('../constants');
 // be lost just because the layout changed).
 const CARRYOVER_ELEMENT_FIELDS = ['backgroundColor', 'styleConfig'];
 
+// Templates standardized on the same `items: [{ heading?, text? }]` shape
+// (see each template's own doc comment) - switching between any two of
+// these can carry the actual item content over as-is instead of blanking it
+// back out to _createDefaultElements's empty placeholder.
+const STANDARDIZED_ITEMS_TEMPLATE_IDS = [
+  'template-004', 'template-009', 'template-013', 'template-015',
+  'template-032', 'template-037', 'template-038',
+];
+
 class SceneController {
   /**
    * PUT /api/videos/:id/scenes - Update video job scenes (studio editor)
@@ -88,7 +97,7 @@ class SceneController {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
       const sceneNumber = parseInt(req.params.sceneNumber, 10);
-      const { templateId, title, subtitle, audioText, speaker, elements: currentElements } = req.body;
+      const { templateId, fromTemplateId, title, subtitle, audioText, speaker, elements: currentElements } = req.body;
 
       if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
         throw { status: 400, message: 'sceneNumber must be a positive integer' };
@@ -117,6 +126,15 @@ class SceneController {
       const oldElements = currentElements || {};
       for (const field of CARRYOVER_ELEMENT_FIELDS) {
         if (oldElements[field] !== undefined) newElements[field] = oldElements[field];
+      }
+
+      // Both templates speak the same items shape - keep the user's actual
+      // bullet/step content instead of resetting it to an empty placeholder.
+      const bothStandardized =
+        STANDARDIZED_ITEMS_TEMPLATE_IDS.includes(templateId) &&
+        STANDARDIZED_ITEMS_TEMPLATE_IDS.includes(fromTemplateId);
+      if (bothStandardized && Array.isArray(oldElements.items) && oldElements.items.length) {
+        newElements.items = oldElements.items;
       }
 
       res.json({ elements: newElements });

@@ -18,6 +18,11 @@ import {
   AudioLines,
   Video,
   Palette,
+  Plus,
+  X,
+  ArrowUp,
+  ArrowDown,
+  ListChecks,
 } from "lucide-react";
 import { getVideoJob, updateVideoScenes, rerenderVideoJob, approveVideoJob, generateVideoAudio, generateVideoRender, remapSceneElementsForTemplate } from "../../services/api";
 import {
@@ -59,6 +64,10 @@ const SCENE_TYPE_OPTIONS = [
 // Only these templates currently read `elements.styleConfig` (see theme.js's
 // mergeStyle pattern) - keep in sync with any template that adds support.
 const STYLE_EDITABLE_TEMPLATE_IDS = ["template-041", "template-062", "template-063", "template-007", "template-038", "template-015", "template-017"];
+
+// Templates standardized on `elements.items: [{ heading?, text? }]` - keep in
+// sync with STANDARDIZED_ITEMS_TEMPLATE_IDS in backend/src/controllers/sceneController.js.
+const ITEMS_EDITABLE_TEMPLATE_IDS = ["template-004", "template-009", "template-013", "template-015", "template-032", "template-037", "template-038"];
 
 const FONT_WEIGHT_OPTIONS = [
   { value: 300, label: "Light" },
@@ -272,6 +281,42 @@ const StudioPage = () => {
     } finally {
       setRemappingTemplate(false);
     }
+  };
+
+  // Generic editor for `elements.items: [{ heading?, text? }]` - the shape
+  // template-004/009/013/015/032/037/038 all standardized on (see each
+  // template's doc comment and ITEMS_EDITABLE_TEMPLATE_IDS below). One
+  // editor covers all of them instead of a bespoke form per template.
+  const handleItemFieldChange = (index, itemIndex, field, value) => {
+    updateScene(index, (scene) => {
+      const items = [...(scene.elements?.items || [])];
+      items[itemIndex] = { ...items[itemIndex], [field]: value };
+      return { ...scene, elements: { ...(scene.elements || {}), items } };
+    });
+  };
+
+  const handleAddItem = (index) => {
+    updateScene(index, (scene) => ({
+      ...scene,
+      elements: { ...(scene.elements || {}), items: [...(scene.elements?.items || []), { heading: "", text: "" }] },
+    }));
+  };
+
+  const handleRemoveItem = (index, itemIndex) => {
+    updateScene(index, (scene) => ({
+      ...scene,
+      elements: { ...(scene.elements || {}), items: (scene.elements?.items || []).filter((_, i) => i !== itemIndex) },
+    }));
+  };
+
+  const handleMoveItem = (index, itemIndex, direction) => {
+    updateScene(index, (scene) => {
+      const items = [...(scene.elements?.items || [])];
+      const target = itemIndex + direction;
+      if (target < 0 || target >= items.length) return scene;
+      [items[itemIndex], items[target]] = [items[target], items[itemIndex]];
+      return { ...scene, elements: { ...(scene.elements || {}), items } };
+    });
   };
 
   const handleAudioTextChange = (index, value) => {
@@ -660,6 +705,76 @@ const StudioPage = () => {
                     disabled={!canEdit}
                   />
                 </Field>
+              </div>
+
+              <div className="h-px bg-border-light" />
+
+              <div>
+                <SectionLabel icon={ListChecks}>Content Items</SectionLabel>
+                {ITEMS_EDITABLE_TEMPLATE_IDS.includes(scene.templateId) ? (
+                  <div className="space-y-2.5">
+                    {(scene.elements?.items || []).map((item, itemIndex) => (
+                      <div key={itemIndex} className="rounded-lg border border-border-light bg-surface p-2.5">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-[11px] font-medium text-text-tertiary">Item {itemIndex + 1}</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveItem(selectedSceneIndex, itemIndex, -1)}
+                              disabled={!canEdit || itemIndex === 0}
+                              className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
+                            >
+                              <ArrowUp className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveItem(selectedSceneIndex, itemIndex, 1)}
+                              disabled={!canEdit || itemIndex === (scene.elements?.items?.length || 0) - 1}
+                              className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
+                            >
+                              <ArrowDown className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(selectedSceneIndex, itemIndex)}
+                              disabled={!canEdit}
+                              className="rounded p-1 text-text-tertiary hover:bg-danger-500/10 hover:text-danger-500 disabled:opacity-30"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Input
+                            value={item.heading || ""}
+                            onChange={(e) => handleItemFieldChange(selectedSceneIndex, itemIndex, "heading", e.target.value)}
+                            disabled={!canEdit}
+                            placeholder="Heading (optional)"
+                          />
+                          <Textarea
+                            rows={2}
+                            value={item.text || ""}
+                            onChange={(e) => handleItemFieldChange(selectedSceneIndex, itemIndex, "text", e.target.value)}
+                            disabled={!canEdit}
+                            placeholder="Text"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Plus className="size-3.5" />}
+                      onClick={() => handleAddItem(selectedSceneIndex)}
+                      disabled={!canEdit}
+                      className="w-full"
+                    >
+                      Add Item
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-[12px] text-text-tertiary">Content-item editing not available for this template.</p>
+                )}
               </div>
 
               <div className="h-px bg-border-light" />
