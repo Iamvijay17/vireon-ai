@@ -287,9 +287,18 @@ const StudioPage = () => {
   // template-004/009/013/015/032/037/038 all standardized on (see each
   // template's doc comment and ITEMS_EDITABLE_TEMPLATE_IDS below). One
   // editor covers all of them instead of a bespoke form per template.
+  //
+  // Scenes generated before this standardization may still only have the
+  // old field name (`features` on template-015, `steps` on 013/032) - the
+  // templates themselves already fall back to these, so the editor reads
+  // the same fallback chain to show existing content instead of a
+  // misleadingly-empty list. The first edit writes to `items`, migrating
+  // the scene forward (templates prefer `items` when both are present).
+  const getSceneItems = (scene) => scene.elements?.items || scene.elements?.features || scene.elements?.steps || [];
+
   const handleItemFieldChange = (index, itemIndex, field, value) => {
     updateScene(index, (scene) => {
-      const items = [...(scene.elements?.items || [])];
+      const items = [...getSceneItems(scene)];
       items[itemIndex] = { ...items[itemIndex], [field]: value };
       return { ...scene, elements: { ...(scene.elements || {}), items } };
     });
@@ -298,20 +307,20 @@ const StudioPage = () => {
   const handleAddItem = (index) => {
     updateScene(index, (scene) => ({
       ...scene,
-      elements: { ...(scene.elements || {}), items: [...(scene.elements?.items || []), { heading: "", text: "" }] },
+      elements: { ...(scene.elements || {}), items: [...getSceneItems(scene), { heading: "", text: "" }] },
     }));
   };
 
   const handleRemoveItem = (index, itemIndex) => {
     updateScene(index, (scene) => ({
       ...scene,
-      elements: { ...(scene.elements || {}), items: (scene.elements?.items || []).filter((_, i) => i !== itemIndex) },
+      elements: { ...(scene.elements || {}), items: getSceneItems(scene).filter((_, i) => i !== itemIndex) },
     }));
   };
 
   const handleMoveItem = (index, itemIndex, direction) => {
     updateScene(index, (scene) => {
-      const items = [...(scene.elements?.items || [])];
+      const items = [...getSceneItems(scene)];
       const target = itemIndex + direction;
       if (target < 0 || target >= items.length) return scene;
       [items[itemIndex], items[target]] = [items[target], items[itemIndex]];
@@ -713,7 +722,7 @@ const StudioPage = () => {
                 <SectionLabel icon={ListChecks}>Content Items</SectionLabel>
                 {ITEMS_EDITABLE_TEMPLATE_IDS.includes(scene.templateId) ? (
                   <div className="space-y-2.5">
-                    {(scene.elements?.items || []).map((item, itemIndex) => (
+                    {getSceneItems(scene).map((item, itemIndex) => (
                       <div key={itemIndex} className="rounded-lg border border-border-light bg-surface p-2.5">
                         <div className="mb-2 flex items-center justify-between">
                           <span className="text-[11px] font-medium text-text-tertiary">Item {itemIndex + 1}</span>
@@ -729,7 +738,7 @@ const StudioPage = () => {
                             <button
                               type="button"
                               onClick={() => handleMoveItem(selectedSceneIndex, itemIndex, 1)}
-                              disabled={!canEdit || itemIndex === (scene.elements?.items?.length || 0) - 1}
+                              disabled={!canEdit || itemIndex === getSceneItems(scene).length - 1}
                               className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
                             >
                               <ArrowDown className="size-3.5" />
@@ -745,15 +754,18 @@ const StudioPage = () => {
                           </div>
                         </div>
                         <div className="space-y-2">
+                          {/* Falls back to older per-item field names (title/value on
+                              not-yet-migrated items) for display only - onChange always
+                              writes the canonical heading/text keys. */}
                           <Input
-                            value={item.heading || ""}
+                            value={item.heading ?? item.title ?? item.value ?? ""}
                             onChange={(e) => handleItemFieldChange(selectedSceneIndex, itemIndex, "heading", e.target.value)}
                             disabled={!canEdit}
                             placeholder="Heading (optional)"
                           />
                           <Textarea
                             rows={2}
-                            value={item.text || ""}
+                            value={item.text ?? item.description ?? item.label ?? ""}
                             onChange={(e) => handleItemFieldChange(selectedSceneIndex, itemIndex, "text", e.target.value)}
                             disabled={!canEdit}
                             placeholder="Text"
