@@ -383,6 +383,8 @@ class ScriptParserService {
         captionTimestamps: null,
         speakerLabel: scene.speaker === 'guest' ? (guestName || 'Guest') : (hostName || 'Host'),
       },
+      'template-062': { title: scene.title || '', items: [{ heading: '', text: scene.subtitle || '' }], caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
+      'template-063': { title: scene.title || '', columns: [{ heading: '', body: '' }, { heading: '', body: '' }], caption: scene.audio?.text || scene.subtitle || '', captionTimestamps: null },
     };
 
     return templateElements[templateId] || base;

@@ -19,7 +19,7 @@ import {
   Video,
   Palette,
 } from "lucide-react";
-import { getVideoJob, updateVideoScenes, rerenderVideoJob, approveVideoJob, generateVideoAudio, generateVideoRender } from "../../services/api";
+import { getVideoJob, updateVideoScenes, rerenderVideoJob, approveVideoJob, generateVideoAudio, generateVideoRender, remapSceneElementsForTemplate } from "../../services/api";
 import {
   connect,
   joinJobRoom,
@@ -131,6 +131,7 @@ const StudioPage = () => {
   const dragIndexRef = useRef(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [remappingTemplate, setRemappingTemplate] = useState(false);
 
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
@@ -242,11 +243,35 @@ const StudioPage = () => {
     });
   };
 
-  // "Background Color" (below) historically only set the outer
-  // transition-layer background, not the template-internal one templates
-  // actually read from `elements.backgroundColor` - this fixes that gap.
-  const handleElementBackgroundColorChange = (index, value) => {
-    updateScene(index, (scene) => ({ ...scene, elements: { ...(scene.elements || {}), backgroundColor: value } }));
+  // Writes a flat key directly onto scene.elements (not nested under
+  // styleConfig) - for fields templates read straight off `elements`, like
+  // `elements.backgroundColor`/`elements.title`/`elements.subtitle`. The
+  // "Title"/"Subtitle"/"Background Color" fields below only used to write
+  // the top-level scene.title/subtitle/backgroundColor, which most templates
+  // don't actually render from (they read scene.elements.* instead) - this
+  // keeps both in sync.
+  const handleElementDirectFieldChange = (index, field, value) => {
+    updateScene(index, (scene) => ({ ...scene, elements: { ...(scene.elements || {}), [field]: value } }));
+  };
+
+  // Switching templates used to just swap templateId and leave the old
+  // template's `elements` in place, so the new template rendered with
+  // missing/mismatched fields (see remap-template endpoint's doc comment).
+  // Sets templateId immediately for responsive UI, then replaces `elements`
+  // once the server computes the new template's expected shape.
+  const handleTemplateSelect = async (index, templateId) => {
+    const scene = editedScenes[index];
+    handleFieldChange(index, "templateId", templateId);
+    if (!jobId || !scene) return;
+    setRemappingTemplate(true);
+    try {
+      const res = await remapSceneElementsForTemplate(jobId, scene.sceneNumber, templateId, scene);
+      updateScene(index, (s) => ({ ...s, elements: res.data.elements }));
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Couldn't adapt scene content to the new template - you may need to re-enter some fields.");
+    } finally {
+      setRemappingTemplate(false);
+    }
   };
 
   const handleAudioTextChange = (index, value) => {
@@ -590,8 +615,9 @@ const StudioPage = () => {
                   onClose={() => setTemplatePickerOpen(false)}
                   scene={scene}
                   value={scene.templateId}
-                  onSelect={(id) => handleFieldChange(selectedSceneIndex, "templateId", id)}
+                  onSelect={(id) => handleTemplateSelect(selectedSceneIndex, id)}
                 />
+                {remappingTemplate && <p className="mt-1.5 text-[11px] text-text-tertiary">Adapting scene content to the new template...</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -602,10 +628,24 @@ const StudioPage = () => {
                   <Select value={scene.sceneType} onChange={(v) => handleFieldChange(selectedSceneIndex, "sceneType", v)} options={SCENE_TYPE_OPTIONS} disabled={!canEdit} />
                 </Field>
                 <Field label="Title">
-                  <Input value={scene.title || ""} onChange={(e) => handleFieldChange(selectedSceneIndex, "title", e.target.value)} disabled={!canEdit} />
+                  <Input
+                    value={scene.title || ""}
+                    onChange={(e) => {
+                      handleFieldChange(selectedSceneIndex, "title", e.target.value);
+                      handleElementDirectFieldChange(selectedSceneIndex, "title", e.target.value);
+                    }}
+                    disabled={!canEdit}
+                  />
                 </Field>
                 <Field label="Subtitle">
-                  <Input value={scene.subtitle || ""} onChange={(e) => handleFieldChange(selectedSceneIndex, "subtitle", e.target.value)} disabled={!canEdit} />
+                  <Input
+                    value={scene.subtitle || ""}
+                    onChange={(e) => {
+                      handleFieldChange(selectedSceneIndex, "subtitle", e.target.value);
+                      handleElementDirectFieldChange(selectedSceneIndex, "subtitle", e.target.value);
+                    }}
+                    disabled={!canEdit}
+                  />
                 </Field>
                 <Field label="Duration (seconds)">
                   <NumberInput min={1} max={60} value={scene.duration} onChange={(e) => handleFieldChange(selectedSceneIndex, "duration", Number(e.target.value))} disabled={!canEdit} />
@@ -615,7 +655,7 @@ const StudioPage = () => {
                     value={scene.backgroundColor}
                     onChange={(v) => {
                       handleFieldChange(selectedSceneIndex, "backgroundColor", v);
-                      handleElementBackgroundColorChange(selectedSceneIndex, v);
+                      handleElementDirectFieldChange(selectedSceneIndex, "backgroundColor", v);
                     }}
                     disabled={!canEdit}
                   />

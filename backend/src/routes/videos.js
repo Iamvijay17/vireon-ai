@@ -19,6 +19,7 @@ router.post('/:id/rerender', authenticate, VideoController.rerender);
 router.post('/:id/stop', authenticate, VideoController.stop);
 router.put('/:id/scenes', authenticate, SceneController.updateScenes);
 router.post('/:id/scenes/:sceneNumber/regenerate-audio', authenticate, SceneController.regenerateSceneAudio);
+router.post('/:id/scenes/:sceneNumber/remap-template', authenticate, SceneController.remapElementsForTemplate);
 router.get('/:id/activity-logs', authenticate, VideoController.getActivityLogs);
 
 module.exports = router;

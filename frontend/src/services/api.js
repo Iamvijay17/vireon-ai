@@ -80,6 +80,16 @@ export const updateVideoScenes = (id, scenes) => api.put(`/api/videos/${id}/scen
 export const regenerateVideoSceneAudio = (id, sceneNumber) =>
   api.post(`/api/videos/${id}/scenes/${sceneNumber}/regenerate-audio`);
 
+export const remapSceneElementsForTemplate = (id, sceneNumber, templateId, currentScene) =>
+  api.post(`/api/videos/${id}/scenes/${sceneNumber}/remap-template`, {
+    templateId,
+    title: currentScene?.title,
+    subtitle: currentScene?.subtitle,
+    audioText: currentScene?.audio?.text,
+    speaker: currentScene?.speaker,
+    elements: currentScene?.elements,
+  });
+
 export const getVideoJobActivityLogs = (id) => api.get(`/api/videos/${id}/activity-logs`);
 
 // ─── Voices ─────────────────────────────────────────────────────────────────────
