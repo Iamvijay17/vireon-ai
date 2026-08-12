@@ -59,6 +59,8 @@ export const updateVideoJob = (id, data) => api.put(`/api/videos/${id}`, data);
 
 export const deleteVideoJob = (id) => api.delete(`/api/videos/${id}`);
 
+export const bulkDeleteVideoJobs = (jobIds) => api.post('/api/videos/bulk-delete', { jobIds });
+
 export const restartVideoJob = (id) => api.post(`/api/videos/${id}/restart`);
 
 export const regenerateVideoJobScript = (id) => api.post(`/api/videos/${id}/regenerate-script`);

@@ -14,7 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getVideoJobs, deleteVideoJob } from "../../services/api";
+import { getVideoJobs, deleteVideoJob, bulkDeleteVideoJobs } from "../../services/api";
 import { connect, onJobCreated, onJobCompleted, onJobFailed } from "../../services/socket";
 import { LoadingState, EmptyState, StatusTag } from "../../components";
 import { Card } from "../../components/ui/Card";
@@ -48,6 +48,8 @@ const Dashboard = () => {
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 0 });
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   const fetchJobs = async (page = 1) => {
     try {
@@ -55,6 +57,7 @@ const Dashboard = () => {
       const res = await getVideoJobs(page);
       setJobs(res.data.jobs);
       setPagination(res.data.pagination);
+      setSelectedIds(new Set());
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to fetch jobs");
     } finally {
@@ -100,6 +103,41 @@ const Dashboard = () => {
       setJobs((prev) => prev.filter((j) => j._id !== job._id));
     } catch {
       toast.error("Failed to delete job");
+    }
+  };
+
+  const toggleSelect = (jobId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(jobId)) next.delete(jobId);
+      else next.add(jobId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => (prev.size === filtered.length ? new Set() : new Set(filtered.map((j) => j._id))));
+  };
+
+  const handleBulkDelete = async () => {
+    const jobIds = Array.from(selectedIds);
+    const ok = await confirmDialog({
+      title: "Delete Jobs",
+      content: `Are you sure you want to delete ${jobIds.length} selected job${jobIds.length === 1 ? "" : "s"}? This can't be undone.`,
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    setBulkDeleteLoading(true);
+    try {
+      const res = await bulkDeleteVideoJobs(jobIds);
+      toast.success(`Deleted ${res.data.deletedCount || jobIds.length} job${(res.data.deletedCount || jobIds.length) === 1 ? "" : "s"}`);
+      setJobs((prev) => prev.filter((j) => !selectedIds.has(j._id)));
+      setSelectedIds(new Set());
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to delete jobs");
+    } finally {
+      setBulkDeleteLoading(false);
     }
   };
 
@@ -155,6 +193,15 @@ const Dashboard = () => {
       {/* Job List */}
       <Card className="mt-6 animate-slide-up overflow-hidden" style={{ "--stagger-index": 4 }}>
         <div className="flex flex-wrap items-center gap-3 border-b border-border-light px-5 py-4">
+          {filtered.length > 0 && (
+            <input
+              type="checkbox"
+              className="size-4 shrink-0 cursor-pointer accent-accent"
+              aria-label="Select all jobs"
+              checked={selectedIds.size === filtered.length}
+              onChange={toggleSelectAll}
+            />
+          )}
           <div>
             <h3 className="text-[15px] font-semibold text-text-primary">Recent Jobs</h3>
             <p className="mt-0.5 text-xs text-text-tertiary">{pagination.total} total</p>
@@ -196,6 +243,26 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center gap-3 border-b border-border-light bg-surface-hover/40 px-5 py-2.5">
+            <span className="text-[13px] font-semibold text-text-primary">{selectedIds.size} selected</span>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+              Clear
+            </Button>
+            <div className="ml-auto">
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Trash2 className="size-3.5" />}
+                loading={bulkDeleteLoading}
+                onClick={handleBulkDelete}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        )}
+
         {loading && jobs.length === 0 ? (
           <LoadingState label="Loading jobs..." />
         ) : filtered.length === 0 ? (
@@ -219,6 +286,14 @@ const Dashboard = () => {
                   tone === "success" ? "success" : tone === "error" ? "danger" : tone === "processing" ? "accent" : "neutral";
                 return (
                   <div key={job._id} className="group flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-surface-hover">
+                    <input
+                      type="checkbox"
+                      className="size-4 shrink-0 cursor-pointer accent-accent"
+                      aria-label={`Select ${job.topic}`}
+                      checked={selectedIds.has(job._id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleSelect(job._id)}
+                    />
                     <div className={`flex size-9 shrink-0 items-center justify-center rounded-[10px] ${toneCls[iconTone]}`}>
                       {isActive ? <Sparkles className="size-4" /> : <Video className="size-4" />}
                     </div>

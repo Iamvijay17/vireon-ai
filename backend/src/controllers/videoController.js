@@ -3,7 +3,7 @@ const ActivityLogService = require('../services/ActivityLogService');
 const videoQueue = require('../queues/videoQueue');
 const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
-const { validate, createVideoSchema, updateVideoJobSchema, jobIdSchema } = require('../validators');
+const { validate, createVideoSchema, updateVideoJobSchema, jobIdSchema, jobIdArraySchema } = require('../validators');
 
 /**
  * (Re-)enqueue a job for the worker, always under a BullMQ jobId matching
@@ -121,6 +121,19 @@ class VideoController {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
       const result = await VideoService.delete(id);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/videos/bulk-delete - Delete multiple video jobs at once.
+   */
+  static async bulkDelete(req, res, next) {
+    try {
+      const { jobIds } = validate(jobIdArraySchema)(req.body);
+      const result = await VideoService.bulkDelete(jobIds);
       res.json(result);
     } catch (err) {
       next(err);

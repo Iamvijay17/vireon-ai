@@ -121,6 +121,24 @@ class VideoService {
   }
 
   /**
+   * Delete multiple jobs at once. Used by the dashboard's bulk action bar -
+   * a single job is just a 1-element jobIds array.
+   */
+  static async bulkDelete(jobIds) {
+    const result = await VideoJob.deleteMany({ _id: { $in: jobIds } });
+    if (result.deletedCount === 0) {
+      throw { status: 404, message: 'No jobs found to delete' };
+    }
+
+    LoggerService.info('Bulk video jobs deleted', {
+      requested: jobIds.length,
+      deleted: result.deletedCount,
+    });
+
+    return { message: 'Jobs deleted successfully', deletedCount: result.deletedCount };
+  }
+
+  /**
    * Update editable job details (topic, duration, language, voice(s),
    * names, resolution). Doesn't touch anything already generated - the
    * caller should regenerate the relevant stage afterward if they want it

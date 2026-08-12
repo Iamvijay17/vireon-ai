@@ -97,6 +97,10 @@ const idArraySchema = z.object({
   videoIds: z.array(z.string().regex(ID_PATTERN, 'Invalid id')).min(1, 'videoIds must be a non-empty array'),
 });
 
+const jobIdArraySchema = z.object({
+  jobIds: z.array(z.string().regex(/^job-[0-9A-Z]{8}$/, 'Invalid video job id')).min(1, 'jobIds must be a non-empty array'),
+});
+
 const validate = (schema) => (data) => {
   const result = schema.safeParse(data);
   if (!result.success) {
@@ -115,5 +119,6 @@ module.exports = {
   jobIdSchema,
   idSchema,
   idArraySchema,
+  jobIdArraySchema,
   validate,
 };
