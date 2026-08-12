@@ -33,6 +33,7 @@ const definition = {
     { name: 'Courses', description: 'Udemy-style course management and curriculum generation' },
     { name: 'Course Videos', description: 'Individual lesson videos within a course' },
     { name: 'Voices', description: 'TTS voice catalog and favorites' },
+    { name: 'Audio', description: 'Standalone text-to-speech generation (Audio Studio)' },
     { name: 'Analytics', description: 'Dashboard/overview statistics' },
     { name: 'Logs', description: 'Live server log stream (recent buffer)' },
   ],
@@ -281,6 +282,79 @@ const definition = {
         properties: {
           custom: { type: 'array', items: { $ref: '#/components/schemas/Voice' } },
           clone: { type: 'array', items: { $ref: '#/components/schemas/Voice' } },
+        },
+      },
+      AudioGenerateRequest: {
+        type: 'object',
+        required: ['text', 'voice'],
+        properties: {
+          text: { type: 'string', minLength: 1, maxLength: 5000 },
+          voice: { type: 'string', description: '"custom:<Speaker>" or "clone:<file>.wav" - see the Voices catalog' },
+          emotion: { type: 'string', maxLength: 200, description: 'Optional delivery/emotion note, e.g. "cheerful and energetic"' },
+        },
+      },
+      AudioGeneration: {
+        type: 'object',
+        properties: {
+          _id: { type: 'string', example: 'aud-A1B2C3D4' },
+          mode: { type: 'string', enum: ['single', 'dialogue'] },
+          text: { type: 'string', description: 'Raw text (single mode) or full script (dialogue mode)' },
+          voice: { type: 'string', description: 'Single mode only' },
+          emotion: { type: 'string', description: 'Single mode only - optional delivery/emotion note' },
+          speakers: {
+            type: 'array',
+            description: 'Dialogue mode only',
+            items: {
+              type: 'object',
+              properties: { name: { type: 'string' }, voice: { type: 'string' } },
+            },
+          },
+          turns: {
+            type: 'array',
+            description: 'Dialogue mode only, one entry per script turn in order',
+            items: {
+              type: 'object',
+              properties: {
+                order: { type: 'number' },
+                speaker: { type: 'string' },
+                voice: { type: 'string' },
+                text: { type: 'string' },
+                emotion: { type: 'string', description: 'Parsed from an optional "Name (emotion): line" prefix' },
+                file: { type: 'string', nullable: true },
+                duration: { type: 'number', nullable: true },
+              },
+            },
+          },
+          status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'FAILED'] },
+          audioUrl: { type: 'string', nullable: true, description: 'Single mode only' },
+          duration: { type: 'number', nullable: true, description: 'Single mode only' },
+          error: { type: 'string', nullable: true },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      AudioDialogueGenerateRequest: {
+        type: 'object',
+        required: ['script', 'speakers'],
+        properties: {
+          script: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 20000,
+            description:
+              '"Name: line" turns, optionally with a delivery note: "Name (emotion): line", e.g. ' +
+              '"Host: Welcome!\\nGuest (nervous, half-laughing): Thanks for having me."',
+          },
+          speakers: {
+            type: 'array',
+            minItems: 2,
+            maxItems: 6,
+            items: {
+              type: 'object',
+              required: ['name', 'voice'],
+              properties: { name: { type: 'string' }, voice: { type: 'string' } },
+            },
+          },
         },
       },
       Pagination: {

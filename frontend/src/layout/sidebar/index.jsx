@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronDown,
   Terminal,
+  AudioLines,
 } from "lucide-react";
 import { cn } from "../../components/ui/cn";
 
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { key: "courses", label: "Courses", icon: BookOpen, route: "/courses" },
   { key: "projects", label: "Projects", icon: FolderKanban, route: "/projects" },
   { key: "render", label: "Render", icon: Rocket, route: "/render" },
+  { key: "audio", label: "Audio Studio", icon: AudioLines, route: "/audio" },
   {
     key: "editor",
     label: "Editor",

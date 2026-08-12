@@ -1,0 +1,160 @@
+const fs = require('fs').promises;
+const path = require('path');
+const AudioGeneration = require('../models/AudioGeneration');
+const AudioService = require('../services/TTS/audioService');
+const LoggerService = require('../services/LoggerService');
+const { parseDialogueScript } = require('../utils/parseDialogueScript');
+const { createAudioSchema, audioIdSchema, createDialogueAudioSchema, validate } = require('../validators');
+
+class AudioController {
+  /**
+   * POST /api/audio/generate - Synthesize standalone TTS audio from raw
+   * text (Audio Studio). Synchronous - the TTS call itself is the slow part
+   * (tens of seconds), same tradeoff as regenerateSceneAudio.
+   */
+  static async generate(req, res, next) {
+    let record;
+    try {
+      const { text, voice, emotion } = validate(createAudioSchema)(req.body);
+      record = await AudioGeneration.create({ text, voice, emotion, status: 'PENDING' });
+
+      const result = await AudioService.generateStandaloneAudio(record._id, text, voice, emotion);
+
+      record.status = 'COMPLETED';
+      record.audioUrl = `/public/audio-studio/${record._id}/${result.file}`;
+      record.duration = result.duration;
+      await record.save();
+
+      res.status(201).json({ audio: record });
+    } catch (err) {
+      if (record) {
+        record.status = 'FAILED';
+        record.error = err.message;
+        await record.save().catch(() => {});
+        LoggerService.error('Standalone audio generation failed', {
+          id: record._id,
+          error: err.message,
+        });
+        return res.status(500).json({ error: 'Audio generation failed', message: err.message, audio: record });
+      }
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/audio/generate-dialogue - Synthesize a multi-speaker script
+   * (Audio Studio "podcast" mode). Each "Name: line" turn is parsed against
+   * the given speaker roster and synthesized with that speaker's voice, one
+   * file per turn (see AudioService.generateDialogueTurnAudio) - turns are
+   * generated sequentially so a shared per-script seed base stays
+   * deterministic if this is ever retried.
+   */
+  static async generateDialogue(req, res, next) {
+    let record;
+    try {
+      const { script, speakers } = validate(createDialogueAudioSchema)(req.body);
+
+      const { turns: parsedTurns, unknownSpeakers } = parseDialogueScript(script, speakers);
+      if (unknownSpeakers.length > 0) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: [
+            {
+              field: 'script',
+              message: `Script mentions speaker(s) not in the roster: ${unknownSpeakers.join(', ')}`,
+            },
+          ],
+        });
+      }
+      if (parsedTurns.length === 0) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: [{ field: 'script', message: 'No recognizable "Name: line" turns found in the script' }],
+        });
+      }
+
+      record = await AudioGeneration.create({
+        mode: 'dialogue',
+        text: script,
+        speakers,
+        turns: parsedTurns.map((t, i) => ({ order: i, speaker: t.speaker, voice: t.voice, text: t.text, emotion: t.emotion })),
+        status: 'PENDING',
+      });
+
+      for (let i = 0; i < parsedTurns.length; i++) {
+        const turn = parsedTurns[i];
+        const result = await AudioService.generateDialogueTurnAudio(
+          record._id,
+          i,
+          turn.text,
+          turn.voice,
+          turn.speaker,
+          turn.emotion,
+        );
+        record.turns[i].file = `/public/audio-studio/${record._id}/${result.file}`;
+        record.turns[i].duration = result.duration;
+      }
+
+      record.status = 'COMPLETED';
+      await record.save();
+
+      res.status(201).json({ audio: record });
+    } catch (err) {
+      if (record) {
+        record.status = 'FAILED';
+        record.error = err.message;
+        await record.save().catch(() => {});
+        LoggerService.error('Dialogue audio generation failed', {
+          id: record._id,
+          error: err.message,
+        });
+        return res.status(500).json({ error: 'Audio generation failed', message: err.message, audio: record });
+      }
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/audio - List past generations, newest first.
+   */
+  static async list(req, res, next) {
+    try {
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 20;
+
+      const [items, total] = await Promise.all([
+        AudioGeneration.find().sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+        AudioGeneration.countDocuments(),
+      ]);
+
+      res.json({
+        items,
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * DELETE /api/audio/:id - Remove a generation's record and its audio file.
+   */
+  static async remove(req, res, next) {
+    try {
+      const { id } = validate(audioIdSchema)({ id: req.params.id });
+      const record = await AudioGeneration.findByIdAndDelete(id);
+      if (!record) {
+        return res.status(404).json({ error: 'Audio generation not found' });
+      }
+
+      const audioDir = path.resolve(__dirname, '../../jobs/audio-studio', id);
+      await fs.rm(audioDir, { recursive: true, force: true });
+
+      res.json({ id });
+    } catch (err) {
+      next(err);
+    }
+  }
+}
+
+module.exports = AudioController;

@@ -451,6 +451,137 @@ class AudioService {
   }
 
   /**
+   * Shared synth-download-measure core for standalone (Audio Studio) calls,
+   * used by both single-voice and per-turn dialogue generation below.
+   * Deliberately separate from _synthesizeSceneAudio - that one is keyed off
+   * a jobId+scene shape (script.scenes) this caller doesn't have.
+   */
+  static async _synthesizeToFile(outputFile, text, voice, seed, instruct, logCtx) {
+    const resolved = await this.resolveVoice(voice);
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
+      try {
+        LoggerService.tts(`Generating audio (attempt ${attempt})`, {
+          ...logCtx,
+          voice,
+          mode: resolved.mode,
+          speaker: resolved.speaker,
+          cloneFile: resolved.file,
+          textLength: text.length,
+        });
+
+        const client = await Client.connect(
+          config.tts.url.replace(/\/generate$/, "").replace(/\/$/, ""),
+        );
+
+        let result;
+        try {
+          result =
+            resolved.mode === "clone"
+              ? await this._generateClone(client, resolved, text, seed)
+              : await this._generateCustom(client, resolved, text, seed, instruct);
+        } finally {
+          client.close();
+        }
+
+        const audio = result.data[0];
+        if (!audio || !audio.url) {
+          throw new Error("No audio URL returned from TTS API");
+        }
+
+        const outputResponse = await fetch(audio.url);
+        if (!outputResponse.ok) {
+          throw new Error(
+            `Failed to download generated audio: ${outputResponse.status} ${outputResponse.statusText}`,
+          );
+        }
+        const outputAudioBuffer = await outputResponse.arrayBuffer();
+        await fs.writeFile(outputFile, Buffer.from(outputAudioBuffer));
+
+        const helperScript = path.resolve(__dirname, "getAudioDuration.mjs");
+        const { stdout: durationStr } = await execFileAsync(
+          "node",
+          [helperScript, outputFile],
+          { encoding: "utf8", timeout: 30000 },
+        );
+        const duration = Math.round(parseFloat(durationStr) * 100) / 100;
+
+        LoggerService.tts("Audio generated", { ...logCtx, duration });
+
+        return { path: outputFile, duration };
+      } catch (err) {
+        lastError = err;
+        const isLastAttempt = attempt === config.tts.maxRetries;
+
+        LoggerService.warn(
+          `TTS attempt ${attempt} failed${isLastAttempt ? " (final)" : ""}`,
+          { ...logCtx, error: err.message },
+        );
+
+        if (!isLastAttempt) {
+          const delay = Math.min(2000 * Math.pow(2, attempt - 1), 16000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    throw new Error(
+      `TTS failed after ${config.tts.maxRetries} attempts: ${lastError.message}`,
+    );
+  }
+
+  /**
+   * Standalone text-to-speech generation (Audio Studio), independent of the
+   * video-job scene pipeline above - no jobId/sceneNumber, just an
+   * AudioGeneration id and raw text.
+   */
+  static async generateStandaloneAudio(id, text, voice, emotion = "") {
+    const audioDir = path.resolve(__dirname, "../../../jobs", "audio-studio", id);
+    await fs.mkdir(audioDir, { recursive: true });
+    const outputFile = path.join(audioDir, "audio.mp3");
+    const seed = this._seedFromJobId(id);
+    const trimmedEmotion = emotion?.trim();
+    const instruct = trimmedEmotion
+      ? `Speak naturally like a human narrator, with this delivery: ${trimmedEmotion}.`
+      : "Speak naturally and expressively like a human narrator: vary your pitch, pace and emphasis, add warmth and emotion that fits the content, and avoid a flat monotone reading.";
+
+    const result = await this._synthesizeToFile(outputFile, text, voice, seed, instruct, { id });
+    return { file: "audio.mp3", ...result };
+  }
+
+  /**
+   * One turn of a multi-speaker dialogue script (Audio Studio "podcast"
+   * mode - see parseDialogueScript). Each turn is synthesized and stored
+   * separately (turn0.mp3, turn1.mp3, ...) rather than concatenated into a
+   * single file - the frontend plays them back in order, the same way
+   * per-scene podcast audio already works in the video pipeline.
+   */
+  static async generateDialogueTurnAudio(id, turnIndex, text, voice, speakerName, emotion = "") {
+    const audioDir = path.resolve(__dirname, "../../../jobs", "audio-studio", id);
+    await fs.mkdir(audioDir, { recursive: true });
+    const file = `turn${turnIndex}.mp3`;
+    const outputFile = path.join(audioDir, file);
+
+    // Per-turn seed (id + turnIndex), not one shared seed for the whole
+    // dialogue - see _seedForScene's reasoning: a fixed seed across every
+    // turn gives every line byte-identical prosody, which reads as robotic
+    // repetition rather than a real back-and-forth.
+    const seed = this._seedFromJobId(`${id}:${turnIndex}`);
+    const trimmedEmotion = emotion?.trim();
+    const instruct = trimmedEmotion
+      ? `Speak like ${speakerName} in a live, natural conversation, with this delivery: ${trimmedEmotion}.`
+      : `Speak like ${speakerName} in a live, natural conversation: warm, engaged, and reacting to what was just said - not reading a monologue.`;
+
+    const result = await this._synthesizeToFile(outputFile, text, voice, seed, instruct, {
+      id,
+      turn: turnIndex,
+      speaker: speakerName,
+    });
+    return { file, ...result };
+  }
+
+  /**
    * Generate audio for all scenes in a script.
    * If `onSceneComplete(sceneNumber, result)` is provided, it is invoked
    * immediately after each individual scene's audio finishes, so callers can

@@ -97,6 +97,37 @@ const idArraySchema = z.object({
   videoIds: z.array(z.string().regex(ID_PATTERN, 'Invalid id')).min(1, 'videoIds must be a non-empty array'),
 });
 
+const createAudioSchema = z.object({
+  text: z.string().min(1, 'Text is required').max(5000, 'Text must be 5000 characters or fewer').trim(),
+  // Same voice string format as video jobs - "custom:<Speaker>" or
+  // "clone:<file>.wav" (see AudioService.resolveVoice).
+  voice: z.string().min(1, 'Voice is required').max(200),
+  // Free-text delivery/emotion note (e.g. "cheerful and energetic") passed
+  // to the TTS model's instruct prompt - see AudioService.generateStandaloneAudio.
+  emotion: z.string().max(200).trim().optional().default(''),
+});
+
+const audioIdSchema = z.object({
+  id: z.string().regex(/^aud-[0-9A-Z]{8}$/, 'Invalid audio generation id'),
+});
+
+const dialogueSpeakerSchema = z.object({
+  name: z.string().min(1).max(40).trim(),
+  voice: z.string().min(1).max(200),
+});
+
+const createDialogueAudioSchema = z.object({
+  script: z.string().min(1, 'Script is required').max(20000, 'Script must be 20000 characters or fewer'),
+  speakers: z
+    .array(dialogueSpeakerSchema)
+    .min(2, 'At least 2 speakers are required')
+    .max(6, 'At most 6 speakers are supported')
+    .refine(
+      (speakers) => new Set(speakers.map((s) => s.name.toLowerCase())).size === speakers.length,
+      { message: 'Speaker names must be unique' },
+    ),
+});
+
 const jobIdArraySchema = z.object({
   jobIds: z.array(z.string().regex(/^job-[0-9A-Z]{8}$/, 'Invalid video job id')).min(1, 'jobIds must be a non-empty array'),
 });
@@ -120,5 +151,8 @@ module.exports = {
   idSchema,
   idArraySchema,
   jobIdArraySchema,
+  createAudioSchema,
+  audioIdSchema,
+  createDialogueAudioSchema,
   validate,
 };

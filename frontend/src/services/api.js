@@ -106,6 +106,21 @@ export const addFavoriteVoice = (voiceId) => api.post('/api/voices/favorites', {
 export const removeFavoriteVoice = (voiceId) =>
   api.delete('/api/voices/favorites', { data: { voiceId } });
 
+// ─── Audio Studio ───────────────────────────────────────────────────────────────
+
+// TTS synthesis itself takes tens of seconds (see AudioService), well past
+// the default 30s timeout - same override pattern as generateCourseCurriculum.
+export const generateAudio = (data) => api.post('/api/audio/generate', data, { timeout: 120000 });
+
+// Multi-speaker ("podcast") script - one TTS call per turn, so this needs a
+// longer timeout still, scaled by how many turns a long script can produce.
+export const generateDialogueAudio = (data) => api.post('/api/audio/generate-dialogue', data, { timeout: 300000 });
+
+export const getAudioGenerations = (page = 1, limit = 20) =>
+  api.get('/api/audio', { params: { page, limit } });
+
+export const deleteAudioGeneration = (id) => api.delete(`/api/audio/${id}`);
+
 // ─── Courses ────────────────────────────────────────────────────────────────────
 
 export const createCourse = (data) => api.post('/api/courses', data);

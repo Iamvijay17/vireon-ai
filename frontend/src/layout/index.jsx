@@ -13,6 +13,7 @@ const Dashboard = lazy(() => import("../pages/dashboard"));
 const Wizard = lazy(() => import("../pages/wizard"));
 const RenderPage = lazy(() => import("../pages/render"));
 const StudioPage = lazy(() => import("../pages/studio"));
+const AudioPage = lazy(() => import("../pages/audio"));
 const CoursesList = lazy(() => import("../pages/courses/CoursesList"));
 const CourseDetail = lazy(() => import("../pages/courses/CourseDetail"));
 const CourseVideoEditor = lazy(() => import("../pages/courses/CourseVideoEditor"));
@@ -66,6 +67,7 @@ const AppLayout = () => {
                 <Route path="/wizard" element={<Wizard />} />
                 <Route path="/render" element={<RenderPage />} />
                 <Route path="/studio" element={<StudioPage />} />
+                <Route path="/audio" element={<AudioPage />} />
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/logs" element={<LiveLogs />} />
