@@ -1,11 +1,11 @@
 {
   "title": "Benefits Row",
-  "description": "Horizontal row of benefit highlights with emoji icons.",
+  "description": "Horizontal row of content highlights, each with an icon and short text. Good for quick-hit benefits or highlights.",
   "scene_meta": {
-    "sceneType": "feature_list",
+    "sceneType": "content",
     "content": [
-      "Benefits title",
-      "Benefit items with icon and text"
+      "Section title",
+      "Highlight items with icon and text"
     ]
   }
 }

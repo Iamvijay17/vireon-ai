@@ -2,10 +2,27 @@ const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
 const config = require('../config');
 const LoggerService = require('../services/LoggerService');
+
+// Fire-and-forget: spawns a local redis-server if REDIS_HOST is localhost
+// and nothing's listening there yet, so the queue connection below doesn't
+// spend the next several minutes retrying against a dead port.
+require('../utils/ensureRedis')();
+
 const CourseVideoService = require('../services/CourseVideoService');
 const SocketService = require('../services/SocketService');
 const StorageService = require('../services/StorageService');
-const { VIDEO_STATUS } = require('../constants');
+
+// See videoWorker.js's identical handlers for why this process needs them
+// (it shares the same AudioService, which is where the unhandled-rejection
+// risk actually comes from).
+process.on('uncaughtException', (err) => {
+  LoggerService.error('Course video worker uncaught exception', { error: err.message, stack: err.stack });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  LoggerService.error('Course video worker unhandled rejection', { reason: reason?.message || reason });
+});
 
 // Connect to MongoDB on worker startup
 mongoose.connect(config.mongodb.uri, {
@@ -84,6 +101,15 @@ const courseVideoWorker = new Worker(
         videoId,
       });
     } catch (err) {
+      // A cancelled video's status/stage fields were already set to
+      // CANCELLED by CourseVideoService.stop() the moment the user hit
+      // Stop - don't overwrite that with FAILED, and don't let BullMQ treat
+      // this as a failed job (no retry, no "failed" listener alarm).
+      if (err.cancelled) {
+        LoggerService.info('Course video job stopped by user', { jobId: job.id, videoId, action });
+        return { success: false, videoId, cancelled: true };
+      }
+
       LoggerService.error('Course video job processing failed', {
         error: err.message,
         videoId,
@@ -91,21 +117,23 @@ const courseVideoWorker = new Worker(
         stack: config.isDev ? err.stack : undefined,
       });
 
-       // Try to update job status to failed and emit socket event
+      // Every action above (generateScript/generateAudio/renderVideo, and
+      // retryStep by delegating to one of those) already sets
+      // video.status/error to a human-readable step label ('Script
+      // Generation', 'Audio Generation', ...) and emits
+      // emitCourseVideoFailed from its own try/catch before rethrowing -
+      // that's what retryStep()'s switch matches against. Duplicating that
+      // write here with the raw action slug (e.g. 'generate-audio') would
+      // silently break Retry (falls through to the switch's default case)
+      // and double-count retryCount, so this is now just a safety-net log
+      // for the case a video record couldn't be found/loaded at all.
       try {
         const video = await CourseVideoService.getById(videoId);
-        if (video) {
-          video.status = VIDEO_STATUS.FAILED;
-          video.error = {
-            message: err.message,
-            step: action,
-            retryCount: (video.error?.retryCount || 0) + 1,
-          };
-          await video.save();
-          SocketService.emitCourseVideoFailed(video, err.message, action);
+        if (!video) {
+          LoggerService.error('Course video not found while handling job failure', { videoId, action });
         }
       } catch (dbErr) {
-        LoggerService.error('Failed to update course video job status in DB', { error: dbErr.message });
+        LoggerService.error('Failed to load course video after job failure', { error: dbErr.message });
       }
 
       throw err;
@@ -113,8 +141,16 @@ const courseVideoWorker = new Worker(
   },
   {
     connection,
-    concurrency: 2,
-    lockDuration: 3_600_000, // 60 minutes - video rendering can take a long time
+    // Strict sequential processing: bulk actions from the lesson table rely
+    // on this being 1 so one lesson's job fully completes before the next
+    // starts (also what makes 'generate-full' correctly chain script ->
+    // audio -> render for a single video without a dedicated composite action).
+    concurrency: 1,
+    // See videoWorker.js's identical setting for why this is 5 minutes, not
+    // 60 - BullMQ auto-renews the lock while the process is alive, so a
+    // long render doesn't need a long lockDuration. It only bounds how long
+    // a crashed worker's abandoned lock blocks reclaiming the job.
+    lockDuration: 300_000,
     stalledInterval: 60_000,  // Check for stalled jobs every 60 seconds
     maxStalledCount: 3,       // Allow up to 3 stalled checks before failing
     limiter: {
@@ -140,10 +176,16 @@ courseVideoWorker.on('error', (err) => {
   LoggerService.error('Course video worker error', { error: err.message });
 });
 
+// See videoWorker.js's identical handler - logs when a crashed worker's
+// abandoned job gets reclaimed, so a recurring pattern is visible.
+courseVideoWorker.on('stalled', (jobId) => {
+  LoggerService.warn(`Job ${jobId} stalled - its worker likely crashed mid-processing, reclaiming for reprocessing`);
+});
+
 LoggerService.border('🎥 Course Video Worker Started', 'event');
 LoggerService.info('Worker listening for jobs', {
   queue: 'course-video-processing',
-  concurrency: 2,
+  concurrency: 1,
   redis: `${config.redis.host}:${config.redis.port}`,
 });
 

@@ -12,21 +12,28 @@ class PromptService {
   static #cache = new Map();
 
   /**
-   * Load a template by video type name.
+   * Load a template by video type name. Cached per type, but invalidated
+   * against the file's mtime - templates are meant to be hand-edited while
+   * a long-running worker process is up (this was found the hard way: an
+   * edited podcast.json silently kept serving the pre-edit prompt for the
+   * rest of the process's life), so a stale in-memory copy would otherwise
+   * survive indefinitely.
    */
   static loadTemplate(type) {
-    if (this.#cache.has(type)) {
-      return this.#cache.get(type);
-    }
-
     const filePath = path.join(TEMPLATES_DIR, `${type}.json`);
     if (!fs.existsSync(filePath)) {
       throw new Error(`Template not found for type: ${type}`);
     }
 
+    const mtimeMs = fs.statSync(filePath).mtimeMs;
+    const cached = this.#cache.get(type);
+    if (cached && cached.mtimeMs === mtimeMs) {
+      return cached.template;
+    }
+
     const raw = fs.readFileSync(filePath, 'utf-8');
     const template = JSON.parse(raw);
-    this.#cache.set(type, template);
+    this.#cache.set(type, { template, mtimeMs });
     return template;
   }
 

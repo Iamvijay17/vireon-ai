@@ -1,10 +1,18 @@
 const mongoose = require('mongoose');
-const { VIDEO_STATUS, VOICES, LANGUAGES, VIDEO_DURATIONS } = require('../constants');
+const { VIDEO_STATUS, STAGE_STATUS, LANGUAGES, VIDEO_DURATIONS } = require('../constants');
+const { generateCourseVideoId } = require('../utils/id');
+const sceneSchema = require('./schemas/sceneSchema');
+
+const STAGE_STATUS_VALUES = Object.values(STAGE_STATUS);
 
 const courseVideoSchema = new mongoose.Schema(
   {
+    _id: {
+      type: String,
+      default: generateCourseVideoId,
+    },
     courseId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       ref: 'Course',
       required: [true, 'Course ID is required'],
       index: true,
@@ -30,9 +38,10 @@ const courseVideoSchema = new mongoose.Schema(
       enum: VIDEO_DURATIONS,
       default: 5,
     },
+    // See AudioService.resolveVoice for accepted formats (legacy key,
+    // "custom:<Speaker>", or "clone:<file>.wav").
     voice: {
       type: String,
-      enum: VOICES,
       default: 'female-1',
     },
     style: {
@@ -50,9 +59,47 @@ const courseVideoSchema = new mongoose.Schema(
       default: VIDEO_STATUS.DRAFT,
       index: true,
     },
-    script: {
+    // Independent per-stage status/error, tracked alongside the legacy
+    // `status` above so the bulk lesson table can show Script/Audio/Video
+    // progress separately without inferring it from the combined string.
+    scriptStatus: {
       type: String,
-      default: '',
+      enum: STAGE_STATUS_VALUES,
+      default: STAGE_STATUS.PENDING,
+      index: true,
+    },
+    audioStatus: {
+      type: String,
+      enum: STAGE_STATUS_VALUES,
+      default: STAGE_STATUS.PENDING,
+      index: true,
+    },
+    videoStatus: {
+      type: String,
+      enum: STAGE_STATUS_VALUES,
+      default: STAGE_STATUS.PENDING,
+      index: true,
+    },
+    scriptError: {
+      message: { type: String, default: '' },
+      failedAt: { type: Date, default: null },
+    },
+    audioError: {
+      message: { type: String, default: '' },
+      failedAt: { type: Date, default: null },
+    },
+    videoError: {
+      message: { type: String, default: '' },
+      failedAt: { type: Date, default: null },
+    },
+    // Structured to match VideoJob.script exactly - same shape, same
+    // ScriptParserService.validate() output, same audio/render pipeline.
+    script: {
+      title: { type: String, default: '' },
+      description: { type: String, default: '' },
+      tags: [String],
+      thumbnailPrompt: { type: String, default: '' },
+      scenes: [sceneSchema],
     },
     scriptGeneratedAt: {
       type: Date,
@@ -81,22 +128,6 @@ const courseVideoSchema = new mongoose.Schema(
     waveform: {
       type: String,
       default: '',
-    },
-    sceneJson: {
-      type: mongoose.Schema.Types.Mixed,
-      default: null,
-    },
-    scenesGeneratedAt: {
-      type: Date,
-      default: null,
-    },
-    imageUrls: [{
-      sceneNumber: Number,
-      url: String,
-    }],
-    imagesGeneratedAt: {
-      type: Date,
-      default: null,
     },
     renderUrl: {
       type: String,

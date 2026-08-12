@@ -14,16 +14,6 @@ export const sampleScenes = {
     },
     "duration": 8
   },
-  "template-002": {
-    "templateId": "template-002",
-    "elements": {
-      "question": "What is Artificial Intelligence?",
-      "answer": "AI is the simulation of human intelligence by machines.",
-      "questionIcon": "❓",
-      "answerIcon": "💡"
-    },
-    "duration": 8
-  },
   "template-003": {
     "templateId": "template-003",
     "elements": {
@@ -36,19 +26,19 @@ export const sampleScenes = {
   "template-004": {
     "templateId": "template-004",
     "elements": {
-      "title": "Project Milestones",
+      "title": "How It Works",
       "items": [
         {
-          "date": "Q1 2024",
-          "text": "Research & Planning"
+          "heading": "Research & Planning",
+          "text": "We start by understanding the problem space and setting clear goals."
         },
         {
-          "date": "Q2 2024",
-          "text": "Development Phase"
+          "heading": "Development Phase",
+          "text": "The team builds and iterates on the core solution."
         },
         {
-          "date": "Q3 2024",
-          "text": "Testing & QA"
+          "heading": "Testing & QA",
+          "text": "Every feature is validated before it ships."
         }
       ]
     },
@@ -57,26 +47,26 @@ export const sampleScenes = {
   "template-005": {
     "templateId": "template-005",
     "elements": {
-      "header": "Framework Comparison",
-      "leftCard": {
-        "title": "React",
-        "body": "Component-based UI library",
-        "icon": "⚛️"
-      },
-      "rightCard": {
-        "title": "Vue",
-        "body": "Progressive framework",
-        "icon": "💚"
-      }
+      "title": "Framework Comparison",
+      "columns": [
+        {
+          "heading": "React",
+          "body": "Component-based UI library with a large ecosystem."
+        },
+        {
+          "heading": "Vue",
+          "body": "Progressive framework that's easy to adopt incrementally."
+        }
+      ]
     },
     "duration": 8
   },
   "template-006": {
     "templateId": "template-006",
     "elements": {
-      "quote": "The only way to do great work is to love what you do.",
-      "author": "Steve Jobs",
-      "authorTitle": "Apple Co-founder"
+      "title": "The only way to do great work is to love what you do.",
+      "body": "Steve Jobs, Apple Co-founder",
+      "badge": "Final Word"
     },
     "duration": 8
   },
@@ -187,26 +177,9 @@ export const sampleScenes = {
   "template-012": {
     "templateId": "template-012",
     "elements": {
-      "title": "Launch Countdown",
-      "message": "Get ready for something amazing!",
-      "timeBlocks": [
-        {
-          "value": "07",
-          "label": "Days"
-        },
-        {
-          "value": "12",
-          "label": "Hours"
-        },
-        {
-          "value": "45",
-          "label": "Minutes"
-        },
-        {
-          "value": "30",
-          "label": "Seconds"
-        }
-      ]
+      "title": "Get Ready for Something Amazing",
+      "subtitle": "The story you're about to see will change how you think about it.",
+      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop"
     },
     "duration": 8
   },
@@ -261,7 +234,7 @@ export const sampleScenes = {
     "templateId": "template-015",
     "elements": {
       "title": "Core Features",
-      "features": [
+      "items": [
         {
           "icon": "🚀",
           "title": "Fast",
@@ -337,10 +310,9 @@ export const sampleScenes = {
     "templateId": "template-019",
     "elements": {
       "title": "Parallax Hero",
-      "subtitle": "A preview of the parallax hero template in action.",
+      "subtitle": "A bold opening scene with a slow-moving background image.",
       "backgroundColor": "#1a1a2e",
-      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop",
-      "cta": "Learn More →"
+      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop"
     },
     "duration": 8
   },
@@ -359,10 +331,9 @@ export const sampleScenes = {
   "template-021": {
     "templateId": "template-021",
     "elements": {
-      "title": "Vignette Story",
-      "subtitle": "A preview of the vignette story template in action.",
-      "backgroundColor": "#1a1a2e",
-      "body": "In the heart of the city, a revolution was brewing."
+      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop",
+      "caption": "In the heart of the city, a revolution was brewing.",
+      "label": "Chapter One"
     },
     "duration": 8
   },
@@ -460,28 +431,15 @@ export const sampleScenes = {
   "template-028": {
     "templateId": "template-028",
     "elements": {
-      "title": "Comparison Table",
-      "subtitle": "A preview of the comparison table template in action.",
-      "backgroundColor": "#1a1a2e",
-      "headers": [
-        "Feature",
-        "Basic",
-        "Pro"
-      ],
-      "rows": [
+      "title": "Basic vs Pro",
+      "items": [
         {
-          "cells": [
-            "Storage",
-            "10GB",
-            "100GB"
-          ]
+          "left": "10GB Storage",
+          "right": "100GB Storage"
         },
         {
-          "cells": [
-            "Users",
-            "5",
-            "Unlimited"
-          ]
+          "left": "5 Users",
+          "right": "Unlimited Users"
         }
       ]
     },
@@ -491,19 +449,7 @@ export const sampleScenes = {
     "templateId": "template-029",
     "elements": {
       "title": "Did You Know?",
-      "subtitle": "Interesting facts",
-      "facts": [
-        {
-          "icon": "🌍",
-          "title": "Earth",
-          "description": "70% covered by water"
-        },
-        {
-          "icon": "🧠",
-          "title": "Brain",
-          "description": "Uses 20% of oxygen"
-        }
-      ]
+      "body": "The Earth's oceans cover more than 70% of its surface."
     },
     "duration": 8
   },
@@ -531,11 +477,9 @@ export const sampleScenes = {
   "template-031": {
     "templateId": "template-031",
     "elements": {
-      "title": "Expert Insight",
-      "meta": "Research",
-      "quote": "Innovation distinguishes between a leader and a follower.",
-      "author": "Steve Jobs",
-      "source": "Apple"
+      "title": "Innovation distinguishes between a leader and a follower.",
+      "body": "Steve Jobs, Apple",
+      "badge": "Closing Thought"
     },
     "duration": 8
   },
@@ -568,19 +512,20 @@ export const sampleScenes = {
   "template-033": {
     "templateId": "template-033",
     "elements": {
-      "title": "Benefits Row",
-      "subtitle": "A preview of the benefits row template in action.",
+      "title": "Why Teams Choose Us",
       "backgroundColor": "#1a1a2e",
       "items": [
         {
           "icon": "⚡",
-          "title": "Lightning Fast",
-          "description": "10x performance improvement"
+          "text": "Lightning Fast"
         },
         {
           "icon": "🛡️",
-          "title": "Secure",
-          "description": "End-to-end encryption"
+          "text": "Secure by Default"
+        },
+        {
+          "icon": "🌍",
+          "text": "Global Scale"
         }
       ]
     },
@@ -650,18 +595,19 @@ export const sampleScenes = {
   "template-037": {
     "templateId": "template-037",
     "elements": {
-      "title": "Company Milestones",
-      "sub": "Our journey so far",
+      "title": "Our Journey",
       "items": [
         {
-          "year": "2020",
-          "title": "Founded",
-          "description": "Started with a vision"
+          "heading": "Founded",
+          "text": "Started with a vision to change how teams work."
         },
         {
-          "year": "2022",
-          "title": "1M Users",
-          "description": "Major milestone"
+          "heading": "1M Users",
+          "text": "Reached a major adoption milestone."
+        },
+        {
+          "heading": "Global Launch",
+          "text": "Expanded to customers in over 40 countries."
         }
       ]
     },
@@ -802,8 +748,8 @@ export const sampleScenes = {
   "template-047": {
     "templateId": "template-047",
     "elements": {
-      "quote": "Believe you can and you are halfway there.",
-      "author": "Theodore Roosevelt"
+      "title": "Believe you can and you are halfway there.",
+      "body": "Now go make it happen."
     },
     "duration": 8
   },
@@ -931,11 +877,9 @@ export const sampleScenes = {
   "template-058": {
     "templateId": "template-058",
     "elements": {
-      "title": "Storytelling",
-      "subtitle": "A preview of the storytelling template in action.",
-      "backgroundColor": "#1a1a2e",
-      "body": "Once upon a time...",
-      "image": ""
+      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop",
+      "caption": "Once upon a time, in a land far away...",
+      "label": "Chapter One"
     },
     "duration": 8
   },
@@ -957,6 +901,16 @@ export const sampleScenes = {
       "subtitle": "A preview of the comedy template in action.",
       "backgroundColor": "#1a1a2e",
       "caption": "Why did the developer go broke?"
+    },
+    "duration": 8
+  },
+  "template-061": {
+    "templateId": "template-061",
+    "speaker": "guest",
+    "imageUrl": "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=1920&h=1080&fit=crop",
+    "elements": {
+      "speakerLabel": "Guest",
+      "caption": "Honestly, the moment I started shipping small features every week, everything clicked."
     },
     "duration": 8
   }

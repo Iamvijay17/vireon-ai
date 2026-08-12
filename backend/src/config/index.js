@@ -19,20 +19,16 @@ const config = Object.freeze({
     port: parseInt(process.env.REDIS_PORT, 10) || 6379,
   },
 
-  jwt: {
-    secret: process.env.JWT_SECRET || 'fallback-secret',
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  },
-
   lmStudio: {
     url: process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/chat/completions',
-    model: process.env.LM_STUDIO_MODEL || 'gemma',
+    model: process.env.LM_STUDIO_MODEL || 'google/gemma-4-e4b',
     timeout: parseInt(process.env.LM_STUDIO_TIMEOUT, 10) || 60000,
     maxRetries: parseInt(process.env.LM_STUDIO_MAX_RETRIES, 10) || 3,
   },
 
   tts: {
-    url: process.env.TTS_API_URL || 'http://localhost:8000/generate',
+    url: process.env.TTS_API_URL || 'http://localhost:7860',
+    modelSize: process.env.TTS_MODEL_SIZE || '1.7B',
     timeout: parseInt(process.env.TTS_TIMEOUT, 10) || 120000,
     maxRetries: parseInt(process.env.TTS_MAX_RETRIES, 10) || 3,
   },
@@ -51,19 +47,17 @@ const config = Object.freeze({
     uploadRetries: parseInt(process.env.GITHUB_UPLOAD_RETRIES, 10) || 3,
   },
 
-  comfyui: {
-    url: process.env.COMFYUI_URL || 'http://localhost:8188',
-    timeout: parseInt(process.env.COMFYUI_TIMEOUT, 10) || 120000,
-    maxRetries: parseInt(process.env.COMFYUI_MAX_RETRIES, 10) || 3,
-  },
-
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173' || 'http://172.24.0.1:5173' || 'http://192.168.1.7:5173',
+    // CORS_ORIGIN accepts a comma-separated list (e.g. for LAN access from multiple hosts)
+    origins: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://172.24.0.1:5173,http://192.168.1.7:5173')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
   },
 
   rateLimit: {
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000,
-    max: parseInt(process.env.RATE_LIMIT_MAX, 10) || 100,
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000,
+    max: parseInt(process.env.RATE_LIMIT_MAX, 10) || 600,
   },
 });
 

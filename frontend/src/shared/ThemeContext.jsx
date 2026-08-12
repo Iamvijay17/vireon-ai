@@ -1,14 +1,18 @@
-import React, { createContext, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { getColors } from "./theme";
-
-export const ThemeContext = createContext({
-  theme: "light",
-  toggleTheme: () => {},
-  colors: getColors("light"),
-});
+import { ThemeContext } from "./themeContextValue";
 
 export const ThemeProvider = ({ children, initialTheme }) => {
   const [theme, setTheme] = useState(() => initialTheme || "light");
+
+  // Modals/dropdowns render via createPortal to document.body, outside the
+  // themed wrapper div in App.jsx - so the theme class also needs to live on
+  // <html> for `.theme-dark *` (see index.css's `dark` custom-variant and
+  // the --bg/--surface/... tokens) to reach portaled content too.
+  useEffect(() => {
+    document.documentElement.classList.remove("theme-light", "theme-dark");
+    document.documentElement.classList.add(`theme-${theme}`);
+  }, [theme]);
 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => {
@@ -34,4 +38,4 @@ export const ThemeProvider = ({ children, initialTheme }) => {
   );
 };
 
-export default ThemeContext;
+export default ThemeProvider;

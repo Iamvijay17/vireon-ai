@@ -27,6 +27,11 @@ export const defaultCaptionConfig = {
   framesPerWord: 3,
   wordSpacing: '0.3em',
   letterSpacing: '0.02em',
+  // When set, only this many words are rendered at once (chunked by
+  // activeIndex) instead of the entire caption wrapping across multiple
+  // lines. Opt-in so existing templates keep their current full-text
+  // behavior unless they explicitly ask for windowing.
+  maxVisibleWords: 0,
 };
 
 /**
@@ -39,12 +44,12 @@ export const defaultCaptionConfig = {
  * @param {number} fps - Frames per second
  * @param {number} currentFrame - Current frame in the sequence
  * @param {number} sceneStartFrame - Frame offset when this scene started
+ * @param {number} framesPerWord - Steady-rate fallback pacing (only used without timestamps)
  * @returns {number} Active word index
  */
-const computeActiveWordIndex = (words, timestamps, fps, currentFrame, sceneStartFrame) => {
+const computeActiveWordIndex = (words, timestamps, fps, currentFrame, sceneStartFrame, framesPerWord) => {
   if (!timestamps || timestamps.length === 0) {
     // Fallback: estimate based on frame rate
-    const framesPerWord = 3;
     return Math.min(Math.floor((currentFrame - sceneStartFrame) / framesPerWord), words.length - 1);
   }
 
@@ -94,29 +99,40 @@ export const CaptionRenderer = React.memo(
       ...styleConfig,
     }), [styleConfig]);
 
-    // Split text into words
+    // Split text into words. Em/en-dashes used as parenthetical pauses (e.g.
+    // "craving—our", common in LLM-written dialogue) get typed with no
+    // surrounding space, so a plain whitespace split treats them as one
+    // fused word - but forced-alignment timestamps are derived from actual
+    // speech, which pauses there and produces two separate words. Splitting
+    // them the same way here keeps every subsequent word's index aligned
+    // with its real timestamp instead of drifting by one for the rest of
+    // the line.
     const words = useMemo(() => {
       if (!text) return [];
-      return text.split(/\s+/).filter(Boolean);
+      const normalized = text.replace(/([a-zA-Z0-9])[—–]([a-zA-Z0-9])/g, '$1— $2');
+      return normalized.split(/\s+/).filter(Boolean);
     }, [text]);
 
-    // Get the animation hook
-    const animHook = useMemo(() => {
-      const hookFactory = captionAnimationRegistry[animation];
-      if (!hookFactory) {
-        console.warn(`Unknown caption animation: "${animation}", falling back to fadeInUp`);
-        return captionAnimationRegistry.fadeInUp(animationConfig);
-      }
-      return hookFactory({
-        framesPerWord: config.framesPerWord,
-        ...animationConfig,
-      });
-    }, [animation, animationConfig, config.framesPerWord]);
+    // Get the animation hook. This must be called directly in the component
+    // body, not inside useMemo/useEffect - the hook factories themselves call
+    // useCurrentFrame()/useVideoConfig(), and nesting a hook call inside
+    // another hook's callback breaks React's hook-call bookkeeping (it
+    // reliably crashed with "Cannot read properties of undefined (reading
+    // 'length')" once this was actually re-rendered live, e.g. in the studio
+    // preview or whenever `animation` changed on an already-mounted scene).
+    if (!captionAnimationRegistry[animation]) {
+      console.warn(`Unknown caption animation: "${animation}", falling back to fadeInUp`);
+    }
+    const hookFactory = captionAnimationRegistry[animation] || captionAnimationRegistry.fadeInUp;
+    const animHook = hookFactory({
+      framesPerWord: config.framesPerWord,
+      ...animationConfig,
+    });
 
     // Compute active word index
     const activeIndex = useMemo(
-      () => computeActiveWordIndex(words, timestamps, fps, frame, sceneStartFrame),
-      [words, timestamps, fps, frame, sceneStartFrame]
+      () => computeActiveWordIndex(words, timestamps, fps, frame, sceneStartFrame, config.framesPerWord),
+      [words, timestamps, fps, frame, sceneStartFrame, config.framesPerWord]
     );
 
     // Position style for the container
@@ -128,6 +144,20 @@ export const CaptionRenderer = React.memo(
       };
       return positions[config.position] || positions.bottom;
     }, [config.position]);
+
+    // Windowing: only show a chunk of `maxVisibleWords` words at a time,
+    // advancing to the next chunk once the active word moves past it. Keeps
+    // each word's global index (for animation timing / active-word compare)
+    // instead of renumbering from 0, so the animation hooks above don't need
+    // to know windowing is happening.
+    const visibleWords = useMemo(() => {
+      if (!config.maxVisibleWords || config.maxVisibleWords <= 0) {
+        return words.map((word, index) => ({ word, index }));
+      }
+      const chunkStart = Math.floor(Math.max(0, activeIndex) / config.maxVisibleWords) * config.maxVisibleWords;
+      const chunkEnd = Math.min(words.length, chunkStart + config.maxVisibleWords);
+      return words.slice(chunkStart, chunkEnd).map((word, i) => ({ word, index: chunkStart + i }));
+    }, [words, activeIndex, config.maxVisibleWords]);
 
     if (!text || words.length === 0) return null;
 
@@ -156,7 +186,7 @@ export const CaptionRenderer = React.memo(
             backdropFilter: 'blur(4px)',
           }}
         >
-          {words.map((word, index) => {
+          {visibleWords.map(({ word, index }) => {
             const wordStyle = animHook.getWordStyle(index, activeIndex, word);
 
             return (

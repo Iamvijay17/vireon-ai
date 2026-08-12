@@ -1,8 +1,13 @@
 const mongoose = require('mongoose');
 const { COURSE_STATUS, CATEGORIES, DIFFICULTIES, LANGUAGES } = require('../constants');
+const { generateCourseId } = require('../utils/id');
 
 const courseSchema = new mongoose.Schema(
   {
+    _id: {
+      type: String,
+      default: generateCourseId,
+    },
     title: {
       type: String,
       required: [true, 'Course title is required'],
@@ -47,6 +52,15 @@ const courseSchema = new mongoose.Schema(
     completedVideoCount: {
       type: Number,
       default: 0,
+    },
+    // In-progress "Generate Udemy Course Structure" draft (form values +
+    // AI-generated lessons not yet turned into CourseVideo records), so
+    // navigating away and back doesn't force a full LLM-call regeneration.
+    // Cleared once the lessons are actually created (see
+    // CourseVideoService.createFromLessons caller in the controller).
+    curriculumDraft: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
     },
   },
   {

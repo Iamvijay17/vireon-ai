@@ -1,7 +1,10 @@
 const winston = require('winston');
+const Transport = require('winston-transport');
+const Redis = require('ioredis');
 const path = require('path');
 const fs = require('fs');
 const config = require('../config');
+const { REDIS_CHANNEL } = require('../constants');
 
 const logDir = path.resolve(__dirname, '../../logs');
 if (!fs.existsSync(logDir)) {
@@ -33,6 +36,49 @@ const customColors = {
 };
 
 winston.addColors(customColors);
+
+// ─── Live log broadcast (Frontend "Live Logs" page) ─────────────────────────
+// Forwards a subset of log entries to Redis pub/sub, which SocketService (in
+// the main server process) picks up and pushes to connected browser clients.
+// Reuses the same channel/envelope as job-progress events. http/debug are
+// excluded - too noisy to be useful in a pipeline-activity console.
+const BROADCAST_LEVELS = new Set(['error', 'warn', 'info', 'tts', 'lmstudio', 'render', 'upload']);
+
+let logPublisher = null;
+function getLogPublisher() {
+  if (config.isTest) return null;
+  if (logPublisher) return logPublisher;
+  try {
+    logPublisher = new Redis({
+      host: config.redis.host,
+      port: config.redis.port,
+      maxRetriesPerRequest: null,
+    });
+  } catch {
+    return null;
+  }
+  return logPublisher;
+}
+
+class SocketBroadcastTransport extends Transport {
+  log(info, callback) {
+    setImmediate(() => this.emit('logged', info));
+
+    if (BROADCAST_LEVELS.has(info.level)) {
+      const { level, message, timestamp, ...meta } = info;
+      const publisher = getLogPublisher();
+      if (publisher) {
+        const payload = {
+          type: 'serverLog',
+          data: { level, message, timestamp: timestamp || new Date().toISOString(), meta },
+        };
+        publisher.publish(REDIS_CHANNEL, JSON.stringify(payload)).catch(() => {});
+      }
+    }
+
+    callback();
+  }
+}
 
 const consoleFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -88,6 +134,7 @@ const logger = winston.createLogger({
       maxsize: 10 * 1024 * 1024,
       maxFiles: 5,
     }),
+    new SocketBroadcastTransport({ level: 'upload' }),
   ],
 });
 

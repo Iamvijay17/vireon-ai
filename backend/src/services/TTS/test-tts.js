@@ -1,58 +1,43 @@
 // tts.js
 
 import { Client } from "@gradio/client";
-import { readFileSync, writeFileSync } from "fs";
+import { writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
 const SERVER = "http://127.0.0.1:7860";
 
 async function generateAudio({
-   referenceAudio,
-   referenceText,
-   text,
-   removeSilence = false,
-   randomizeSeed = true,
-   seed = 0,
-   crossFade = 0.15,
-   nfe = 32,
-   speed = 1.0,
+  text,
+  language = "Auto",
+  speaker = "Ryan",
+  instruct = "",
+  modelSize = "1.7B",
+  seed = -1,
 }) {
   try {
     const client = await Client.connect(SERVER);
 
-    // Read reference audio file
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const audioBuffer = readFileSync(join(__dirname, referenceAudio));
-    const audioBlob = new Blob([audioBuffer], { type: "audio/mpeg" });
-
-    const result = await client.predict("/basic_tts", {
-      ref_audio_input: audioBlob,
-      ref_text_input: referenceText,
-      gen_text_input: text,
-
-      remove_silence: removeSilence,
-      randomize_seed: randomizeSeed,
-      seed_input: seed,
-      cross_fade_duration_slider: crossFade,
-      nfe_slider: nfe,
-      speed_slider: speed,
+    const result = await client.predict("/generate_custom_voice", {
+      text,
+      language,
+      speaker,
+      instruct,
+      model_size: modelSize,
+      seed,
     });
 
     const audio = result.data[0];
-    const spectrogram = result.data[1];
-    const detectedReferenceText = result.data[2];
-    const usedSeed = result.data[3];
+    const status = result.data[1];
 
     console.log("✅ Audio Generated");
     console.log("Audio:", audio);
-    console.log("Spectrogram:", spectrogram);
-    console.log("Reference Text:", detectedReferenceText);
-    console.log("Seed:", usedSeed);
+    console.log("Status:", status);
 
     // Auto-download output audio
     if (audio && audio.url) {
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = dirname(__filename);
       const outputResponse = await fetch(audio.url);
       const outputAudioBuffer = await outputResponse.arrayBuffer();
       const outputPath = join(__dirname, "output_audio.mp3");
@@ -72,8 +57,7 @@ async function generateAudio({
 // ----------------------------
 
 generateAudio({
-  referenceAudio: "./audio_sample_male.mp3", // path to reference voice
-  referenceText: "",
+  speaker: "Ryan",
   text: `
 Good morning everyone. Today, I'd like to share an overview of our topic. We'll begin by understanding the basics, then explore the key concepts with real-world examples, and finally summarize the main takeaways. As we move through the presentation, think about how these ideas apply to everyday life. By the end, you'll have a clear understanding of the subject and why it matters. Thank you for your attention, and let's begin.
 `,

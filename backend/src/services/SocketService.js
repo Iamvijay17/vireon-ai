@@ -2,14 +2,36 @@ const { Server } = require('socket.io');
 const Redis = require('ioredis');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
-const { SOCKET_EVENTS, VIDEO_STATUS } = require('../constants');
+const { SOCKET_EVENTS, VIDEO_STATUS, REDIS_CHANNEL } = require('../constants');
 const VideoService = require('./VideoService');
+const courseQueue = require('../queues/courseQueue');
+const { ID_PATTERN } = require('../utils/id');
+
+// Matches both entity ids (utils/id.js's "prefix-XXXXXXXX" shape) and the
+// legacy "job-XXXXXXXX"/standalone-job style ids already in use elsewhere,
+// so join/joinCourse reject garbage room names instead of letting a socket
+// join an arbitrary string-keyed room. This is NOT an ownership/authz
+// check - there's no user/session concept in this single-user app, so any
+// client can still join any *valid* job/course id's room. It only guards
+// against malformed input.
+const ROOM_ID_PATTERN = ID_PATTERN;
 
 let io = null;
 let redisSubscriber = null;
 let redisPublisher = null;
+let workerStatusInterval = null;
 
-const REDIS_CHANNEL = 'vireon:job-events';
+// Last broadcast worker status, so a newly-connecting socket gets the
+// current state immediately instead of waiting up to WORKER_STATUS_POLL_MS
+// for the next poll tick.
+let lastWorkerStatus = null;
+const WORKER_STATUS_POLL_MS = 5000;
+
+// Ring buffer of recent server log entries so a client opening the Live Logs
+// page gets immediate context instead of a blank screen until the next line
+// is emitted. Populated as 'serverLog' events arrive from Redis pub/sub.
+const LOG_BUFFER_MAX = 300;
+const logBuffer = [];
 
 /**
  * Socket.IO service for real-time job progress updates.
@@ -27,7 +49,7 @@ class SocketService {
   static init(httpServer) {
     io = new Server(httpServer, {
       cors: {
-        origin: config.cors.origin,
+        origin: config.cors.origins,
         methods: ['GET', 'POST'],
       },
     });
@@ -35,8 +57,18 @@ class SocketService {
     io.on(SOCKET_EVENTS.CONNECTION, (socket) => {
       LoggerService.info(`Socket connected: ${socket.id}`);
 
+      // Send the last-known course-worker status immediately so the
+      // client's running/offline indicator doesn't sit blank until the
+      // next poll tick.
+      if (lastWorkerStatus) {
+        socket.emit(SOCKET_EVENTS.COURSE_WORKER_STATUS, lastWorkerStatus);
+      }
+
       socket.on(SOCKET_EVENTS.JOIN, async (jobId, callback) => {
         try {
+          if (typeof jobId !== 'string' || !ROOM_ID_PATTERN.test(jobId)) {
+            throw new Error('Invalid jobId');
+          }
           await socket.join(`job:${jobId}`);
           LoggerService.debug(`Socket ${socket.id} joined job:${jobId}`);
           
@@ -58,6 +90,9 @@ class SocketService {
       // Join a course room for course video events
       socket.on('joinCourse', async (courseId, callback) => {
         try {
+          if (typeof courseId !== 'string' || !ROOM_ID_PATTERN.test(courseId)) {
+            throw new Error('Invalid courseId');
+          }
           await socket.join(`course:${courseId}`);
           LoggerService.debug(`Socket ${socket.id} joined course:${courseId}`);
           
@@ -93,7 +128,36 @@ class SocketService {
     });
 
     LoggerService.info('Socket.IO initialized');
+
+    SocketService._startWorkerStatusPolling();
+
     return io;
+  }
+
+  /**
+   * Poll BullMQ for connected course-video workers and broadcast changes to
+   * every connected client, so the frontend's running/offline indicator can
+   * rely on a pushed event instead of each open tab polling the REST
+   * endpoint (GET /api/course-videos/worker-status) on its own timer.
+   */
+  static async _pollWorkerStatus() {
+    try {
+      const workers = await courseQueue.getWorkers();
+      const status = { running: workers.length > 0, count: workers.length };
+
+      if (!lastWorkerStatus || status.running !== lastWorkerStatus.running || status.count !== lastWorkerStatus.count) {
+        lastWorkerStatus = status;
+        if (io) io.emit(SOCKET_EVENTS.COURSE_WORKER_STATUS, status);
+      }
+    } catch (err) {
+      LoggerService.error('Failed to poll course worker status', { error: err.message });
+    }
+  }
+
+  static _startWorkerStatusPolling() {
+    if (workerStatusInterval) return;
+    SocketService._pollWorkerStatus();
+    workerStatusInterval = setInterval(SocketService._pollWorkerStatus, WORKER_STATUS_POLL_MS);
   }
 
   /**
@@ -157,8 +221,16 @@ class SocketService {
       case 'jobFailed':
         SocketService.emitToJob(jobId, SOCKET_EVENTS.JOB_FAILED, data);
         break;
+      case 'sceneAudioReady':
+        SocketService.emitToJob(jobId, SOCKET_EVENTS.SCENE_AUDIO_READY, data);
+        break;
       case 'jobCreated':
         io.emit(SOCKET_EVENTS.JOB_CREATED, data);
+        break;
+      case 'serverLog':
+        logBuffer.push(data);
+        if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift();
+        io.emit(SOCKET_EVENTS.SERVER_LOG, data);
         break;
       // Course video events
       case 'courseVideoProgress':
@@ -176,9 +248,19 @@ class SocketService {
           io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_AUDIO_READY, data);
         }
         break;
+      case 'courseVideoSceneAudioReady':
+        if (courseId) {
+          io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_SCENE_AUDIO_READY, data);
+        }
+        break;
       case 'courseVideoRenderReady':
         if (courseId) {
           io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_RENDER_READY, data);
+        }
+        break;
+      case 'courseVideoUpdated':
+        if (courseId) {
+          io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_UPDATED, data);
         }
         break;
       default:
@@ -278,6 +360,29 @@ class SocketService {
     } else {
       // We're in the worker process - publish via Redis
       SocketService.publish(job._id, 'jobProgress', data);
+    }
+  }
+
+  /**
+   * Emit a single scene's audio-ready event, as soon as that scene finishes
+   * (rather than waiting for the whole batch of scenes to complete).
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitSceneAudioReady(jobId, sceneNumber, audioData) {
+    const data = {
+      jobId,
+      sceneNumber,
+      audio: {
+        file: audioData.file,
+        duration: audioData.duration,
+      },
+    };
+
+    if (io) {
+      SocketService.emitToJob(jobId, SOCKET_EVENTS.SCENE_AUDIO_READY, data);
+    } else {
+      SocketService.publish(jobId, 'sceneAudioReady', data);
     }
   }
 
@@ -432,6 +537,31 @@ class SocketService {
   }
 
   /**
+   * Emit a single course video scene's audio-ready event, as soon as that
+   * scene finishes (rather than waiting for the whole batch to complete),
+   * so the course video detail page can show each scene's player as it
+   * becomes available instead of only after every scene is done.
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitCourseVideoSceneAudioReady(video, sceneNumber, audioData) {
+    const data = {
+      videoId: video._id,
+      sceneNumber,
+      audio: {
+        file: audioData.file,
+        duration: audioData.duration,
+      },
+    };
+
+    if (io) {
+      io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_SCENE_AUDIO_READY, data);
+    } else {
+      SocketService.publishToCourse(video.courseId.toString(), 'courseVideoSceneAudioReady', data);
+    }
+  }
+
+  /**
    * Emit course video render ready event.
    * In the main process, emits via Socket.IO directly.
    * In the worker process, publishes via Redis pub/sub.
@@ -448,6 +578,28 @@ class SocketService {
       io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_RENDER_READY, data);
     } else {
       SocketService.publishToCourse(video.courseId.toString(), 'courseVideoRenderReady', data);
+    }
+  }
+
+  /**
+   * Emit a generic "this video's record changed" event, used after the
+   * automatic cloud upload swaps local paths for GitHub URLs so the
+   * frontend knows to refetch the video (script/audioUrl/renderUrl all
+   * potentially changed at once).
+   * In the main process, emits via Socket.IO directly.
+   * In the worker process, publishes via Redis pub/sub.
+   */
+  static emitCourseVideoUpdated(video, message) {
+    const data = {
+      videoId: video._id,
+      status: video.status,
+      message,
+    };
+
+    if (io) {
+      io.to(`course:${video.courseId.toString()}`).emit(SOCKET_EVENTS.COURSE_VIDEO_UPDATED, data);
+    } else {
+      SocketService.publishToCourse(video.courseId.toString(), 'courseVideoUpdated', data);
     }
   }
 
@@ -485,6 +637,14 @@ class SocketService {
    */
   static getIO() {
     return io;
+  }
+
+  /**
+   * Recent server log entries (newest last), for hydrating the Live Logs
+   * page on load before any new 'serverLog' events arrive.
+   */
+  static getRecentLogs(limit = LOG_BUFFER_MAX) {
+    return logBuffer.slice(-limit);
   }
 
   /**

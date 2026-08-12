@@ -1,12 +1,12 @@
 {
   "title": "Comparison",
-  "description": "Side-by-side comparison layout with two cards separated by a VS badge. Ideal for product comparisons.",
+  "description": "Two-column content layout comparing a pair of headings and bodies side by side. Good for contrasting ideas, options, or perspectives.",
   "scene_meta": {
-    "sceneType": "comparison",
+    "sceneType": "content",
     "content": [
-      "Comparison header",
-      "Left card title and body",
-      "Right card title and body"
+      "Section title",
+      "Left column heading and body",
+      "Right column heading and body"
     ]
   }
 }

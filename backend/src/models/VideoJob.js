@@ -1,34 +1,14 @@
 const mongoose = require('mongoose');
-const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, VOICES, LANGUAGES } = require('../constants');
-
-const sceneSchema = new mongoose.Schema(
-  {
-    sceneNumber: { type: Number, required: true },
-    sceneType: { type: String, default: 'content' },
-    title: { type: String, default: '' },
-    subtitle: { type: String, default: '' },
-    duration: { type: Number, default: 8 },
-    backgroundColor: { type: String, default: '#1a1a2e' },
-    transition: { type: String, default: 'fade' },
-    imagePrompt: { type: String, default: '' },
-    cameraMotion: { type: String, default: 'static' },
-    animation: { type: String, default: '' },
-    imageUrl: { type: String, default: '' },
-     templateId: { type: String, default: '' },
-     elements: { type: mongoose.Schema.Types.Mixed, default: null },
-     scene_meta: { type: mongoose.Schema.Types.Mixed, default: null },
-     audio: {
-      text: { type: String, default: '' },
-      file: { type: String, default: '' },
-      duration: { type: Number, default: 0 },
-      voice: { type: String, default: '' },
-    },
-  },
-  { _id: false }
-);
+const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS, SHORTS_VIDEO_DURATIONS } = require('../constants');
+const { generateVideoJobId } = require('../utils/id');
+const sceneSchema = require('./schemas/sceneSchema');
 
 const videoJobSchema = new mongoose.Schema(
   {
+    _id: {
+      type: String,
+      default: generateVideoJobId,
+    },
     topic: {
       type: String,
       required: [true, 'Video topic is required'],
@@ -45,20 +25,71 @@ const videoJobSchema = new mongoose.Schema(
       enum: LANGUAGES,
       default: 'english',
     },
+    // Free-form voice selector: legacy bare keys (e.g. "female-1"),
+    // "custom:<Speaker>" for a Qwen3-TTS preset, or "clone:<file>.wav"
+    // for a cloned reference voice - see AudioService.resolveVoice.
     voice: {
       type: String,
-      enum: VOICES,
       default: 'female-1',
+    },
+    // Podcast type only: separate voice selections for the two speakers,
+    // same free-form format as `voice` above - see AudioService.resolveVoice.
+    hostVoice: {
+      type: String,
+      default: '',
+    },
+    guestVoice: {
+      type: String,
+      default: '',
+    },
+    // Podcast type only: display names for the two speakers - shown as the
+    // on-screen nameplate (template-061) and, if set, used in the script
+    // prompt so the two speakers can address each other by name instead of
+    // generically. Falls back to "Host"/"Guest" wherever unset (see
+    // ScriptParserService and ChunkedScriptService).
+    hostName: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 80,
+    },
+    guestName: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 80,
+    },
+    // Requested video length in minutes - drives both prompt generation
+    // (PromptService, converted to an exact scene count) and total duration
+    // estimate in the worker. Mongoose's enum can't be conditional on
+    // `type`, so this is the union of both duration scales - createVideoSchema's
+    // superRefine is what actually enforces youtube_shorts vs. everything
+    // else at request time; this just needs to accept whatever a valid
+    // request could contain.
+    duration: {
+      type: Number,
+      enum: [...STANDALONE_VIDEO_DURATIONS, ...SHORTS_VIDEO_DURATIONS],
+      default: 5,
     },
     resolution: {
       type: String,
       enum: RESOLUTIONS,
       default: '1920x1080',
     },
+    // Not user-selectable - always derived from `resolution` server-side
+    // (VideoService.create -> getAspectRatioForResolution).
     aspectRatio: {
       type: String,
       enum: ASPECT_RATIOS,
       default: '16:9',
+    },
+    // true (default): current auto flow - after the script-approval pause,
+    // audio/images/render/upload all run automatically. false: manual mode,
+    // mirroring the course-video pipeline - audio and render each require
+    // their own explicit trigger (see videoWorker.js's pause checks).
+    fastGeneration: {
+      type: Boolean,
+      default: true,
     },
     status: {
       type: String,

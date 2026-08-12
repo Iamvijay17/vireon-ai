@@ -1,7 +1,7 @@
 const Course = require('../models/Course');
 const CourseVideo = require('../models/CourseVideo');
 const LoggerService = require('./LoggerService');
-const { COURSE_STATUS } = require('../constants');
+const { COURSE_STATUS, VIDEO_STATUS } = require('../constants');
 
 /**
  * Service for managing courses.
@@ -118,6 +118,40 @@ class CourseService {
   }
 
   /**
+   * Save (or overwrite) the in-progress curriculum generation draft for a
+   * course - the form values plus AI-generated lessons from "Generate Udemy
+   * Course Structure", before they've been turned into CourseVideo records.
+   * Deliberately separate from update() so autosaving a draft doesn't emit
+   * a course-updated socket event to every connected client.
+   */
+  static async saveCurriculumDraft(courseId, draft) {
+    const course = await Course.findByIdAndUpdate(
+      courseId,
+      { $set: { curriculumDraft: draft } },
+      { new: true }
+    );
+    if (!course) {
+      throw { status: 404, message: 'Course not found' };
+    }
+    return course.curriculumDraft;
+  }
+
+  /**
+   * Clear the curriculum draft, e.g. once its lessons have been created.
+   */
+  static async clearCurriculumDraft(courseId) {
+    const course = await Course.findByIdAndUpdate(
+      courseId,
+      { $set: { curriculumDraft: null } },
+      { new: true }
+    );
+    if (!course) {
+      throw { status: 404, message: 'Course not found' };
+    }
+    return { success: true };
+  }
+
+  /**
    * Delete a course and all its videos.
    */
   static async delete(courseId) {
@@ -132,6 +166,31 @@ class CourseService {
     LoggerService.info('Course deleted', { courseId });
 
     return { message: 'Course deleted successfully' };
+  }
+
+  /**
+   * Stop every not-yet-finished lesson in a course at once. Lazily requires
+   * CourseVideoService (rather than a top-level require) to avoid a
+   * circular require - CourseVideoService.js already requires CourseService.
+   */
+  static async stopAll(courseId) {
+    const course = await Course.findById(courseId);
+    if (!course) {
+      throw { status: 404, message: 'Course not found' };
+    }
+
+    const terminalStatuses = [VIDEO_STATUS.COMPLETED, VIDEO_STATUS.FAILED, VIDEO_STATUS.CANCELLED];
+    const videos = await CourseVideo.find({ courseId, status: { $nin: terminalStatuses } }).select('_id').lean();
+
+    const CourseVideoService = require('./CourseVideoService');
+    const results = await Promise.allSettled(videos.map((v) => CourseVideoService.stop(v._id)));
+    const stopped = results.filter((r) => r.status === 'fulfilled').length;
+
+    LoggerService.info('Course stopped by user', { courseId, requested: videos.length, stopped });
+
+    await CourseService.recalculateStatus(courseId);
+
+    return { stopped, requested: videos.length };
   }
 
   /**

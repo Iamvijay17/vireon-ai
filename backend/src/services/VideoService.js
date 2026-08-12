@@ -1,6 +1,27 @@
 const VideoJob = require('../models/VideoJob');
 const LoggerService = require('./LoggerService');
-const { JOB_STATUS } = require('../constants');
+const ActivityLogService = require('./ActivityLogService');
+const AudioService = require('./TTS/audioService');
+const {
+  JOB_STATUS,
+  getAspectRatioForResolution,
+  STANDALONE_VIDEO_DURATIONS,
+  SHORTS_VIDEO_DURATIONS,
+} = require('../constants');
+
+// A job actively being worked on by the worker can't have its details
+// edited underneath it - the same "actively processing" concern as
+// restart/regenerateScript, but for every processing stage rather than just
+// the active-BullMQ-lock check (editing during a paused stage like
+// AWAITING_APPROVAL or AUDIO_COMPLETED is fine and expected).
+const BUSY_STATUSES = [
+  JOB_STATUS.SCRIPT_GENERATION,
+  JOB_STATUS.GENERATING_AUDIO,
+  JOB_STATUS.GENERATING_IMAGES,
+  JOB_STATUS.PREPARING_ASSETS,
+  JOB_STATUS.RENDERING,
+  JOB_STATUS.UPLOADING,
+];
 
 /**
  * Service for managing video jobs.
@@ -16,8 +37,15 @@ class VideoService {
       type: data.type,
       language: data.language || 'english',
       voice: data.voice || 'female-1',
+      hostVoice: data.hostVoice || '',
+      guestVoice: data.guestVoice || '',
+      hostName: data.hostName || '',
+      guestName: data.guestName || '',
+      duration: data.duration || 5,
       resolution: data.resolution || '1920x1080',
-      aspectRatio: data.aspectRatio || '16:9',
+      // Not user-selectable - resolution alone determines it.
+      aspectRatio: getAspectRatioForResolution(data.resolution || '1920x1080'),
+      fastGeneration: data.fastGeneration ?? true,
       status: JOB_STATUS.QUEUED,
       progress: 0,
     });
@@ -34,15 +62,27 @@ class VideoService {
   /**
    * Get all jobs with pagination.
    */
-  static async getAllJobs(page = 1, limit = 20) {
+  static async getAllJobs(page = 1, limit = 20, filters = {}) {
     const skip = (page - 1) * limit;
+    const query = {};
+
+    if (filters.status) {
+      query.status = filters.status;
+    }
+    if (filters.type) {
+      query.type = filters.type;
+    }
+    if (filters.search) {
+      query.topic = { $regex: filters.search, $options: 'i' };
+    }
+
     const [jobs, total] = await Promise.all([
-      VideoJob.find()
+      VideoJob.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      VideoJob.countDocuments(),
+      VideoJob.countDocuments(query),
     ]);
 
     return {
@@ -81,22 +121,81 @@ class VideoService {
   }
 
   /**
+   * Update editable job details (topic, duration, language, voice(s),
+   * names, resolution). Doesn't touch anything already generated - the
+   * caller should regenerate the relevant stage afterward if they want it
+   * to reflect the new values, same as course videos' edit modal.
+   */
+  static async update(jobId, updates) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    if (BUSY_STATUSES.includes(job.status)) {
+      throw { status: 400, message: `Job is actively processing (${job.status}) and can't be edited right now.` };
+    }
+
+    // `type` isn't editable, so duration/resolution are re-validated against
+    // the job's existing type - mirrors createVideoSchema's superRefine.
+    const duration = updates.duration ?? job.duration;
+    const resolution = updates.resolution ?? job.resolution;
+    if (job.type === 'youtube_shorts') {
+      if (!SHORTS_VIDEO_DURATIONS.includes(duration)) {
+        throw { status: 400, message: `YouTube Shorts duration must be one of: ${SHORTS_VIDEO_DURATIONS.join(', ')}` };
+      }
+      if (getAspectRatioForResolution(resolution) !== '9:16') {
+        throw { status: 400, message: 'YouTube Shorts must use a vertical resolution' };
+      }
+    } else if (!STANDALONE_VIDEO_DURATIONS.includes(duration)) {
+      throw { status: 400, message: `Duration must be one of: ${STANDALONE_VIDEO_DURATIONS.join(', ')}` };
+    }
+
+    if (job.type === 'podcast') {
+      const hostVoice = updates.hostVoice ?? job.hostVoice;
+      const guestVoice = updates.guestVoice ?? job.guestVoice;
+      if (!hostVoice) throw { status: 400, message: 'Host voice is required for podcast videos' };
+      if (!guestVoice) throw { status: 400, message: 'Guest voice is required for podcast videos' };
+    }
+
+    Object.assign(job, updates);
+    job.duration = duration;
+    job.resolution = resolution;
+    job.aspectRatio = getAspectRatioForResolution(resolution);
+    await job.save();
+
+    LoggerService.info('Video job details updated', { jobId, fields: Object.keys(updates) });
+    return job;
+  }
+
+  /**
    * Update job status with progress.
    */
   static async updateStatus(jobId, status, extra = {}) {
+    const { error: errorMessage, retryCount, progress, ...rest } = extra;
+
     const update = {
-      status,
-      progress: extra.progress ?? 0,
-      currentStep: status,
-      ...extra,
+      $set: {
+        status,
+        progress: progress ?? 0,
+        currentStep: status,
+        ...rest,
+      },
     };
 
-    if (extra.error) {
-      update.error = {
-        message: extra.error,
+    if (errorMessage) {
+      update.$set.error = {
+        message: errorMessage,
         step: status,
-        retryCount: extra.retryCount || 0,
+        retryCount: retryCount || 0,
       };
+    } else {
+      // Every call site here represents a successful stage transition, not
+      // a failure - clear any error left over from an earlier failed
+      // attempt so the UI doesn't keep showing an error banner next to a
+      // job that's now healthy again. `error: undefined` would be silently
+      // dropped by Mongoose rather than clearing the field, hence $unset.
+      update.$unset = { error: '' };
     }
 
     const job = await VideoJob.findByIdAndUpdate(jobId, update, { new: true });
@@ -146,12 +245,62 @@ class VideoService {
     if (scene) {
       scene.audio.file = audioData.file;
       scene.audio.duration = audioData.duration;
+      scene.audio.captionTimestamps = audioData.captionTimestamps || null;
       // The audio file duration is the actual scene duration
       scene.duration = audioData.duration;
+      // `elements` was built at script-validation time, before audio (and
+      // its real per-word timing) existed - copy it in now so templates that
+      // read elements.captionTimestamps pick up real sync instead of null.
+      if (scene.elements) {
+        scene.elements.captionTimestamps = audioData.captionTimestamps || null;
+        scene.markModified('elements');
+      }
     }
 
     await job.save();
     return job;
+  }
+
+  /**
+   * Regenerate audio for a single scene, rather than the whole job. Runs
+   * synchronously (not queued) since it's one TTS call, not a batch.
+   * Lazily requires SocketService to avoid a circular require -
+   * SocketService.js already requires VideoService at the top level.
+   */
+  static async regenerateSceneAudio(jobId, sceneNumber) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    const scene = job.script?.scenes?.find((s) => s.sceneNumber === sceneNumber);
+    if (!scene) {
+      throw { status: 404, message: `Scene ${sceneNumber} not found` };
+    }
+
+    const SocketService = require('./SocketService');
+
+    try {
+      const result = await AudioService.generateSceneAudio(
+        jobId,
+        scene,
+        job.voice || scene.audio?.voice,
+      );
+      if (!result) {
+        throw new Error('Audio generation returned no result');
+      }
+
+      await this.updateSceneAudio(jobId, sceneNumber, result);
+      await ActivityLogService.add(jobId, `Scene ${sceneNumber} audio regenerated`);
+      SocketService.emitSceneAudioReady(jobId, sceneNumber, result);
+
+      LoggerService.info('Video job scene audio regenerated', { jobId, sceneNumber });
+
+      return { sceneNumber, audio: { file: result.file, duration: result.duration } };
+    } catch (err) {
+      await ActivityLogService.add(jobId, `Scene ${sceneNumber} audio regeneration failed: ${err.message}`);
+      throw err;
+    }
   }
 
   /**
@@ -222,19 +371,24 @@ class VideoService {
     try { await fs.unlink(assetsPath); } catch {}
     try { await fs.unlink(propsPath); } catch {}
 
-    // Reset to PREPARING_ASSETS - keeps script and audio, re-runs from assets prep
+    // Reset to PREPARING_ASSETS - keeps script and audio, re-runs from assets prep.
+    // `error: undefined` in a plain update object is silently dropped by
+    // Mongoose (undefined-valued keys never reach the $set), so the old
+    // error would otherwise stick around forever - needs an explicit $unset.
     const updatedJob = await VideoJob.findByIdAndUpdate(
       jobId,
       {
-        status: JOB_STATUS.PREPARING_ASSETS,
-        progress: 60,
-        currentStep: JOB_STATUS.PREPARING_ASSETS,
-        error: undefined,
-        videoUrl: '',
-        thumbnailUrl: '',
-        scriptUrl: '',
-        audioUrls: [],
-        assetsUrl: '',
+        $set: {
+          status: JOB_STATUS.PREPARING_ASSETS,
+          progress: 60,
+          currentStep: JOB_STATUS.PREPARING_ASSETS,
+          videoUrl: '',
+          thumbnailUrl: '',
+          scriptUrl: '',
+          audioUrls: [],
+          assetsUrl: '',
+        },
+        $unset: { error: '' },
       },
       { new: true }
     );
@@ -249,6 +403,181 @@ class VideoService {
   }
 
   /**
+   * Regenerate just the script step for a job that already has one (e.g.
+   * awaiting approval, or completed) - clears the existing script/render
+   * output and resets to QUEUED so the worker's `needsScriptGeneration`
+   * check (script.scenes empty, or status === QUEUED) re-runs script
+   * generation from scratch through ChunkedScriptService, picking up
+   * whatever scene-count/prompt logic is current instead of reusing the
+   * stale script already on the job. Downstream audio/render artifacts are
+   * cleared too since they're tied to the old script's scene numbers and
+   * would otherwise dangle against a script that no longer matches them.
+   */
+  static async regenerateScript(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    const terminalOrRunning = [JOB_STATUS.CANCELLED];
+    if (terminalOrRunning.includes(job.status)) {
+      throw { status: 400, message: `Job is in ${job.status} state and cannot regenerate its script.` };
+    }
+
+    const fs = require('fs').promises;
+    const path = require('path');
+    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    // Delete generated audio/render output on disk (keep nothing to resume
+    // from - a fresh script means fresh scene numbers/durations).
+    try { await fs.rm(jobDir, { recursive: true, force: true }); } catch {}
+
+    const updatedJob = await VideoJob.findByIdAndUpdate(
+      jobId,
+      {
+        $set: {
+          status: JOB_STATUS.QUEUED,
+          progress: 0,
+          currentStep: JOB_STATUS.QUEUED,
+          script: null,
+          videoUrl: '',
+          thumbnailUrl: '',
+          scriptUrl: '',
+          audioUrls: [],
+          assetsUrl: '',
+        },
+        $unset: { error: '' },
+      },
+      { new: true }
+    );
+
+    LoggerService.info('Video job script regeneration triggered', {
+      jobId,
+      previousStatus: job.status,
+      previousSceneCount: job.script?.scenes?.length || 0,
+    });
+
+    return updatedJob;
+  }
+
+  /**
+   * Stop a running job. Marks it CANCELLED immediately - if the job hasn't
+   * started processing yet, the caller (VideoController.stop) also removes
+   * it from the BullMQ queue so it never starts. If it's already mid-flight,
+   * there's no way to kill the in-progress external call (LM Studio/TTS/
+   * Remotion/upload) directly, so the worker itself checks for
+   * CANCELLED at each step boundary and between per-scene iterations, and
+   * bails out as soon as it notices - see videoWorker.js's `bailIfCancelled`.
+   */
+  static async stop(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    const terminalStates = [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED];
+    if (terminalStates.includes(job.status)) {
+      throw { status: 400, message: `Job is in ${job.status} state and cannot be stopped - it isn't running.` };
+    }
+
+    const updatedJob = await VideoJob.findByIdAndUpdate(
+      jobId,
+      {
+        status: JOB_STATUS.CANCELLED,
+        currentStep: JOB_STATUS.CANCELLED,
+        error: {
+          message: 'Stopped by user',
+          step: job.status,
+          retryCount: job.error?.retryCount || 0,
+        },
+      },
+      { new: true }
+    );
+
+    LoggerService.info('Video job stopped', { jobId, previousStatus: job.status });
+
+    return updatedJob;
+  }
+
+  /**
+   * Approve a script that's awaiting manual review.
+   *
+   * fastGeneration jobs: caller re-enqueues the 'render-video' BullMQ job
+   * afterwards - the worker's own `needsScriptGeneration` check already
+   * skips regeneration once status isn't QUEUED, so it resumes straight
+   * into audio/image/render/upload, all automatic from here.
+   *
+   * Manual (fastGeneration: false) jobs: this only marks the script
+   * approved (status -> SCRIPT_COMPLETED) and stops - audio generation is
+   * a separate explicit step (see generateAudio below), like course videos.
+   */
+  static async approve(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    if (job.status !== JOB_STATUS.AWAITING_APPROVAL) {
+      throw { status: 400, message: `Job is in ${job.status} state and cannot be approved. Only jobs awaiting approval can be approved.` };
+    }
+
+    if (!job.fastGeneration) {
+      job.status = JOB_STATUS.SCRIPT_COMPLETED;
+      job.progress = 20;
+      job.currentStep = JOB_STATUS.SCRIPT_COMPLETED;
+      await job.save();
+    }
+
+    LoggerService.info('Video job script approved', { jobId, fastGeneration: job.fastGeneration });
+    return job;
+  }
+
+  /**
+   * Manual mode only: trigger audio generation for an approved script.
+   * Caller re-enqueues 'render-video' afterwards - the worker pauses again
+   * right after audio completes (status stays AUDIO_COMPLETED) instead of
+   * auto-continuing into images/render, since fastGeneration is false.
+   */
+  static async generateAudio(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    if (job.fastGeneration) {
+      throw { status: 400, message: 'This job uses fast generation - audio runs automatically after approval.' };
+    }
+
+    if (job.status !== JOB_STATUS.SCRIPT_COMPLETED) {
+      throw { status: 400, message: `Job is in ${job.status} state. Approve the script before generating audio.` };
+    }
+
+    LoggerService.info('Video job manual audio generation triggered', { jobId });
+    return job;
+  }
+
+  /**
+   * Manual mode only: trigger the final image/render/upload stage once
+   * audio is ready. Caller re-enqueues 'render-video' afterwards.
+   */
+  static async generateRender(jobId) {
+    const job = await VideoJob.findById(jobId);
+    if (!job) {
+      throw { status: 404, message: 'Job not found' };
+    }
+
+    if (job.fastGeneration) {
+      throw { status: 400, message: 'This job uses fast generation - rendering runs automatically after approval.' };
+    }
+
+    if (job.status !== JOB_STATUS.AUDIO_COMPLETED) {
+      throw { status: 400, message: `Job is in ${job.status} state. Generate audio before rendering.` };
+    }
+
+    LoggerService.info('Video job manual render triggered', { jobId });
+    return job;
+  }
+
+  /**
    * Map step to resume status for jobs that are stuck.
    * When a job is stuck in a processing state, we resume from the next step.
    */
@@ -259,6 +588,7 @@ class VideoService {
     const stepStatusMap = {
       [JOB_STATUS.SCRIPT_GENERATION]: { status: JOB_STATUS.QUEUED, progress: 0 },
       [JOB_STATUS.SCRIPT_COMPLETED]: { status: JOB_STATUS.SCRIPT_COMPLETED, progress: 20 },
+      [JOB_STATUS.AWAITING_APPROVAL]: { status: JOB_STATUS.AWAITING_APPROVAL, progress: 20 },
       [JOB_STATUS.GENERATING_AUDIO]: { status: JOB_STATUS.GENERATING_AUDIO, progress: 40 },
       [JOB_STATUS.AUDIO_COMPLETED]: { status: JOB_STATUS.AUDIO_COMPLETED, progress: 50 },
       [JOB_STATUS.PREPARING_ASSETS]: { status: JOB_STATUS.PREPARING_ASSETS, progress: 60 },
@@ -280,7 +610,10 @@ class VideoService {
       };
     }
 
-    // Fallback: Determine based on job state (script and audio files)
+    // Fallback: Determine based on job state (script and audio files). A job
+    // with scenes but none awaiting/past audio yet is presumed still awaiting
+    // manual approval, since that's the only place a script-having job stops
+    // this early - resuming should land back on the approval gate, not skip it.
     if (job.script?.scenes?.length > 0) {
       const scenesWithAudio = job.script.scenes.filter(s => s.audio?.file);
 
@@ -292,10 +625,18 @@ class VideoService {
         };
       }
 
+      if (scenesWithAudio.length > 0) {
+        return {
+          status: JOB_STATUS.GENERATING_AUDIO,
+          progress: 40,
+          currentStep: JOB_STATUS.GENERATING_AUDIO,
+        };
+      }
+
       return {
-        status: JOB_STATUS.GENERATING_AUDIO,
-        progress: 40,
-        currentStep: JOB_STATUS.GENERATING_AUDIO,
+        status: JOB_STATUS.AWAITING_APPROVAL,
+        progress: 20,
+        currentStep: JOB_STATUS.AWAITING_APPROVAL,
       };
     }
 
@@ -318,6 +659,7 @@ class VideoService {
     const stepStatusMap = {
       [JOB_STATUS.SCRIPT_GENERATION]: { status: JOB_STATUS.QUEUED, progress: 0 },
       [JOB_STATUS.SCRIPT_COMPLETED]: { status: JOB_STATUS.QUEUED, progress: 0 },
+      [JOB_STATUS.AWAITING_APPROVAL]: { status: JOB_STATUS.AWAITING_APPROVAL, progress: 20 },
       [JOB_STATUS.GENERATING_AUDIO]: { status: JOB_STATUS.GENERATING_AUDIO, progress: 40 },
       [JOB_STATUS.AUDIO_COMPLETED]: { status: JOB_STATUS.PREPARING_ASSETS, progress: 60 },
       [JOB_STATUS.PREPARING_ASSETS]: { status: JOB_STATUS.PREPARING_ASSETS, progress: 60 },
@@ -339,7 +681,10 @@ class VideoService {
       };
     }
 
-    // Fallback: Determine based on job state (script and audio files)
+    // Fallback: Determine based on job state (script and audio files). A job
+    // with scenes but no audio yet is presumed still awaiting manual
+    // approval, since that's the only place a script-having job stops this
+    // early - resuming should land back on the approval gate, not skip it.
     if (job.script?.scenes?.length > 0) {
       const scenesWithAudio = job.script.scenes.filter(s => s.audio?.file);
 
@@ -351,10 +696,18 @@ class VideoService {
         };
       }
 
+      if (scenesWithAudio.length > 0) {
+        return {
+          status: JOB_STATUS.GENERATING_AUDIO,
+          progress: 40,
+          currentStep: JOB_STATUS.GENERATING_AUDIO,
+        };
+      }
+
       return {
-        status: JOB_STATUS.GENERATING_AUDIO,
-        progress: 40,
-        currentStep: JOB_STATUS.GENERATING_AUDIO,
+        status: JOB_STATUS.AWAITING_APPROVAL,
+        progress: 20,
+        currentStep: JOB_STATUS.AWAITING_APPROVAL,
       };
     }
 
@@ -386,14 +739,19 @@ class VideoService {
       ? this.getResumeStep(job)
       : this.getStepForResume(job);
 
-    // Update job to resume from the appropriate step
+    // Update job to resume from the appropriate step.
+    // `error: undefined` in a plain update object is silently dropped by
+    // Mongoose (undefined-valued keys never reach the $set), so the old
+    // error would otherwise stick around forever - needs an explicit $unset.
     const updatedJob = await VideoJob.findByIdAndUpdate(
       jobId,
       {
-        status: resumeInfo.status,
-        progress: resumeInfo.progress,
-        currentStep: resumeInfo.currentStep,
-        error: undefined,
+        $set: {
+          status: resumeInfo.status,
+          progress: resumeInfo.progress,
+          currentStep: resumeInfo.currentStep,
+        },
+        $unset: { error: '' },
       },
       { new: true }
     );

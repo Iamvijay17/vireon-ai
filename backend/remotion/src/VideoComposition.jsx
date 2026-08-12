@@ -2,6 +2,8 @@ import React, { Suspense } from "react";
 import {
   AbsoluteFill,
   Sequence,
+  interpolate,
+  useCurrentFrame,
 } from "remotion";
 import TemplateRegistry from "./templates/TemplateRegistry";
 import DefaultTemplate from "./templates/DefaultTemplate";
@@ -16,14 +18,28 @@ const BackgroundLayer = ({ backgroundColor }) => (
   <AbsoluteFill style={{ backgroundColor: backgroundColor || "#1a1a2e" }} />
 );
 
-const SceneTransition = ({ children, backgroundColor }) => {
-  // Simple wrapper that provides stable background without conflicting animations
-  // Templates handle their own internal animations
+/**
+ * Crossfades a scene (background + content together) in from the previous
+ * scene over `fadeInFrames`, instead of popping in at full opacity.
+ * The outgoing scene's Sequence is extended to overlap this window (see
+ * VideoComposition below), so both scenes are visible and blend smoothly
+ * instead of hard-cutting - which is what previously read as a "flicker".
+ */
+const SceneTransition = ({ children, backgroundColor, fadeInFrames = 0 }) => {
+  const frame = useCurrentFrame();
+  const opacity =
+    fadeInFrames > 0
+      ? interpolate(frame, [0, fadeInFrames], [0, 1], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        })
+      : 1;
+
   return (
-    <>
+    <AbsoluteFill style={{ opacity }}>
       <BackgroundLayer backgroundColor={backgroundColor} />
       <AbsoluteFill>{children}</AbsoluteFill>
-    </>
+    </AbsoluteFill>
   );
 };
 
@@ -143,24 +159,47 @@ export const VideoComposition = ({ assets, jobId }) => {
 
   // Calculate total duration based on actual scene durations
   const fps = 30;
+  const MAX_TRANSITION_FRAMES = 15; // ~0.5s crossfade between consecutive scenes
   let currentFrame = 0;
+
+  // Precompute each scene's frame span first, so the crossfade overlap at
+  // each boundary can be sized against both neighbors' actual lengths.
+  const layout = scenes.map((scene, index) => {
+    const sceneDuration = scene.duration || 8; // seconds per scene, default 8
+    const sceneFrames = Math.round(sceneDuration * fps);
+    const sceneStart = currentFrame;
+    currentFrame += sceneFrames;
+    return { scene, index, sceneStart, sceneFrames };
+  });
 
   return (
     <>
-      {scenes.map((scene, index) => {
-        const sceneDuration = scene.duration || 8; // seconds per scene, default 8
-        const sceneStart = currentFrame;
-        currentFrame += sceneDuration * fps;
+      {layout.map(({ scene, index, sceneStart, sceneFrames }) => {
+        const prevFrames = layout[index - 1]?.sceneFrames;
+        const nextFrames = layout[index + 1]?.sceneFrames;
+
+        // Cap the overlap so a transition never eats more than a third of
+        // either adjacent scene's own length (keeps very short scenes sane).
+        const overlapWithNext =
+          index < layout.length - 1
+            ? Math.min(MAX_TRANSITION_FRAMES, Math.floor(sceneFrames / 3), Math.floor(nextFrames / 3))
+            : 0;
+        const overlapWithPrev =
+          index > 0
+            ? Math.min(MAX_TRANSITION_FRAMES, Math.floor(sceneFrames / 3), Math.floor(prevFrames / 3))
+            : 0;
 
         const bgColor = scene.backgroundColor || "#1a1a2e";
-        
+
         return (
           <Sequence
             key={scene.sceneNumber || index}
             from={sceneStart}
-            durationInFrames={sceneDuration * fps}
+            // Extended past its natural end (except the last scene) so it
+            // stays mounted underneath the next scene's fade-in.
+            durationInFrames={sceneFrames + overlapWithNext}
           >
-            <SceneTransition backgroundColor={bgColor}>
+            <SceneTransition backgroundColor={bgColor} fadeInFrames={overlapWithPrev}>
               <Scene scene={scene} jobId={jobId} />
             </SceneTransition>
           </Sequence>

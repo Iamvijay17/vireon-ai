@@ -1,23 +1,57 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  Typography, Card, Row, Col, Button, Form, Input, Select, Switch, Slider, Space, message, Spin, Empty, Divider, Tag, Collapse, InputNumber, List
-} from "antd";
+  ArrowLeft,
+  Save,
+  Redo2,
+  CheckCircle2,
+  Pencil,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Trash2,
+  GripVertical,
+  LayoutTemplate,
+  Settings,
+  Image as ImageIcon,
+  Languages,
+  AudioLines,
+  Video,
+} from "lucide-react";
+import { getVideoJob, updateVideoScenes, rerenderVideoJob, approveVideoJob, generateVideoAudio, generateVideoRender } from "../../services/api";
 import {
-  ArrowLeftOutlined, SaveOutlined, RedoOutlined, PlayCircleOutlined, SettingOutlined, EditOutlined, TranslationOutlined, PictureOutlined, BgColorsOutlined, RightOutlined
-} from "@ant-design/icons";
-import { getVideoJob, updateVideoScenes, rerenderVideoJob } from "../../services/api";
-import { connect, joinJobRoom, leaveJobRoom, onJobProgress, onJobCompleted, onJobFailed, onConnect, onDisconnect, requestJobStatus, onJobStatus, isConnected } from "../../services/socket";
-import { colors } from "../../shared/theme";
-
-const { Title, Text } = Typography;
-const { TextArea } = Input;
+  connect,
+  joinJobRoom,
+  leaveJobRoom,
+  onJobProgress,
+  onJobCompleted,
+  onJobFailed,
+  onConnect,
+  onDisconnect,
+  onJobStatus,
+  isConnected,
+} from "../../services/socket";
+import { templateNames } from "vireon-remotion-templates/src/templateNames";
+import { LoadingState, EmptyState } from "../../components";
+import { ScenePreview } from "../../components/video/ScenePreview";
+import { SceneThumbnail } from "../../components/video/SceneThumbnail";
+import { TemplatePickerModal } from "../../components/video/TemplatePickerModal";
+import { useForceSidebarCollapsed } from "../../shared/sidebarContextValue";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Alert } from "../../components/ui/Alert";
+import { Select } from "../../components/ui/Select";
+import { Input, Textarea, NumberInput, Label } from "../../components/ui/Input";
+import { ColorInput } from "../../components/ui/ColorInput";
+import { cn } from "../../components/ui/cn";
+import { toast } from "../../components/ui/toastBus";
+import { confirmDialog } from "../../components/ui/confirmBus";
 
 const SCENE_TYPE_OPTIONS = [
-  { value: "title", label: "Title" },
+  { value: "intro", label: "Intro" },
   { value: "content", label: "Content" },
   { value: "image", label: "Image" },
-  { value: "end", label: "End" },
 ];
 
 const TRANSITION_OPTIONS = [
@@ -34,31 +68,43 @@ const CAMERA_OPTIONS = [
   { value: "slide", label: "Slide" },
 ];
 
+const Field = ({ label, children }) => (
+  <div>
+    <Label>{label}</Label>
+    {children}
+  </div>
+);
+
+const SectionLabel = ({ icon: Icon, children }) => (
+  <div className="mb-2.5 flex items-center gap-1.5 text-[13px] font-semibold text-text-primary">
+    <Icon className="size-3.5 text-text-tertiary" />
+    {children}
+  </div>
+);
+
 const StudioPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const jobId = searchParams.get("id");
 
+  // Full-width editor - collapse the global nav sidebar while this is open,
+  // restoring whatever the user had on the way out.
+  useForceSidebarCollapsed(true);
+
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rerendering, setRerendering] = useState(false);
-  const [socketStatus, setSocketStatus] = useState(() => isConnected() ? "connected" : "disconnected");
+  const [approving, setApproving] = useState(false);
+  const [generatingAudio, setGeneratingAudio] = useState(false);
+  const [generatingRender, setGeneratingRender] = useState(false);
+  const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
   const [editedScenes, setEditedScenes] = useState([]);
   const [hasChanges, setHasChanges] = useState(false);
   const [selectedSceneIndex, setSelectedSceneIndex] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const videoRef = useRef(null);
-
-  // Calculate scene start times for navigation
-  const sceneTimeline = useMemo(() => {
-    let time = 0;
-    return editedScenes.map((scene) => {
-      const start = time;
-      time += scene.duration || 8;
-      return { ...scene, startTime: start, endTime: time };
-    });
-  }, [editedScenes]);
+  const dragIndexRef = useRef(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
 
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
@@ -67,79 +113,39 @@ const StudioPage = () => {
       const res = await getVideoJob(jobId);
       setJob(res.data.job);
       setEditedScenes(res.data.job.script?.scenes || []);
+      setHasChanges(false);
+      setSelectedSceneIndex(0);
     } catch (err) {
-      message.error(err.response?.data?.error || "Failed to fetch job");
+      toast.error(err.friendlyMessage || "Failed to fetch job");
     } finally {
       setLoading(false);
     }
   }, [jobId]);
 
-  const handleSceneChange = (index, field, value) => {
-    const updated = [...editedScenes];
-    updated[index] = { ...updated[index], [field]: value };
-    setEditedScenes(updated);
-    setHasChanges(true);
-  };
+  useEffect(() => {
+    fetchJob();
+  }, [fetchJob]);
 
-  const handleArrayFieldChange = (index, field, arrayField, itemIndex, value) => {
-    const updated = [...editedScenes];
-    if (!updated[index][field]) updated[index][field] = [];
-    updated[index][field] = [...updated[index][field]];
-    updated[index][field][itemIndex] = value;
-    setEditedScenes(updated);
-    setHasChanges(true);
-  };
-
-  const handleSave = async () => {
-    if (!jobId) return;
-    try {
-      setSaving(true);
-      await updateVideoScenes(jobId, editedScenes);
-      setHasChanges(false);
-      message.success("Scenes saved successfully!");
-    } catch (err) {
-      message.error(err.response?.data?.error || "Failed to save scenes");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRerender = async () => {
-    if (!jobId) return;
-    try {
-      setRerendering(true);
-      await rerenderVideoJob(jobId);
-      message.success("Re-render started!");
-      navigate(`/render?id=${jobId}`);
-    } catch (err) {
-      message.error(err.response?.data?.error || "Failed to start re-render");
-    } finally {
-      setRerendering(false);
-    }
-  };
-
-  // Socket listeners
   useEffect(() => {
     if (!jobId) return;
     connect();
     joinJobRoom(jobId);
-    setSocketStatus(isConnected() ? "connected" : "disconnected");
 
     const unsubProgress = onJobProgress((data) => {
       if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, progress: data.progress, status: data.status } : prev);
+        setJob((prev) => (prev ? { ...prev, progress: data.progress, status: data.status } : prev));
       }
     });
     const unsubCompleted = onJobCompleted((data) => {
       if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, progress: 100, status: "COMPLETED" } : prev);
-        message.success("Re-render completed!");
+        setJob((prev) => (prev ? { ...prev, progress: 100, status: "COMPLETED" } : prev));
+        toast.success("Render completed!");
       }
     });
     const unsubFailed = onJobFailed((data) => {
       if (data.jobId === jobId) {
-        setJob((prev) => prev ? { ...prev, status: "FAILED", error: data.error } : prev);
-        message.error("Re-render failed");
+        setJob((prev) => (prev ? { ...prev, status: "FAILED", error: data.error } : prev));
+        toast.error("Render failed");
       }
     });
     const unsubStatus = onJobStatus((data) => {
@@ -152,283 +158,452 @@ const StudioPage = () => {
 
     return () => {
       leaveJobRoom(jobId);
+      unsubProgress();
+      unsubCompleted();
+      unsubFailed();
+      unsubStatus();
+      unsubConnect();
+      unsubDisconnect();
     };
   }, [jobId]);
 
-  useEffect(() => {
-    fetchJob();
-  }, [fetchJob]);
+  const renumber = (list) => list.map((s, i) => ({ ...s, sceneNumber: i + 1 }));
 
-  if (loading) {
-    return (
-      <div style={{ textAlign: "center", padding: 80 }}>
-        <Spin size="large" />
-        <div style={{ marginTop: 16, color: colors.textSecondary }}>Loading studio...</div>
-      </div>
-    );
-  }
+  const updateScene = (index, updater) => {
+    setEditedScenes((prev) => {
+      const updated = [...prev];
+      updated[index] = updater(updated[index]);
+      return updated;
+    });
+    setHasChanges(true);
+  };
+
+  const handleFieldChange = (index, field, value) => {
+    updateScene(index, (scene) => ({ ...scene, [field]: value }));
+  };
+
+  const handleAudioTextChange = (index, value) => {
+    updateScene(index, (scene) => ({ ...scene, audio: { ...scene.audio, text: value } }));
+  };
+
+  const handleDuplicateScene = (index) => {
+    setEditedScenes((prev) => {
+      const source = prev[index];
+      // A duplicate needs fresh audio/image generation, not the original's
+      // pointers - the pipeline resolves each scene's real audio file purely
+      // by scene number (scene{N}.mp3), so carrying over a stale audio.file
+      // string here would make the worker think this new scene's audio
+      // already exists and skip generating it, 404-ing at render time.
+      const copy = {
+        ...source,
+        imageUrl: "",
+        audio: { ...(source.audio || {}), file: "", duration: 0, captionTimestamps: null },
+        elements: source.elements ? { ...source.elements, captionTimestamps: null } : source.elements,
+      };
+      const updated = [...prev.slice(0, index + 1), copy, ...prev.slice(index + 1)];
+      return renumber(updated);
+    });
+    setSelectedSceneIndex(index + 1);
+    setHasChanges(true);
+  };
+
+  const handleDeleteScene = async (index) => {
+    if (editedScenes.length <= 1) {
+      toast.error("A video needs at least one scene");
+      return;
+    }
+    const ok = await confirmDialog({
+      title: "Delete this scene?",
+      content: "This only affects the draft - nothing is saved until you click Save Changes.",
+      danger: true,
+    });
+    if (!ok) return;
+    setEditedScenes((prev) => renumber(prev.filter((_, i) => i !== index)));
+    setSelectedSceneIndex((i) => Math.max(0, Math.min(i, editedScenes.length - 2)));
+    setHasChanges(true);
+  };
+
+  const handleDrop = (targetIndex) => {
+    const fromIndex = dragIndexRef.current;
+    dragIndexRef.current = null;
+    setDragOverIndex(null);
+    if (fromIndex == null || fromIndex === targetIndex) return;
+    setEditedScenes((prev) => {
+      const updated = [...prev];
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(targetIndex, 0, moved);
+      return renumber(updated);
+    });
+    setSelectedSceneIndex(targetIndex);
+    setHasChanges(true);
+  };
+
+  const handleSave = async () => {
+    if (!jobId) return;
+    try {
+      setSaving(true);
+      await updateVideoScenes(jobId, editedScenes);
+      setHasChanges(false);
+      toast.success("Scenes saved successfully!");
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to save scenes");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!jobId) return;
+    try {
+      setApproving(true);
+      if (hasChanges) {
+        await updateVideoScenes(jobId, editedScenes);
+        setHasChanges(false);
+      }
+      const res = await approveVideoJob(jobId);
+      if (job?.fastGeneration === false) {
+        setJob((prev) => (prev ? { ...prev, status: res.data.status, progress: res.data.progress } : prev));
+        toast.success("Script approved! Click \"Generate Audio\" when you're ready for the next step.");
+      } else {
+        toast.success("Script approved! Generating audio, images, and video...");
+        navigate(`/render?id=${jobId}`);
+      }
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to approve script");
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handleGenerateAudio = async () => {
+    if (!jobId) return;
+    try {
+      setGeneratingAudio(true);
+      await generateVideoAudio(jobId);
+      toast.success("Audio generation started!");
+      navigate(`/render?id=${jobId}`);
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to start audio generation");
+    } finally {
+      setGeneratingAudio(false);
+    }
+  };
+
+  const handleGenerateRender = async () => {
+    if (!jobId) return;
+    try {
+      setGeneratingRender(true);
+      await generateVideoRender(jobId);
+      toast.success("Rendering started!");
+      navigate(`/render?id=${jobId}`);
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to start rendering");
+    } finally {
+      setGeneratingRender(false);
+    }
+  };
+
+  const handleRerender = async () => {
+    if (!jobId) return;
+    try {
+      setRerendering(true);
+      await rerenderVideoJob(jobId);
+      toast.success("Re-render started!");
+      navigate(`/render?id=${jobId}`);
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to start re-render");
+    } finally {
+      setRerendering(false);
+    }
+  };
+
+  const totalSeconds = useMemo(
+    () => editedScenes.reduce((sum, s) => sum + (s.duration || 8), 0),
+    [editedScenes],
+  );
+
+  if (loading) return <LoadingState label="Loading studio..." />;
 
   if (!job) {
-    return (
-      <Empty description="Job not found">
-        <Button type="primary" onClick={() => navigate("/")}>Back to Dashboard</Button>
-      </Empty>
-    );
+    return <EmptyState description="Job not found" actionLabel="Back to Dashboard" onAction={() => navigate("/")} />;
   }
 
-  const canEdit = job.status === "COMPLETED" || job.status === "FAILED" || job.status === "SCRIPT_COMPLETED";
+  const isAwaitingApproval = job.status === "AWAITING_APPROVAL";
+  // Manual mode (fastGeneration: false) pauses twice more after approval -
+  // once with the script approved and waiting for "Generate Audio", once
+  // with audio ready and waiting for "Generate Render" - mirroring the
+  // course-video pipeline's separate script/audio/render steps.
+  const isManual = job.fastGeneration === false;
+  const isAwaitingAudioTrigger = isManual && job.status === "SCRIPT_COMPLETED";
+  const isAwaitingRenderTrigger = isManual && job.status === "AUDIO_COMPLETED";
+  const canEdit = job.status === "COMPLETED" || job.status === "FAILED" || job.status === "SCRIPT_COMPLETED" || isAwaitingApproval;
+  const scene = editedScenes[selectedSceneIndex];
 
   return (
-    <div>
-      <Space style={{ marginBottom: 24 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/")}>Back</Button>
-        <Title level={4} style={{ color: colors.textPrimary, marginBottom: 0 }}>
-          <EditOutlined /> Studio Editor — {job.topic}
-        </Title>
-        <Tag color={socketStatus === "connected" ? "green" : "default"}>
-          {socketStatus === "connected" ? "Live" : "Offline"}
-        </Tag>
-      </Space>
+    <div className="flex h-[calc(100vh-8rem)] min-h-[560px] flex-col gap-3">
+      {/* TOOLBAR */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={() => navigate("/")}>
+            Back
+          </Button>
+          <h1 className="flex items-center gap-2 truncate text-lg font-semibold tracking-tight text-text-primary">
+            <Pencil className="size-[18px] text-text-tertiary" /> {job.topic}
+          </h1>
+          <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
+            {socketStatus === "connected" ? "Live" : "Offline"}
+          </Badge>
+          {hasChanges && <Badge variant="warning">Unsaved changes</Badge>}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" icon={<Save className="size-4" />} onClick={handleSave} loading={saving} disabled={!hasChanges || !canEdit}>
+            Save Changes
+          </Button>
+          {isAwaitingApproval ? (
+            <Button variant="primary" size="sm" icon={<CheckCircle2 className="size-4" />} onClick={handleApprove} loading={approving}>
+              {isManual ? "Approve Script" : "Approve & Continue"}
+            </Button>
+          ) : isAwaitingAudioTrigger ? (
+            <Button variant="primary" size="sm" icon={<AudioLines className="size-4" />} onClick={handleGenerateAudio} loading={generatingAudio}>
+              Generate Audio
+            </Button>
+          ) : isAwaitingRenderTrigger ? (
+            <Button variant="primary" size="sm" icon={<Video className="size-4" />} onClick={handleGenerateRender} loading={generatingRender}>
+              Generate Render
+            </Button>
+          ) : (
+            <Button variant="primary" size="sm" icon={<Redo2 className="size-4" />} onClick={handleRerender} loading={rerendering} disabled={!canEdit}>
+              Re-render
+            </Button>
+          )}
+        </div>
+      </div>
 
-      {/* Action Bar */}
-      <Card style={{ borderRadius: 12, marginBottom: 24 }}>
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space>
-              <Text strong>Total Scenes: </Text>
-              <Tag color="blue">{editedScenes.length}</Tag>
-              <Text type="secondary">Job ID: {job._id}</Text>
-            </Space>
-          </Col>
-          <Col>
-            <Space>
-              <Button icon={<SaveOutlined />} onClick={handleSave} loading={saving} disabled={!hasChanges || !canEdit}>
-                Save Changes
-              </Button>
-              <Button type="primary" icon={<RedoOutlined />} onClick={handleRerender} loading={rerendering} disabled={!canEdit}>
-                Re-render
-              </Button>
-            </Space>
-          </Col>
-        </Row>
-      </Card>
-
-      {/* Remotion-style Preview */}
-      {job?.videoUrl && (
-        <Card title="Preview" style={{ borderRadius: 12, marginBottom: 24 }} headStyle={{ fontWeight: 600 }}>
-          <div style={{ width: "100%", maxWidth: 800, margin: "0 auto" }}>
-            <video
-              ref={videoRef}
-              src={job.videoUrl}
-              controls
-              style={{
-                width: "100%",
-                display: "block",
-                borderRadius: 8,
-                background: "#000",
-              }}
-              onTimeUpdate={(e) => {
-                const time = e.target.currentTime;
-                setCurrentTime(time);
-                // Auto-select scene based on current time
-                const sceneIndex = sceneTimeline.findIndex(s => time >= s.startTime && time < s.endTime);
-                if (sceneIndex >= 0 && sceneIndex !== selectedSceneIndex) {
-                  setSelectedSceneIndex(sceneIndex);
-                }
-              }}
-            />
-          </div>
-
-          {/* Scene Timeline / Navigation */}
-          <div style={{ marginTop: 20 }}>
-            <Title level={5} style={{ marginBottom: 14 }}>Scene Timeline</Title>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {sceneTimeline.map((scene, index) => {
-                const isActive = index === selectedSceneIndex;
-                const isPast = currentTime >= scene.endTime;
-                return (
-                  <Card
-                    key={index}
-                    size="small"
-                    onClick={() => {
-                      setSelectedSceneIndex(index);
-                      if (videoRef.current) {
-                        videoRef.current.currentTime = scene.startTime;
-                      }
-                    }}
-                    style={{
-                      flex: "1 1 150px",
-                      minWidth: 150,
-                      cursor: "pointer",
-                      border: isActive ? `2px solid ${colors.primary}` : undefined,
-                      backgroundColor: isActive ? colors.primary + "10" : isPast ? "#f6f6f6" : undefined,
-                      opacity: isActive ? 1 : isPast ? 0.7 : 1,
-                      borderRadius: 8,
-                      transition: "all 0.3s ease",
-                    }}
-                    bodyStyle={{ padding: 12 }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        backgroundColor: isActive ? colors.primary : colors.borderLight,
-                        color: isActive ? "#fff" : colors.textSecondary,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 13,
-                        fontWeight: 600,
-                        flexShrink: 0,
-                      }}>
-                        {scene.sceneNumber || index + 1}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize: 13,
-                          fontWeight: isActive ? 600 : 400,
-                          color: isActive ? colors.primary : colors.textPrimary,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}>
-                          {scene.title || `Scene ${scene.sceneNumber || index + 1}`}
-                        </div>
-                        <div style={{ fontSize: 11, color: colors.textTertiary, marginTop: 2 }}>
-                          {scene.duration}s • {scene.sceneType}
-                        </div>
-                      </div>
-                      {isActive && <RightOutlined style={{ color: colors.primary, flexShrink: 0 }} />}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        </Card>
+      {isAwaitingApproval && (
+        <Alert type="info" title="Script ready for review">
+          Review and edit the scenes below - you can also paste a manual image URL for any image scene instead of
+          waiting for AI image generation.{" "}
+          {isManual
+            ? 'Click "Approve Script" when ready - you\'ll then trigger audio and rendering separately.'
+            : 'Click "Approve & Continue" when you\'re ready to generate audio, images, and the final video.'}
+        </Alert>
       )}
 
-      {/* Scene Editor */}
-      {!canEdit && (
-        <Alert
-          message="This job cannot be edited in its current state."
-          description="Only completed or failed jobs can be edited and re-rendered."
-          type="warning"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
+      {isAwaitingAudioTrigger && (
+        <Alert type="info" title="Script approved">
+          Click "Generate Audio" when you're ready to generate the voiceover for each scene.
+        </Alert>
+      )}
+
+      {isAwaitingRenderTrigger && (
+        <Alert type="info" title="Audio ready">
+          Click "Generate Render" when you're ready to generate images (if any) and produce the final video.
+        </Alert>
+      )}
+
+      {!canEdit && !isAwaitingApproval && !isAwaitingAudioTrigger && !isAwaitingRenderTrigger && (
+        <Alert type="warning" title="This job cannot be edited in its current state.">
+          Only completed, failed, or awaiting-approval jobs can be edited and re-rendered.
+        </Alert>
       )}
 
       {editedScenes.length === 0 ? (
-        <Empty description="No scenes found" />
+        <EmptyState description="No scenes found" />
       ) : (
-        <Collapse
-          accordion={false}
-          defaultActiveKey={editedScenes.map((_, i) => `scene-${i}`)}
-          style={{ borderRadius: 12 }}
-        >
-          {editedScenes.map((scene, index) => (
-            <Collapse.Panel
-              key={`scene-${index}`}
-              header={
-                <Space>
-                  <Tag color="blue">Scene {scene.sceneNumber || index + 1}</Tag>
-                  <Text strong>{scene.title || "Untitled Scene"}</Text>
-                  <Tag color={scene.sceneType === "title" ? "green" : scene.sceneType === "end" ? "red" : "default"}>
-                    {scene.sceneType}
-                  </Tag>
-                  <Text type="secondary">{scene.duration}s</Text>
-                </Space>
-              }
-            >
-              <Card size="small" style={{ background: "#fafafa" }}>
-                <Row gutter={16}>
-                  {/* Basic Info */}
-                  <Col span={24}>
-                    <Title level={5}><EditOutlined /> Basic Info</Title>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Scene Number" style={{ marginBottom: 12 }}>
-                      <InputNumber min={1} value={scene.sceneNumber} onChange={(val) => handleSceneChange(index, "sceneNumber", val)} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Scene Type" style={{ marginBottom: 12 }}>
-                      <Select value={scene.sceneType} onChange={(val) => handleSceneChange(index, "sceneType", val)} options={SCENE_TYPE_OPTIONS} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Title" style={{ marginBottom: 12 }}>
-                      <Input value={scene.title} onChange={(e) => handleSceneChange(index, "title", e.target.value)} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Subtitle" style={{ marginBottom: 12 }}>
-                      <Input value={scene.subtitle} onChange={(e) => handleSceneChange(index, "subtitle", e.target.value)} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Duration (seconds)" style={{ marginBottom: 12 }}>
-                      <InputNumber min={1} max={60} value={scene.duration} onChange={(val) => handleSceneChange(index, "duration", val)} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item label="Background Color" style={{ marginBottom: 12 }}>
-                      <Input value={scene.backgroundColor} onChange={(e) => handleSceneChange(index, "backgroundColor", e.target.value)} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)_340px]">
+          {/* LEFT: SCENE TIMELINE */}
+          <Card className="flex min-h-0 flex-col">
+            <div className="flex items-center justify-between border-b border-border-light px-3.5 py-3">
+              <h3 className="text-[13px] font-semibold text-text-primary">Scenes</h3>
+              <span className="text-[11px] text-text-tertiary">{Math.round(totalSeconds)}s</span>
+            </div>
+            <div className="flex-1 space-y-2 overflow-y-auto p-2.5">
+              {editedScenes.map((s, i) => {
+                const isActive = i === selectedSceneIndex;
+                const isDragOver = dragOverIndex === i;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    draggable={canEdit}
+                    onDragStart={() => {
+                      dragIndexRef.current = i;
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragOverIndex !== i) setDragOverIndex(i);
+                    }}
+                    onDragLeave={() => setDragOverIndex((cur) => (cur === i ? null : cur))}
+                    onDrop={() => canEdit && handleDrop(i)}
+                    onDragEnd={() => setDragOverIndex(null)}
+                    onClick={() => setSelectedSceneIndex(i)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-lg border p-1.5 text-left transition-colors",
+                      isActive ? "border-accent bg-accent-subtle" : "border-border-light bg-surface hover:bg-surface-hover",
+                      isDragOver && "ring-2 ring-accent",
+                    )}
+                  >
+                    <GripVertical className="size-3.5 shrink-0 cursor-grab text-text-tertiary" />
+                    <div className="aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-black">
+                      <SceneThumbnail scene={s} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("truncate text-[11px] font-medium", isActive ? "text-accent" : "text-text-primary")}>
+                        {s.sceneNumber || i + 1}. {s.title || "Untitled"}
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-text-tertiary">{Math.round(s.duration || 8)}s</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
 
-                  <Divider style={{ margin: "16px 0" }} />
+          {/* CENTER: LIVE PREVIEW */}
+          <Card className="flex min-h-0 flex-col overflow-hidden">
+            <div className="flex flex-1 flex-col justify-center p-4">
+              <ScenePreview
+                scenes={editedScenes}
+                focusIndex={selectedSceneIndex}
+                onActiveSceneChange={setSelectedSceneIndex}
+                hideChips
+                videoId={jobId}
+              />
+            </div>
+          </Card>
 
-                  {/* Animation */}
-                  <Col span={24}>
-                    <Title level={5}><SettingOutlined /> Animation</Title>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Form.Item label="Transition" style={{ marginBottom: 12 }}>
-                      <Select value={scene.transition} onChange={(val) => handleSceneChange(index, "transition", val)} options={TRANSITION_OPTIONS} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Form.Item label="Camera Motion" style={{ marginBottom: 12 }}>
-                      <Select value={scene.cameraMotion} onChange={(val) => handleSceneChange(index, "cameraMotion", val)} options={CAMERA_OPTIONS} disabled={!canEdit} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Form.Item label="Animation" style={{ marginBottom: 12 }}>
-                      <Input value={scene.animation || ""} onChange={(e) => handleSceneChange(index, "animation", e.target.value)} disabled={!canEdit} placeholder="e.g., fadeIn, slideUp" />
-                    </Form.Item>
-                  </Col>
+          {/* RIGHT: INSPECTOR */}
+          <Card className="flex min-h-0 flex-col">
+            <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setSelectedSceneIndex((i) => Math.max(0, i - 1))}
+                disabled={selectedSceneIndex === 0}
+                className="rounded-md p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <span className="text-[13px] font-semibold text-text-primary">
+                Scene {selectedSceneIndex + 1} of {editedScenes.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedSceneIndex((i) => Math.min(editedScenes.length - 1, i + 1))}
+                disabled={selectedSceneIndex === editedScenes.length - 1}
+                className="rounded-md p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
 
-                  <Divider style={{ margin: "16px 0" }} />
+            <div className="flex-1 space-y-5 overflow-y-auto p-4">
+              <div>
+                <SectionLabel icon={LayoutTemplate}>Template</SectionLabel>
+                <button
+                  type="button"
+                  onClick={() => canEdit && setTemplatePickerOpen(true)}
+                  disabled={!canEdit}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg border border-border bg-surface p-1.5 text-left transition-colors",
+                    "hover:border-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border"
+                  )}
+                >
+                  <div className="aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-black">
+                    <SceneThumbnail scene={scene} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium text-text-primary">
+                      {templateNames[scene.templateId] || scene.templateId || "Choose a template"}
+                    </p>
+                    <p className="text-[11px] text-text-tertiary">Click to preview &amp; choose</p>
+                  </div>
+                </button>
+                <TemplatePickerModal
+                  open={templatePickerOpen}
+                  onClose={() => setTemplatePickerOpen(false)}
+                  scene={scene}
+                  value={scene.templateId}
+                  onSelect={(id) => handleFieldChange(selectedSceneIndex, "templateId", id)}
+                />
+              </div>
 
-                  {/* Image */}
-                  <Col span={24}>
-                    <Title level={5}><PictureOutlined /> Image</Title>
-                  </Col>
-                  <Col span={24}>
-                    <Form.Item label="Image Prompt" style={{ marginBottom: 12 }}>
-                      <TextArea rows={2} value={scene.imagePrompt} onChange={(e) => handleSceneChange(index, "imagePrompt", e.target.value)} disabled={!canEdit} placeholder="AI image generation prompt (only for image scenes)" />
-                    </Form.Item>
-                  </Col>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Scene Number">
+                  <NumberInput min={1} value={scene.sceneNumber} onChange={(e) => handleFieldChange(selectedSceneIndex, "sceneNumber", Number(e.target.value))} disabled={!canEdit} />
+                </Field>
+                <Field label="Scene Type">
+                  <Select value={scene.sceneType} onChange={(v) => handleFieldChange(selectedSceneIndex, "sceneType", v)} options={SCENE_TYPE_OPTIONS} disabled={!canEdit} />
+                </Field>
+                <Field label="Title">
+                  <Input value={scene.title || ""} onChange={(e) => handleFieldChange(selectedSceneIndex, "title", e.target.value)} disabled={!canEdit} />
+                </Field>
+                <Field label="Subtitle">
+                  <Input value={scene.subtitle || ""} onChange={(e) => handleFieldChange(selectedSceneIndex, "subtitle", e.target.value)} disabled={!canEdit} />
+                </Field>
+                <Field label="Duration (seconds)">
+                  <NumberInput min={1} max={60} value={scene.duration} onChange={(e) => handleFieldChange(selectedSceneIndex, "duration", Number(e.target.value))} disabled={!canEdit} />
+                </Field>
+                <Field label="Background Color">
+                  <ColorInput value={scene.backgroundColor} onChange={(v) => handleFieldChange(selectedSceneIndex, "backgroundColor", v)} disabled={!canEdit} />
+                </Field>
+              </div>
 
-                  <Divider style={{ margin: "16px 0" }} />
+              <div className="h-px bg-border-light" />
 
-                  {/* Audio */}
-                  <Col span={24}>
-                    <Title level={5}><TranslationOutlined /> Audio / Narration</Title>
-                  </Col>
-                  <Col span={24}>
-                    <Form.Item label="Narration Text" style={{ marginBottom: 12 }}>
-                      <TextArea rows={2} value={scene.audio?.text || ""} onChange={(e) => handleArrayFieldChange(index, "audio", "text", 0, e.target.value)} disabled={!canEdit} placeholder="Text to speak in this scene" />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Card>
-            </Collapse.Panel>
-          ))}
-        </Collapse>
+              <div>
+                <SectionLabel icon={Settings}>Animation</SectionLabel>
+                <div className="grid grid-cols-1 gap-3">
+                  <Field label="Transition">
+                    <Select value={scene.transition} onChange={(v) => handleFieldChange(selectedSceneIndex, "transition", v)} options={TRANSITION_OPTIONS} disabled={!canEdit} />
+                  </Field>
+                  <Field label="Camera Motion">
+                    <Select value={scene.cameraMotion} onChange={(v) => handleFieldChange(selectedSceneIndex, "cameraMotion", v)} options={CAMERA_OPTIONS} disabled={!canEdit} />
+                  </Field>
+                  <Field label="Animation">
+                    <Input value={scene.animation || ""} onChange={(e) => handleFieldChange(selectedSceneIndex, "animation", e.target.value)} disabled={!canEdit} placeholder="e.g., fadeIn, slideUp" />
+                  </Field>
+                </div>
+              </div>
+
+              <div className="h-px bg-border-light" />
+
+              <div>
+                <SectionLabel icon={ImageIcon}>Image</SectionLabel>
+                <div className="space-y-3">
+                  <Field label="Image Prompt">
+                    <Textarea rows={2} value={scene.imagePrompt || ""} onChange={(e) => handleFieldChange(selectedSceneIndex, "imagePrompt", e.target.value)} disabled={!canEdit} placeholder="AI image generation prompt (only for image scenes)" />
+                  </Field>
+                  <Field label="Image URL (manual override)">
+                    <Input
+                      value={scene.imageUrl || ""}
+                      onChange={(e) => handleFieldChange(selectedSceneIndex, "imageUrl", e.target.value)}
+                      disabled={!canEdit}
+                      placeholder="https://... - skips AI image generation for this scene"
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              <div className="h-px bg-border-light" />
+
+              <div>
+                <SectionLabel icon={Languages}>Audio / Narration</SectionLabel>
+                <Field label="Narration Text">
+                  <Textarea rows={3} value={scene.audio?.text || ""} onChange={(e) => handleAudioTextChange(selectedSceneIndex, e.target.value)} disabled={!canEdit} placeholder="Text to speak in this scene" />
+                </Field>
+              </div>
+
+              <div className="flex gap-2 border-t border-border-light pt-4">
+                <Button variant="secondary" size="sm" icon={<Copy className="size-3.5" />} onClick={() => handleDuplicateScene(selectedSceneIndex)} disabled={!canEdit} className="flex-1">
+                  Duplicate
+                </Button>
+                <Button variant="danger" size="sm" icon={<Trash2 className="size-3.5" />} onClick={() => handleDeleteScene(selectedSceneIndex)} disabled={!canEdit} className="flex-1">
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );

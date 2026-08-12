@@ -1,51 +1,59 @@
-import React, { useMemo } from 'react';
-import { AbsoluteFill, Audio, Img } from 'remotion';
-import { styles } from './styles';
-import { useTemplate006Animations } from './animations';
+import React from 'react';
+import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
+import { useFadeInOut, useSlideUp, usePop } from '../../animations';
 
 /**
- * Template 006 - Quote/Testimonial
- * Layout: Large pull quote with author badge, decorative line
+ * Template 006 - Quote Testimonial (Outro)
+ * Layout: Closing-scene layout with a large final message, an attribution
+ * line, and an optional badge. Left-aligned quote-mark composition.
+ *
+ * JSON data format:
+ * {
+ *   templateId: "template-006",
+ *   elements: {
+ *     title: "string" (closing quote / message),
+ *     body: "string" (attribution line),
+ *     badge: "string" (optional, e.g. "Final Word"),
+ *     backgroundColor: "#hex" (optional)
+ *   },
+ *   audio: { file: "path" },
+ *   duration: number
+ * }
  */
-const Template006 = React.memo(({ scene }) => {
-  const elements = scene?.elements || {};
-  const quote = elements.quote || scene?.scene_meta?.content?.[0] || '';
-  const author = elements.author || '';
-  const authorTitle = elements.authorTitle || '';
-  const authorImage = elements.authorImage || '';
-  const bgColor = elements.backgroundColor || backgroundColors.dark;
+const s = {
+  container: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '70px 100px', boxSizing: 'border-box', position: 'relative', overflow: 'hidden' },
+  quoteMark: { color: 'rgba(96,165,250,0.35)', fontSize: 140, fontWeight: 900, fontFamily: 'Georgia, serif', lineHeight: 1, marginBottom: -30 },
+  title: { color: '#ffffff', fontSize: 42, fontWeight: 700, lineHeight: 1.3, marginBottom: 26, maxWidth: '85%' },
+  line: { width: 70, height: 4, borderRadius: 2, backgroundColor: '#60a5fa', marginBottom: 20 },
+  body: { color: '#94a3b8', fontSize: 22, fontWeight: 600 },
+  badge: { position: 'absolute', top: 60, right: 100, backgroundColor: 'rgba(96,165,250,0.15)', color: '#60a5fa', fontSize: 15, fontWeight: 700, padding: '8px 18px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: 1.5 },
+};
 
-  const anim = useTemplate006Animations({ frameOffset: 0 });
+const Template006 = React.memo(({ scene }) => {
+  const e = scene?.elements || {};
+  const title = e.title || e.quote || '';
+  const body = e.body || e.author || '';
+  const badge = e.badge || '';
+  const bgColor = e.backgroundColor || backgroundColors.dark;
+
+  const bgFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 10 });
+  const markPop = usePop({ startAt: 3 });
+  const titleSlide = useSlideUp({ startAt: 10, distance: 40 });
+  const lineFade = useFadeInOut({ fadeIn: 26, fadeInDuration: 12 });
+  const bodyFade = useFadeInOut({ fadeIn: 32, fadeInDuration: 14 });
+  const badgeFade = useFadeInOut({ fadeIn: 8, fadeInDuration: 12 });
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
-      <div style={{ ...styles.container, ...anim.bgStyle }}>
-        <div style={styles.contentLayer}>
-          <div style={{ ...styles.quoteMark, ...anim.quoteStyle }}>"</div>
-          {quoteText && (
-            <p style={{ ...styles.quoteText, ...anim.quoteStyle }}>{quoteText}</p>
-          )}
-          <div style={{ ...styles.decorativeLine, ...anim.lineStyle }} />
-          {(authorName || authorImage) && (
-            <div style={{ ...styles.authorRow, ...anim.authorStyle }}>
-              {authorImage && (
-                <Img src={authorImage} style={styles.authorImage} />
-              )}
-              <div style={styles.authorInfo}>
-                <span style={styles.authorName}>{authorName}</span>
-                {authorTitle && (
-                  <span style={styles.authorTitle}>{authorTitle}</span>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+      <div style={{ ...s.container, opacity: bgFade }}>
+        {badge && <div style={{ ...s.badge, opacity: badgeFade }}>{badge}</div>}
+        <div style={{ ...s.quoteMark, ...markPop }}>&rdquo;</div>
+        {title && <h1 style={{ ...s.title, ...titleSlide }}>{title}</h1>}
+        <div style={{ ...s.line, opacity: lineFade }} />
+        {body && <div style={{ ...s.body, opacity: bodyFade }}>{body}</div>}
       </div>
-
-      {scene?.audio?.file && (
-        <Audio src={scene.audio.file} />
-      )}
+      {scene?.audio?.file && <Audio src={scene.audio.file} />}
     </AbsoluteFill>
   );
 });

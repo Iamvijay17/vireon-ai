@@ -1,93 +1,85 @@
 /**
- * Vireon-AI Theme Configuration
- * Centralized theme tokens for Ant Design v6 compatibility with light/dark mode
+ * Vireon AI design tokens.
+ * Mirrors the CSS custom properties defined in src/index.css (@theme block).
+ * Use Tailwind utility classes wherever possible; reach for these raw values
+ * only when a color must be computed in JS (e.g. alpha-blended accents,
+ * canvas/inline styles that can't be expressed as static class names).
  */
 
-// ─── Base Colors ─────────────────────────────────────────────────────────────
 export const lightColors = {
-  // Primary
-  primary: "#6366f1",
-  primaryLight: "#818cf8",
-  primaryDark: "#4f46e5",
-  primaryBg: "#eef2ff",
+  primary: "#6D56F9",
+  primaryHover: "#5B3FEF",
+  primaryActive: "#4C30D6",
+  primaryBg: "#F2F1FF",
 
-  // Surface
-  surface: "#ffffff",
-  surfaceHover: "#f8fafc",
-  surfaceActive: "#f1f5f9",
+  surface: "#FFFFFF",
+  surfaceHover: "#F4F4F5",
+  surfaceActive: "#ECECEF",
 
-  // Background
-  bg: "#f8fafc",
+  bg: "#FAFAFA",
 
-  // Sidebar
-  sidebarBg: "#1e293b",
-  sidebarText: "#94a3b8",
-  sidebarActive: "#6366f1",
-  sidebarActiveBg: "rgba(99, 102, 241, 0.1)",
-  sidebarHoverBg: "rgba(255, 255, 255, 0.05)",
+  sidebarBg: "#0A0A0B",
+  sidebarText: "#A1A1AA",
+  sidebarActive: "#FFFFFF",
+  sidebarActiveBg: "rgba(255, 255, 255, 0.1)",
+  sidebarHoverBg: "rgba(255, 255, 255, 0.06)",
 
-  // Text
-  textPrimary: "#1e293b",
-  textSecondary: "#64748b",
-  textTertiary: "#94a3b8",
-  textInverse: "#ffffff",
+  textPrimary: "#18181B",
+  textSecondary: "#52525B",
+  textTertiary: "#A1A1AA",
+  textInverse: "#FFFFFF",
 
-  // Border
-  border: "#e2e8f0",
-  borderLight: "#f1f5f9",
+  border: "#E4E4E7",
+  borderLight: "#ECECEF",
 
-  // Status
-  success: "#22c55e",
-  warning: "#f59e0b",
-  error: "#ef4444",
-  info: "#3b82f6",
+  success: "#1FA971",
+  successBg: "#E4F7EE",
+  warning: "#D9832A",
+  warningBg: "#FCF1DD",
+  error: "#E5484D",
+  errorBg: "#FBE4E4",
+  info: "#3B82F6",
+  infoBg: "#E8F0FE",
 };
 
 export const darkColors = {
-  // Primary
-  primary: "#818cf8",
-  primaryLight: "#a5b4fc",
-  primaryDark: "#6366f1",
-  primaryBg: "#312e81",
+  primary: "#9478FF",
+  primaryHover: "#B3A6FF",
+  primaryActive: "#6D56F9",
+  primaryBg: "rgba(148, 120, 255, 0.12)",
 
-  // Surface
-  surface: "#1e293b",
-  surfaceHover: "#334155",
-  surfaceActive: "#475569",
+  surface: "#18181B",
+  surfaceHover: "#1C1C1F",
+  surfaceActive: "#27272A",
 
-  // Background
-  bg: "#0f172a",
+  bg: "#0A0A0B",
 
-  // Sidebar
-  sidebarBg: "#020617",
-  sidebarText: "#94a3b8",
-  sidebarActive: "#818cf8",
-  sidebarActiveBg: "rgba(129, 140, 248, 0.15)",
-  sidebarHoverBg: "rgba(255, 255, 255, 0.08)",
+  sidebarBg: "#000000",
+  sidebarText: "#71717A",
+  sidebarActive: "#FFFFFF",
+  sidebarActiveBg: "rgba(255, 255, 255, 0.08)",
+  sidebarHoverBg: "rgba(255, 255, 255, 0.05)",
 
-  // Text
-  textPrimary: "#f1f5f9",
-  textSecondary: "#cbd5e1",
-  textTertiary: "#94a3b8",
-  textInverse: "#0f172a",
+  textPrimary: "#FAFAFA",
+  textSecondary: "#A1A1AA",
+  textTertiary: "#71717A",
+  textInverse: "#0A0A0B",
 
-  // Border
-  border: "#334155",
-  borderLight: "#1e293b",
+  border: "#27272A",
+  borderLight: "#1C1C1F",
 
-  // Status
-  success: "#4ade80",
-  warning: "#fbbf24",
-  error: "#f87171",
-  info: "#60a5fa",
+  success: "#3DD68C",
+  successBg: "#16302A",
+  warning: "#F5B95C",
+  warningBg: "#332711",
+  error: "#F17075",
+  errorBg: "#3A1E20",
+  info: "#60A5FA",
+  infoBg: "#182A44",
 };
 
-// ─── Theme-aware color getter ────────────────────────────────────────────────
 export const getColors = (theme) => (theme === "dark" ? darkColors : lightColors);
 
-export const colors = lightColors; // default
-
-// ─── Spacing Scale ───────────────────────────────────────────────────────────
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -98,10 +90,15 @@ export const spacing = {
   "3xl": 64,
 };
 
-// ─── Typography ──────────────────────────────────────────────────────────────
+export const radius = {
+  sm: 6,
+  md: 10,
+  lg: 16,
+  full: 999,
+};
+
 export const typography = {
-  fontFamily:
-    "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   fontMono: "'JetBrains Mono', 'Fira Code', monospace",
   fontSize: {
     xs: 12,
@@ -120,60 +117,40 @@ export const typography = {
   },
 };
 
-// ─── Shadows ─────────────────────────────────────────────────────────────────
 export const shadows = {
-  sm: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
-  md: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
-  lg: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
-  xl: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+  sm: "0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)",
+  md: "0 4px 10px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06)",
+  lg: "0 12px 24px -6px rgb(0 0 0 / 0.1), 0 4px 8px -4px rgb(0 0 0 / 0.06)",
+  xl: "0 24px 48px -12px rgb(0 0 0 / 0.16)",
 };
 
-// ─── Ant Design Theme Token Factory ──────────────────────────────────────────
-export const createAntdTheme = (theme) => {
-  const c = getColors(theme);
-  return {
-    token: {
-      colorPrimary: c.primary,
-      colorSuccess: c.success,
-      colorWarning: c.warning,
-      colorError: c.error,
-      colorInfo: c.info,
-      colorBgBase: c.bg,
-      colorBgContainer: c.surface,
-      colorTextBase: c.textPrimary,
-      colorTextSecondary: c.textSecondary,
-      colorTextTertiary: c.textTertiary,
-      colorBorder: c.border,
-      colorBorderSecondary: c.borderLight,
-      borderRadius: 8,
-      fontFamily: typography.fontFamily,
-      fontSize: typography.fontSize.base,
-    },
-    components: {
-      Layout: {
-        headerBg: c.surface,
-        headerHeight: 64,
-        bodyBg: c.bg,
-        siderBg: c.sidebarBg,
-        triggerBg: c.sidebarBg,
-        triggerHeight: 48,
-      },
-      Menu: {
-        itemBg: "transparent",
-        itemColor: c.sidebarText,
-        itemHoverBg: c.sidebarHoverBg,
-        itemHoverColor: c.textInverse,
-        itemSelectedBg: c.sidebarActiveBg,
-        itemSelectedColor: c.sidebarActive,
-        subMenuItemBg: "transparent",
-        groupTitleColor: c.textTertiary,
-        collapsedWidth: 64,
-      },
-      Button: {
-        primaryShadow: shadows.sm,
-      },
-    },
-  };
+// Durations (ms) and standard easing. Consumers must still gate on
+// prefers-reduced-motion (see `prefersReducedMotion()` below) before applying
+// non-essential animation.
+export const motion = {
+  duration: {
+    fast: 120,
+    base: 200,
+    slow: 320,
+  },
+  easing: {
+    standard: "cubic-bezier(0.4, 0, 0.2, 1)",
+    decelerate: "cubic-bezier(0, 0, 0.2, 1)",
+    accelerate: "cubic-bezier(0.4, 0, 1, 1)",
+  },
 };
 
-export default createAntdTheme;
+export const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+export const breakpoints = {
+  xs: 0,
+  sm: 576,
+  md: 768,
+  lg: 992,
+  xl: 1200,
+  xxl: 1600,
+};
+
+export default getColors;

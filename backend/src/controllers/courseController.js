@@ -91,6 +91,24 @@ class CourseController {
   }
 
   /**
+   * POST /api/courses/:id/stop - Stop every not-yet-finished lesson in this
+   * course at once.
+   */
+  static async stop(req, res, next) {
+    try {
+      // CourseVideoService.stop() already emits a per-video
+      // courseVideoProgress event for each stopped lesson (see
+      // CourseService.stopAll), so the frontend's existing per-video
+      // listener picks up each row's new status without a separate
+      // course-wide event here.
+      const result = await CourseService.stopAll(req.params.id);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * GET /api/courses/:id/videos - Get all videos for a course
    */
   static async listVideos(req, res, next) {
@@ -116,6 +134,75 @@ class CourseController {
       });
 
       res.status(201).json({ video });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/courses/:id/generate-curriculum - Generate a full Udemy-style
+   * curriculum via the LLM for review. Read-only: no CourseVideo records
+   * are created here. The frontend shows the returned lessons as an
+   * editable preview before the user approves creation.
+   */
+  static async generateCurriculum(req, res, next) {
+    try {
+      if (!req.body.title || !req.body.topic) {
+        throw { status: 400, message: 'title and topic are required' };
+      }
+
+      const lessons = await CourseVideoService.previewCurriculum(req.body.title, req.body.topic);
+
+      res.json({ lessons });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/courses/:id/curriculum-videos - Create one CourseVideo per
+   * lesson from an approved (possibly user-edited) lesson list, the output
+   * of generate-curriculum above.
+   */
+  static async createCurriculumVideos(req, res, next) {
+    try {
+      const { lessons, voice, style, duration, additionalInstructions } = req.body;
+
+      const videos = await CourseVideoService.createFromLessons(req.params.id, lessons, {
+        voice,
+        style,
+        duration,
+        additionalInstructions,
+      });
+
+      res.status(201).json({ videos });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * PUT /api/courses/:id/curriculum-draft - Autosave the in-progress
+   * curriculum generation draft (form + generated lessons), so the frontend
+   * can restore it after navigating away and back.
+   */
+  static async saveCurriculumDraft(req, res, next) {
+    try {
+      const draft = await CourseService.saveCurriculumDraft(req.params.id, req.body);
+      res.json({ curriculumDraft: draft });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * DELETE /api/courses/:id/curriculum-draft - Clear the draft, e.g. once
+   * its lessons have been created into real CourseVideo records.
+   */
+  static async clearCurriculumDraft(req, res, next) {
+    try {
+      const result = await CourseService.clearCurriculumDraft(req.params.id);
+      res.json(result);
     } catch (err) {
       next(err);
     }

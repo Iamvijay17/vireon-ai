@@ -2,6 +2,7 @@ const JOB_STATUS = Object.freeze({
   QUEUED: 'QUEUED',
   SCRIPT_GENERATION: 'SCRIPT_GENERATION',
   SCRIPT_COMPLETED: 'SCRIPT_COMPLETED',
+  AWAITING_APPROVAL: 'AWAITING_APPROVAL',
   GENERATING_AUDIO: 'GENERATING_AUDIO',
   AUDIO_COMPLETED: 'AUDIO_COMPLETED',
   GENERATING_IMAGES: 'GENERATING_IMAGES',
@@ -11,6 +12,7 @@ const JOB_STATUS = Object.freeze({
   UPLOADING: 'UPLOADING',
   COMPLETED: 'COMPLETED',
   FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
 });
 
 const COURSE_STATUS = Object.freeze({
@@ -33,22 +35,38 @@ const VIDEO_STATUS = Object.freeze({
   GENERATING_IMAGES: 'Generating Images',
   IMAGES_GENERATED: 'Images Generated',
   RENDERING_VIDEO: 'Rendering Video',
+  UPLOADING: 'Uploading',
   COMPLETED: 'Completed',
   FAILED: 'Failed',
+  CANCELLED: 'Cancelled',
+});
+
+// Independent per-stage status for the Script/Audio/Video pipeline, tracked
+// separately from the legacy overall VIDEO_STATUS so bulk/table UI can show
+// each stage's progress without inferring it from the combined status string.
+const STAGE_STATUS = Object.freeze({
+  PENDING: 'Pending',
+  QUEUED: 'Queued',
+  PROCESSING: 'Processing',
+  COMPLETED: 'Completed',
+  FAILED: 'Failed',
+  CANCELLED: 'Cancelled',
 });
 
 const JOB_STEPS = Object.freeze({
   [JOB_STATUS.SCRIPT_GENERATION]: { progress: 10, order: 1 },
   [JOB_STATUS.SCRIPT_COMPLETED]: { progress: 20, order: 2 },
-  [JOB_STATUS.GENERATING_AUDIO]: { progress: 40, order: 3 },
-  [JOB_STATUS.AUDIO_COMPLETED]: { progress: 50, order: 4 },
-  [JOB_STATUS.GENERATING_IMAGES]: { progress: 55, order: 5 },
-  [JOB_STATUS.IMAGE_COMPLETED]: { progress: 60, order: 6 },
-  [JOB_STATUS.PREPARING_ASSETS]: { progress: 70, order: 7 },
-  [JOB_STATUS.RENDERING]: { progress: 85, order: 8 },
-  [JOB_STATUS.UPLOADING]: { progress: 95, order: 9 },
-  [JOB_STATUS.COMPLETED]: { progress: 100, order: 10 },
+  [JOB_STATUS.AWAITING_APPROVAL]: { progress: 20, order: 3 },
+  [JOB_STATUS.GENERATING_AUDIO]: { progress: 40, order: 4 },
+  [JOB_STATUS.AUDIO_COMPLETED]: { progress: 50, order: 5 },
+  [JOB_STATUS.GENERATING_IMAGES]: { progress: 55, order: 6 },
+  [JOB_STATUS.IMAGE_COMPLETED]: { progress: 60, order: 7 },
+  [JOB_STATUS.PREPARING_ASSETS]: { progress: 70, order: 8 },
+  [JOB_STATUS.RENDERING]: { progress: 85, order: 9 },
+  [JOB_STATUS.UPLOADING]: { progress: 95, order: 10 },
+  [JOB_STATUS.COMPLETED]: { progress: 100, order: 11 },
   [JOB_STATUS.FAILED]: { progress: 0, order: 99 },
+  [JOB_STATUS.CANCELLED]: { progress: 0, order: 99 },
 });
 
 const VIDEO_TYPES = Object.freeze([
@@ -80,13 +98,22 @@ const RESOLUTIONS = Object.freeze([
   '2160x3840',
 ]);
 
+// RESOLUTIONS only ever pairs a landscape/portrait 16:9-or-9:16 size (no
+// square/ultrawide presets), so aspect ratio is fully implied by resolution
+// - it's never independently chosen. See getAspectRatioForResolution below.
 const ASPECT_RATIOS = Object.freeze([
   '16:9',
   '9:16',
-  '4:3',
-  '1:1',
-  '21:9',
 ]);
+
+// Derives aspect ratio from a "WIDTHxHEIGHT" resolution string - the single
+// source of truth for a job's actual output dimensions. Landscape (width >=
+// height) is 16:9, portrait is 9:16, matching every entry in RESOLUTIONS.
+const getAspectRatioForResolution = (resolution) => {
+  const [width, height] = String(resolution || '').split('x').map(Number);
+  if (!width || !height) return '16:9';
+  return width >= height ? '16:9' : '9:16';
+};
 
 const VOICES = Object.freeze([
   'male-1',
@@ -129,6 +156,7 @@ const SOCKET_EVENTS = Object.freeze({
   JOB_PROGRESS: 'jobProgress',
   JOB_COMPLETED: 'jobCompleted',
   JOB_FAILED: 'jobFailed',
+  SCENE_AUDIO_READY: 'sceneAudioReady',
   CONNECTION: 'connection',
   DISCONNECT: 'disconnect',
   JOIN: 'join',
@@ -142,12 +170,29 @@ const SOCKET_EVENTS = Object.freeze({
   COURSE_VIDEO_PROGRESS: 'courseVideoProgress',
   COURSE_VIDEO_SCRIPT_READY: 'courseVideoScriptReady',
   COURSE_VIDEO_AUDIO_READY: 'courseVideoAudioReady',
+  COURSE_VIDEO_SCENE_AUDIO_READY: 'courseVideoSceneAudioReady',
+  COURSE_WORKER_STATUS: 'courseWorkerStatus',
   COURSE_VIDEO_RENDER_READY: 'courseVideoRenderReady',
+  // Live server log stream
+  SERVER_LOG: 'serverLog',
 });
+
+// Redis pub/sub channel used to bridge events (job progress, server logs)
+// from worker processes to the main server process's Socket.IO instance.
+const REDIS_CHANNEL = 'vireon:job-events';
 
 const DEFAULT_SCENE_DURATION = 8;
 
 const VIDEO_DURATIONS = Object.freeze([5, 10, 15]);
+
+// Standalone (Wizard) video duration options in minutes - a separate scale
+// from course videos' VIDEO_DURATIONS since it's a distinct pipeline.
+const STANDALONE_VIDEO_DURATIONS = Object.freeze([5, 8, 10, 15, 20, 25, 30]);
+
+// YouTube Shorts have their own duration scale (YouTube caps Shorts at 3
+// minutes) - validated separately from STANDALONE_VIDEO_DURATIONS in
+// createVideoSchema.
+const SHORTS_VIDEO_DURATIONS = Object.freeze([1, 2, 3]);
 
 const CATEGORIES = Object.freeze([
   'Web Development',
@@ -171,18 +216,23 @@ module.exports = {
   JOB_STATUS,
   COURSE_STATUS,
   VIDEO_STATUS,
+  STAGE_STATUS,
   JOB_STEPS,
   VIDEO_TYPES,
   VIDEO_TYPES_LABEL,
   RESOLUTIONS,
   ASPECT_RATIOS,
+  getAspectRatioForResolution,
   VOICES,
   LANGUAGES,
   TRANSITIONS,
   CAMERA_MOTIONS,
   SOCKET_EVENTS,
+  REDIS_CHANNEL,
   DEFAULT_SCENE_DURATION,
   VIDEO_DURATIONS,
+  STANDALONE_VIDEO_DURATIONS,
+  SHORTS_VIDEO_DURATIONS,
   CATEGORIES,
   DIFFICULTIES,
 };

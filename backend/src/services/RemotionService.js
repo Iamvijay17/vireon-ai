@@ -1,8 +1,12 @@
-const { execSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const crypto = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Service for rendering videos using Remotion.
@@ -59,7 +63,6 @@ class RemotionService {
            imagePrompt: scene.imagePrompt,
            cameraMotion: scene.cameraMotion,
            animation: scene.animation,
-           // Generated image URL from ComfyUI
            imageUrl: scene.imageUrl || '',
             // Template-based rendering fields
             templateId: scene.templateId || '',
@@ -103,6 +106,63 @@ class RemotionService {
   }
 
   /**
+   * Verify every scene that's expected to have audio (audio.duration > 0
+   * in assets.json) actually has its mp3 on disk. Scenes with no audio
+   * text legitimately have duration 0 and are skipped.
+   */
+  static async _verifySceneAudioFiles(jobId, scenes) {
+    const audioDir = path.resolve(__dirname, '../../jobs', jobId, 'audio');
+    const missing = [];
+
+    for (const scene of scenes) {
+      if (!(scene.audio?.duration > 0)) continue;
+      const audioFile = path.join(audioDir, `scene${scene.sceneNumber}.mp3`);
+      const exists = await fs.stat(audioFile).then(() => true).catch(() => false);
+      if (!exists) missing.push(scene.sceneNumber);
+    }
+
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing audio file(s) for scene(s) ${missing.join(', ')} - audio generation must complete before rendering`
+      );
+    }
+  }
+
+  /**
+   * Deterministic fingerprint of an assets.json payload - used to tell
+   * whether an existing render/video.mp4 still reflects the scenes that
+   * would be rendered right now, or was produced from an older version
+   * (edited scene text, regenerated image, etc.).
+   */
+  static _fingerprintAssets(assetsFile) {
+    return crypto.createHash('sha256').update(JSON.stringify(assetsFile)).digest('hex');
+  }
+
+  /**
+   * Whether the existing render/video.mp4 for this job already matches the
+   * given assets - i.e. it's safe to skip re-rendering and go straight to
+   * upload. True only when both the video file and a fingerprint recorded
+   * at render time exist and that fingerprint matches assetsFile exactly.
+   * Any missing piece (no prior render, no fingerprint, mismatch, read
+   * failure) returns false, which just means "render it" - the same
+   * behavior as before this check existed, so this can only make things
+   * faster, never wrong.
+   */
+  static async isRenderCurrent(jobId, assetsFile) {
+    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    const videoPath = path.join(jobDir, 'render', 'video.mp4');
+    const fingerprintPath = path.join(jobDir, '.render-fingerprint');
+
+    try {
+      await fs.access(videoPath);
+      const stored = await fs.readFile(fingerprintPath, 'utf-8');
+      return stored.trim() === this._fingerprintAssets(assetsFile);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Execute Remotion render process.
    */
   static async renderVideo(jobId, assets = null) {
@@ -136,6 +196,13 @@ class RemotionService {
        totalDuration,
        sceneCount: assetsFile.scenes.length,
      });
+
+     // Fail fast and clearly here rather than letting Remotion render
+     // silently with a missing/blank clip - a scene with an expected
+     // audio.duration > 0 but no actual file on disk usually means a prior
+     // TTS step was skipped or partially failed, and that's much easier to
+     // diagnose from this error than from a rendering artifact.
+     await this._verifySceneAudioFiles(jobId, assetsFile.scenes);
 
      let lastError = null;
 
@@ -188,15 +255,24 @@ class RemotionService {
         ];
 
         LoggerService.render('Remotion command args', { args });
+        LoggerService.render('Executing Remotion command', { binaryPath, args });
 
-        const command = `node "${binaryPath}" ${args.map(a => `"${a}"`).join(' ')}`;
-        LoggerService.render('Executing Remotion command', { command: command.substring(0, 300) });
-
-        const stdout = execSync(command, {
+        // execFile (async, not execFileSync) spawns node directly with an
+        // argv array - no shell involved, so paths with spaces work without
+        // manual quoting and no argument can break out into a second shell
+        // command. Async matters here: this is the single longest-running
+        // step in the pipeline (up to config.remotion.timeout, 5 minutes by
+        // default, per attempt) - the sync version blocked Node's entire
+        // event loop for that whole duration, freezing every other
+        // concurrently-processing job under the worker's `concurrency: 3`
+        // setting, not just this one. maxBuffer raised well past the 1MB
+        // default since Remotion's per-frame progress output over a
+        // multi-minute render can exceed that easily.
+        const { stdout } = await execFileAsync(process.execPath, [binaryPath, ...args], {
           cwd: remotionRoot,
           timeout: config.remotion.timeout,
-          stdio: ['pipe', 'pipe', 'pipe'],
-          shell: true,
+          encoding: 'utf8',
+          maxBuffer: 50 * 1024 * 1024,
         });
 
         LoggerService.render('Remotion stdout', { stdout: stdout.toString().substring(0, 1000) });
@@ -210,6 +286,19 @@ class RemotionService {
           size: `${(stats.size / (1024 * 1024)).toFixed(2)} MB`,
           path: videoPath,
         });
+
+        // Record what this render was made from, so a later crash-recovery
+        // retry can tell (via isRenderCurrent) whether this video.mp4 still
+        // reflects the current scenes and skip a redundant re-render instead
+        // of always redoing the most expensive step in the pipeline. Stored
+        // outside renderDir since StorageService.getUploadFiles uploads
+        // every file it finds there - this is internal bookkeeping, not a
+        // render output.
+        await fs.writeFile(
+          path.join(jobDir, '.render-fingerprint'),
+          this._fingerprintAssets(assetsFile),
+          'utf-8'
+        );
 
         return {
           video: 'render/video.mp4',

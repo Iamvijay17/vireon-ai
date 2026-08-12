@@ -1,9 +1,21 @@
 const axios = require('axios');
+const crypto = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
 const config = require('../../config');
 const LoggerService = require('../LoggerService');
 const StorageProvider = require('./StorageProvider');
+
+/**
+ * Git's own blob hash (sha1 of "blob <size>\0<content>"), computed locally
+ * so uploadFile can tell whether the local file already matches what's on
+ * GitHub without needing a second round-trip. Comparable directly against
+ * the `sha` field GitHub's contents API returns.
+ */
+function gitBlobSha(buffer) {
+  const header = Buffer.from(`blob ${buffer.length}\0`);
+  return crypto.createHash('sha1').update(Buffer.concat([header, buffer])).digest('hex');
+}
 
 /**
  * GitHub Repository Storage Provider.
@@ -22,6 +34,31 @@ class GitHubStorageProvider extends StorageProvider {
 
   #baseUrl;
 
+  // One promise chain per *remote path*, so concurrent writers targeting
+  // the exact same GitHub file (e.g. a rerender racing the original
+  // still-in-flight upload of the same scene's audio) run one at a time
+  // instead of interleaving GET-for-SHA/PUT/DELETE calls against it - that
+  // GET-then-write pattern isn't atomic on GitHub's side, so two
+  // overlapping writers can each read a stale SHA and clobber or 409 on
+  // each other's PUT. Keyed by path rather than jobId so unrelated files
+  // within the same job (different scenes, script vs. audio vs. render)
+  // can still upload/delete concurrently.
+  #pathLocks = new Map();
+
+  async #withPathLock(remotePath, fn) {
+    const previous = this.#pathLocks.get(remotePath) || Promise.resolve();
+    const tail = previous.then(fn, fn);
+    const settleTail = tail.then(() => {}, () => {});
+    this.#pathLocks.set(remotePath, settleTail);
+    try {
+      return await tail;
+    } finally {
+      if (this.#pathLocks.get(remotePath) === settleTail) {
+        this.#pathLocks.delete(remotePath);
+      }
+    }
+  }
+
   /**
    * Build request headers for GitHub API.
    */
@@ -35,7 +72,8 @@ class GitHubStorageProvider extends StorageProvider {
 
   /**
    * Upload a single file to GitHub under `videos/{jobId}/{category}/{fileName}`.
-   * Implements retry logic with exponential backoff.
+   * Implements retry logic with exponential backoff. Serialized per remote
+   * path - see #withPathLock.
    *
    * @param {string} jobId
    * @param {string} filePath - Absolute path to local file.
@@ -43,8 +81,14 @@ class GitHubStorageProvider extends StorageProvider {
    * @returns {Promise<string>} Raw GitHub download URL.
    */
   async uploadFile(jobId, filePath, category) {
+    const remotePath = this.getRemotePath(jobId, category, path.basename(filePath));
+    return this.#withPathLock(remotePath, () =>
+      this.#uploadFileLocked(jobId, filePath, category, remotePath)
+    );
+  }
+
+  async #uploadFileLocked(jobId, filePath, category, remotePath) {
     const fileName = path.basename(filePath);
-    const remotePath = this.getRemotePath(jobId, category, fileName);
 
     const fileContent = await fs.readFile(filePath);
     const contentBase64 = fileContent.toString('base64');
@@ -65,6 +109,18 @@ class GitHubStorageProvider extends StorageProvider {
             headers: this.#headers(),
           });
           sha = existing.data.sha;
+
+          // Same content already on GitHub - skip the PUT entirely. Without
+          // this, a BullMQ retry that re-runs a job whose upload step
+          // already partially succeeded re-uploads every already-uploaded
+          // file from scratch, burning GitHub API calls/rate limit for no
+          // reason.
+          if (sha === gitBlobSha(fileContent)) {
+            LoggerService.upload(`Skipping upload - ${category}/${fileName} already up to date on GitHub`, {
+              remotePath,
+            });
+            return existing.data.download_url || '';
+          }
         } catch {
           // File doesn't exist yet — that's fine
         }
@@ -132,6 +188,8 @@ class GitHubStorageProvider extends StorageProvider {
   /**
    * Delete all assets for a given job from GitHub.
    * Iterates through all files at `videos/{jobId}/` and deletes them.
+   * Each file's delete is serialized against any concurrent upload/delete
+   * targeting that same remote path - see #withPathLock.
    *
    * @param {string} jobId
    * @returns {Promise<void>}
@@ -146,24 +204,28 @@ class GitHubStorageProvider extends StorageProvider {
 
       const items = Array.isArray(contents) ? contents : [contents];
 
-      for (const item of items) {
-        try {
-          await axios.delete(`${this.#baseUrl}/${item.path}`, {
-            headers: this.#headers(),
-            data: {
-              message: `Delete job ${jobId}`,
-              sha: item.sha,
-              branch: config.github.branch,
-            },
-          });
-          LoggerService.info(`Deleted ${item.path} from GitHub storage`, { jobId });
-        } catch (err) {
-          LoggerService.warn(`Failed to delete ${item.path} from GitHub`, {
-            jobId,
-            error: err.response?.data?.message || err.message,
-          });
-        }
-      }
+      await Promise.all(
+        items.map((item) =>
+          this.#withPathLock(item.path, async () => {
+            try {
+              await axios.delete(`${this.#baseUrl}/${item.path}`, {
+                headers: this.#headers(),
+                data: {
+                  message: `Delete job ${jobId}`,
+                  sha: item.sha,
+                  branch: config.github.branch,
+                },
+              });
+              LoggerService.info(`Deleted ${item.path} from GitHub storage`, { jobId });
+            } catch (err) {
+              LoggerService.warn(`Failed to delete ${item.path} from GitHub`, {
+                jobId,
+                error: err.response?.data?.message || err.message,
+              });
+            }
+          })
+        )
+      );
     } catch (err) {
       // Folder may not exist — that's acceptable
       if (err.response?.status !== 404) {

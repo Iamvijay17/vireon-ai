@@ -1,6 +1,16 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Derive the socket URL from the current browser hostname so the app works
+// both locally (localhost) and when accessed from another device on the LAN
+// (e.g. http://192.168.1.7:5173 → socket at http://192.168.1.7:3000).
+// VITE_API_URL can still override this explicitly if needed.
+const getSocketUrl = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  const { hostname, protocol } = window.location;
+  return `${protocol}//${hostname}:3000`;
+};
+
+const SOCKET_URL = getSocketUrl();
 
 const socket = io(SOCKET_URL, {
   autoConnect: false,
@@ -65,7 +75,27 @@ export const onJobFailed = (callback) => {
   return () => socket.off('jobFailed', callback);
 };
 
+export const onSceneAudioReady = (callback) => {
+  socket.on('sceneAudioReady', callback);
+  return () => socket.off('sceneAudioReady', callback);
+};
+
 // ─── Course Video Event Listeners ────────────────────────────────────────────────
+
+export const onCourseVideoCreated = (callback) => {
+  socket.on('courseVideoCreated', callback);
+  return () => socket.off('courseVideoCreated', callback);
+};
+
+export const onCourseVideoDeleted = (callback) => {
+  socket.on('courseVideoDeleted', callback);
+  return () => socket.off('courseVideoDeleted', callback);
+};
+
+export const onCourseVideoUpdated = (callback) => {
+  socket.on('courseVideoUpdated', callback);
+  return () => socket.off('courseVideoUpdated', callback);
+};
 
 export const onCourseVideoProgress = (callback) => {
   socket.on('courseVideoProgress', callback);
@@ -82,9 +112,31 @@ export const onCourseVideoAudioReady = (callback) => {
   return () => socket.off('courseVideoAudioReady', callback);
 };
 
+// Fires once per scene as its audio finishes, ahead of the whole-batch
+// courseVideoAudioReady event, so the detail page can show each scene's
+// player as soon as it's ready instead of waiting for every scene.
+export const onCourseVideoSceneAudioReady = (callback) => {
+  socket.on('courseVideoSceneAudioReady', callback);
+  return () => socket.off('courseVideoSceneAudioReady', callback);
+};
+
 export const onCourseVideoRenderReady = (callback) => {
   socket.on('courseVideoRenderReady', callback);
   return () => socket.off('courseVideoRenderReady', callback);
+};
+
+// Pushed whenever the backend's course-video worker connects/disconnects, so
+// the frontend doesn't need to poll GET /api/course-videos/worker-status.
+export const onCourseWorkerStatus = (callback) => {
+  socket.on('courseWorkerStatus', callback);
+  return () => socket.off('courseWorkerStatus', callback);
+};
+
+// ─── Live Server Logs ──────────────────────────────────────────────────────────
+
+export const onServerLog = (callback) => {
+  socket.on('serverLog', callback);
+  return () => socket.off('serverLog', callback);
 };
 
 // ─── Connection Status ─────────────────────────────────────────────────────────

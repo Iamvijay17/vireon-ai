@@ -1,6 +1,7 @@
 const axios = require('axios');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
+const JsonRepairService = require('./JsonRepairService');
 
 /**
  * Service for interacting with LM Studio (Gemma) API.
@@ -8,10 +9,11 @@ const LoggerService = require('./LoggerService');
  */
 class LMStudioService {
   /**
-   * Generate script by calling LM Studio API with the rendered prompt.
-   * Implements retry logic with exponential backoff.
+   * Call LM Studio's chat-completions endpoint and parse a JSON object out
+   * of the response, with retry + exponential backoff. Shared by
+   * generateScript and generateCurriculum.
    */
-  static async generateScript(prompt) {
+  static async _callLLM(prompt, { maxTokens = 10000, timeout = config.lmStudio.timeout } = {}) {
     let lastError = null;
 
     for (let attempt = 1; attempt <= config.lmStudio.maxRetries; attempt++) {
@@ -31,11 +33,11 @@ class LMStudioService {
               },
             ],
             temperature: 0.7,
-            max_tokens: 10000,
+            max_tokens: maxTokens,
           },
           {
             headers: { 'Content-Type': 'application/json' },
-            timeout: config.lmStudio.timeout,
+            timeout,
           }
         );
 
@@ -50,14 +52,21 @@ class LMStudioService {
           .replace(/```\s*/g, '')
           .trim();
 
-        const parsed = JSON.parse(cleaned);
-
-        LoggerService.lmstudio(`Script generated successfully`, {
-          title: parsed.title,
-          scenes: parsed.scenes?.length,
-        });
-
-        return parsed;
+        try {
+          return JSON.parse(cleaned);
+        } catch (parseErr) {
+          // Local models frequently produce near-valid JSON on larger
+          // responses - a literal newline left inside a narration string
+          // ("Expected property name or '}'"), a trailing comma, or
+          // generation stopping mid-structure ("Unexpected end of JSON
+          // input"). Try to repair before burning a whole attempt (and
+          // several more minutes of generation) over a fixable slip.
+          const repaired = JsonRepairService.parse(cleaned);
+          LoggerService.warn('LM Studio response needed JSON repair before parsing', {
+            originalError: parseErr.message,
+          });
+          return repaired;
+        }
       } catch (err) {
         lastError = err;
         const isLastAttempt = attempt === config.lmStudio.maxRetries;
@@ -79,6 +88,68 @@ class LMStudioService {
     }
 
     throw new Error(`LM Studio failed after ${config.lmStudio.maxRetries} attempts: ${lastError.message}`);
+  }
+
+  /**
+   * Generate script by calling LM Studio API with the rendered prompt.
+   * `options` (maxTokens/timeout) should scale with the requested script
+   * size - see videoWorker.js's estimate. The 10000-token default only
+   * covers short scripts; longer ones get cut off mid-JSON ("Unexpected end
+   * of JSON input") if the caller doesn't raise it.
+   */
+  static async generateScript(prompt, options = {}) {
+    const parsed = await this._callLLM(prompt, options);
+
+    LoggerService.lmstudio(`Script generated successfully`, {
+      title: parsed.title,
+      scenes: parsed.scenes?.length,
+    });
+
+    return parsed;
+  }
+
+  /**
+   * Generate a full Udemy-style course curriculum: an ordered list of
+   * lessons covering the topic from introduction through a practical
+   * summary. Returns { lessons: [{ order, title, topic, description }] }.
+   * Uses a longer timeout than a single script - curriculum responses are
+   * larger (10-20 items) even though each item is short.
+   */
+  static async generateCurriculum(courseTitle, topic) {
+    const prompt = `Design a complete Udemy-style course curriculum for a course titled "${courseTitle}" about "${topic}".
+
+Return ONLY valid JSON with this structure:
+{
+  "lessons": [
+    { "order": 1, "title": "Welcome to the Course", "topic": "A short welcome that introduces the instructor and names the topics covered ahead, without teaching any of them yet", "description": "Short one-sentence summary" }
+  ]
+}
+
+Rules:
+- Produce 12-20 lessons, ordered logically like a real Udemy course: start with a short welcome/orientation lesson, cover fundamentals, then core concepts one at a time, then a practical/project lesson, then a course summary/next-steps lesson.
+- "title" is the short lesson name shown in a course outline (e.g., "What is React?", "Components", "State").
+- "topic" is 1-2 sentences describing exactly what THAT ONE lesson's video should teach - this is used later to generate that lesson's script IN ISOLATION, with no knowledge of the other lessons, so it must be narrow and self-contained.
+- Each lesson's "topic" must cover ONLY that lesson's own slice of the subject. Do not let one lesson's topic summarize, preview, or teach content assigned to other lessons.
+- The first lesson's "topic" must be a brief welcome/orientation only (who this course is for, what topics are ahead) - it must NOT preview or teach any actual technical content, since that belongs to the later lessons.
+- "description" is a short one-sentence summary for display purposes.
+- Return ONLY valid JSON, no markdown, no code blocks, no commentary.`;
+
+    const parsed = await this._callLLM(prompt, {
+      maxTokens: 6000,
+      timeout: Math.max(config.lmStudio.timeout, 90000),
+    });
+
+    const lessons = Array.isArray(parsed?.lessons) ? parsed.lessons : [];
+    if (lessons.length === 0) {
+      throw new Error('LM Studio returned no lessons for curriculum');
+    }
+
+    LoggerService.lmstudio('Curriculum generated successfully', {
+      courseTitle,
+      lessons: lessons.length,
+    });
+
+    return lessons;
   }
 }
 

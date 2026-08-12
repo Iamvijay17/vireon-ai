@@ -2,33 +2,99 @@ const { z } = require('zod');
 const {
   VIDEO_TYPES,
   RESOLUTIONS,
-  ASPECT_RATIOS,
-  VOICES,
   LANGUAGES,
+  STANDALONE_VIDEO_DURATIONS,
+  SHORTS_VIDEO_DURATIONS,
+  getAspectRatioForResolution,
 } = require('../constants');
+const { ID_PATTERN } = require('../utils/id');
 
-const registerSchema = z.object({
-  name: z.string().min(2).max(100),
-  email: z.string().email(),
-  password: z.string().min(6).max(128),
-});
+const createVideoSchema = z
+  .object({
+    topic: z.string().min(3).max(500).trim(),
+    type: z.enum(VIDEO_TYPES),
+    language: z.enum(LANGUAGES).optional().default('english'),
+    // Requested video length in minutes - the worker derives an exact scene
+    // count from this (see videoWorker.js). Valid range depends on `type`
+    // (see superRefine below): youtube_shorts uses SHORTS_VIDEO_DURATIONS
+    // (YouTube caps Shorts at 3 minutes), every other type uses
+    // STANDALONE_VIDEO_DURATIONS.
+    duration: z.number().optional().default(5),
+    // Accepts legacy keys ("female-1"), "custom:<Speaker>", or "clone:<file>.wav"
+    // - see AudioService.resolveVoice for how this is interpreted.
+    voice: z.string().min(1).max(200).optional().default('female-1'),
+    // Podcast type only: separate voice per speaker (same format as `voice`).
+    // Non-podcast submissions send "" (the wizard's default), so this can't
+    // require min(1) - the superRefine below enforces it for podcast only.
+    hostVoice: z.string().max(200).optional(),
+    guestVoice: z.string().max(200).optional(),
+    // Optional display names for the podcast host/guest - falls back to
+    // "Host"/"Guest" server-side when left blank (see ScriptParserService).
+    hostName: z.string().max(80).trim().optional(),
+    guestName: z.string().max(80).trim().optional(),
+    // Aspect ratio isn't independently selectable - it's fully implied by
+    // resolution (see getAspectRatioForResolution), derived server-side.
+    // youtube_shorts is further restricted to vertical (9:16) resolutions
+    // only - see superRefine below.
+    resolution: z.enum(RESOLUTIONS).optional().default('1920x1080'),
+    // true: current auto flow (audio/images/render run automatically after
+    // script approval). false: manual mode - audio and render each need an
+    // explicit trigger, like the course-video pipeline.
+    fastGeneration: z.boolean().optional().default(true),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === 'podcast') {
+      if (!data.hostVoice) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['hostVoice'], message: 'Host voice is required for podcast videos' });
+      }
+      if (!data.guestVoice) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['guestVoice'], message: 'Guest voice is required for podcast videos' });
+      }
+    }
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
+    if (data.type === 'youtube_shorts') {
+      if (!SHORTS_VIDEO_DURATIONS.includes(data.duration)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['duration'], message: `YouTube Shorts duration must be one of: ${SHORTS_VIDEO_DURATIONS.join(', ')}` });
+      }
+      if (getAspectRatioForResolution(data.resolution) !== '9:16') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['resolution'], message: 'YouTube Shorts must use a vertical resolution' });
+      }
+    } else if (!STANDALONE_VIDEO_DURATIONS.includes(data.duration)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['duration'], message: `Duration must be one of: ${STANDALONE_VIDEO_DURATIONS.join(', ')}` });
+    }
+  });
 
-const createVideoSchema = z.object({
-  topic: z.string().min(3).max(500).trim(),
-  type: z.enum(VIDEO_TYPES),
-  language: z.enum(LANGUAGES).optional().default('english'),
-  voice: z.enum(VOICES).optional().default('female-1'),
-  resolution: z.enum(RESOLUTIONS).optional().default('1920x1080'),
-  aspectRatio: z.enum(ASPECT_RATIOS).optional().default('16:9'),
-});
+// Editing an existing job - same field shapes as createVideoSchema but all
+// optional (only changed fields need to be sent), and `type` isn't editable
+// (duration/resolution's valid ranges are keyed off it - VideoService.update
+// re-validates duration/resolution against the job's existing type).
+const updateVideoJobSchema = z
+  .object({
+    topic: z.string().min(3).max(500).trim().optional(),
+    language: z.enum(LANGUAGES).optional(),
+    duration: z.number().optional(),
+    voice: z.string().min(1).max(200).optional(),
+    hostVoice: z.string().max(200).optional(),
+    guestVoice: z.string().max(200).optional(),
+    hostName: z.string().max(80).trim().optional(),
+    guestName: z.string().max(80).trim().optional(),
+    resolution: z.enum(RESOLUTIONS).optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'No fields provided to update' });
 
 const jobIdSchema = z.object({
-  id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid MongoDB ObjectId'),
+  id: z.string().regex(/^job-[0-9A-Z]{8}$/, 'Invalid video job id'),
+});
+
+// Matches any entity id produced by utils/id.js (course, course-video,
+// scene, ...) - used for course-video routes, which aren't scoped to a
+// single prefix the way jobIdSchema is to "job-".
+const idSchema = z.object({
+  id: z.string().regex(ID_PATTERN, 'Invalid id'),
+});
+
+const idArraySchema = z.object({
+  videoIds: z.array(z.string().regex(ID_PATTERN, 'Invalid id')).min(1, 'videoIds must be a non-empty array'),
 });
 
 const validate = (schema) => (data) => {
@@ -44,9 +110,10 @@ const validate = (schema) => (data) => {
 };
 
 module.exports = {
-  registerSchema,
-  loginSchema,
   createVideoSchema,
+  updateVideoJobSchema,
   jobIdSchema,
+  idSchema,
+  idArraySchema,
   validate,
 };
