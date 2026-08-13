@@ -40,6 +40,7 @@ import {
 import { templateNames } from "vireon-remotion-templates/src/templateNames";
 import { LoadingState, EmptyState } from "../../components";
 import { ScenePreview } from "../../components/video/ScenePreview";
+import { TextPositionPad } from "../../components/video/TextPositionPad";
 import { SceneThumbnail } from "../../components/video/SceneThumbnail";
 import { TemplatePickerModal } from "../../components/video/TemplatePickerModal";
 import { useForceSidebarCollapsed } from "../../shared/sidebarContextValue";
@@ -48,6 +49,7 @@ import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { Alert } from "../../components/ui/Alert";
 import { Select } from "../../components/ui/Select";
+import { Tabs } from "../../components/ui/Tabs";
 import { Input, Textarea, NumberInput, Label } from "../../components/ui/Input";
 import { ColorInput } from "../../components/ui/ColorInput";
 import { cn } from "../../components/ui/cn";
@@ -93,6 +95,17 @@ const CAMERA_OPTIONS = [
   { value: "slide", label: "Slide" },
 ];
 
+// Groups the Inspector's fields under tabs instead of one long stacked
+// scroll - each `key` maps to a section (or several) rendered conditionally
+// below, so switching tabs swaps content rather than scrolling to it.
+const INSPECTOR_TABS = [
+  { key: "content", label: "Content", icon: <LayoutTemplate className="size-3.5" /> },
+  { key: "style", label: "Style", icon: <Palette className="size-3.5" /> },
+  { key: "animation", label: "Animation", icon: <Settings className="size-3.5" /> },
+  { key: "image", label: "Image", icon: <ImageIcon className="size-3.5" /> },
+  { key: "audio", label: "Audio", icon: <Languages className="size-3.5" /> },
+];
+
 const Field = ({ label, children }) => (
   <div>
     <Label>{label}</Label>
@@ -131,6 +144,7 @@ const StudioPage = () => {
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [remappingTemplate, setRemappingTemplate] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState("content");
 
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
@@ -604,8 +618,6 @@ const StudioPage = () => {
                 onActiveSceneChange={setSelectedSceneIndex}
                 hideChips
                 videoId={jobId}
-                onTextPositionChange={canEdit ? (role, pos) => handleElementFieldChange(selectedSceneIndex, `${role}.position`, pos) : undefined}
-                onTextPositionReset={canEdit ? (role) => handleElementFieldChange(selectedSceneIndex, `${role}.position`, undefined) : undefined}
               />
             </div>
           </Card>
@@ -634,7 +646,11 @@ const StudioPage = () => {
               </button>
             </div>
 
+            <Tabs items={INSPECTOR_TABS} active={inspectorTab} onChange={setInspectorTab} className="px-2" />
+
             <div className="flex-1 space-y-5 overflow-y-auto p-4">
+              {inspectorTab === "content" && (
+              <>
               <div>
                 <SectionLabel icon={LayoutTemplate}>Template</SectionLabel>
                 <button
@@ -780,15 +796,25 @@ const StudioPage = () => {
                   <p className="text-[12px] text-text-tertiary">Content-item editing not available for this template.</p>
                 )}
               </div>
+              </>
+              )}
 
-              <div className="h-px bg-border-light" />
-
+              {inspectorTab === "style" && (
               <div>
                 <SectionLabel icon={Palette}>Template Style</SectionLabel>
                 <div className="space-y-3">
-                  <p className="text-[11px] text-text-tertiary">
-                    Drag the title/subtitle directly in the preview above to reposition. A reset icon appears on a text box once it's been moved.
-                  </p>
+                  <Field label="Text Position">
+                    <TextPositionPad
+                      positions={{
+                        title: scene.elements?.styleConfig?.title?.position,
+                        subtitle: scene.elements?.styleConfig?.subtitle?.position,
+                      }}
+                      hasSubtitle={!!(scene.subtitle || scene.elements?.subtitle)}
+                      onChange={(role, pos) => handleElementFieldChange(selectedSceneIndex, `${role}.position`, pos)}
+                      onReset={(role) => handleElementFieldChange(selectedSceneIndex, `${role}.position`, undefined)}
+                      disabled={!canEdit}
+                    />
+                  </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Font Family">
                       <Select
@@ -859,9 +885,9 @@ const StudioPage = () => {
                   </div>
                 </div>
               </div>
+              )}
 
-              <div className="h-px bg-border-light" />
-
+              {inspectorTab === "animation" && (
               <div>
                 <SectionLabel icon={Settings}>Animation</SectionLabel>
                 <div className="grid grid-cols-1 gap-3">
@@ -876,9 +902,9 @@ const StudioPage = () => {
                   </Field>
                 </div>
               </div>
+              )}
 
-              <div className="h-px bg-border-light" />
-
+              {inspectorTab === "image" && (
               <div>
                 <SectionLabel icon={ImageIcon}>Image</SectionLabel>
                 <div className="space-y-3">
@@ -895,15 +921,16 @@ const StudioPage = () => {
                   </Field>
                 </div>
               </div>
+              )}
 
-              <div className="h-px bg-border-light" />
-
+              {inspectorTab === "audio" && (
               <div>
                 <SectionLabel icon={Languages}>Audio / Narration</SectionLabel>
                 <Field label="Narration Text">
                   <Textarea rows={3} value={scene.audio?.text || ""} onChange={(e) => handleAudioTextChange(selectedSceneIndex, e.target.value)} disabled={!canEdit} placeholder="Text to speak in this scene" />
                 </Field>
               </div>
+              )}
 
               <div className="flex gap-2 border-t border-border-light pt-4">
                 <Button variant="secondary" size="sm" icon={<Copy className="size-3.5" />} onClick={() => handleDuplicateScene(selectedSceneIndex)} disabled={!canEdit} className="flex-1">

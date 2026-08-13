@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Player } from "@remotion/player";
-import { RotateCcw } from "lucide-react";
 import { VideoComposition } from "vireon-remotion-templates/src/VideoComposition";
 import { calculateTotalDurationInFrames, FPS } from "vireon-remotion-templates/src/calculateVideoMetadata";
 import { resolveMediaUrl } from "../../services/api";
@@ -38,8 +37,6 @@ const getSceneStartFrames = (scenes) => {
   });
 };
 
-const clamp01 = (n) => Math.min(1, Math.max(0, n));
-
 // Most templates fade/slide their title and subtitle in over their first
 // ~20-35 frames. Seeking to a scene's exact first frame (frame 0 of its
 // Sequence) freezes the preview mid fade-in - title/subtitle can render at
@@ -51,97 +48,18 @@ const settleOffsetFor = (sceneDurationSeconds) => {
   return Math.min(SETTLE_FRAMES, Math.floor(sceneDurationFrames / 2));
 };
 
-// Locates the currently-active scene's rendered frame (`VideoComposition`'s
-// Scene component tags its root with `data-scene-frame`/`data-scene-number`
-// - see backend/remotion/src/VideoComposition.jsx) and, within it, whichever
-// title/subtitle text elements the active template marked with
-// `data-style-role="title"|"subtitle"` (see the `mergeStyle(..., overrides.title)`
-// retrofit across backend/remotion/src/templates/*). Both are real DOM nodes
-// since @remotion/player renders the composition's actual React tree, not a
-// canvas - so their live `getBoundingClientRect()` is what "drag the text
-// directly" hit-tests and positions against.
-const measureTextRoles = (container, sceneNumber) => {
-  if (!container) return { frame: null, handles: {} };
-  const frameEls = container.querySelectorAll('[data-scene-frame="true"]');
-  let frameEl = null;
-  frameEls.forEach((el) => {
-    if (String(el.getAttribute("data-scene-number")) === String(sceneNumber)) frameEl = el;
-  });
-  if (!frameEl && frameEls.length) frameEl = frameEls[frameEls.length - 1];
-  if (!frameEl) return { frame: null, handles: {} };
-
-  const containerRect = container.getBoundingClientRect();
-  const fRect = frameEl.getBoundingClientRect();
-  const frame = {
-    left: fRect.left - containerRect.left,
-    top: fRect.top - containerRect.top,
-    width: fRect.width,
-    height: fRect.height,
-  };
-
-  const handles = {};
-  ["title", "subtitle"].forEach((role) => {
-    const el = frameEl.querySelector(`[data-style-role="${role}"]`);
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    if (r.width === 0 && r.height === 0) return;
-    handles[role] = {
-      left: r.left - containerRect.left,
-      top: r.top - containerRect.top,
-      width: r.width,
-      height: r.height,
-    };
-  });
-
-  return { frame, handles };
-};
-
 // `focusIndex` / `onActiveSceneChange` let a parent editor stay in sync with
 // the preview: clicking a scene in an edit form seeks the player there, and
 // scrubbing/playing the player updates which scene the editor highlights.
-//
-// `onTextPositionChange`/`onTextPositionReset`, when provided, turn on
-// click-and-drag text positioning directly on the rendered preview: small
-// draggable overlays track the title/subtitle's real rendered position each
-// tick, and dragging one writes a normalized `{xPct, yPct}` back through the
-// caller's handler (Studio wires this to `elements.styleConfig.<role>.position`
-// - see `frontend/src/pages/studio/index.jsx`).
-export function ScenePreview({
-  scenes = [],
-  focusIndex,
-  onActiveSceneChange,
-  hideChips = false,
-  videoId,
-  onTextPositionChange,
-  onTextPositionReset,
-}) {
+export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hideChips = false, videoId }) {
   const playerRef = useRef(null);
-  const containerRef = useRef(null);
-  const dragRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const lastFocusRef = useRef(focusIndex);
-  const [overlay, setOverlay] = useState({ frame: null, handles: {} });
-  const [draggingRole, setDraggingRole] = useState(null);
-
-  const editable = !!onTextPositionChange;
 
   const audioBaseUrl = videoId ? resolveMediaUrl(`/public/${videoId}/audio`) : null;
   const previewScenes = useMemo(() => resolveScenesMedia(scenes, audioBaseUrl), [scenes, audioBaseUrl]);
   const sceneStarts = useMemo(() => getSceneStartFrames(scenes), [scenes]);
   const durationInFrames = useMemo(() => calculateTotalDurationInFrames(scenes), [scenes]);
-  const activeScene = scenes[activeIndex];
-  // Kept in sync every render (not as effect deps) so the drag-listener and
-  // polling effects below don't need `activeScene`/`onTextPositionChange` in
-  // their dependency arrays - both change on every keystroke of a drag
-  // (new scene object, new inline callback from Studio), which previously
-  // caused those effects to tear down and re-attach their native listeners
-  // mid-drag.
-  const activeSceneRef = useRef(activeScene);
-  const onTextPositionChangeRef = useRef(onTextPositionChange);
-  useEffect(() => {
-    activeSceneRef.current = activeScene;
-    onTextPositionChangeRef.current = onTextPositionChange;
-  });
 
   const seekToScene = useCallback(
     (index) => {
@@ -198,140 +116,11 @@ export function ScenePreview({
     seekToScene(focusIndex);
   }, [focusIndex, seekToScene]);
 
-  // Re-measures on an interval rather than every frame - text placement is
-  // static per-scene (aside from brief entrance animations), so this only
-  // needs to be fresh enough to track edits and window resizes, not every
-  // Remotion frame tick.
-  useEffect(() => {
-    if (!editable) return undefined;
-    const tick = () => {
-      if (dragRef.current) return; // don't fight an in-progress drag
-      setOverlay(measureTextRoles(containerRef.current, activeSceneRef.current?.sceneNumber));
-    };
-    tick();
-    const id = setInterval(tick, 300);
-    window.addEventListener("resize", tick);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("resize", tick);
-    };
-  }, [editable, activeScene?.sceneNumber]);
-
-  // Drag is wired imperatively (native `addEventListener` inside an effect)
-  // rather than via React `onPointerDown` props: those handlers need to read
-  // `containerRef`/`playerRef`/`dragRef` on every pointer event, and doing
-  // that from a function reachable from render (even indirectly, e.g. a
-  // `useCallback` invoked from a JSX prop) trips React Compiler's ref-safety
-  // lint. Effects run after render, so ref reads there are unrestricted.
-  useEffect(() => {
-    if (!editable) return undefined;
-    const container = containerRef.current;
-    if (!container) return undefined;
-
-    const findFrameEl = () => {
-      const frameEls = container.querySelectorAll('[data-scene-frame="true"]');
-      let frameEl = null;
-      frameEls.forEach((el) => {
-        if (String(el.getAttribute("data-scene-number")) === String(activeSceneRef.current?.sceneNumber)) frameEl = el;
-      });
-      if (!frameEl && frameEls.length) frameEl = frameEls[frameEls.length - 1];
-      return frameEl;
-    };
-
-    const onPointerDown = (e) => {
-      if (e.target.closest("[data-drag-ignore]")) return;
-      const handle = e.target.closest("[data-drag-role]");
-      if (!handle) return;
-      const role = handle.getAttribute("data-drag-role");
-      const frameEl = findFrameEl();
-      if (!frameEl) return;
-
-      // Stop propagation so this doesn't also reach the Player's own
-      // `clickToPlay` listener - without it, starting a drag on the title
-      // would toggle play/pause underneath the drag at the same time.
-      e.preventDefault();
-      e.stopPropagation();
-      playerRef.current?.pause();
-      const fRect = frameEl.getBoundingClientRect();
-      dragRef.current = { role, frame: fRect };
-      setDraggingRole(role);
-
-      // Pointer capture retargets all subsequent pointer events to `handle`
-      // regardless of what's visually underneath the cursor. Without this,
-      // dragging the text down into the Player's own control bar (which
-      // stops propagation for its own seek-bar scrubbing) would silently
-      // stop delivering move events partway through the drag, leaving the
-      // text stuck wherever the last-received move event placed it.
-      // Wrapped in try/catch: browsers can throw here (e.g. no active
-      // pointer for the given id) and an uncaught throw here would abort
-      // the rest of this handler before the move/up listeners are attached.
-      try {
-        handle.setPointerCapture?.(e.pointerId);
-      } catch {
-        // Non-fatal - drag still works via the listeners below, just
-        // without capture (so it can lose events over Player's controls).
-      }
-
-      const onPointerMove = (moveEvent) => {
-        const drag = dragRef.current;
-        if (!drag) return;
-        const xPct = clamp01((moveEvent.clientX - drag.frame.left) / drag.frame.width);
-        const yPct = clamp01((moveEvent.clientY - drag.frame.top) / drag.frame.height);
-        onTextPositionChangeRef.current?.(drag.role, { xPct, yPct });
-        // Optimistically track the overlay box under the cursor while the
-        // template's own re-render (one React tick behind) catches up.
-        setOverlay((prev) => ({
-          ...prev,
-          handles: {
-            ...prev.handles,
-            [drag.role]: prev.handles[drag.role]
-              ? {
-                  ...prev.handles[drag.role],
-                  left: moveEvent.clientX - drag.frame.left - prev.handles[drag.role].width / 2,
-                  top: moveEvent.clientY - drag.frame.top - prev.handles[drag.role].height / 2,
-                }
-              : prev.handles[drag.role],
-          },
-        }));
-      };
-
-      const onPointerUp = (upEvent) => {
-        dragRef.current = null;
-        setDraggingRole(null);
-        handle.removeEventListener("pointermove", onPointerMove);
-        handle.removeEventListener("pointerup", onPointerUp);
-        try {
-          handle.releasePointerCapture?.(upEvent.pointerId);
-        } catch {
-          // Already released/never captured - fine to ignore.
-        }
-        // Deferred two frames rather than measured synchronously here: the
-        // very last `onTextPositionChange` call (from the last pointermove,
-        // which can fire right before pointerup with almost no gap) may not
-        // have been committed to the DOM yet. Measuring immediately risked
-        // reading the pre-drag layout and visually snapping the overlay
-        // back to the old spot for a moment before the real position caught
-        // up. rAF x2 waits for React's commit and the browser's paint.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            setOverlay(measureTextRoles(container, activeSceneRef.current?.sceneNumber));
-          });
-        });
-      };
-
-      handle.addEventListener("pointermove", onPointerMove);
-      handle.addEventListener("pointerup", onPointerUp);
-    };
-
-    container.addEventListener("pointerdown", onPointerDown);
-    return () => container.removeEventListener("pointerdown", onPointerDown);
-  }, [editable]);
-
   if (previewScenes.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-3">
-      <div ref={containerRef} className="relative overflow-hidden rounded-lg border border-border-light bg-black">
+      <div className="overflow-hidden rounded-lg border border-border-light bg-black">
         <Player
           ref={playerRef}
           component={VideoComposition}
@@ -346,39 +135,6 @@ export function ScenePreview({
           doubleClickToFullscreen
           loop
         />
-
-        {editable &&
-          ["title", "subtitle"].map((role) => {
-            const rect = overlay.handles[role];
-            if (!rect) return null;
-            const hasOverride = !!activeScene?.elements?.styleConfig?.[role]?.position;
-            return (
-              <div
-                key={role}
-                data-drag-role={role}
-                title={`Drag to move the ${role}`}
-                className={`absolute flex cursor-grab items-center justify-center rounded-md border-2 border-dashed transition-colors ${
-                  draggingRole === role ? "cursor-grabbing border-accent bg-accent/10" : "border-white/40 hover:border-accent hover:bg-white/5"
-                }`}
-                style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height, touchAction: "none" }}
-              >
-                <span className="pointer-events-none absolute -top-5 left-0 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium capitalize text-white">
-                  {role}
-                </span>
-                {hasOverride && (
-                  <button
-                    type="button"
-                    data-drag-ignore="true"
-                    onClick={() => onTextPositionReset?.(role)}
-                    title={`Reset ${role} to the template's default position`}
-                    className="pointer-events-auto absolute -right-2 -top-2 rounded-full border border-white/40 bg-black/80 p-0.5 text-white hover:bg-black"
-                  >
-                    <RotateCcw className="size-3" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
       </div>
       {!hideChips && (
         <div className="flex gap-1.5 overflow-x-auto pb-1">
