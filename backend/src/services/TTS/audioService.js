@@ -5,6 +5,7 @@ const fs = require("fs").promises;
 const path = require("path");
 const config = require("../../config");
 const LoggerService = require("../LoggerService");
+const VOICE_METADATA = require("../../config/voiceMetadata");
 
 const execFileAsync = promisify(execFile);
 
@@ -33,6 +34,40 @@ const LEGACY_VOICE_MAP = Object.freeze({
 });
 
 const VOICES_DIR = path.resolve(__dirname, "../../../voices");
+
+// Words too generic to be useful as a filter tag, dropped when deriving tags
+// from a clone voice's filename (see listCloneVoices).
+const FILENAME_TAG_STOPWORDS = new Set(["and", "the", "a", "an", "voice", "sample"]);
+
+// Dropped from filename-derived tags (not from the filename entirely - see
+// genderFromFilename) so gender isn't double-represented as both the
+// dedicated gender filter and a generic tag chip in the voice library.
+const GENDER_WORDS = new Set(["male", "female", "man", "woman", "boy", "girl"]);
+
+// Clone voice filenames already encode their own descriptors, e.g.
+// "benedict-smooth-polished-and-british.mp3" -> ["smooth","polished","british"].
+// Drops the leading token (the speaker's name) and any stopword/short/gender
+// tokens. Multi-word names ("cecilia-oconnor-warm-and-conversational.mp3")
+// still leak the surname as a token here ("oconnor") - listCloneVoices
+// filters those out afterward by cross-file frequency instead of trying to
+// detect names token-by-token.
+function tagsFromFilename(file) {
+  const slug = file.replace(/\.(wav|mp3)$/i, "");
+  const parts = slug.split(/[-_]+/).slice(1);
+  return parts
+    .map((w) => w.toLowerCase())
+    .filter((w) => w.length > 2 && !FILENAME_TAG_STOPWORDS.has(w) && !GENDER_WORDS.has(w));
+}
+
+// Best-effort gender signal from a clone filename's own tokens (many
+// explicitly say "male"/"female" - see backend/voices/), used only when
+// voiceMetadata.js has no explicit override for that file.
+function genderFromFilename(file) {
+  const slug = file.toLowerCase();
+  if (/(^|[-_])(female|woman|girl)([-_.]|$)/.test(slug)) return "female";
+  if (/(^|[-_])(male|man|boy)([-_.]|$)/.test(slug)) return "male";
+  return null;
+}
 
 /**
  * Service for generating audio via Pinokio Qwen3-TTS API.
@@ -69,11 +104,16 @@ class AudioService {
         return normalizedSpeaker.includes(normalizedFile) || normalizedFile.includes(normalizedSpeaker);
       });
 
+      const meta = VOICE_METADATA[`custom:${speaker}`] || {};
+
       return {
         id: `custom:${speaker}`,
         speaker,
         label: speaker.replace(/_/g, " "),
         file: file || null,
+        gender: meta.gender || null,
+        accent: meta.accent || null,
+        tags: meta.tags || [],
       };
     });
   }
@@ -89,16 +129,35 @@ class AudioService {
       return [];
     }
 
-    return files
-      .filter((file) => /\.(wav|mp3)$/i.test(file))
-      .map((file) => ({
+    const cloneFiles = files.filter((file) => /\.(wav|mp3)$/i.test(file));
+    const rawTagsByFile = new Map(cloneFiles.map((file) => [file, tagsFromFilename(file)]));
+
+    // Filename tokens are noisy - a one-off surname fragment ("oconnor",
+    // "cartwell") shows up exactly as often as a real descriptor in the raw
+    // token list. Real descriptive vocabulary recurs across multiple voices
+    // ("warm", "smooth", "professional"...); one-off name fragments and
+    // stray filler words don't. Keeping only tags that appear on 2+ files
+    // filters that noise out without a hand-maintained blocklist.
+    const tagFrequency = new Map();
+    for (const tags of rawTagsByFile.values()) {
+      for (const tag of new Set(tags)) tagFrequency.set(tag, (tagFrequency.get(tag) || 0) + 1);
+    }
+
+    return cloneFiles.map((file) => {
+      const meta = VOICE_METADATA[`clone:${file}`] || {};
+      const filteredTags = (rawTagsByFile.get(file) || []).filter((t) => tagFrequency.get(t) >= 2);
+      return {
         id: `clone:${file}`,
         file,
         label: file
           .replace(/\.(wav|mp3)$/i, "")
           .replace(/[_-]+/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase()),
-      }));
+        gender: meta.gender || genderFromFilename(file),
+        accent: meta.accent || null,
+        tags: meta.tags || filteredTags,
+      };
+    });
   }
 
   /**
@@ -197,13 +256,13 @@ class AudioService {
     return this._seedFromJobId(jobId);
   }
 
-  static async _generateCustom(client, resolved, text, seed, instruct = "") {
+  static async _generateCustom(client, resolved, text, seed, instruct = "", fastMode = false) {
     return client.predict("/generate_custom_voice", {
       text,
       language: "Auto",
       speaker: resolved.speaker,
       instruct,
-      model_size: config.tts.modelSize,
+      model_size: fastMode ? config.tts.fastModelSize : config.tts.modelSize,
       seed,
     });
   }
@@ -246,7 +305,7 @@ class AudioService {
     return "Speak naturally and expressively like a human narrator telling a story: vary your pitch, pace and emphasis, add warmth and emotion that fits the content, and avoid a flat monotone reading.";
   }
 
-  static async _generateClone(client, resolved, text, seed) {
+  static async _generateClone(client, resolved, text, seed, fastMode = false) {
     const refText = await this._getReferenceText(
       client,
       resolved.filePath,
@@ -262,7 +321,7 @@ class AudioService {
       target_text: text,
       language: "Auto",
       use_xvector_only: !refText,
-      model_size: config.tts.modelSize,
+      model_size: fastMode ? config.tts.fastModelSize : config.tts.modelSize,
       max_chunk_chars: 200,
       chunk_gap: 0,
       seed,
@@ -312,7 +371,7 @@ class AudioService {
    * below (the public single-scene entry point) still does both together for
    * standalone callers like "regenerate this one scene's audio".
    */
-  static async _synthesizeSceneAudio(jobId, scene, voice) {
+  static async _synthesizeSceneAudio(jobId, scene, voice, fastMode = false) {
     const { text } = scene.audio;
     if (!text) {
       LoggerService.warn("Scene has no audio text, skipping", {
@@ -360,8 +419,8 @@ class AudioService {
         try {
           result =
             resolved.mode === "clone"
-              ? await this._generateClone(client, resolved, text, seed)
-              : await this._generateCustom(client, resolved, text, seed, this._instructFor(scene));
+              ? await this._generateClone(client, resolved, text, seed, fastMode)
+              : await this._generateCustom(client, resolved, text, seed, this._instructFor(scene), fastMode);
         } finally {
           client.close();
         }
@@ -443,8 +502,8 @@ class AudioService {
    * by standalone "regenerate this one scene" callers that have no next
    * scene to pipeline alignment against (see _synthesizeSceneAudio).
    */
-  static async generateSceneAudio(jobId, scene, voice) {
-    const result = await this._synthesizeSceneAudio(jobId, scene, voice);
+  static async generateSceneAudio(jobId, scene, voice, fastMode = false) {
+    const result = await this._synthesizeSceneAudio(jobId, scene, voice, fastMode);
     if (!result) return null;
     const captionTimestamps = await this._alignCaptions(result.path);
     return { ...result, captionTimestamps };
@@ -456,7 +515,7 @@ class AudioService {
    * Deliberately separate from _synthesizeSceneAudio - that one is keyed off
    * a jobId+scene shape (script.scenes) this caller doesn't have.
    */
-  static async _synthesizeToFile(outputFile, text, voice, seed, instruct, logCtx) {
+  static async _synthesizeToFile(outputFile, text, voice, seed, instruct, logCtx, fastMode = false) {
     const resolved = await this.resolveVoice(voice);
     let lastError = null;
 
@@ -479,8 +538,8 @@ class AudioService {
         try {
           result =
             resolved.mode === "clone"
-              ? await this._generateClone(client, resolved, text, seed)
-              : await this._generateCustom(client, resolved, text, seed, instruct);
+              ? await this._generateClone(client, resolved, text, seed, fastMode)
+              : await this._generateCustom(client, resolved, text, seed, instruct, fastMode);
         } finally {
           client.close();
         }
@@ -536,7 +595,7 @@ class AudioService {
    * video-job scene pipeline above - no jobId/sceneNumber, just an
    * AudioGeneration id and raw text.
    */
-  static async generateStandaloneAudio(id, text, voice, emotion = "") {
+  static async generateStandaloneAudio(id, text, voice, emotion = "", fastMode = false) {
     const audioDir = path.resolve(__dirname, "../../../jobs", "audio-studio", id);
     await fs.mkdir(audioDir, { recursive: true });
     const outputFile = path.join(audioDir, "audio.mp3");
@@ -546,8 +605,35 @@ class AudioService {
       ? `Speak naturally like a human narrator, with this delivery: ${trimmedEmotion}.`
       : "Speak naturally and expressively like a human narrator: vary your pitch, pace and emphasis, add warmth and emotion that fits the content, and avoid a flat monotone reading.";
 
-    const result = await this._synthesizeToFile(outputFile, text, voice, seed, instruct, { id });
+    const result = await this._synthesizeToFile(outputFile, text, voice, seed, instruct, { id }, fastMode);
     return { file: "audio.mp3", ...result };
+  }
+
+  /**
+   * One chunk of a long single-voice standalone request (see
+   * utils/textChunking.chunkText) - synthesized to its own file
+   * (chunk0.mp3, chunk1.mp3, ...), merged into the final audioUrl by the
+   * controller afterward (same shape as generateDialogueTurnAudio below,
+   * minus a per-chunk voice since single mode uses one voice throughout).
+   */
+  static async generateStandaloneAudioChunk(id, chunkIndex, text, voice, emotion = "", fastMode = false) {
+    const audioDir = path.resolve(__dirname, "../../../jobs", "audio-studio", id);
+    await fs.mkdir(audioDir, { recursive: true });
+    const file = `chunk${chunkIndex}.mp3`;
+    const outputFile = path.join(audioDir, file);
+
+    // Per-chunk seed (id + chunkIndex), same reasoning as
+    // generateDialogueTurnAudio - keeps prosody varied across chunks
+    // instead of every chunk sounding byte-identical, while staying fully
+    // deterministic/resumable.
+    const seed = this._seedFromJobId(`${id}:${chunkIndex}`);
+    const trimmedEmotion = emotion?.trim();
+    const instruct = trimmedEmotion
+      ? `Speak naturally like a human narrator, with this delivery: ${trimmedEmotion}.`
+      : "Speak naturally and expressively like a human narrator: vary your pitch, pace and emphasis, add warmth and emotion that fits the content, and avoid a flat monotone reading.";
+
+    const result = await this._synthesizeToFile(outputFile, text, voice, seed, instruct, { id, chunk: chunkIndex }, fastMode);
+    return { file, ...result };
   }
 
   /**
@@ -569,7 +655,7 @@ class AudioService {
    * file (turn0.mp3, turn1.mp3, ...); the controller merges them into a
    * single output file afterward (see utils/wavAudio.concatWavFiles).
    */
-  static async generateDialogueTurnAudio(id, turnIndex, text, voice, speakerName, emotion = "") {
+  static async generateDialogueTurnAudio(id, turnIndex, text, voice, speakerName, emotion = "", fastMode = false) {
     const audioDir = path.resolve(__dirname, "../../../jobs", "audio-studio", id);
     await fs.mkdir(audioDir, { recursive: true });
     const file = `turn${turnIndex}.mp3`;
@@ -585,11 +671,15 @@ class AudioService {
       ? `Speak like ${speakerName} in a live, natural conversation, with this delivery: ${trimmedEmotion}.`
       : `Speak like ${speakerName} in a live, natural conversation: warm, engaged, and reacting to what was just said - not reading a monologue.`;
 
-    const result = await this._synthesizeToFile(outputFile, text, voice, seed, instruct, {
-      id,
-      turn: turnIndex,
-      speaker: speakerName,
-    });
+    const result = await this._synthesizeToFile(
+      outputFile,
+      text,
+      voice,
+      seed,
+      instruct,
+      { id, turn: turnIndex, speaker: speakerName },
+      fastMode,
+    );
     return { file, ...result };
   }
 
@@ -609,7 +699,7 @@ class AudioService {
    * in flight at once, so it doesn't depend on the TTS server supporting
    * concurrent generation.
    */
-  static async generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled) {
+  static async generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled, fastMode = false) {
     LoggerService.tts("Starting batch audio generation", {
       jobId,
       scenes: scenes.length,
@@ -631,7 +721,7 @@ class AudioService {
         if (typeof checkCancelled === "function") {
           await checkCancelled();
         }
-        synthesizing = this._synthesizeSceneAudio(jobId, scene, voice || scene.audio?.voice);
+        synthesizing = this._synthesizeSceneAudio(jobId, scene, voice || scene.audio?.voice, fastMode);
       }
 
       if (pending) {

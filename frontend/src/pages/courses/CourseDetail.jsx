@@ -32,6 +32,7 @@ import { DescriptionList } from "../../components/ui/DescriptionList";
 import { CircularProgress } from "../../components/ui/CircularProgress";
 import { Progress } from "../../components/ui/Progress";
 import { Select } from "../../components/ui/Select";
+import { Switch } from "../../components/ui/Switch";
 import { VoiceSelect } from "../../components/ui/VoiceSelect";
 import { Input, Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { Table } from "../../components/ui/Table";
@@ -124,7 +125,7 @@ const STYLE_OPTIONS = [
   { value: "business", label: "Business" },
 ];
 
-const EMPTY_FORM = { title: "", topic: "", duration: 5, voice: "female-1", style: "educational", additionalInstructions: "" };
+const EMPTY_FORM = { title: "", topic: "", duration: 5, voice: "female-1", style: "educational", additionalInstructions: "", fastAudio: false };
 
 const CATEGORY_OPTIONS = [
   { value: "Web Development", label: "Web Development" },
@@ -489,6 +490,7 @@ const CourseDetail = () => {
       voice: pickDefaultVoice(prefs.defaultVoice),
       style: prefs.defaultCourseStyle || EMPTY_FORM.style,
       duration: prefs.defaultCourseDuration || EMPTY_FORM.duration,
+      fastAudio: prefs.fastAudioGeneration ?? EMPTY_FORM.fastAudio,
     });
     setFormError("");
     setModalVisible(true);
@@ -520,6 +522,7 @@ const CourseDetail = () => {
       voice: video.voice || EMPTY_FORM.voice,
       style: video.style || EMPTY_FORM.style,
       additionalInstructions: video.additionalInstructions || "",
+      fastAudio: video.fastAudio ?? EMPTY_FORM.fastAudio,
     });
     setVideoEditError("");
     setVideoEditModalVisible(true);
@@ -560,6 +563,7 @@ const CourseDetail = () => {
       voice: pickDefaultVoice(prefs.defaultVoice),
       style: prefs.defaultCourseStyle || EMPTY_FORM.style,
       duration: prefs.defaultCourseDuration || EMPTY_FORM.duration,
+      fastAudio: prefs.fastAudioGeneration ?? EMPTY_FORM.fastAudio,
     });
     setCurriculumError("");
     setCurriculumStep("form");
@@ -1262,6 +1266,13 @@ const CourseDetail = () => {
               onChange={(e) => setFormValues((prev) => ({ ...prev, additionalInstructions: e.target.value }))}
             />
           </div>
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border-light px-3 py-2.5">
+            <div>
+              <Label className="mb-0.5">Fast Audio (0.6B)</Label>
+              <FieldHint>Smaller, faster TTS model - quicker narration, lower quality</FieldHint>
+            </div>
+            <Switch checked={formValues.fastAudio} onChange={(v) => setFormValues((prev) => ({ ...prev, fastAudio: v }))} />
+          </div>
         </div>
       </Modal>
 
@@ -1335,6 +1346,13 @@ const CourseDetail = () => {
               value={videoEditForm.additionalInstructions}
               onChange={(e) => setVideoEditForm((prev) => ({ ...prev, additionalInstructions: e.target.value }))}
             />
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border-light px-3 py-2.5">
+            <div>
+              <Label className="mb-0.5">Fast Audio (0.6B)</Label>
+              <FieldHint>Smaller, faster TTS model - quicker narration, lower quality</FieldHint>
+            </div>
+            <Switch checked={videoEditForm.fastAudio} onChange={(v) => setVideoEditForm((prev) => ({ ...prev, fastAudio: v }))} />
           </div>
         </div>
       </Modal>
@@ -1420,6 +1438,13 @@ const CourseDetail = () => {
                 <Label>Style</Label>
                 <Select options={STYLE_OPTIONS} value={curriculumForm.style} onChange={(v) => setCurriculumForm((prev) => ({ ...prev, style: v }))} />
               </div>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border-light px-3 py-2.5">
+              <div>
+                <Label className="mb-0.5">Fast Audio (0.6B)</Label>
+                <FieldHint>Smaller, faster TTS model for every lesson - quicker narration, lower quality</FieldHint>
+              </div>
+              <Switch checked={curriculumForm.fastAudio} onChange={(v) => setCurriculumForm((prev) => ({ ...prev, fastAudio: v }))} />
             </div>
           </div>
         ) : (

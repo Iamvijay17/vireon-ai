@@ -3,28 +3,84 @@ const path = require('path');
 const AudioGeneration = require('../models/AudioGeneration');
 const AudioService = require('../services/TTS/audioService');
 const LoggerService = require('../services/LoggerService');
+const SocketService = require('../services/SocketService');
+const { SOCKET_EVENTS } = require('../constants');
 const { parseDialogueScript } = require('../utils/parseDialogueScript');
+const { chunkText } = require('../utils/textChunking');
 const { concatWavFiles } = require('../utils/wavAudio');
 const { createAudioSchema, audioIdSchema, createDialogueAudioSchema, validate } = require('../validators');
+
+// Above this length, single-voice text is split into sentence-boundary
+// chunks and synthesized/surfaced progressively (see textChunking.chunkText)
+// instead of one long TTS call the user waits on with no feedback. Short
+// requests (the common case) stay a single call - no chunking overhead.
+const CHUNK_MAX_CHARS = 400;
+// Chunk boundaries are mid-narration, not a speaker handoff (contrast with
+// the dialogue turn gap below, which varies 0.25-0.55s to avoid sounding
+// metronomic across many turns) - a small fixed pause is enough here.
+const CHUNK_GAP_SECONDS = 0.2;
 
 class AudioController {
   /**
    * POST /api/audio/generate - Synthesize standalone TTS audio from raw
    * text (Audio Studio). Synchronous - the TTS call itself is the slow part
-   * (tens of seconds), same tradeoff as regenerateSceneAudio.
+   * (tens of seconds), same tradeoff as regenerateSceneAudio. Text over
+   * CHUNK_MAX_CHARS is split into sentence-boundary chunks and synthesized
+   * progressively (each chunk saved + pushed over the socket as it finishes)
+   * so the client can start playing before the whole thing is done, mirroring
+   * generateDialogue's per-turn approach below.
    */
   static async generate(req, res, next) {
     let record;
     try {
-      const { text, voice, emotion } = validate(createAudioSchema)(req.body);
-      record = await AudioGeneration.create({ text, voice, emotion, status: 'PENDING' });
+      const { text, voice, emotion, fastMode } = validate(createAudioSchema)(req.body);
+      const textChunks = chunkText(text, CHUNK_MAX_CHARS);
 
-      const result = await AudioService.generateStandaloneAudio(record._id, text, voice, emotion);
+      if (textChunks.length <= 1) {
+        record = await AudioGeneration.create({ text, voice, emotion, fastMode, status: 'PENDING' });
+
+        const result = await AudioService.generateStandaloneAudio(record._id, text, voice, emotion, fastMode);
+
+        record.status = 'COMPLETED';
+        record.audioUrl = `/public/audio-studio/${record._id}/${result.file}`;
+        record.duration = result.duration;
+        await record.save();
+
+        return res.status(201).json({ audio: record });
+      }
+
+      record = await AudioGeneration.create({
+        text,
+        voice,
+        emotion,
+        fastMode,
+        chunks: textChunks.map((t, i) => ({ order: i, text: t })),
+        status: 'PENDING',
+      });
+
+      for (let i = 0; i < textChunks.length; i++) {
+        const result = await AudioService.generateStandaloneAudioChunk(record._id, i, textChunks[i], voice, emotion, fastMode);
+        record.chunks[i].file = `/public/audio-studio/${record._id}/${result.file}`;
+        record.chunks[i].duration = result.duration;
+        await record.save();
+        SocketService.emitToJob(record._id, SOCKET_EVENTS.AUDIO_STUDIO_CHUNK_READY, {
+          id: record._id,
+          chunkIndex: i,
+          chunk: record.chunks[i],
+        });
+      }
+
+      const audioDir = path.resolve(__dirname, '../../jobs/audio-studio', record._id);
+      const chunkFilePaths = record.chunks.map((c) => path.join(audioDir, path.basename(c.file)));
+      const merged = await concatWavFiles(chunkFilePaths, () => CHUNK_GAP_SECONDS);
+      const mergedFile = 'audio.mp3';
+      await fs.writeFile(path.join(audioDir, mergedFile), merged.buffer);
 
       record.status = 'COMPLETED';
-      record.audioUrl = `/public/audio-studio/${record._id}/${result.file}`;
-      record.duration = result.duration;
+      record.audioUrl = `/public/audio-studio/${record._id}/${mergedFile}`;
+      record.duration = merged.durationSeconds;
       await record.save();
+      SocketService.emitToJob(record._id, SOCKET_EVENTS.AUDIO_STUDIO_COMPLETED, { id: record._id, audio: record });
 
       res.status(201).json({ audio: record });
     } catch (err) {
@@ -36,6 +92,7 @@ class AudioController {
           id: record._id,
           error: err.message,
         });
+        SocketService.emitToJob(record._id, SOCKET_EVENTS.AUDIO_STUDIO_FAILED, { id: record._id, error: err.message });
         return res.status(500).json({ error: 'Audio generation failed', message: err.message, audio: record });
       }
       next(err);
@@ -54,7 +111,7 @@ class AudioController {
   static async generateDialogue(req, res, next) {
     let record;
     try {
-      const { script, speakers } = validate(createDialogueAudioSchema)(req.body);
+      const { script, speakers, fastMode } = validate(createDialogueAudioSchema)(req.body);
 
       const { turns: parsedTurns, unknownSpeakers } = parseDialogueScript(script, speakers);
       if (unknownSpeakers.length > 0) {
@@ -79,6 +136,7 @@ class AudioController {
         mode: 'dialogue',
         text: script,
         speakers,
+        fastMode,
         turns: parsedTurns.map((t, i) => ({ order: i, speaker: t.speaker, voice: t.voice, text: t.text, emotion: t.emotion })),
         status: 'PENDING',
       });
@@ -92,6 +150,7 @@ class AudioController {
           turn.voice,
           turn.speaker,
           turn.emotion,
+          fastMode,
         );
         record.turns[i].file = `/public/audio-studio/${record._id}/${result.file}`;
         record.turns[i].duration = result.duration;
@@ -100,6 +159,14 @@ class AudioController {
         // "Pending" spinner, and so a crash mid-run leaves a record of how
         // far it got instead of nothing at all.
         await record.save();
+        // Push the turn to any client watching this generation's room, so
+        // it can play this turn immediately instead of waiting for the
+        // whole (possibly multi-minute) dialogue to finish and merge.
+        SocketService.emitToJob(record._id, SOCKET_EVENTS.AUDIO_STUDIO_TURN_READY, {
+          id: record._id,
+          turnIndex: i,
+          turn: record.turns[i],
+        });
       }
 
       const audioDir = path.resolve(__dirname, '../../jobs/audio-studio', record._id);
@@ -114,6 +181,7 @@ class AudioController {
       record.audioUrl = `/public/audio-studio/${record._id}/${mergedFile}`;
       record.duration = merged.durationSeconds;
       await record.save();
+      SocketService.emitToJob(record._id, SOCKET_EVENTS.AUDIO_STUDIO_COMPLETED, { id: record._id, audio: record });
 
       res.status(201).json({ audio: record });
     } catch (err) {
@@ -125,6 +193,7 @@ class AudioController {
           id: record._id,
           error: err.message,
         });
+        SocketService.emitToJob(record._id, SOCKET_EVENTS.AUDIO_STUDIO_FAILED, { id: record._id, error: err.message });
         return res.status(500).json({ error: 'Audio generation failed', message: err.message, audio: record });
       }
       next(err);

@@ -36,6 +36,12 @@ const audioGenerationSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Whether this generation used the smaller/faster Qwen3-TTS 0.6B model
+    // instead of the default 1.7B - see AudioService.generateStandaloneAudio.
+    fastMode: {
+      type: Boolean,
+      default: false,
+    },
     // Dialogue mode only: the speaker roster the script's "Name:" prefixes
     // were resolved against.
     speakers: [
@@ -59,6 +65,21 @@ const audioGenerationSchema = new mongoose.Schema(
         // Parsed from an optional "Name (emotion): line" prefix - see
         // parseDialogueScript.
         emotion: { type: String, default: '' },
+        file: { type: String, default: null },
+        duration: { type: Number, default: null },
+      },
+    ],
+    // Single mode only, and only populated when the input text is long
+    // enough to be split (see utils/textChunking.chunkText) - one entry per
+    // synthesized chunk, in order, mirroring `turns` above minus a
+    // per-entry voice (single mode uses one voice throughout). Short single
+    // requests never populate this - they stay a single synthesis call and
+    // skip straight to audioUrl/duration.
+    chunks: [
+      {
+        _id: false,
+        order: { type: Number, required: true },
+        text: { type: String, required: true },
         file: { type: String, default: null },
         duration: { type: Number, default: null },
       },

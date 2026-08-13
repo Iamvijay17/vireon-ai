@@ -224,6 +224,11 @@ const SettingsPage = () => {
             <SettingsRow label="Default Course Duration" hint="Preselected when creating a course video">
               <Select options={COURSE_DURATION_OPTIONS} value={settings.defaultCourseDuration} onChange={(v) => updateSetting("defaultCourseDuration", v)} />
             </SettingsRow>
+            <SettingsRow label="Fast Audio Generation" hint="Uses the smaller 0.6B TTS model by default in Audio Studio - quicker, lower quality">
+              <div className="flex justify-end">
+                <Switch checked={settings.fastAudioGeneration} onChange={(v) => updateSetting("fastAudioGeneration", v)} />
+              </div>
+            </SettingsRow>
           </CardBody>
         </Card>
 

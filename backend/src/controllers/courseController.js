@@ -166,13 +166,14 @@ class CourseController {
    */
   static async createCurriculumVideos(req, res, next) {
     try {
-      const { lessons, voice, style, duration, additionalInstructions } = req.body;
+      const { lessons, voice, style, duration, additionalInstructions, fastAudio } = req.body;
 
       const videos = await CourseVideoService.createFromLessons(req.params.id, lessons, {
         voice,
         style,
         duration,
         additionalInstructions,
+        fastAudio,
       });
 
       res.status(201).json({ videos });

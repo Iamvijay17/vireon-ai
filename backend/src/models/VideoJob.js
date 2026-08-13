@@ -91,6 +91,13 @@ const videoJobSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Unrelated to fastGeneration above: uses the smaller/faster Qwen3-TTS
+    // 0.6B model for this job's narration instead of the default 1.7B -
+    // trades some audio quality for speed. See AudioService's fastMode param.
+    fastAudio: {
+      type: Boolean,
+      default: false,
+    },
     status: {
       type: String,
       enum: Object.values(JOB_STATUS),

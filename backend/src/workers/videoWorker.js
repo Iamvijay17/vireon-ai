@@ -279,7 +279,8 @@ const worker = new Worker(
               duration: result.duration,
             });
           },
-          () => bailIfCancelled(jobId)
+          () => bailIfCancelled(jobId),
+          videoJob.fastAudio
         );
       } else {
         LoggerService.info('All audio already generated, skipping audio step');

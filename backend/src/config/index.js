@@ -29,6 +29,10 @@ const config = Object.freeze({
   tts: {
     url: process.env.TTS_API_URL || 'http://localhost:7860',
     modelSize: process.env.TTS_MODEL_SIZE || '1.7B',
+    // Smaller/faster model used when the caller opts into "fast generation"
+    // (see AudioService.generateStandaloneAudio's fastMode param) - trades
+    // some quality for speed.
+    fastModelSize: process.env.TTS_FAST_MODEL_SIZE || '0.6B',
     timeout: parseInt(process.env.TTS_TIMEOUT, 10) || 120000,
     maxRetries: parseInt(process.env.TTS_MAX_RETRIES, 10) || 3,
   },

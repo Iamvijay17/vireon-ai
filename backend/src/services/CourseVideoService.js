@@ -90,6 +90,7 @@ class CourseVideoService {
       voice: data.voice || 'female-1',
       style: data.style || 'educational',
       additionalInstructions: data.additionalInstructions || '',
+      fastAudio: data.fastAudio ?? false,
       status: VIDEO_STATUS.DRAFT,
     });
 
@@ -126,7 +127,7 @@ class CourseVideoService {
    * appends after existing lessons, never replaces them.
    */
   static async createFromLessons(courseId, lessons, options) {
-    const { voice, style, duration, additionalInstructions } = options;
+    const { voice, style, duration, additionalInstructions, fastAudio } = options;
 
     if (!Array.isArray(lessons) || lessons.length === 0) {
       throw { status: 400, message: 'lessons must be a non-empty array' };
@@ -146,6 +147,7 @@ class CourseVideoService {
         voice: voice || 'female-1',
         style: style || 'educational',
         additionalInstructions: additionalInstructions || '',
+        fastAudio: fastAudio ?? false,
         status: VIDEO_STATUS.DRAFT,
       });
       videos.push(video);
@@ -254,7 +256,7 @@ class CourseVideoService {
   // Fields the client is allowed to edit via update(). Everything else
   // (status, approved, courseId, script, error, retryCount, ...) is
   // pipeline-managed state and must not be settable through this endpoint.
-  static UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'additionalInstructions'];
+  static UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'additionalInstructions', 'fastAudio'];
 
   /**
    * Update a video.
@@ -735,7 +737,8 @@ Rules:
           );
           SocketService.emitCourseVideoSceneAudioReady(video, sceneNumber, result);
         },
-        () => bailIfCancelled(videoId)
+        () => bailIfCancelled(videoId),
+        video.fastAudio
       );
 
       // Update each scene with actual audio duration
@@ -834,7 +837,7 @@ Rules:
     };
 
     try {
-      const [result] = await AudioService.generateAllAudio(jobId, [audioScene], video.voice);
+      const [result] = await AudioService.generateAllAudio(jobId, [audioScene], video.voice, undefined, undefined, video.fastAudio);
       if (!result) {
         throw new Error('Audio generation returned no result');
       }

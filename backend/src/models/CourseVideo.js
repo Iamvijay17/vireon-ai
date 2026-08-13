@@ -53,6 +53,13 @@ const courseVideoSchema = new mongoose.Schema(
       default: '',
       maxlength: 1000,
     },
+    // Uses the smaller/faster Qwen3-TTS 0.6B model for this video's
+    // narration instead of the default 1.7B - trades some audio quality
+    // for speed. See AudioService's fastMode param.
+    fastAudio: {
+      type: Boolean,
+      default: false,
+    },
     status: {
       type: String,
       enum: Object.values(VIDEO_STATUS),

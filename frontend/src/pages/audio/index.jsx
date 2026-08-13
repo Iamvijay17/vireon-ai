@@ -1,28 +1,32 @@
-import { useState, useEffect, useCallback } from "react";
-import { AudioLines, Wand2, Download, Trash2, Loader2, Plus, X, Mic2, RefreshCw } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { AudioLines, Mic2 } from "lucide-react";
 import {
   generateAudio,
   generateDialogueAudio,
   getAudioGenerations,
   deleteAudioGeneration,
   getVoices,
-  resolveMediaUrl,
 } from "../../services/api";
-import { Card, CardHeader } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
+import {
+  connect,
+  joinJobRoom,
+  leaveJobRoom,
+  onAudioStudioTurnReady,
+  onAudioStudioChunkReady,
+  onAudioStudioCompleted,
+  onAudioStudioFailed,
+} from "../../services/socket";
+import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
-import { Textarea, Label, FieldHint, Input } from "../../components/ui/Input";
-import { VoiceSelect } from "../../components/ui/VoiceSelect";
-import { AudioPlayer } from "../../components/ui/AudioPlayer";
-import { Spinner } from "../../components/ui/Spinner";
 import { Tabs } from "../../components/ui/Tabs";
+import { VoiceLibrary } from "../../components/ui/VoiceLibrary";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
-
-const MAX_CHARS = 5000;
-const MAX_SCRIPT_CHARS = 20000;
-const MAX_SPEAKERS = 6;
+import { loadSettings } from "../../shared/settingsStorage";
+import { SingleVoicePanel } from "./SingleVoicePanel";
+import { DialoguePanel } from "./DialoguePanel";
+import { HistoryPanel } from "./HistoryPanel";
 
 const FALLBACK_VOICES = [
   { value: "female-1", label: "Female Voice 1" },
@@ -34,9 +38,10 @@ const DEFAULT_SPEAKERS = [
   { name: "Guest", voice: "" },
 ];
 
-const DIALOGUE_PLACEHOLDER = `Host: Welcome back to the show! Today we're talking about something really interesting.
-Guest (a little nervous, half-laughing): Thanks for having me, I'm excited to dig into this.
-Host (warm and curious): So let's start from the beginning...`;
+// Fallback poll while a generation is in flight, purely as a safety net in
+// case a socket event gets dropped (tab backgrounded, brief reconnect) -
+// the socket events below are the primary progress mechanism, this is not.
+const SAFETY_POLL_MS = 15000;
 
 const AudioPage = () => {
   const [mode, setMode] = useState("single");
@@ -50,6 +55,11 @@ const AudioPage = () => {
   const [speakers, setSpeakers] = useState(DEFAULT_SPEAKERS);
   const [script, setScript] = useState("");
 
+  // Shared across both modes: use the smaller/faster Qwen3-TTS 0.6B model
+  // instead of the default 1.7B - trades some quality for speed. Defaults
+  // to the Settings page's "Fast Audio Generation" preference.
+  const [fastMode, setFastMode] = useState(() => loadSettings().fastAudioGeneration);
+
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
   const [generating, setGenerating] = useState(false);
   const [history, setHistory] = useState([]);
@@ -58,9 +68,33 @@ const AudioPage = () => {
   const [deletingId, setDeletingId] = useState(null);
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
+  // Voice Library modal - `target` is "single" or a speaker index (number),
+  // so the same browser feeds either the single-voice field or one dialogue
+  // speaker's voice depending on which "Browse voices" affordance opened it.
+  const [libraryTarget, setLibraryTarget] = useState(null);
+
+  // Id of the AudioGeneration record currently streaming progress over the
+  // socket - only one generation can be in flight at a time (the Generate
+  // button is disabled while `generating`), so a single ref is enough.
+  const trackedIdRef = useRef(null);
+
   const voiceOptions = [
-    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom", previewUrl: v.previewUrl })),
-    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
+    ...voiceCatalog.custom.map((v) => ({
+      value: v.id,
+      label: v.label,
+      description: "Custom",
+      previewUrl: v.previewUrl,
+      tags: v.tags,
+      gender: v.gender,
+    })),
+    ...voiceCatalog.clone.map((v) => ({
+      value: v.id,
+      label: v.label,
+      description: "Clone",
+      previewUrl: v.previewUrl,
+      tags: v.tags,
+      gender: v.gender,
+    })),
   ];
   if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
 
@@ -68,8 +102,10 @@ const AudioPage = () => {
     try {
       setHistoryLoading(true);
       const res = await getAudioGenerations(1, 50);
-      setHistory(res.data?.items || []);
+      const items = res.data?.items || [];
+      setHistory(items);
       setHistoryError(null);
+      return items;
     } catch (err) {
       // Deliberately don't clear `history` here - a transient failure (the
       // backend restarting, a network blip) would otherwise render exactly
@@ -77,9 +113,11 @@ const AudioPage = () => {
       // like it vanished, when it's still safely in the DB. Show an
       // explicit retry instead of silently looking empty.
       setHistoryError(err.friendlyMessage || "Failed to load audio history");
+      return null;
     } finally {
       setHistoryLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -106,6 +144,69 @@ const AudioPage = () => {
     fetchHistory();
   }, [fetchHistory]);
 
+  // Live progress: join the in-flight generation's own room (any entity id
+  // works here, not just video jobs - see SocketService.emitToJob) and patch
+  // that one history item's turns/chunks in place as they arrive, instead of
+  // waiting for the whole (possibly multi-minute) request to resolve.
+  useEffect(() => {
+    connect();
+
+    const patchPieces = (id, key, index, piece) => {
+      if (id !== trackedIdRef.current) return;
+      setHistory((prev) =>
+        prev.map((h) => {
+          if (h._id !== id) return h;
+          const pieces = [...(h[key] || [])];
+          pieces[index] = piece;
+          return { ...h, [key]: pieces };
+        })
+      );
+    };
+
+    const unsubTurn = onAudioStudioTurnReady(({ id, turnIndex, turn }) => patchPieces(id, "turns", turnIndex, turn));
+    const unsubChunk = onAudioStudioChunkReady(({ id, chunkIndex, chunk }) => patchPieces(id, "chunks", chunkIndex, chunk));
+    const unsubCompleted = onAudioStudioCompleted(({ id, audio }) => {
+      if (id !== trackedIdRef.current) return;
+      setHistory((prev) => [audio, ...prev.filter((h) => h._id !== id)]);
+    });
+    const unsubFailed = onAudioStudioFailed(({ id, error }) => {
+      if (id !== trackedIdRef.current) return;
+      setHistory((prev) => prev.map((h) => (h._id === id ? { ...h, status: "FAILED", error } : h)));
+    });
+
+    return () => {
+      unsubTurn();
+      unsubChunk();
+      unsubCompleted();
+      unsubFailed();
+    };
+  }, []);
+
+  // Kicks off tracking for a new generation once its record shows up in
+  // history: the create-then-generate request is one long synchronous call,
+  // so the client only learns the record's id via this side-channel refetch
+  // (the same 700ms delay the old polling-only version used to first surface
+  // "Pending"), not from the request itself, which doesn't resolve until
+  // everything is done.
+  const trackNewGeneration = (previousIds) => {
+    const timer = setTimeout(async () => {
+      const items = await fetchHistory();
+      const created = items?.find((h) => !previousIds.has(h._id) && h.status === "PENDING");
+      if (created) {
+        trackedIdRef.current = created._id;
+        joinJobRoom(created._id);
+      }
+    }, 700);
+    return () => clearTimeout(timer);
+  };
+
+  const stopTracking = () => {
+    if (trackedIdRef.current) {
+      leaveJobRoom(trackedIdRef.current);
+      trackedIdRef.current = null;
+    }
+  };
+
   const handleGenerate = async () => {
     const trimmed = text.trim();
     if (!trimmed) {
@@ -116,21 +217,23 @@ const AudioPage = () => {
       toast.error("Select a voice");
       return;
     }
+    const previousIds = new Set(history.map((h) => h._id));
+    let cancelDiscovery = () => {};
     try {
       setGenerating(true);
-      const genPromise = generateAudio({ text: trimmed, voice, emotion: emotion.trim() });
-      // The DB record is created server-side before synthesis starts, so a
-      // quick refetch shortly after kicking things off surfaces it as
-      // "Pending" instead of leaving the history panel looking unchanged
-      // for the whole (possibly long) generation.
-      setTimeout(() => fetchHistory(), 700);
-      const res = await genPromise;
+      const genPromise = generateAudio({ text: trimmed, voice, emotion: emotion.trim(), fastMode });
+      cancelDiscovery = trackNewGeneration(previousIds);
+      // Slow safety-net poll in case a socket event is dropped.
+      const safetyPoll = setInterval(() => fetchHistory(), SAFETY_POLL_MS);
+      const res = await genPromise.finally(() => clearInterval(safetyPoll));
       setHistory((prev) => [res.data.audio, ...prev.filter((h) => h._id !== res.data.audio._id)]);
       setHistoryError(null);
       toast.success("Audio generated");
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to generate audio");
     } finally {
+      cancelDiscovery();
+      stopTracking();
       setGenerating(false);
     }
   };
@@ -146,22 +249,22 @@ const AudioPage = () => {
       toast.error("Every speaker needs a name and a voice");
       return;
     }
+    const previousIds = new Set(history.map((h) => h._id));
+    let cancelDiscovery = () => {};
     try {
       setGenerating(true);
-      const genPromise = generateDialogueAudio({ script: trimmedScript, speakers: cleanSpeakers });
-      // The backend now saves the record after each turn (not just once at
-      // the end), so poll every few seconds while this is in flight to show
-      // real "N of M turns" progress instead of a static "Pending" spinner
-      // for the whole (possibly multi-minute) generation.
-      setTimeout(() => fetchHistory(), 700);
-      const pollId = setInterval(() => fetchHistory(), 4000);
-      const res = await genPromise.finally(() => clearInterval(pollId));
+      const genPromise = generateDialogueAudio({ script: trimmedScript, speakers: cleanSpeakers, fastMode });
+      cancelDiscovery = trackNewGeneration(previousIds);
+      const safetyPoll = setInterval(() => fetchHistory(), SAFETY_POLL_MS);
+      const res = await genPromise.finally(() => clearInterval(safetyPoll));
       setHistory((prev) => [res.data.audio, ...prev.filter((h) => h._id !== res.data.audio._id)]);
       setHistoryError(null);
       toast.success("Dialogue generated");
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to generate dialogue audio");
     } finally {
+      cancelDiscovery();
+      stopTracking();
       setGenerating(false);
     }
   };
@@ -171,7 +274,7 @@ const AudioPage = () => {
   };
 
   const addSpeaker = () => {
-    if (speakers.length >= MAX_SPEAKERS) return;
+    if (speakers.length >= 6) return;
     setSpeakers((prev) => [...prev, { name: "", voice: voiceOptions[0]?.value || "" }]);
   };
 
@@ -199,16 +302,10 @@ const AudioPage = () => {
     }
   };
 
-  const isSingle = mode === "single";
-  const generateDisabled = isSingle ? generating || !text.trim() || !voice : generating || !script.trim();
-
-  // The Qwen3-TTS voice-clone endpoint has no delivery/style-instruction
-  // parameter at all (unlike the preset "custom" voices) - so "(laughing)"
-  // style notes in the script are parsed fine but have nowhere to go and are
-  // silently ignored for cloned speakers. Surface that up front instead of
-  // letting it look broken.
-  const hasCloneSpeaker = speakers.some((s) => s.voice.startsWith("clone:"));
-  const scriptHasEmotionNotes = /\([^)]+\):/.test(script);
+  const handleLibrarySelect = (voiceId) => {
+    if (libraryTarget === "single") setVoice(voiceId);
+    else if (typeof libraryTarget === "number") updateSpeaker(libraryTarget, { voice: voiceId });
+  };
 
   return (
     <div>
@@ -232,239 +329,63 @@ const AudioPage = () => {
           />
 
           <div className="p-6">
-            {isSingle ? (
-              <>
-                <div>
-                  <Label required>Text</Label>
-                  <Textarea
-                    rows={10}
-                    value={text}
-                    maxLength={MAX_CHARS}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder="Type or paste the text you want to turn into speech..."
-                  />
-                  <FieldHint>{text.length}/{MAX_CHARS} characters</FieldHint>
-                </div>
-
-                <div className="mt-4">
-                  <Label required>Voice</Label>
-                  <VoiceSelect
-                    options={voiceOptions}
-                    value={voice}
-                    onChange={setVoice}
-                    placeholder="Select a voice..."
-                    isFavorite={isFavorite}
-                    onToggleFavorite={toggleFavorite}
-                  />
-                </div>
-
-                <div className="mt-4">
-                  <Label>Emotion / Delivery (optional)</Label>
-                  <Input
-                    value={emotion}
-                    maxLength={200}
-                    onChange={(e) => setEmotion(e.target.value)}
-                    placeholder="e.g. cheerful and energetic, calm and slow, whispering, angry..."
-                  />
-                  <FieldHint>Describe how it should sound. Leave blank for a natural narrator delivery.</FieldHint>
-                </div>
-              </>
+            {mode === "single" ? (
+              <SingleVoicePanel
+                text={text}
+                setText={setText}
+                voice={voice}
+                setVoice={setVoice}
+                emotion={emotion}
+                setEmotion={setEmotion}
+                voiceOptions={voiceOptions}
+                isFavorite={isFavorite}
+                toggleFavorite={toggleFavorite}
+                onBrowseVoices={() => setLibraryTarget("single")}
+                generating={generating}
+                onGenerate={handleGenerate}
+                fastMode={fastMode}
+                setFastMode={setFastMode}
+              />
             ) : (
-              <>
-                <div>
-                  <Label required>Speakers</Label>
-                  <div className="flex flex-col gap-2">
-                    {speakers.map((s, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <Input
-                          className="w-32 shrink-0"
-                          value={s.name}
-                          maxLength={40}
-                          onChange={(e) => updateSpeaker(i, { name: e.target.value })}
-                          placeholder={`Speaker ${i + 1}`}
-                        />
-                        <VoiceSelect
-                          className="min-w-0 flex-1"
-                          options={voiceOptions}
-                          value={s.voice}
-                          onChange={(v) => updateSpeaker(i, { voice: v })}
-                          placeholder="Select a voice..."
-                          isFavorite={isFavorite}
-                          onToggleFavorite={toggleFavorite}
-                        />
-                        {speakers.length > 2 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            iconOnly
-                            aria-label={`Remove speaker ${i + 1}`}
-                            icon={<X className="size-3.5" />}
-                            onClick={() => removeSpeaker(i)}
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  {speakers.length < MAX_SPEAKERS && (
-                    <Button
-                      className="mt-2"
-                      variant="ghost"
-                      size="sm"
-                      icon={<Plus className="size-3.5" />}
-                      onClick={addSpeaker}
-                    >
-                      Add speaker
-                    </Button>
-                  )}
-                </div>
-
-                <div className="mt-4">
-                  <Label required>Script</Label>
-                  <Textarea
-                    rows={10}
-                    value={script}
-                    maxLength={MAX_SCRIPT_CHARS}
-                    onChange={(e) => setScript(e.target.value)}
-                    placeholder={DIALOGUE_PLACEHOLDER}
-                  />
-                  <FieldHint>
-                    One line per turn: "Name: line", or add a delivery note in parentheses - "Name (emotion): line" -
-                    e.g. "Guest (nervous, half-laughing): ...". Lines with no "Name:" prefix continue the previous
-                    speaker's turn. {script.length}/{MAX_SCRIPT_CHARS} characters
-                  </FieldHint>
-                  {hasCloneSpeaker && scriptHasEmotionNotes && (
-                    <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400">
-                      Cloned voices don't support delivery notes - the TTS engine has no style-instruction input for
-                      clone mode, so "(...)" notes will be ignored for {speakers.filter((s) => s.voice.startsWith("clone:")).map((s) => s.name).join(", ")}.
-                      Use a preset voice for that speaker if emotion matters here.
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-
-            <Button
-              className="mt-5 w-full"
-              variant="primary"
-              size="lg"
-              icon={generating ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
-              disabled={generateDisabled}
-              onClick={isSingle ? handleGenerate : handleGenerateDialogue}
-            >
-              {generating ? "Generating..." : isSingle ? "Generate Audio" : "Generate Dialogue"}
-            </Button>
-            {generating && (
-              <p className="mt-2 text-center text-xs text-text-tertiary">
-                {isSingle
-                  ? "This can take up to a minute for longer text."
-                  : "Each turn is synthesized in order - longer scripts can take several minutes."}
-              </p>
+              <DialoguePanel
+                speakers={speakers}
+                updateSpeaker={updateSpeaker}
+                addSpeaker={addSpeaker}
+                removeSpeaker={removeSpeaker}
+                script={script}
+                setScript={setScript}
+                voiceOptions={voiceOptions}
+                isFavorite={isFavorite}
+                toggleFavorite={toggleFavorite}
+                onBrowseVoices={(index) => setLibraryTarget(index)}
+                generating={generating}
+                onGenerate={handleGenerateDialogue}
+                fastMode={fastMode}
+                setFastMode={setFastMode}
+              />
             )}
           </div>
         </Card>
 
-        <Card className="h-fit animate-slide-up" style={{ "--stagger-index": 0.5 }}>
-          <CardHeader title="History" subtitle={`${history.length} generation${history.length === 1 ? "" : "s"}`} />
-          <div className="max-h-[560px] overflow-y-auto p-5">
-            {historyLoading ? (
-              <div className="flex justify-center py-8">
-                <Spinner size="sm" />
-              </div>
-            ) : historyError ? (
-              <div className="flex flex-col items-center gap-2 py-6 text-center">
-                <p className="text-[13px] text-danger-500">{historyError}</p>
-                <p className="text-xs text-text-tertiary">
-                  Your generations are safe on the server - this just couldn't load them.
-                </p>
-                <Button variant="secondary" size="sm" icon={<RefreshCw className="size-3.5" />} onClick={fetchHistory}>
-                  Retry
-                </Button>
-              </div>
-            ) : history.length === 0 ? (
-              <p className="text-[13px] text-text-tertiary">Generated audio will appear here.</p>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {history.map((item) => (
-                  <div key={item._id} className="rounded-xl border border-border-light p-3">
-                    {item.mode === "dialogue" ? (
-                      <>
-                        <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                          <Mic2 className="size-3.5 text-text-tertiary" />
-                          {(item.speakers || []).map((s) => (
-                            <Badge key={s.name} variant="neutral">{s.name}</Badge>
-                          ))}
-                        </div>
-                        <div className="mb-2 flex flex-col gap-0.5">
-                          {(item.turns || []).map((turn) => (
-                            <p key={turn.order} className="text-[11px] text-text-tertiary">
-                              <span className="font-medium">{turn.speaker}:</span> {turn.text}
-                              {turn.emotion && <span className="ml-1 italic">({turn.emotion})</span>}
-                            </p>
-                          ))}
-                        </div>
-                        {item.status === "COMPLETED" && item.audioUrl ? (
-                          <AudioPlayer src={resolveMediaUrl(item.audioUrl)} />
-                        ) : item.status === "FAILED" ? (
-                          <Badge variant="danger">Failed{item.error ? `: ${item.error}` : ""}</Badge>
-                        ) : (
-                          <Badge variant="neutral" icon={<Loader2 className="size-3 animate-spin" />}>
-                            {(() => {
-                              const total = item.turns?.length || 0;
-                              const done = item.turns?.filter((t) => t.file).length || 0;
-                              return total > 0 ? `Generating turn ${Math.min(done + 1, total)} of ${total}` : "Pending";
-                            })()}
-                          </Badge>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <p className="mb-2 line-clamp-2 text-[13px] text-text-secondary">{item.text}</p>
-                        {item.emotion && (
-                          <p className="mb-2 text-[11px] italic text-text-tertiary">Delivery: {item.emotion}</p>
-                        )}
-                        {item.status === "COMPLETED" && item.audioUrl ? (
-                          <AudioPlayer src={resolveMediaUrl(item.audioUrl)} />
-                        ) : item.status === "FAILED" ? (
-                          <Badge variant="danger">Failed{item.error ? `: ${item.error}` : ""}</Badge>
-                        ) : (
-                          <Badge variant="neutral" icon={<Loader2 className="size-3 animate-spin" />}>Pending</Badge>
-                        )}
-                      </>
-                    )}
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-text-tertiary">
-                        {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {item.status === "COMPLETED" && item.audioUrl && (
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            iconOnly
-                            aria-label="Download"
-                            icon={<Download className="size-3.5" />}
-                            href={resolveMediaUrl(item.audioUrl)}
-                            download
-                          />
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          iconOnly
-                          aria-label="Delete"
-                          loading={deletingId === item._id}
-                          icon={<Trash2 className="size-3.5" />}
-                          onClick={() => handleDelete(item)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
+        <HistoryPanel
+          history={history}
+          historyLoading={historyLoading}
+          historyError={historyError}
+          fetchHistory={fetchHistory}
+          deletingId={deletingId}
+          onDelete={handleDelete}
+        />
       </div>
+
+      <VoiceLibrary
+        open={libraryTarget !== null}
+        onClose={() => setLibraryTarget(null)}
+        options={voiceOptions}
+        value={libraryTarget === "single" ? voice : typeof libraryTarget === "number" ? speakers[libraryTarget]?.voice : null}
+        onSelect={handleLibrarySelect}
+        isFavorite={isFavorite}
+        onToggleFavorite={toggleFavorite}
+      />
     </div>
   );
 };

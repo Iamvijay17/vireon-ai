@@ -41,6 +41,10 @@ const createVideoSchema = z
     // script approval). false: manual mode - audio and render each need an
     // explicit trigger, like the course-video pipeline.
     fastGeneration: z.boolean().optional().default(true),
+    // Unrelated to fastGeneration above: uses the smaller/faster Qwen3-TTS
+    // 0.6B model for this job's narration instead of the default 1.7B -
+    // trades some audio quality for speed.
+    fastAudio: z.boolean().optional().default(false),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'podcast') {
@@ -105,6 +109,9 @@ const createAudioSchema = z.object({
   // Free-text delivery/emotion note (e.g. "cheerful and energetic") passed
   // to the TTS model's instruct prompt - see AudioService.generateStandaloneAudio.
   emotion: z.string().max(200).trim().optional().default(''),
+  // When true, uses the smaller/faster Qwen3-TTS 0.6B model instead of the
+  // default 1.7B - trades some quality for speed.
+  fastMode: z.boolean().optional().default(false),
 });
 
 const audioIdSchema = z.object({
@@ -126,6 +133,9 @@ const createDialogueAudioSchema = z.object({
       (speakers) => new Set(speakers.map((s) => s.name.toLowerCase())).size === speakers.length,
       { message: 'Speaker names must be unique' },
     ),
+  // When true, uses the smaller/faster Qwen3-TTS 0.6B model instead of the
+  // default 1.7B - trades some quality for speed.
+  fastMode: z.boolean().optional().default(false),
 });
 
 const jobIdArraySchema = z.object({

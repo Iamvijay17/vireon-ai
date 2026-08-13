@@ -80,6 +80,31 @@ export const onSceneAudioReady = (callback) => {
   return () => socket.off('sceneAudioReady', callback);
 };
 
+// ─── Audio Studio (standalone TTS) Progressive Generation ──────────────────────
+// Fired as each dialogue turn / chunk finishes, ahead of the whole request
+// completing (rooms are joined via the generation's own id - joinJobRoom
+// works for any entity id, not just video jobs, see SocketService.emitToJob).
+
+export const onAudioStudioTurnReady = (callback) => {
+  socket.on('audioStudioTurnReady', callback);
+  return () => socket.off('audioStudioTurnReady', callback);
+};
+
+export const onAudioStudioChunkReady = (callback) => {
+  socket.on('audioStudioChunkReady', callback);
+  return () => socket.off('audioStudioChunkReady', callback);
+};
+
+export const onAudioStudioCompleted = (callback) => {
+  socket.on('audioStudioCompleted', callback);
+  return () => socket.off('audioStudioCompleted', callback);
+};
+
+export const onAudioStudioFailed = (callback) => {
+  socket.on('audioStudioFailed', callback);
+  return () => socket.off('audioStudioFailed', callback);
+};
+
 // ─── Course Video Event Listeners ────────────────────────────────────────────────
 
 export const onCourseVideoCreated = (callback) => {

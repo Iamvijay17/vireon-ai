@@ -158,6 +158,7 @@ const DEFAULT_VALUES = {
   guestName: "",
   resolution: "1920x1080",
   fastGeneration: false,
+  fastAudio: false,
 };
 
 const isVerticalResolution = (value) => VERTICAL_RESOLUTIONS.some((r) => r.value === value);
@@ -174,6 +175,7 @@ const buildInitialValues = () => {
     type,
     language: LANGUAGES.some((l) => l.value === prefs.defaultLanguage) ? prefs.defaultLanguage : DEFAULT_VALUES.language,
     voice: prefs.defaultVoice || DEFAULT_VALUES.voice,
+    fastAudio: prefs.fastAudioGeneration ?? DEFAULT_VALUES.fastAudio,
     // A saved default resolution/duration might not be valid for Shorts
     // (e.g. a landscape default resolution) - fall back to a Shorts-valid
     // default rather than starting the wizard in an invalid state.
@@ -642,6 +644,16 @@ const Wizard = () => {
               </p>
             </div>
             <Switch checked={values.fastGeneration} onChange={(v) => setField("fastGeneration", v)} />
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
+            <div>
+              <Label className="mb-1">Fast Audio (0.6B)</Label>
+              <p className="text-xs text-text-secondary">
+                Uses the smaller, faster Qwen3-TTS 0.6B model for narration instead of the default 1.7B - quicker, lower quality.
+              </p>
+            </div>
+            <Switch checked={values.fastAudio} onChange={(v) => setField("fastAudio", v)} />
           </div>
         </Section>
 

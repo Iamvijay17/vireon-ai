@@ -11,6 +11,10 @@ export const DEFAULT_SETTINGS = {
   defaultCourseStyle: "educational",
   defaultCourseDuration: 5,
   timeFormat: "24h",
+  // Pre-fills Audio Studio's "Fast generation" toggle (0.6B model instead
+  // of the default 1.7B) so repeat users of the faster model don't have to
+  // flip it on every visit.
+  fastAudioGeneration: false,
 };
 
 export const loadSettings = () => {

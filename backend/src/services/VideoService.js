@@ -46,6 +46,7 @@ class VideoService {
       // Not user-selectable - resolution alone determines it.
       aspectRatio: getAspectRatioForResolution(data.resolution || '1920x1080'),
       fastGeneration: data.fastGeneration ?? true,
+      fastAudio: data.fastAudio ?? false,
       status: JOB_STATUS.QUEUED,
       progress: 0,
     });
@@ -303,6 +304,7 @@ class VideoService {
         jobId,
         scene,
         job.voice || scene.audio?.voice,
+        job.fastAudio,
       );
       if (!result) {
         throw new Error('Audio generation returned no result');
