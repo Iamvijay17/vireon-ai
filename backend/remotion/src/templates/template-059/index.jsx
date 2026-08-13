@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 059 - Event
@@ -14,6 +15,7 @@ const Template059 = React.memo(({ scene }) => {
   const image = e.image || ''; const caption = e.caption || '';
   const timestamps = e.captionTimestamps || null;
   const bg = e.backgroundColor || '#0a0a0a'; const accent = e.accentColor || '#f59e0b';
+  const overrides = e.styleConfig || {};
 
   const bgGrad = useMemo(() => ({ background: `linear-gradient(180deg, ${bg} 0%, #1a1410 100%)` }), [bg]);
   const titleO = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
@@ -30,7 +32,7 @@ const Template059 = React.memo(({ scene }) => {
       <div style={{ position: 'absolute', top: 0, left: `${spotX}%`, width: 400, height: '100%', background: `linear-gradient(180deg, ${accent}15, transparent)`, transform: 'translateX(-50%)', opacity: spotO, clipPath: 'polygon(40% 0%, 60% 0%, 80% 100%, 20% 100%)' }} />
       <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '80px', boxSizing: 'border-box' }}>
         {image && <div style={{ width: 130, height: 130, borderRadius: '50%', overflow: 'hidden', border: `3px solid ${accent}`, boxShadow: `0 0 30px ${accent}30`, marginBottom: 20, transform: `scale(${interpolate(frame, [0, 25], [0.8, 1], {extrapolateRight: 'clamp'})})` }}><Img src={image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
-        {title && <h1 style={{ color: '#fff', fontSize: 56, fontWeight: 800, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 8, opacity: titleO, transform: `translateY(${titleY}px)` }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 56, fontWeight: 800, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 8, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         {speaker && <p style={{ color: accent, fontSize: 22, fontWeight: 600, fontFamily: "'Inter', Arial, sans-serif", margin: 0, marginBottom: 4, opacity: spO }}>{speaker}</p>}
         {date && <p style={{ color: '#9ca3af', fontSize: 18, fontWeight: 400, fontFamily: "'Inter', Arial, sans-serif", margin: 0, opacity: dateO }}>{date}</p>}
       </div>

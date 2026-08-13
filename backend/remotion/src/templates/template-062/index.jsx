@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { typography, palette, mergeStyle } from '../../theme';
+import { typography, palette, mergeStyle, positionStyle } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -51,7 +51,7 @@ const Template062 = React.memo(({ scene }) => {
     return stats.map((s) => ({ heading: s.value, text: s.label }));
   }, [elements.items, elements.bullets, elements.stats]);
 
-  const titleStyle = mergeStyle({ ...typography.title, fontSize: 56, textAlign: 'left', marginBottom: 16 }, overrides.title);
+  const titleStyle = mergeStyle({ ...typography.title, fontSize: 56, textAlign: 'left', marginBottom: 16, ...positionStyle(overrides.title?.position) }, overrides.title);
   const rowTextStyle = mergeStyle(typography.body, overrides.body);
   const rowHeadingStyle = mergeStyle(
     { ...typography.body, fontWeight: 600, color: palette.textOnDark, marginRight: 8 },

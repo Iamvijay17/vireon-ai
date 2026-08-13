@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio } from 'remotion';
 import { styles } from './styles';
 import { useTemplate026Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 026 - Definition / Glossary
@@ -15,6 +16,7 @@ const Template026 = React.memo(({ scene }) => {
   const definition = elements.definition || elements.body || '';
   const example = elements.example || '';
   const bgColor = elements.backgroundColor || backgroundColors.navy;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate026Animations({ frameOffset: 0 });
 
@@ -23,7 +25,11 @@ const Template026 = React.memo(({ scene }) => {
       <div style={{ ...styles.container, ...anim.bgStyle }}>
         {term && <div style={{ ...styles.term, ...anim.termStyle }}>{term}</div>}
         <div style={{ ...styles.divider, ...anim.dividerStyle }} />
-        {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
+        {title && (
+          <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            {title}
+          </h1>
+        )}
         {definition && <p style={{ ...styles.definition, ...anim.defStyle }}>{definition}</p>}
         {example && (
           <div style={{ ...styles.example, ...anim.exStyle }}>

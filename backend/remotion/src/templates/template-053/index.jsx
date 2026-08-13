@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 053 - Travel
@@ -13,6 +14,7 @@ const Template053 = React.memo(({ scene }) => {
   const title = e.title || ''; const location = e.location || ''; const image = e.image || '';
   const caption = e.caption || ''; const timestamps = e.captionTimestamps || null;
   const bg = e.backgroundColor || '#0a1628'; const accent = e.accentColor || '#22d3ee';
+  const overrides = e.styleConfig || {};
 
   const bgGrad = useMemo(() => ({ background: `linear-gradient(180deg, ${bg} 0%, #0f2847 100%)` }), [bg]);
   const titleO = interpolate(frame, [0, 18], [0, 1], { extrapolateRight: 'clamp' });
@@ -37,7 +39,7 @@ const Template053 = React.memo(({ scene }) => {
           </div>
         )}
         {location && <p style={{ color: accent, fontSize: 18, fontWeight: 600, margin: 0, marginBottom: 4, opacity: locO, transform: `translateY(${pinBounce}px)` }}>📍 {location}</p>}
-        {title && <h1 style={{ color: '#fff', fontSize: 48, fontWeight: 700, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, opacity: titleO, transform: `translateY(${titleY}px)` }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 48, fontWeight: 700, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
       </div>
       <CaptionRenderer text={caption} animation="slideLeft" animationConfig={{ slideDistance: 35 }} styleConfig={{ position: 'bottom', fontFamily: "'Inter', Arial, sans-serif", fontWeight: 600, fontSize: 34, textColor: '#ffffff', backgroundColor: 'rgba(0,0,0,0.5)', backgroundPadding: '12px 24px', borderRadius: 10, framesPerWord: 3 }} timestamps={timestamps} fps={fps} />
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio } from 'remotion';
 import { styles } from './styles';
 import { useTemplate010Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 010 - Split Screen / Hero
@@ -14,6 +15,7 @@ const Template010 = React.memo(({ scene }) => {
   const subtitle = elements.subtitle || '';
   const stats = elements.stats || elements.items || [];
   const bgColor = elements.backgroundColor || backgroundColors.dark;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate010Animations({ frameOffset: 0 });
 
@@ -35,8 +37,8 @@ const Template010 = React.memo(({ scene }) => {
         {/* Left Panel */}
         <div style={{ ...styles.leftPanel, ...anim.leftStyle }}>
           <div style={styles.accentBar} />
-          {title && <h1 style={styles.title}>{title}</h1>}
-          {subtitle && <p style={styles.subtitle}>{subtitle}</p>}
+          {title && <h1 style={mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+          {subtitle && <p style={mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         </div>
 
         {/* Right Panel */}

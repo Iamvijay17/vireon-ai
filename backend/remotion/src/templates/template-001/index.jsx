@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, Img, staticFile } from 'remotion';
 import { styles } from './styles';
 import { useTemplate001Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 001 - Educational Card
@@ -27,6 +28,7 @@ const Template001 = React.memo(({ scene }) => {
   const subtitle = elements.subtitle || '';
   const image = elements.image || '';
   const bgColor = elements.backgroundColor || backgroundColors.dark;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate001Animations({ frameOffset: 0 });
 
@@ -52,14 +54,14 @@ const Template001 = React.memo(({ scene }) => {
 
           {/* Title */}
           {title && (
-            <h1 style={{ ...styles.title, ...anim.headingStyle }}>
+            <h1 style={mergeStyle({ ...styles.title, ...anim.headingStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
               {title}
             </h1>
           )}
 
           {/* Subtitle */}
           {subtitle && (
-            <p style={{ ...styles.subtitle, ...anim.subtitleStyle }}>
+            <p style={mergeStyle({ ...styles.subtitle, ...anim.subtitleStyle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
               {subtitle}
             </p>
           )}

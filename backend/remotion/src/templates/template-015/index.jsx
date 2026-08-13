@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
-import { spacing, mergeStyle } from '../../theme';
+import { spacing, mergeStyle, positionStyle } from '../../theme';
 import { useFadeInOut, useSlideUp } from '../../animations';
 
 /**
@@ -51,7 +51,7 @@ const Template015 = React.memo(({ scene }) => {
   const bgColor = elements.backgroundColor || backgroundColors.dark;
   const overrides = elements.styleConfig || {};
   const titleFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 12 });
-  const titleStyle = mergeStyle(s.title, overrides.title);
+  const titleStyle = mergeStyle({ ...s.title, ...positionStyle(overrides.title?.position) }, overrides.title);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>

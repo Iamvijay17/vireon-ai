@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, Img } from 'remotion';
 import { styles } from './styles';
 import { useTemplate011Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 011 - Team/Profiles
@@ -13,13 +14,14 @@ const Template011 = React.memo(({ scene }) => {
   const title = elements.title || '';
   const members = elements.members || elements.items || [];
   const bgColor = elements.backgroundColor || backgroundColors.navy;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate011Animations({ frameOffset: 0 });
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
-        {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         <div style={styles.cardRow}>
           {members.map((member, index) => (
             <div key={index} style={{ ...styles.profileCard, ...anim.getCardAnim(index) }}>

@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useSlideLeft, useSlideRight } from '../../animations';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 004 - Timeline (Content)
@@ -58,6 +59,7 @@ const Template004 = React.memo(({ scene }) => {
   const title = elements.title || '';
   const items = elements.items || [];
   const bgColor = elements.backgroundColor || backgroundColors.slate;
+  const overrides = elements.styleConfig || {};
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const titleFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 12 });
@@ -65,7 +67,7 @@ const Template004 = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={s.container}>
-        {title && <h1 style={{ ...s.title, opacity: titleFade }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         <div style={s.flow}>
           <div style={s.line} />
           {items.map((item, index) => (

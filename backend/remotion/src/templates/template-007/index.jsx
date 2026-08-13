@@ -3,7 +3,7 @@ import { AbsoluteFill, Audio } from 'remotion';
 import { styles } from './styles';
 import { useTemplate007Animations } from './animations';
 import { backgroundColors } from '../../styles';
-import { mergeStyle } from '../../theme';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 007 - Stats Dashboard
@@ -19,7 +19,7 @@ const Template007 = React.memo(({ scene }) => {
 
   const anim = useTemplate007Animations({ frameOffset: 0 });
 
-  const titleStyle = mergeStyle(styles.title, overrides.title);
+  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
   const valueStyle = mergeStyle(styles.statValue, overrides.accentColor ? { color: overrides.accentColor } : {});
 
   return (

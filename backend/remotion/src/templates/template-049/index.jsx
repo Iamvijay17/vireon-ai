@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 049 - Tutorial
@@ -13,6 +14,7 @@ const Template049 = React.memo(({ scene }) => {
   const title = e.title || ''; const step = e.step || ''; const body = e.body || '';
   const caption = e.caption || ''; const timestamps = e.captionTimestamps || null;
   const bg = e.backgroundColor || '#0d1117'; const accent = e.accentColor || '#22c55e';
+  const overrides = e.styleConfig || {};
 
   const bgGrad = useMemo(() => ({ background: `linear-gradient(180deg, ${bg} 0%, #161b22 100%)` }), [bg]);
   const titleO = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: 'clamp' });
@@ -28,7 +30,7 @@ const Template049 = React.memo(({ scene }) => {
       <div style={{ position: 'absolute', top: 80, left: 60, bottom: 160, width: 3, backgroundColor: accent, transform: `scaleY(${borderX})`, transformOrigin: 'top', opacity: 0.6 }} />
 
       <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '60px 60px 160px 100px', boxSizing: 'border-box' }}>
-        {title && <h1 style={{ color: '#fff', fontSize: 44, fontWeight: 700, fontFamily: "'JetBrains Mono', 'Fira Code', monospace", margin: 0, marginBottom: 24, opacity: titleO, transform: `translateY(${titleY}px)` }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 44, fontWeight: 700, fontFamily: "'JetBrains Mono', 'Fira Code', monospace", margin: 0, marginBottom: 24, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         {step && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
             <span style={{ backgroundColor: accent, color: '#000', fontSize: 20, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", padding: '4px 12px', borderRadius: 6, transform: `scale(${stepS})` }}>{step}</span>

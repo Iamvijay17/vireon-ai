@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 046 - Tech Review
@@ -19,6 +20,7 @@ const Template046 = React.memo(({ scene }) => {
   const timestamps = e.captionTimestamps || null;
   const bg = e.backgroundColor || '#0a0a1a';
   const accent = e.accentColor || '#22d3ee';
+  const overrides = e.styleConfig || {};
 
   const bgGrad = useMemo(() => ({ background: `linear-gradient(160deg, ${bg} 0%, #0d1b2a 50%, #1b2838 100%)` }), [bg]);
   const titleO = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
@@ -41,8 +43,8 @@ const Template046 = React.memo(({ scene }) => {
             <Img src={deviceImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
-        {title && <h1 style={{ color: '#fff', fontSize: 52, fontWeight: 800, fontFamily: "'SF Pro', 'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 8, lineHeight: 1.1, opacity: titleO, transform: `translateY(${titleY}px)` }}>{title}</h1>}
-        {subtitle && <p style={{ color: '#94a3b8', fontSize: 24, fontWeight: 400, fontFamily: "'SF Pro', 'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 16, opacity: subO }}>{subtitle}</p>}
+        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 52, fontWeight: 800, fontFamily: "'SF Pro', 'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 8, lineHeight: 1.1, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {subtitle && <p style={mergeStyle({ color: '#94a3b8', fontSize: 24, fontWeight: 400, fontFamily: "'SF Pro', 'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 16, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         {/* Specs chips */}
         {specs.length > 0 && (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', opacity: subO }}>

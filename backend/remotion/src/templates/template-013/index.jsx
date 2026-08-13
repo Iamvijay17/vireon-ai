@@ -3,7 +3,7 @@ import { AbsoluteFill, Audio } from 'remotion';
 import { styles } from './styles';
 import { useTemplate013Animations } from './animations';
 import { backgroundColors } from '../../styles';
-import { mergeStyle } from '../../theme';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 013 - Steps / How-To
@@ -23,7 +23,7 @@ const Template013 = React.memo(({ scene }) => {
   const items = elements.items || elements.steps || [];
   const bgColor = elements.backgroundColor || backgroundColors.slate;
   const overrides = elements.styleConfig || {};
-  const titleStyle = mergeStyle(styles.title, overrides.title);
+  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
 
   const anim = useTemplate013Animations({ frameOffset: 0 });
 

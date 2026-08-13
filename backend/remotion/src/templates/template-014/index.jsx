@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio } from 'remotion';
 import { styles } from './styles';
 import { useTemplate014Animations } from './animations';
 import { backgroundColors, accentColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 014 - Bar Chart
@@ -13,6 +14,7 @@ const Template014 = React.memo(({ scene }) => {
   const title = elements.title || '';
   const bars = elements.bars || elements.items || [];
   const bgColor = elements.backgroundColor || backgroundColors.navy;
+  const overrides = elements.styleConfig || {};
   const barColors = ['#60a5fa', '#34d399', '#a78bfa', '#fb923c', '#f472b6', '#fbbf24'];
 
   const anim = useTemplate014Animations({ frameOffset: 0 });
@@ -20,7 +22,7 @@ const Template014 = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
-        {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         <div style={styles.barChart}>
           {bars.map((bar, index) => {
             const value = parseInt(bar.value) || 0;

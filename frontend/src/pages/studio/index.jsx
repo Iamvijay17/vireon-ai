@@ -42,6 +42,7 @@ import { LoadingState, EmptyState } from "../../components";
 import { ScenePreview } from "../../components/video/ScenePreview";
 import { SceneThumbnail } from "../../components/video/SceneThumbnail";
 import { TemplatePickerModal } from "../../components/video/TemplatePickerModal";
+import { TextPositionPad } from "../../components/video/TextPositionPad";
 import { useForceSidebarCollapsed } from "../../shared/sidebarContextValue";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -61,10 +62,6 @@ const SCENE_TYPE_OPTIONS = [
   { value: "image", label: "Image" },
 ];
 
-// Only these templates currently read `elements.styleConfig` (see theme.js's
-// mergeStyle pattern) - keep in sync with any template that adds support.
-const STYLE_EDITABLE_TEMPLATE_IDS = ["template-041", "template-062", "template-063", "template-007", "template-038", "template-015", "template-017"];
-
 // Templates standardized on `elements.items: [{ heading?, text? }]` - keep in
 // sync with STANDARDIZED_ITEMS_TEMPLATE_IDS in backend/src/controllers/sceneController.js.
 const ITEMS_EDITABLE_TEMPLATE_IDS = ["template-004", "template-009", "template-013", "template-015", "template-032", "template-037", "template-038"];
@@ -73,12 +70,6 @@ const FONT_WEIGHT_OPTIONS = [
   { value: 300, label: "Light" },
   { value: 400, label: "Regular" },
   { value: 700, label: "Bold" },
-];
-
-const TEXT_POSITION_OPTIONS = [
-  { value: "left", label: "Left" },
-  { value: "center", label: "Center" },
-  { value: "right", label: "Right" },
 ];
 
 const FONT_FAMILY_OPTIONS = [
@@ -793,90 +784,88 @@ const StudioPage = () => {
 
               <div>
                 <SectionLabel icon={Palette}>Template Style</SectionLabel>
-                {STYLE_EDITABLE_TEMPLATE_IDS.includes(scene.templateId) ? (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Text Position">
-                        <Select
-                          value={scene.elements?.styleConfig?.title?.textAlign ?? "center"}
-                          onChange={(v) => handleTextStyleFieldChange(selectedSceneIndex, "textAlign", v)}
-                          options={TEXT_POSITION_OPTIONS}
-                          disabled={!canEdit}
-                        />
-                      </Field>
-                      <Field label="Font Family">
-                        <Select
-                          value={scene.elements?.styleConfig?.title?.fontFamily ?? FONT_FAMILY_OPTIONS[0].value}
-                          onChange={(v) => handleTextStyleFieldChange(selectedSceneIndex, "fontFamily", v)}
-                          options={FONT_FAMILY_OPTIONS}
-                          disabled={!canEdit}
-                        />
-                      </Field>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Title Size">
-                        <NumberInput
-                          min={24}
-                          max={96}
-                          value={scene.elements?.styleConfig?.title?.fontSize ?? ""}
-                          onChange={(e) => handleElementFieldChange(selectedSceneIndex, "title.fontSize", Number(e.target.value))}
-                          disabled={!canEdit}
-                        />
-                      </Field>
-                      <Field label="Title Weight">
-                        <Select
-                          value={scene.elements?.styleConfig?.title?.fontWeight ?? 300}
-                          onChange={(v) => handleElementFieldChange(selectedSceneIndex, "title.fontWeight", v)}
-                          options={FONT_WEIGHT_OPTIONS}
-                          disabled={!canEdit}
-                        />
-                      </Field>
-                    </div>
-                    <Field label="Title Color">
-                      <ColorInput
-                        value={scene.elements?.styleConfig?.title?.color || "#ffffff"}
-                        onChange={(v) => handleElementFieldChange(selectedSceneIndex, "title.color", v)}
+                <div className="space-y-3">
+                  <Field label="Text Position">
+                    <TextPositionPad
+                      positions={{
+                        title: scene.elements?.styleConfig?.title?.position,
+                        subtitle: scene.elements?.styleConfig?.subtitle?.position,
+                      }}
+                      hasSubtitle={!!(scene.subtitle || scene.elements?.subtitle)}
+                      onChange={(role, pos) => handleElementFieldChange(selectedSceneIndex, `${role}.position`, pos)}
+                      onReset={(role) => handleElementFieldChange(selectedSceneIndex, `${role}.position`, undefined)}
+                      disabled={!canEdit}
+                    />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Font Family">
+                      <Select
+                        value={scene.elements?.styleConfig?.title?.fontFamily ?? FONT_FAMILY_OPTIONS[0].value}
+                        onChange={(v) => handleTextStyleFieldChange(selectedSceneIndex, "fontFamily", v)}
+                        options={FONT_FAMILY_OPTIONS}
                         disabled={!canEdit}
                       />
                     </Field>
-                    <Field label="Subtitle Color">
-                      <ColorInput
-                        value={scene.elements?.styleConfig?.subtitle?.color || "#94a3b8"}
-                        onChange={(v) => handleElementFieldChange(selectedSceneIndex, "subtitle.color", v)}
+                    <Field label="Title Weight">
+                      <Select
+                        value={scene.elements?.styleConfig?.title?.fontWeight ?? 300}
+                        onChange={(v) => handleElementFieldChange(selectedSceneIndex, "title.fontWeight", v)}
+                        options={FONT_WEIGHT_OPTIONS}
                         disabled={!canEdit}
                       />
                     </Field>
-                    <Field label="Accent Color">
-                      <ColorInput
-                        value={scene.elements?.styleConfig?.accentColor || "#60a5fa"}
-                        onChange={(v) => handleElementFieldChange(selectedSceneIndex, "accentColor", v)}
-                        disabled={!canEdit}
-                      />
-                    </Field>
-                    <div className="h-px bg-border-light" />
-                    <p className="text-[11px] font-medium text-text-tertiary">Captions</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Text Color">
-                        <ColorInput
-                          value={scene.elements?.styleConfig?.captions?.textColor || "#ffffff"}
-                          onChange={(v) => handleElementFieldChange(selectedSceneIndex, "captions.textColor", v)}
-                          disabled={!canEdit}
-                        />
-                      </Field>
-                      <Field label="Caption Size">
-                        <NumberInput
-                          min={16}
-                          max={64}
-                          value={scene.elements?.styleConfig?.captions?.fontSize ?? ""}
-                          onChange={(e) => handleElementFieldChange(selectedSceneIndex, "captions.fontSize", Number(e.target.value))}
-                          disabled={!canEdit}
-                        />
-                      </Field>
-                    </div>
                   </div>
-                ) : (
-                  <p className="text-[12px] text-text-tertiary">Style editing not yet available for this template.</p>
-                )}
+                  <Field label="Title Size">
+                    <NumberInput
+                      min={24}
+                      max={96}
+                      value={scene.elements?.styleConfig?.title?.fontSize ?? ""}
+                      onChange={(e) => handleElementFieldChange(selectedSceneIndex, "title.fontSize", Number(e.target.value))}
+                      disabled={!canEdit}
+                    />
+                  </Field>
+                  <Field label="Title Color">
+                    <ColorInput
+                      value={scene.elements?.styleConfig?.title?.color || "#ffffff"}
+                      onChange={(v) => handleElementFieldChange(selectedSceneIndex, "title.color", v)}
+                      disabled={!canEdit}
+                    />
+                  </Field>
+                  <Field label="Subtitle Color">
+                    <ColorInput
+                      value={scene.elements?.styleConfig?.subtitle?.color || "#94a3b8"}
+                      onChange={(v) => handleElementFieldChange(selectedSceneIndex, "subtitle.color", v)}
+                      disabled={!canEdit}
+                    />
+                  </Field>
+                  <Field label="Accent Color">
+                    <ColorInput
+                      value={scene.elements?.styleConfig?.accentColor || "#60a5fa"}
+                      onChange={(v) => handleElementFieldChange(selectedSceneIndex, "accentColor", v)}
+                      disabled={!canEdit}
+                    />
+                  </Field>
+                  <div className="h-px bg-border-light" />
+                  <p className="text-[11px] font-medium text-text-tertiary">Captions</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Text Color">
+                      <ColorInput
+                        value={scene.elements?.styleConfig?.captions?.textColor || "#ffffff"}
+                        onChange={(v) => handleElementFieldChange(selectedSceneIndex, "captions.textColor", v)}
+                        disabled={!canEdit}
+                      />
+                    </Field>
+                    <Field label="Caption Size">
+                      <NumberInput
+                        min={16}
+                        max={64}
+                        value={scene.elements?.styleConfig?.captions?.fontSize ?? ""}
+                        onChange={(e) => handleElementFieldChange(selectedSceneIndex, "captions.fontSize", Number(e.target.value))}
+                        disabled={!canEdit}
+                      />
+                    </Field>
+                  </div>
+                </div>
               </div>
 
               <div className="h-px bg-border-light" />

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 052 - Cooking/Food
@@ -14,6 +15,7 @@ const Template052 = React.memo(({ scene }) => {
   const ingredients = e.ingredients || []; const caption = e.caption || '';
   const timestamps = e.captionTimestamps || null;
   const bg = e.backgroundColor || '#1a1410'; const accent = e.accentColor || '#f59e0b';
+  const overrides = e.styleConfig || {};
 
   const bgGrad = useMemo(() => ({ background: `linear-gradient(180deg, ${bg} 0%, #2d2010 100%)` }), [bg]);
   const titleO = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: 'clamp' });
@@ -34,8 +36,8 @@ const Template052 = React.memo(({ scene }) => {
             <div style={{ position: 'absolute', top: -10, left: '30%', width: 20, height: 20, backgroundColor: '#ffffff10', borderRadius: '50%', filter: 'blur(8px)', transform: `translateY(${steamY}px)` }} />
           </div>
         )}
-        {title && <h1 style={{ color: '#fff', fontSize: 52, fontWeight: 800, fontFamily: "'Georgia', serif", textAlign: 'center', margin: 0, marginBottom: 6, opacity: titleO, transform: `translateY(${titleY}px)` }}>{title}</h1>}
-        {subtitle && <p style={{ color: accent, fontSize: 20, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 2, margin: 0, marginBottom: 16, opacity: subO }}>{subtitle}</p>}
+        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 52, fontWeight: 800, fontFamily: "'Georgia', serif", textAlign: 'center', margin: 0, marginBottom: 6, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {subtitle && <p style={mergeStyle({ color: accent, fontSize: 20, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 2, margin: 0, marginBottom: 16, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         {/* Ingredients */}
         {ingredients.length > 0 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', opacity: subO }}>

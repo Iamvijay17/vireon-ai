@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, Img } from 'remotion';
 import { styles } from './styles';
 import { useTemplate023Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 023 - Story Cards Carousel
@@ -13,13 +14,18 @@ const Template023 = React.memo(({ scene }) => {
   const title = elements.title || '';
   const cards = elements.cards || elements.items || [];
   const bgColor = elements.backgroundColor || backgroundColors.slate;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate023Animations({ frameOffset: 0 });
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
-        {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
+        {title && (
+          <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            {title}
+          </h1>
+        )}
         <div style={styles.carouselTrack}>
           {cards.map((card, index) => (
             <div key={index} style={{ ...styles.carouselCard, ...anim.getCardAnim(index) }}>

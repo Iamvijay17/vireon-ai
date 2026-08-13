@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useSlideLeft } from '../../animations';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 028 - Comparison Table (Content)
@@ -44,12 +45,17 @@ const Template028 = React.memo(({ scene }) => {
   const title = elements.title || '';
   const items = elements.items || elements.rows || [];
   const bgColor = elements.backgroundColor || backgroundColors.navy;
+  const overrides = elements.styleConfig || {};
   const titleFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 12 });
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={s.container}>
-        {title && <h1 style={{ ...s.title, opacity: titleFade }}>{title}</h1>}
+        {title && (
+          <h1 style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            {title}
+          </h1>
+        )}
         <div style={s.table}>
           {items.map((item, index) => (
             <Row key={index} item={item} index={index} />

@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Audio, Img } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useSlideUp, useZoomIn } from '../../animations';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 019 - Parallax Hero (Intro)
@@ -37,6 +38,7 @@ const Template019 = React.memo(({ scene }) => {
   const subtitle = elements.subtitle || '';
   const image = elements.image || '';
   const bgColor = elements.backgroundColor || backgroundColors.dark;
+  const overrides = elements.styleConfig || {};
 
   const parallax = useZoomIn({ startAt: 0, duration: 100, from: 1, to: 1.15 });
   const bgFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 15 });
@@ -51,8 +53,16 @@ const Template019 = React.memo(({ scene }) => {
         </div>
         <div style={s.overlay} />
         <div style={{ ...s.content, opacity: bgFade }}>
-          {title && <h1 style={{ ...s.title, ...titleSlide }}>{title}</h1>}
-          {subtitle && <p style={{ ...s.subtitle, ...subtitleSlide }}>{subtitle}</p>}
+          {title && (
+            <h1 style={mergeStyle({ ...s.title, ...titleSlide, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+              {title}
+            </h1>
+          )}
+          {subtitle && (
+            <p style={mergeStyle({ ...s.subtitle, ...subtitleSlide, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
+              {subtitle}
+            </p>
+          )}
         </div>
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

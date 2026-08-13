@@ -1,6 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 import { useFadeInOut, useSlideUp, useSlideLeft } from '../../animations';
 
 const s = {
@@ -35,12 +36,13 @@ const T = React.memo(({ scene }) => {
   const e = scene?.elements || {};
   const t = e.title || ''; const sub = e.subtitle || ''; const items = e.items || e.chips || [];
   const bc = e.backgroundColor || backgroundColors.navy;
+  const overrides = e.styleConfig || {};
   const { bgS, tS, subS, fo } = useA({ fo: 0 });
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...bgS }}>
-        {t && <h1 style={{ ...s.title, ...tS }}>{t}</h1>}
-        {sub && <div style={{ ...s.sub, ...subS }}>{sub}</div>}
+        {t && <h1 style={mergeStyle({ ...s.title, ...tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
+        {sub && <div style={mergeStyle({ ...s.sub, ...subS, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{sub}</div>}
       <div style={s.row}>
           {items.map((item, i) => (
             <ChipItem key={i} item={item} index={i} fo={fo} color={chColors[i % chColors.length]} />

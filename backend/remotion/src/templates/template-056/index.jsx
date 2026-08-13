@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 056 - Music
@@ -13,6 +14,7 @@ const Template056 = React.memo(({ scene }) => {
   const title = e.title || ''; const artist = e.artist || ''; const albumArt = e.albumArt || '';
   const caption = e.caption || ''; const timestamps = e.captionTimestamps || null;
   const bg = e.backgroundColor || '#0a0a1a'; const accent = e.accentColor || '#a855f7';
+  const overrides = e.styleConfig || {};
 
   const bgGrad = useMemo(() => ({ background: `linear-gradient(135deg, ${bg} 0%, #1a0a2e 50%, #0a0a1a 100%)` }), [bg]);
   const titleO = interpolate(frame, [0, 18], [0, 1], { extrapolateRight: 'clamp' });
@@ -35,7 +37,7 @@ const Template056 = React.memo(({ scene }) => {
             <Img src={albumArt} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
-        {title && <h1 style={{ color: '#fff', fontSize: 44, fontWeight: 800, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 4, opacity: titleO, transform: `translateY(${titleY}px)` }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 44, fontWeight: 800, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 4, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         {artist && <p style={{ color: accent, fontSize: 20, fontWeight: 600, margin: 0, marginBottom: 20, opacity: artistO }}>{artist}</p>}
         {/* Waveform */}
         <div style={{ display: 'flex', gap: 3, alignItems: 'center', height: 30, opacity: artistO }}>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
-import { spacing, mergeStyle } from '../../theme';
+import { spacing, mergeStyle, positionStyle } from '../../theme';
 import { useFadeInOut, useSlideUp, useSlideLeft } from '../../animations';
 
 // Plain rows - no card chrome, no icon badges.
@@ -41,7 +41,7 @@ const T = React.memo(({ scene }) => {
   const bc = e.backgroundColor || backgroundColors.slate;
   const overrides = e.styleConfig || {};
   const { bgS, tS, fo } = useA({ fo: 0 });
-  const titleStyle = mergeStyle(s.title, overrides.title);
+  const titleStyle = mergeStyle({ ...s.title, ...positionStyle(overrides.title?.position) }, overrides.title);
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...bgS }}>

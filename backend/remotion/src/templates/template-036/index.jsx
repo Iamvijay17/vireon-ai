@@ -1,6 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Img } from 'remotion';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 import { useFadeInOut, useSlideUp, useZoomIn } from '../../animations';
 
 const s = {
@@ -28,6 +29,7 @@ const T = React.memo(({ scene }) => {
   const e = scene?.elements || {};
   const t = e.title || ''; const b = e.body || e.text || ''; const img = e.image || '';
   const lab = e.label || ''; const stat = e.stat || ''; const bc = e.backgroundColor || backgroundColors.dark;
+  const overrides = e.styleConfig || {};
   const a = useA({ fo: 0 });
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
@@ -38,8 +40,8 @@ const T = React.memo(({ scene }) => {
         </div>
         <div style={s.textPanel}>
           {lab && <div style={{ ...s.label, ...a.lS }}>{lab}</div>}
-          {t && <h1 style={{ ...s.title, ...a.tS }}>{t}</h1>}
-          {b && <p style={{ ...s.body, ...a.bS }}>{b}</p>}
+          {t && <h1 style={mergeStyle({ ...s.title, ...a.tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
+          {b && <p style={mergeStyle({ ...s.body, ...a.bS, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{b}</p>}
           {stat && <div style={{ ...s.stat, ...a.bS }}>{stat}</div>}
         </div>
       </div>

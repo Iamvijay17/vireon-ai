@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, Img } from 'remotion';
 import { styles } from './styles';
 import { useTemplate025Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 025 - Curtain Reveal Story
@@ -15,6 +16,7 @@ const Template025 = React.memo(({ scene }) => {
   const image = elements.image || '';
   const tag = elements.tag || elements.label || '';
   const bgColor = elements.backgroundColor || backgroundColors.dark;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate025Animations({ frameOffset: 0 });
 
@@ -25,7 +27,11 @@ const Template025 = React.memo(({ scene }) => {
         <div style={{ ...styles.revealOverlay, ...anim.revealStyle }} />
         <div style={styles.textContainer}>
           {tag && <div style={{ ...styles.tag, ...anim.tagStyle }}>{tag}</div>}
-          {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
+          {title && (
+            <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+              {title}
+            </h1>
+          )}
           {body && <p style={{ ...styles.body, ...anim.bodyStyle }}>{body}</p>}
         </div>
       </div>

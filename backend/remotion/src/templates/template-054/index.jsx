@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 054 - Educational
@@ -13,6 +14,7 @@ const Template054 = React.memo(({ scene }) => {
   const title = e.title || ''; const formula = e.formula || ''; const caption = e.caption || '';
   const timestamps = e.captionTimestamps || null;
   const bg = e.backgroundColor || '#0a1a0a'; const accent = e.accentColor || '#34d399';
+  const overrides = e.styleConfig || {};
 
   const boardBg = useMemo(() => ({ background: `linear-gradient(135deg, ${bg} 0%, #0f2a0f 50%, #0a1a0a 100%)` }), [bg]);
   const titleO = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
@@ -30,7 +32,7 @@ const Template054 = React.memo(({ scene }) => {
       <div style={{ position: 'absolute', top: 20, left: 20, right: 20, bottom: 20, border: `2px solid ${accent}20`, borderRadius: 8, pointerEvents: 'none' }} />
 
       <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '80px', boxSizing: 'border-box' }}>
-        {title && <h1 style={{ color: '#fff', fontSize: 52, fontWeight: 700, fontFamily: "'Courier New', monospace", textAlign: 'center', margin: 0, marginBottom: 24, opacity: titleO, transform: `translateY(${titleY}px)`, textShadow: `0 0 20px ${accent}20` }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 52, fontWeight: 700, fontFamily: "'Courier New', monospace", textAlign: 'center', margin: 0, marginBottom: 24, opacity: titleO, transform: `translateY(${titleY}px)`, textShadow: `0 0 20px ${accent}20`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         {formula && (
           <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: `1px solid ${accent}30`, borderRadius: 12, padding: '20px 40px', marginBottom: 16, opacity: formulaO, transform: `scale(${formulaS})` }}>
             <span style={{ color: accent, fontSize: 36, fontWeight: 700, fontFamily: "'Courier New', monospace", letterSpacing: 2 }}>{formula}</span>

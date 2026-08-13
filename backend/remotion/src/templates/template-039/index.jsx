@@ -1,6 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Img } from 'remotion';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 import { useFadeInOut, useSlideUp, useZoomIn } from '../../animations';
 
 const s = {
@@ -30,11 +31,12 @@ const T = React.memo(({ scene }) => {
   const n = e.name || ''; const r = e.role || ''; const b = e.bio || e.text || '';
   const img = e.image || e.avatar || ''; const st = e.stats || e.items || [];
   const bc = e.backgroundColor || backgroundColors.dark; const a = useA({ fo: 0 });
+  const overrides = e.styleConfig || {};
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...a.bgS }}>
         {img && <Img src={img} style={{ ...s.img, ...a.imgS }} />}
-        {n && <h1 style={{ ...s.name, ...a.nS }}>{n}</h1>}
+        {n && <h1 style={mergeStyle({ ...s.name, ...a.nS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{n}</h1>}
         {r && <div style={{ ...s.role, ...a.rS }}>{r}</div>}
         {b && <p style={{ ...s.bio, ...a.bS }}>{b}</p>}
         {st.length > 0 && <div style={{ ...s.statRow, ...a.sS }}>{st.map((s2, i) => <div key={i} style={s.stat}><div style={s.statV}>{s2.value}</div><div style={s.statL}>{s2.label}</div></div>)}</div>}

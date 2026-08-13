@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, Img } from 'remotion';
 import { styles } from './styles';
 import { useTemplate022Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 022 - Polaroid Collage
@@ -13,13 +14,18 @@ const Template022 = React.memo(({ scene }) => {
   const title = elements.title || '';
   const photos = elements.photos || elements.items || [];
   const bgColor = elements.backgroundColor || backgroundColors.navy;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate022Animations({ frameOffset: 0 });
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
-        {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
+        {title && (
+          <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            {title}
+          </h1>
+        )}
         {photos[0] && (() => {
           const src0 = photos[0].url || photos[0].src || photos[0];
           if (!src0) return null;

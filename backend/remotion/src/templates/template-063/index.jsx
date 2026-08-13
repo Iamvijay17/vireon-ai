@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { typography, palette, mergeStyle } from '../../theme';
+import { typography, palette, mergeStyle, positionStyle } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -36,7 +36,7 @@ const Template063 = React.memo(({ scene }) => {
   const captionTimestamps = elements.captionTimestamps || null;
   const columns = elements.columns?.length ? elements.columns : [{}, {}];
 
-  const titleStyle = mergeStyle({ ...typography.title, fontSize: 56, marginBottom: 16 }, overrides.title);
+  const titleStyle = mergeStyle({ ...typography.title, fontSize: 56, marginBottom: 16, ...positionStyle(overrides.title?.position) }, overrides.title);
   const headingStyle = mergeStyle({ ...typography.subtitle, color: palette.accentSolid, textAlign: 'left', fontWeight: 600 }, overrides.heading);
   const bodyStyle = mergeStyle({ ...typography.body, textAlign: 'left' }, overrides.body);
   const accentColor = overrides.accentColor;

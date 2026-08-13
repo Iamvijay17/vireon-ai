@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, Img } from 'remotion';
 import { styles } from './styles';
 import { useTemplate020Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 020 - Image Card Story
@@ -15,6 +16,7 @@ const Template020 = React.memo(({ scene }) => {
   const image = elements.image || '';
   const label = elements.label || '';
   const bgColor = elements.backgroundColor || backgroundColors.dark;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate020Animations({ frameOffset: 0 });
 
@@ -25,7 +27,11 @@ const Template020 = React.memo(({ scene }) => {
         <div style={styles.bottomPanel}>
           {label && <div style={{ ...styles.label, ...anim.labelStyle }}>{label}</div>}
           <div style={{ ...styles.divider, ...anim.dividerStyle }} />
-          {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
+          {title && (
+            <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+              {title}
+            </h1>
+          )}
           {body && <p style={{ ...styles.body, ...anim.bodyStyle }}>{body}</p>}
         </div>
       </div>

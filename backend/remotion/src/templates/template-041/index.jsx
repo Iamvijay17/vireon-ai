@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
 import { backgroundColors } from '../../styles';
-import { mergeStyle } from '../../theme';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 041 - Modern Minimal
@@ -99,6 +99,7 @@ const Template041 = React.memo(({ scene }) => {
             letterSpacing: '-0.02em',
             opacity: titleOpacity,
             transform: `translateY(${titleY}px)`,
+            ...positionStyle(overrides.title?.position),
           }, overrides.title)}>
             {title}
           </h1>
@@ -128,6 +129,7 @@ const Template041 = React.memo(({ scene }) => {
             maxWidth: '70%',
             lineHeight: 1.5,
             opacity: subOpacity,
+            ...positionStyle(overrides.subtitle?.position),
           }, overrides.subtitle)}>
             {subtitle}
           </p>

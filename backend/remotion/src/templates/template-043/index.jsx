@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 043 - News
@@ -45,6 +46,7 @@ const Template043 = React.memo(({ scene }) => {
   const captionTimestamps = elements.captionTimestamps || null;
   const bgColor = elements.backgroundColor || '#0a1628';
   const accentColor = elements.accentColor || '#ef4444';
+  const overrides = elements.styleConfig || {};
 
   // Background gradient
   const bgGradient = useMemo(() => ({
@@ -153,7 +155,7 @@ const Template043 = React.memo(({ scene }) => {
 
         {/* Headline */}
         {headline && (
-          <h1 style={{
+          <h1 style={mergeStyle({
             color: '#ffffff',
             fontSize: 64,
             fontWeight: 900,
@@ -166,14 +168,15 @@ const Template043 = React.memo(({ scene }) => {
             textShadow: '0 2px 20px rgba(0, 0, 0, 0.5)',
             opacity: headlineOpacity,
             transform: `translateY(${headlineY}px)`,
-          }}>
+            ...positionStyle(overrides.title?.position),
+          }, overrides.title)}>
             {headline}
           </h1>
         )}
 
         {/* Body */}
         {body && (
-          <p style={{
+          <p style={mergeStyle({
             color: '#cbd5e1',
             fontSize: 28,
             fontWeight: 400,
@@ -183,7 +186,8 @@ const Template043 = React.memo(({ scene }) => {
             maxWidth: '70%',
             lineHeight: 1.5,
             opacity: bodyOpacity,
-          }}>
+            ...positionStyle(overrides.subtitle?.position),
+          }, overrides.subtitle)}>
             {body}
           </p>
         )}

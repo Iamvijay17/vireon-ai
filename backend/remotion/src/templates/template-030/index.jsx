@@ -14,6 +14,7 @@ const styles = {
 };
 
 import { useFadeInOut, useSlideUp } from '../../animations';
+import { mergeStyle, positionStyle } from '../../theme';
 const useAnim = ({ frameOffset = 0 } = {}) => {
   const bgFade = useFadeInOut({ fadeIn: frameOffset, fadeInDuration: 10 });
   const bFade = useFadeInOut({ fadeIn: frameOffset + 5, fadeInDuration: 10 });
@@ -27,12 +28,17 @@ const Template030 = React.memo(({ scene }) => {
   const e = scene?.elements || {};
   const title = e.title || ''; const body = e.body || e.text || ''; const badge = e.badge || '';
   const stats = e.stats || e.items || []; const bgColor = e.backgroundColor || backgroundColors.slate;
+  const overrides = e.styleConfig || {};
   const anim = useAnim({ frameOffset: 0 });
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
         {badge && <div style={{ ...styles.badge, ...anim.badgeStyle }}>{badge}</div>}
-        {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
+        {title && (
+          <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            {title}
+          </h1>
+        )}
         {body && <p style={{ ...styles.body, ...anim.bodyStyle }}>{body}</p>}
         {stats.length > 0 && <div style={{ ...styles.statRow, ...anim.statStyle }}>{stats.map((s, i) => <div key={i} style={styles.statItem}><div style={styles.statValue}>{s.value}</div><div style={styles.statLabel}>{s.label}</div></div>)}</div>}
       </div>

@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Audio, interpolate, useCurrentFrame } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useZoomIn, usePop } from '../../animations';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 031 - Expert Quote (Outro)
@@ -36,6 +37,7 @@ const Template031 = React.memo(({ scene }) => {
   const body = e.body || e.author || '';
   const badge = e.badge || '';
   const bgColor = e.backgroundColor || backgroundColors.navy;
+  const overrides = e.styleConfig || {};
 
   const frame = useCurrentFrame();
   const bgFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 12 });
@@ -50,7 +52,11 @@ const Template031 = React.memo(({ scene }) => {
       <div style={{ ...s.container, opacity: bgFade }}>
         <div style={{ ...s.glow, transform: `translate(-50%, -50%) scale(${glowScale})` }} />
         {badge && <div style={{ ...s.badge, ...badgePop }}>{badge}</div>}
-        {title && <h1 style={{ ...s.title, opacity: titleZoom.opacity, transform: titleZoom.transform }}>{title}</h1>}
+        {title && (
+          <h1 style={mergeStyle({ ...s.title, opacity: titleZoom.opacity, transform: titleZoom.transform, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            {title}
+          </h1>
+        )}
         <div style={{ ...s.divider, opacity: dividerFade }} />
         {body && <div style={{ ...s.body, opacity: bodyFade }}>{body}</div>}
       </div>

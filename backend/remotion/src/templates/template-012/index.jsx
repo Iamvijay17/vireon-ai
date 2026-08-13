@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useSlideUp, useZoomIn } from '../../animations';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 012 - Hook Opener (Intro)
@@ -38,6 +39,7 @@ const Template012 = React.memo(({ scene }) => {
   const subtitle = elements.subtitle || '';
   const image = elements.image || '';
   const bgColor = elements.backgroundColor || backgroundColors.dark;
+  const overrides = elements.styleConfig || {};
 
   const bgGradient = useMemo(() => ({
     background: `linear-gradient(135deg, ${bgColor} 0%, #16213e 55%, #0f3460 100%)`,
@@ -61,8 +63,8 @@ const Template012 = React.memo(({ scene }) => {
         <div style={s.overlay} />
         <div style={s.content}>
           <div style={{ ...s.eyebrow, opacity: eyebrowFade }} />
-          {title && <h1 style={{ ...s.title, opacity: titlePop.opacity, transform: titlePop.transform }}>{title}</h1>}
-          {subtitle && <p style={{ ...s.subtitle, ...subtitleSlide }}>{subtitle}</p>}
+          {title && <h1 style={mergeStyle({ ...s.title, opacity: titlePop.opacity, transform: titlePop.transform, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+          {subtitle && <p style={mergeStyle({ ...s.subtitle, ...subtitleSlide, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         </div>
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

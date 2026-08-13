@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useSlideLeft, useSlideRight } from '../../animations';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 005 - Comparison (Content)
@@ -34,6 +35,7 @@ const Template005 = React.memo(({ scene }) => {
   const title = e.title || '';
   const columns = e.columns && e.columns.length ? e.columns : [{ heading: '', body: '' }, { heading: '', body: '' }];
   const bgColor = e.backgroundColor || backgroundColors.slate;
+  const overrides = e.styleConfig || {};
 
   const titleFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 12 });
   const leftAnim = useSlideLeft({ startAt: 14, distance: 70 });
@@ -43,7 +45,7 @@ const Template005 = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={s.container}>
-        {title && <h1 style={{ ...s.title, opacity: titleFade }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         <div style={s.columns}>
           <div style={{ ...s.column, ...leftAnim }}>
             {columns[0]?.heading && <div style={s.heading}>{columns[0].heading}</div>}

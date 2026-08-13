@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig, spring } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 045 - Cinematic
@@ -42,6 +43,7 @@ const Template045 = React.memo(({ scene }) => {
   const captionTimestamps = elements.captionTimestamps || null;
   const bgColor = elements.backgroundColor || '#0a0a0a';
   const textColor = elements.textColor || '#f5f5f0';
+  const overrides = elements.styleConfig || {};
 
   // Background gradient
   const bgGradient = useMemo(() => ({
@@ -173,7 +175,7 @@ const Template045 = React.memo(({ scene }) => {
       }}>
         {/* Title */}
         {title && (
-          <h1 style={{
+          <h1 style={mergeStyle({
             color: textColor,
             fontSize: 72,
             fontWeight: 400,
@@ -186,14 +188,15 @@ const Template045 = React.memo(({ scene }) => {
             opacity: titleOpacity,
             transform: `translateY(${titleY}px)`,
             textShadow: '0 4px 30px rgba(0, 0, 0, 0.5)',
-          }}>
+            ...positionStyle(overrides.title?.position),
+          }, overrides.title)}>
             {title}
           </h1>
         )}
 
         {/* Subtitle */}
         {subtitle && (
-          <p style={{
+          <p style={mergeStyle({
             color: '#a8a8a0',
             fontSize: 28,
             fontWeight: 300,
@@ -204,7 +207,8 @@ const Template045 = React.memo(({ scene }) => {
             lineHeight: 1.5,
             fontStyle: 'italic',
             opacity: subOpacity,
-          }}>
+            ...positionStyle(overrides.subtitle?.position),
+          }, overrides.subtitle)}>
             {subtitle}
           </p>
         )}

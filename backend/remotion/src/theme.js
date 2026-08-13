@@ -95,11 +95,41 @@ export const slideLayout = {
  * one helper (rather than each template re-deriving the spread) means every
  * template applies overrides identically.
  */
-export const mergeStyle = (themeDefault, override) => ({
-  ...themeDefault,
-  ...(override || {}),
-});
+// `override.position` (a `{xPct, yPct}` coordinate pair from the Studio
+// editor's drag pad) shares its key name with the CSS `position` property.
+// A naive `{ ...themeDefault, ...override }` spread would clobber the
+// `position: 'absolute'` that `positionStyle()` sets with that raw
+// coordinate object, silently reverting the element to static layout - so
+// `position` is pulled out of `override` and converted via `positionStyle`
+// before the rest of the override is applied.
+export const mergeStyle = (themeDefault, override) => {
+  const { position, ...rest } = override || {};
+  return {
+    ...themeDefault,
+    ...positionStyle(position),
+    ...rest,
+  };
+};
 
-const theme = { spacing, typography, palette, slideLayout, mergeStyle };
+/**
+ * Turns a normalized `{ xPct, yPct }` (0-1 fractions of the 1920x1080 frame,
+ * written by the Studio editor's drag-to-position pad) into absolute CSS that
+ * overrides a text element's default (usually flex-centered) layout. Spread
+ * this into a text element's style *before* the theme default/override merge
+ * so a per-element `overrides.title.position` wins without needing every
+ * template to hand-roll the same absolute positioning math.
+ */
+export const positionStyle = (pos) =>
+  pos && typeof pos.xPct === 'number' && typeof pos.yPct === 'number'
+    ? {
+        position: 'absolute',
+        left: `${pos.xPct * 100}%`,
+        top: `${pos.yPct * 100}%`,
+        transform: 'translate(-50%, -50%)',
+        margin: 0,
+      }
+    : {};
+
+const theme = { spacing, typography, palette, slideLayout, mergeStyle, positionStyle };
 
 export default theme;

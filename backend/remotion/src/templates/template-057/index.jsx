@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 057 - Science
@@ -13,6 +14,7 @@ const Template057 = React.memo(({ scene }) => {
   const title = e.title || ''; const subtitle = e.subtitle || ''; const image = e.image || '';
   const caption = e.caption || ''; const timestamps = e.captionTimestamps || null;
   const bg = e.backgroundColor || '#0a1628'; const accent = e.accentColor || '#06b6d4';
+  const overrides = e.styleConfig || {};
 
   const bgGrad = useMemo(() => ({ background: `linear-gradient(135deg, ${bg} 0%, #0d2137 50%, ${bg} 100%)` }), [bg]);
   const titleO = interpolate(frame, [0, 18], [0, 1], { extrapolateRight: 'clamp' });
@@ -30,8 +32,8 @@ const Template057 = React.memo(({ scene }) => {
       ))}
       <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '60px', boxSizing: 'border-box' }}>
         {image && <div style={{ width: 180, height: 180, borderRadius: 16, overflow: 'hidden', border: `2px solid ${accent}50`, boxShadow: `0 0 30px ${accent}20`, transform: `scale(${imgS})`, marginBottom: 20 }}><Img src={image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
-        {title && <h1 style={{ color: '#fff', fontSize: 48, fontWeight: 700, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 8, opacity: titleO, transform: `translateY(${titleY}px)` }}>{title}</h1>}
-        {subtitle && <p style={{ color: '#94a3b8', fontSize: 22, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, opacity: subO }}>{subtitle}</p>}
+        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 48, fontWeight: 700, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 8, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {subtitle && <p style={mergeStyle({ color: '#94a3b8', fontSize: 22, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
       </div>
       <CaptionRenderer text={caption} animation="zoom" animationConfig={{ zoomFrom: 0.4 }} styleConfig={{ position: 'bottom', fontFamily: "'Inter', Arial, sans-serif", fontWeight: 600, fontSize: 32, textColor: '#ffffff', backgroundColor: 'rgba(0,0,0,0.6)', backgroundPadding: '12px 24px', borderRadius: 10, framesPerWord: 3 }} timestamps={timestamps} fps={fps} />
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

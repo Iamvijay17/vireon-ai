@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 044 - Social Media
@@ -47,6 +48,7 @@ const Template044 = React.memo(({ scene }) => {
   const captionTimestamps = elements.captionTimestamps || null;
   const bgColor = elements.backgroundColor || '#1a0030';
   const accentColor = elements.accentColor || '#ff6b9d';
+  const overrides = elements.styleConfig || {};
 
   // Vibrant gradient background
   const bgGradient = useMemo(() => ({
@@ -172,7 +174,7 @@ const Template044 = React.memo(({ scene }) => {
       }}>
         {/* Title */}
         {title && (
-          <h1 style={{
+          <h1 style={mergeStyle({
             color: '#ffffff',
             fontSize: 60,
             fontWeight: 900,
@@ -184,14 +186,15 @@ const Template044 = React.memo(({ scene }) => {
             letterSpacing: '-0.03em',
             transform: `scale(${titleScale})`,
             opacity: titleOpacity,
-          }}>
+            ...positionStyle(overrides.title?.position),
+          }, overrides.title)}>
             {title}
           </h1>
         )}
 
         {/* Body */}
         {body && (
-          <p style={{
+          <p style={mergeStyle({
             color: '#e2e8f0',
             fontSize: 28,
             fontWeight: 500,
@@ -201,7 +204,8 @@ const Template044 = React.memo(({ scene }) => {
             maxWidth: '80%',
             lineHeight: 1.4,
             opacity: bodyOpacity,
-          }}>
+            ...positionStyle(overrides.subtitle?.position),
+          }, overrides.subtitle)}>
             {body}
           </p>
         )}

@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, Img } from 'remotion';
 import { styles } from './styles';
 import { useTemplate024Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 024 - Split Reveal Story
@@ -15,6 +16,7 @@ const Template024 = React.memo(({ scene }) => {
   const topImage = elements.topImage || elements.image || '';
   const bottomImage = elements.bottomImage || elements.image2 || '';
   const bgColor = elements.backgroundColor || backgroundColors.dark;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate024Animations({ frameOffset: 0 });
 
@@ -30,7 +32,11 @@ const Template024 = React.memo(({ scene }) => {
         </div>
         <div style={styles.overlay}>
           {label && <div style={{ ...styles.label, ...anim.labelStyle }}>{label}</div>}
-          {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
+          {title && (
+            <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+              {title}
+            </h1>
+          )}
         </div>
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

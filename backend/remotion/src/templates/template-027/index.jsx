@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, useCurrentFrame, useVideoConfig } from 'remotion';
 import { styles } from './styles';
 import { useTemplate027Animations, getChecklistItemAnimation } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 027 - Checklist / Key Points
@@ -13,16 +14,21 @@ const Template027 = React.memo(({ scene }) => {
   const title = elements.title || '';
   const points = elements.points || [];
   const bgColor = elements.backgroundColor || backgroundColors.dark;
+  const overrides = elements.styleConfig || {};
 
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  
+
   const anim = useTemplate027Animations({ frameOffset: 0 });
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
-        {title && <h1 style={{ ...styles.title, ...anim.titleStyle }}>{title}</h1>}
+        {title && (
+          <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            {title}
+          </h1>
+        )}
         <div style={styles.list}>
           {points.map((point, index) => (
             <div key={index} style={{ ...styles.item, ...getChecklistItemAnimation(frame, fps, 12 + index * 6) }}>

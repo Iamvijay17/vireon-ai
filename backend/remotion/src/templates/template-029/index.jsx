@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useSlideUp, usePop } from '../../animations';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 029 - Did You Know (Content)
@@ -31,6 +32,7 @@ const Template029 = React.memo(({ scene }) => {
   const title = e.title || '';
   const body = e.body || e.subtitle || '';
   const bgColor = e.backgroundColor || backgroundColors.dark;
+  const overrides = e.styleConfig || {};
 
   const iconPop = usePop({ startAt: 3 });
   const titleFade = useFadeInOut({ fadeIn: 12, fadeInDuration: 12 });
@@ -40,8 +42,16 @@ const Template029 = React.memo(({ scene }) => {
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={s.container}>
         <div style={{ ...s.icon, ...iconPop }}>&#128161;</div>
-        {title && <div style={{ ...s.title, opacity: titleFade }}>{title}</div>}
-        {body && <p style={{ ...s.body, ...bodySlide }}>{body}</p>}
+        {title && (
+          <div style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            {title}
+          </div>
+        )}
+        {body && (
+          <p style={mergeStyle({ ...s.body, ...bodySlide, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
+            {body}
+          </p>
+        )}
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}
     </AbsoluteFill>

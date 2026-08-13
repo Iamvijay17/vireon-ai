@@ -1,6 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 import { useFadeInOut, useSlideUp } from '../../animations';
 
 const s = {
@@ -38,11 +39,12 @@ const T = React.memo(({ scene }) => {
   const items = e.items || e.cards || [];
   const t = e.title || '';
   const bc = e.backgroundColor || backgroundColors.dark;
+  const overrides = e.styleConfig || {};
   const { bgS, tS, fo } = useA({ fo: 0 });
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...bgS }}>
-        {t && <h1 style={{ ...s.title, ...tS }}>{t}</h1>}
+        {t && <h1 style={mergeStyle({ ...s.title, ...tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
         <div style={s.row}>
           {items.map((item, i) => (
             <CardItem key={i} item={item} index={i} fo={fo} />

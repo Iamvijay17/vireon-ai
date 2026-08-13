@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, Img } from 'remotion';
 import { styles } from './styles';
 import { useTemplate003Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 003 - Image Focus
@@ -28,6 +29,7 @@ const Template003 = React.memo(({ scene }) => {
   const label = elements.label || '';
   const overlayGradient = elements.overlayColor || 'linear-gradient(transparent 40%, rgba(0, 0, 0, 0.85) 100%)';
   const bgColor = elements.backgroundColor || backgroundColors.clean;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate003Animations({ frameOffset: 0 });
 
@@ -57,12 +59,12 @@ const Template003 = React.memo(({ scene }) => {
         {/* Caption Container */}
         <div style={styles.captionContainer}>
           {label && (
-            <p style={{ ...styles.label, ...anim.labelStyle }}>
+            <p style={mergeStyle({ ...styles.label, ...anim.labelStyle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
               {label}
             </p>
           )}
           {caption && (
-            <h2 style={{ ...styles.caption, ...anim.captionStyle }}>
+            <h2 style={mergeStyle({ ...styles.caption, ...anim.captionStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
               {caption}
             </h2>
           )}

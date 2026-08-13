@@ -1,6 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 import { useFadeInOut, useSlideUp } from '../../animations';
 
 /**
@@ -50,12 +51,13 @@ const Template037 = React.memo(({ scene }) => {
   const title = e.title || '';
   const items = e.items || [];
   const bgColor = e.backgroundColor || backgroundColors.dark;
+  const overrides = e.styleConfig || {};
   const titleFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 12 });
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={s.container}>
-        {title && <h1 style={{ ...s.title, opacity: titleFade }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         <div style={s.list}>
           <div style={s.rail} />
           {items.map((item, index) => (

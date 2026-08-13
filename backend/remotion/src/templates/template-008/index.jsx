@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio } from 'remotion';
 import { styles } from './styles';
 import { useTemplate008Animations } from './animations';
 import { backgroundColors, accentColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 008 - Pill Tags / Keywords
@@ -13,6 +14,7 @@ const Template008 = React.memo(({ scene }) => {
   const title = elements.title || '';
   const items = elements.items || elements.tags || [];
   const bgColor = elements.backgroundColor || backgroundColors.slate;
+  const overrides = elements.styleConfig || {};
   const pillColors = ['#60a5fa', '#34d399', '#a78bfa', '#fb923c', '#f472b6', '#fbbf24', '#22d3ee', '#f87171'];
 
   const anim = useTemplate008Animations({ frameOffset: 0 });
@@ -20,7 +22,7 @@ const Template008 = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
-        {title && <h1 style={{ ...styles.sectionTitle, ...anim.titleStyle }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ ...styles.sectionTitle, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         <div style={styles.pillContainer}>
           {items.map((item, index) => (
             <div

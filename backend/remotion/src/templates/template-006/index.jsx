@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useSlideUp, usePop } from '../../animations';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 006 - Quote Testimonial (Outro)
@@ -36,6 +37,7 @@ const Template006 = React.memo(({ scene }) => {
   const body = e.body || e.author || '';
   const badge = e.badge || '';
   const bgColor = e.backgroundColor || backgroundColors.dark;
+  const overrides = e.styleConfig || {};
 
   const bgFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 10 });
   const markPop = usePop({ startAt: 3 });
@@ -49,9 +51,9 @@ const Template006 = React.memo(({ scene }) => {
       <div style={{ ...s.container, opacity: bgFade }}>
         {badge && <div style={{ ...s.badge, opacity: badgeFade }}>{badge}</div>}
         <div style={{ ...s.quoteMark, ...markPop }}>&rdquo;</div>
-        {title && <h1 style={{ ...s.title, ...titleSlide }}>{title}</h1>}
+        {title && <h1 style={mergeStyle({ ...s.title, ...titleSlide, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         <div style={{ ...s.line, opacity: lineFade }} />
-        {body && <div style={{ ...s.body, opacity: bodyFade }}>{body}</div>}
+        {body && <div style={mergeStyle({ ...s.body, opacity: bodyFade, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{body}</div>}
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}
     </AbsoluteFill>

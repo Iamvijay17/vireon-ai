@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio } from 'remotion';
 import { backgroundColors } from '../../styles';
-import { spacing, mergeStyle } from '../../theme';
+import { spacing, mergeStyle, positionStyle } from '../../theme';
 import { useFadeInOut, useSlideUp, useSlideLeft } from '../../animations';
 
 /**
@@ -55,13 +55,14 @@ const T = React.memo(({ scene }) => {
   const items = e.items || e.steps || [];
   const bc = e.backgroundColor || backgroundColors.dark;
   const overrides = e.styleConfig || {};
-  const titleStyle = mergeStyle(s.title, overrides.title);
+  const titleStyle = mergeStyle({ ...s.title, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const subtitleStyle = mergeStyle({ ...s.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
   const { bgS, tS, subS, fo } = useA({ fo: 0 });
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...bgS }}>
         {t && <h1 style={{ ...titleStyle, ...tS }}>{t}</h1>}
-        {sub && <div style={{ ...s.subtitle, ...subS }}>{sub}</div>}
+        {sub && <div style={{ ...subtitleStyle, ...subS }}>{sub}</div>}
         {items.map((item, i) => (
           <StepItem key={i} item={item} index={i} fo={fo} />
         ))}

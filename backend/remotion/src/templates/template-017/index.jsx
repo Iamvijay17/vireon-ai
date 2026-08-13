@@ -3,7 +3,7 @@ import { AbsoluteFill, Audio, Img } from 'remotion';
 import { styles } from './styles';
 import { useTemplate017Animations } from './animations';
 import { backgroundColors } from '../../styles';
-import { mergeStyle } from '../../theme';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 017 - Storytelling (Image + Text split)
@@ -21,7 +21,7 @@ const Template017 = React.memo(({ scene }) => {
   const overrides = elements.styleConfig || {};
 
   const anim = useTemplate017Animations({ frameOffset: 0 });
-  const titleStyle = mergeStyle(styles.title, overrides.title);
+  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
   const bodyStyle = mergeStyle(styles.body, overrides.body);
 
   return (

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 051 - Fitness
@@ -14,6 +15,7 @@ const Template051 = React.memo(({ scene }) => {
   const metric = e.metric || ''; const metricLabel = e.metricLabel || '';
   const caption = e.caption || ''; const timestamps = e.captionTimestamps || null;
   const bg = e.backgroundColor || '#0a0a0a'; const accent = e.accentColor || '#ef4444';
+  const overrides = e.styleConfig || {};
 
   const bgGrad = useMemo(() => ({ background: `linear-gradient(135deg, ${bg} 0%, #1a1a1a 50%, #0d0d0d 100%)` }), [bg]);
   const titleO = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: 'clamp' });
@@ -37,8 +39,8 @@ const Template051 = React.memo(({ scene }) => {
             <Img src={image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
-        {title && <h1 style={{ color: '#fff', fontSize: 48, fontWeight: 900, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 4, opacity: titleO, transform: `translateY(${titleY}px)` }}>{title}</h1>}
-        {subtitle && <p style={{ color: '#9ca3af', fontSize: 22, fontWeight: 500, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 24, opacity: subO }}>{subtitle}</p>}
+        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 48, fontWeight: 900, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 4, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {subtitle && <p style={mergeStyle({ color: '#9ca3af', fontSize: 22, fontWeight: 500, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 24, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         {/* Metric */}
         {metric && (
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, transform: `scale(${metricS})`, opacity: metricO }}>

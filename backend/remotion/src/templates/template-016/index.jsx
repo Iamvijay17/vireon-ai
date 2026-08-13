@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, Img } from 'remotion';
 import { styles } from './styles';
 import { useTemplate016Animations } from './animations';
 import { backgroundColors } from '../../styles';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 016 - Image Collage Grid (2x2)
@@ -14,6 +15,7 @@ const Template016 = React.memo(({ scene }) => {
   const caption = elements.caption || '';
   const subtitle = elements.subtitle || '';
   const bgColor = elements.backgroundColor || backgroundColors.dark;
+  const overrides = elements.styleConfig || {};
 
   const anim = useTemplate016Animations({ frameOffset: 0 });
 
@@ -32,8 +34,8 @@ const Template016 = React.memo(({ scene }) => {
           })}
         </div>
         <div style={{ ...styles.overlay, ...anim.overlayStyle }}>
-          {caption && <div style={{ ...styles.caption, ...anim.captionStyle }}>{caption}</div>}
-          {subtitle && <div style={styles.subtitle}>{subtitle}</div>}
+          {caption && <div style={mergeStyle({ ...styles.caption, ...anim.captionStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>{caption}</div>}
+          {subtitle && <div style={mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</div>}
         </div>
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

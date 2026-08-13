@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, interpolate, useCurrentFrame } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useSlideUp } from '../../animations';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 047 - Motivational (Outro)
@@ -28,6 +29,7 @@ const Template047 = React.memo(({ scene }) => {
   const body = e.body || e.author || '';
   const bg = e.backgroundColor || backgroundColors.warm;
   const accent = e.accentColor || '#fbbf24';
+  const overrides = e.styleConfig || {};
 
   const bgGrad = useMemo(() => ({ background: `linear-gradient(135deg, ${bg} 0%, #1a0f2e 50%, #2d1b4e 100%)` }), [bg]);
   const titleO = interpolate(frame, [0, 25], [0, 1], { extrapolateRight: 'clamp' });
@@ -42,10 +44,11 @@ const Template047 = React.memo(({ scene }) => {
       <div style={{ position: 'absolute', top: '18%', left: '50%', width: 420, height: 420, borderRadius: '50%', background: `radial-gradient(circle, ${accent}18, transparent 70%)`, transform: `translate(-50%, ${glowY}px)` }} />
       <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '80px 100px', boxSizing: 'border-box', textAlign: 'center' }}>
         {title && (
-          <h1 style={{
+          <h1 style={mergeStyle({
             color: '#fff', fontSize: 54, fontWeight: 800, textAlign: 'center', margin: 0, marginBottom: 24,
             maxWidth: '85%', lineHeight: 1.25, opacity: titleO, transform: `scale(${titleScale})`,
-          }}>{title}</h1>
+            ...positionStyle(overrides.title?.position),
+          }, overrides.title)}>{title}</h1>
         )}
         <div style={{ width: 64, height: 4, borderRadius: 2, backgroundColor: accent, transform: `scaleX(${accentLineX})`, marginBottom: 20 }} />
         {body && (

@@ -3,7 +3,7 @@ import { AbsoluteFill, Audio, useCurrentFrame } from 'remotion';
 import { styles } from './styles';
 import { useTemplate009Animations, getBulletItemAnimation } from './animations';
 import { backgroundColors } from '../../styles';
-import { mergeStyle } from '../../theme';
+import { mergeStyle, positionStyle } from '../../theme';
 
 /**
  * Template 009 - Bullet List
@@ -32,7 +32,7 @@ const Template009 = React.memo(({ scene }) => {
 
   const frame = useCurrentFrame();
   const anim = useTemplate009Animations({ frameOffset: 0 });
-  const titleStyle = mergeStyle(styles.title, overrides.title);
+  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
   const textStyle = mergeStyle(styles.text, overrides.body);
   const bulletStyle = overrides.accentColor ? { backgroundColor: overrides.accentColor } : {};
 
