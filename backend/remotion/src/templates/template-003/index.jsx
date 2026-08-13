@@ -59,12 +59,12 @@ const Template003 = React.memo(({ scene }) => {
         {/* Caption Container */}
         <div style={styles.captionContainer}>
           {label && (
-            <p style={mergeStyle({ ...styles.label, ...anim.labelStyle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
+            <p data-style-role="subtitle" style={mergeStyle({ ...styles.label, ...anim.labelStyle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
               {label}
             </p>
           )}
           {caption && (
-            <h2 style={mergeStyle({ ...styles.caption, ...anim.captionStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            <h2 data-style-role="title" style={mergeStyle({ ...styles.caption, ...anim.captionStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
               {caption}
             </h2>
           )}

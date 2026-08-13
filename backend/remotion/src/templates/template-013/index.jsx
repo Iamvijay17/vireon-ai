@@ -33,7 +33,7 @@ const Template013 = React.memo(({ scene }) => {
         {title && (
           <div style={{ ...styles.header, ...anim.headerStyle }}>
             {emoji && <span style={styles.emoji}>{emoji}</span>}
-            <h1 style={titleStyle}>{title}</h1>
+            <h1 data-style-role="title" style={titleStyle}>{title}</h1>
           </div>
         )}
         <div style={styles.stepsContainer}>

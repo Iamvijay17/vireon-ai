@@ -44,7 +44,7 @@ const Template047 = React.memo(({ scene }) => {
       <div style={{ position: 'absolute', top: '18%', left: '50%', width: 420, height: 420, borderRadius: '50%', background: `radial-gradient(circle, ${accent}18, transparent 70%)`, transform: `translate(-50%, ${glowY}px)` }} />
       <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '80px 100px', boxSizing: 'border-box', textAlign: 'center' }}>
         {title && (
-          <h1 style={mergeStyle({
+          <h1 data-style-role="title" style={mergeStyle({
             color: '#fff', fontSize: 54, fontWeight: 800, textAlign: 'center', margin: 0, marginBottom: 24,
             maxWidth: '85%', lineHeight: 1.25, opacity: titleO, transform: `scale(${titleScale})`,
             ...positionStyle(overrides.title?.position),

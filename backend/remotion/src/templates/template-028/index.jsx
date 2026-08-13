@@ -52,7 +52,7 @@ const Template028 = React.memo(({ scene }) => {
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={s.container}>
         {title && (
-          <h1 style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+          <h1 data-style-role="title" style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>
             {title}
           </h1>
         )}

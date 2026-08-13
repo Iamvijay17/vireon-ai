@@ -40,8 +40,8 @@ const T = React.memo(({ scene }) => {
         </div>
         <div style={s.textPanel}>
           {lab && <div style={{ ...s.label, ...a.lS }}>{lab}</div>}
-          {t && <h1 style={mergeStyle({ ...s.title, ...a.tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
-          {b && <p style={mergeStyle({ ...s.body, ...a.bS, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{b}</p>}
+          {t && <h1 data-style-role="title" style={mergeStyle({ ...s.title, ...a.tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
+          {b && <p data-style-role="subtitle" style={mergeStyle({ ...s.body, ...a.bS, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{b}</p>}
           {stat && <div style={{ ...s.stat, ...a.bS }}>{stat}</div>}
         </div>
       </div>

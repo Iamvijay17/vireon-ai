@@ -43,12 +43,12 @@ const Template029 = React.memo(({ scene }) => {
       <div style={s.container}>
         <div style={{ ...s.icon, ...iconPop }}>&#128161;</div>
         {title && (
-          <div style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+          <div data-style-role="title" style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>
             {title}
           </div>
         )}
         {body && (
-          <p style={mergeStyle({ ...s.body, ...bodySlide, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
+          <p data-style-role="subtitle" style={mergeStyle({ ...s.body, ...bodySlide, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
             {body}
           </p>
         )}

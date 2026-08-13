@@ -30,7 +30,7 @@ const Template048 = React.memo(({ scene }) => {
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, ...bgGrad }} />
       <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '60px', boxSizing: 'border-box' }}>
         {/* Top bar */}
-        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 36, fontWeight: 700, fontFamily: "'Inter', Arial, sans-serif", margin: 0, marginBottom: 20, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {title && <h1 data-style-role="title" style={mergeStyle({ color: '#fff', fontSize: 36, fontWeight: 700, fontFamily: "'Inter', Arial, sans-serif", margin: 0, marginBottom: 20, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
 
         {/* Split content */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 40 }}>

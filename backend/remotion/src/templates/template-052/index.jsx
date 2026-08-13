@@ -36,8 +36,8 @@ const Template052 = React.memo(({ scene }) => {
             <div style={{ position: 'absolute', top: -10, left: '30%', width: 20, height: 20, backgroundColor: '#ffffff10', borderRadius: '50%', filter: 'blur(8px)', transform: `translateY(${steamY}px)` }} />
           </div>
         )}
-        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 52, fontWeight: 800, fontFamily: "'Georgia', serif", textAlign: 'center', margin: 0, marginBottom: 6, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
-        {subtitle && <p style={mergeStyle({ color: accent, fontSize: 20, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 2, margin: 0, marginBottom: 16, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
+        {title && <h1 data-style-role="title" style={mergeStyle({ color: '#fff', fontSize: 52, fontWeight: 800, fontFamily: "'Georgia', serif", textAlign: 'center', margin: 0, marginBottom: 6, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {subtitle && <p data-style-role="subtitle" style={mergeStyle({ color: accent, fontSize: 20, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 2, margin: 0, marginBottom: 16, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         {/* Ingredients */}
         {ingredients.length > 0 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', opacity: subO }}>

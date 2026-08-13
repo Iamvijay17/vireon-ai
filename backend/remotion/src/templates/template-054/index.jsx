@@ -32,7 +32,7 @@ const Template054 = React.memo(({ scene }) => {
       <div style={{ position: 'absolute', top: 20, left: 20, right: 20, bottom: 20, border: `2px solid ${accent}20`, borderRadius: 8, pointerEvents: 'none' }} />
 
       <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '80px', boxSizing: 'border-box' }}>
-        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 52, fontWeight: 700, fontFamily: "'Courier New', monospace", textAlign: 'center', margin: 0, marginBottom: 24, opacity: titleO, transform: `translateY(${titleY}px)`, textShadow: `0 0 20px ${accent}20`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {title && <h1 data-style-role="title" style={mergeStyle({ color: '#fff', fontSize: 52, fontWeight: 700, fontFamily: "'Courier New', monospace", textAlign: 'center', margin: 0, marginBottom: 24, opacity: titleO, transform: `translateY(${titleY}px)`, textShadow: `0 0 20px ${accent}20`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         {formula && (
           <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: `1px solid ${accent}30`, borderRadius: 12, padding: '20px 40px', marginBottom: 16, opacity: formulaO, transform: `scale(${formulaS})` }}>
             <span style={{ color: accent, fontSize: 36, fontWeight: 700, fontFamily: "'Courier New', monospace", letterSpacing: 2 }}>{formula}</span>

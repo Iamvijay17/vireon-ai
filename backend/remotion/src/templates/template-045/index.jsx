@@ -175,7 +175,7 @@ const Template045 = React.memo(({ scene }) => {
       }}>
         {/* Title */}
         {title && (
-          <h1 style={mergeStyle({
+          <h1 data-style-role="title" style={mergeStyle({
             color: textColor,
             fontSize: 72,
             fontWeight: 400,
@@ -196,7 +196,7 @@ const Template045 = React.memo(({ scene }) => {
 
         {/* Subtitle */}
         {subtitle && (
-          <p style={mergeStyle({
+          <p data-style-role="subtitle" style={mergeStyle({
             color: '#a8a8a0',
             fontSize: 28,
             fontWeight: 300,

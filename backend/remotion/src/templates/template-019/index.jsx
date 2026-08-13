@@ -54,12 +54,12 @@ const Template019 = React.memo(({ scene }) => {
         <div style={s.overlay} />
         <div style={{ ...s.content, opacity: bgFade }}>
           {title && (
-            <h1 style={mergeStyle({ ...s.title, ...titleSlide, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            <h1 data-style-role="title" style={mergeStyle({ ...s.title, ...titleSlide, ...positionStyle(overrides.title?.position) }, overrides.title)}>
               {title}
             </h1>
           )}
           {subtitle && (
-            <p style={mergeStyle({ ...s.subtitle, ...subtitleSlide, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
+            <p data-style-role="subtitle" style={mergeStyle({ ...s.subtitle, ...subtitleSlide, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
               {subtitle}
             </p>
           )}

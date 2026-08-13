@@ -41,8 +41,8 @@ const T = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...bgS }}>
-        {t && <h1 style={mergeStyle({ ...s.title, ...tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
-        {sub && <div style={mergeStyle({ ...s.sub, ...subS, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{sub}</div>}
+        {t && <h1 data-style-role="title" style={mergeStyle({ ...s.title, ...tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
+        {sub && <div data-style-role="subtitle" style={mergeStyle({ ...s.sub, ...subS, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{sub}</div>}
       <div style={s.row}>
           {items.map((item, i) => (
             <ChipItem key={i} item={item} index={i} fo={fo} color={chColors[i % chColors.length]} />

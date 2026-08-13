@@ -45,7 +45,7 @@ const T = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...bgS }}>
-        {t && <h1 style={{ ...titleStyle, ...tS }}>{t}</h1>}
+        {t && <h1 data-style-role="title" style={{ ...titleStyle, ...tS }}>{t}</h1>}
         <div style={s.list}>
           {items.map((item, i) => (
             <Row key={i} item={item} index={i} fo={fo} textStyle={overrides.body} />

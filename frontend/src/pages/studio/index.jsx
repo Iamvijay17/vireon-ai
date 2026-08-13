@@ -42,7 +42,6 @@ import { LoadingState, EmptyState } from "../../components";
 import { ScenePreview } from "../../components/video/ScenePreview";
 import { SceneThumbnail } from "../../components/video/SceneThumbnail";
 import { TemplatePickerModal } from "../../components/video/TemplatePickerModal";
-import { TextPositionPad } from "../../components/video/TextPositionPad";
 import { useForceSidebarCollapsed } from "../../shared/sidebarContextValue";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -605,6 +604,8 @@ const StudioPage = () => {
                 onActiveSceneChange={setSelectedSceneIndex}
                 hideChips
                 videoId={jobId}
+                onTextPositionChange={canEdit ? (role, pos) => handleElementFieldChange(selectedSceneIndex, `${role}.position`, pos) : undefined}
+                onTextPositionReset={canEdit ? (role) => handleElementFieldChange(selectedSceneIndex, `${role}.position`, undefined) : undefined}
               />
             </div>
           </Card>
@@ -785,18 +786,9 @@ const StudioPage = () => {
               <div>
                 <SectionLabel icon={Palette}>Template Style</SectionLabel>
                 <div className="space-y-3">
-                  <Field label="Text Position">
-                    <TextPositionPad
-                      positions={{
-                        title: scene.elements?.styleConfig?.title?.position,
-                        subtitle: scene.elements?.styleConfig?.subtitle?.position,
-                      }}
-                      hasSubtitle={!!(scene.subtitle || scene.elements?.subtitle)}
-                      onChange={(role, pos) => handleElementFieldChange(selectedSceneIndex, `${role}.position`, pos)}
-                      onReset={(role) => handleElementFieldChange(selectedSceneIndex, `${role}.position`, undefined)}
-                      disabled={!canEdit}
-                    />
-                  </Field>
+                  <p className="text-[11px] text-text-tertiary">
+                    Drag the title/subtitle directly in the preview above to reposition. A reset icon appears on a text box once it's been moved.
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Font Family">
                       <Select

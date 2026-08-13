@@ -63,8 +63,8 @@ const Template012 = React.memo(({ scene }) => {
         <div style={s.overlay} />
         <div style={s.content}>
           <div style={{ ...s.eyebrow, opacity: eyebrowFade }} />
-          {title && <h1 style={mergeStyle({ ...s.title, opacity: titlePop.opacity, transform: titlePop.transform, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
-          {subtitle && <p style={mergeStyle({ ...s.subtitle, ...subtitleSlide, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
+          {title && <h1 data-style-role="title" style={mergeStyle({ ...s.title, opacity: titlePop.opacity, transform: titlePop.transform, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+          {subtitle && <p data-style-role="subtitle" style={mergeStyle({ ...s.subtitle, ...subtitleSlide, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         </div>
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

@@ -119,6 +119,13 @@ export const mergeStyle = (themeDefault, override) => {
  * so a per-element `overrides.title.position` wins without needing every
  * template to hand-roll the same absolute positioning math.
  */
+// Deliberately omits `margin` - several templates set longhand margins
+// (e.g. `marginBottom: 16`) on title/subtitle for spacing, and mixing the
+// `margin` shorthand into the same style object as those longhand
+// properties trips a React style-diffing warning ("mixing shorthand and
+// non-shorthand properties") without actually being needed: an absolutely
+// positioned element with explicit `left`/`top` and no `right`/`bottom` set
+// isn't shifted by a leftover `marginBottom`.
 export const positionStyle = (pos) =>
   pos && typeof pos.xPct === 'number' && typeof pos.yPct === 'number'
     ? {
@@ -126,7 +133,6 @@ export const positionStyle = (pos) =>
         left: `${pos.xPct * 100}%`,
         top: `${pos.yPct * 100}%`,
         transform: 'translate(-50%, -50%)',
-        margin: 0,
       }
     : {};
 

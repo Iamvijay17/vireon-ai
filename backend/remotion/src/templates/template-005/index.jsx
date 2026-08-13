@@ -45,7 +45,7 @@ const Template005 = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={s.container}>
-        {title && <h1 style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {title && <h1 data-style-role="title" style={mergeStyle({ ...s.title, opacity: titleFade, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         <div style={s.columns}>
           <div style={{ ...s.column, ...leftAnim }}>
             {columns[0]?.heading && <div style={s.heading}>{columns[0].heading}</div>}

@@ -56,7 +56,7 @@ const Template015 = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={s.container}>
-        {title && <h1 style={{ ...titleStyle, opacity: titleFade }}>{title}</h1>}
+        {title && <h1 data-style-role="title" style={{ ...titleStyle, opacity: titleFade }}>{title}</h1>}
         <div style={s.grid}>
           {items.map((item, index) => (
             <GridItem key={index} item={item} index={index} textStyle={overrides.body} />

@@ -44,7 +44,7 @@ const T = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...bgS }}>
-        {t && <h1 style={mergeStyle({ ...s.title, ...tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
+        {t && <h1 data-style-role="title" style={mergeStyle({ ...s.title, ...tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
         <div style={s.row}>
           {items.map((item, i) => (
             <CardItem key={i} item={item} index={i} fo={fo} />

@@ -61,8 +61,8 @@ const T = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...bgS }}>
-        {t && <h1 style={{ ...titleStyle, ...tS }}>{t}</h1>}
-        {sub && <div style={{ ...subtitleStyle, ...subS }}>{sub}</div>}
+        {t && <h1 data-style-role="title" style={{ ...titleStyle, ...tS }}>{t}</h1>}
+        {sub && <div data-style-role="subtitle" style={{ ...subtitleStyle, ...subS }}>{sub}</div>}
         {items.map((item, i) => (
           <StepItem key={i} item={item} index={i} fo={fo} />
         ))}

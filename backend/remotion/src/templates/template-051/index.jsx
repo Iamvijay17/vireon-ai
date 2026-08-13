@@ -39,8 +39,8 @@ const Template051 = React.memo(({ scene }) => {
             <Img src={image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
-        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 48, fontWeight: 900, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 4, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
-        {subtitle && <p style={mergeStyle({ color: '#9ca3af', fontSize: 22, fontWeight: 500, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 24, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
+        {title && <h1 data-style-role="title" style={mergeStyle({ color: '#fff', fontSize: 48, fontWeight: 900, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 4, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {subtitle && <p data-style-role="subtitle" style={mergeStyle({ color: '#9ca3af', fontSize: 22, fontWeight: 500, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 24, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         {/* Metric */}
         {metric && (
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, transform: `scale(${metricS})`, opacity: metricO }}>

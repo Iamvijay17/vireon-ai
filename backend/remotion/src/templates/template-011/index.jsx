@@ -21,7 +21,7 @@ const Template011 = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
-        {title && <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {title && <h1 data-style-role="title" style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         <div style={styles.cardRow}>
           {members.map((member, index) => (
             <div key={index} style={{ ...styles.profileCard, ...anim.getCardAnim(index) }}>

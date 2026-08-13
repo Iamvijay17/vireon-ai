@@ -36,7 +36,7 @@ const T = React.memo(({ scene }) => {
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...a.bgS }}>
         {img && <Img src={img} style={{ ...s.img, ...a.imgS }} />}
-        {n && <h1 style={mergeStyle({ ...s.name, ...a.nS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{n}</h1>}
+        {n && <h1 data-style-role="title" style={mergeStyle({ ...s.name, ...a.nS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{n}</h1>}
         {r && <div style={{ ...s.role, ...a.rS }}>{r}</div>}
         {b && <p style={{ ...s.bio, ...a.bS }}>{b}</p>}
         {st.length > 0 && <div style={{ ...s.statRow, ...a.sS }}>{st.map((s2, i) => <div key={i} style={s.stat}><div style={s.statV}>{s2.value}</div><div style={s.statL}>{s2.label}</div></div>)}</div>}

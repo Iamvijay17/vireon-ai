@@ -25,7 +25,7 @@ const Template007 = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
-        {title && <h1 style={titleStyle}>{title}</h1>}
+        {title && <h1 data-style-role="title" style={titleStyle}>{title}</h1>}
         <div style={styles.statList}>
           {stats.map((stat, index) => (
             <div key={index} style={{ ...styles.statRow, ...anim.getCardAnim(index) }}>

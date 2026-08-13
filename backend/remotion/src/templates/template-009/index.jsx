@@ -39,7 +39,7 @@ const Template009 = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.container, ...anim.bgStyle }}>
-        {title && <h1 style={{ ...titleStyle, ...anim.titleStyle }}>{title}</h1>}
+        {title && <h1 data-style-role="title" style={{ ...titleStyle, ...anim.titleStyle }}>{title}</h1>}
         <div style={styles.list}>
           {items.map((item, index) => (
             <div key={index} style={{ ...styles.row, ...getBulletItemAnimation(frame, 15 + index * 6) }}>

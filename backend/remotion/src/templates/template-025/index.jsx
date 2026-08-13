@@ -28,7 +28,7 @@ const Template025 = React.memo(({ scene }) => {
         <div style={styles.textContainer}>
           {tag && <div style={{ ...styles.tag, ...anim.tagStyle }}>{tag}</div>}
           {title && (
-            <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            <h1 data-style-role="title" style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
               {title}
             </h1>
           )}

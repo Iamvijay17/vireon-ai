@@ -136,7 +136,7 @@ const Scene = React.memo(({ scene, jobId }) => {
   const Template = resolveTemplate(templateId);
 
   return (
-    <AbsoluteFill>
+    <AbsoluteFill data-scene-frame="true" data-scene-number={scene?.sceneNumber ?? ""}>
       <Suspense fallback={<TemplateLoadingFallback />}>
         <Template scene={scene} />
       </Suspense>

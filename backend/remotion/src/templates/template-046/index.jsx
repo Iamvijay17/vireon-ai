@@ -43,8 +43,8 @@ const Template046 = React.memo(({ scene }) => {
             <Img src={deviceImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
-        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 52, fontWeight: 800, fontFamily: "'SF Pro', 'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 8, lineHeight: 1.1, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
-        {subtitle && <p style={mergeStyle({ color: '#94a3b8', fontSize: 24, fontWeight: 400, fontFamily: "'SF Pro', 'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 16, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
+        {title && <h1 data-style-role="title" style={mergeStyle({ color: '#fff', fontSize: 52, fontWeight: 800, fontFamily: "'SF Pro', 'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 8, lineHeight: 1.1, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {subtitle && <p data-style-role="subtitle" style={mergeStyle({ color: '#94a3b8', fontSize: 24, fontWeight: 400, fontFamily: "'SF Pro', 'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 16, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         {/* Specs chips */}
         {specs.length > 0 && (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', opacity: subO }}>

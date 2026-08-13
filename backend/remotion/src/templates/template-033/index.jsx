@@ -50,7 +50,7 @@ const Template033 = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={s.container}>
-        {title && <h1 style={mergeStyle({ ...s.title, ...positionStyle(overrides.title?.position), opacity: titleFade }, overrides.title)}>{title}</h1>}
+        {title && <h1 data-style-role="title" style={mergeStyle({ ...s.title, ...positionStyle(overrides.title?.position), opacity: titleFade }, overrides.title)}>{title}</h1>}
         <div style={s.row}>
           {items.map((item, index) => (
             <RowItem key={index} item={item} index={index} />

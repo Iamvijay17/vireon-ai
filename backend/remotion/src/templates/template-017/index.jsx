@@ -33,7 +33,7 @@ const Template017 = React.memo(({ scene }) => {
         </div>
         <div style={{ ...styles.textPanel, ...anim.bgStyle }}>
           {badge && <div style={{ ...styles.stepBadge, ...anim.badgeStyle }}>{badge}</div>}
-          {title && <h1 style={{ ...titleStyle, ...anim.titleStyle }}>{title}</h1>}
+          {title && <h1 data-style-role="title" style={{ ...titleStyle, ...anim.titleStyle }}>{title}</h1>}
           {body && <p style={{ ...bodyStyle, ...anim.bodyStyle }}>{body}</p>}
         </div>
       </div>

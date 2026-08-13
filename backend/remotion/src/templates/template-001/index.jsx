@@ -54,14 +54,14 @@ const Template001 = React.memo(({ scene }) => {
 
           {/* Title */}
           {title && (
-            <h1 style={mergeStyle({ ...styles.title, ...anim.headingStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            <h1 data-style-role="title" style={mergeStyle({ ...styles.title, ...anim.headingStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
               {title}
             </h1>
           )}
 
           {/* Subtitle */}
           {subtitle && (
-            <p style={mergeStyle({ ...styles.subtitle, ...anim.subtitleStyle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
+            <p data-style-role="subtitle" style={mergeStyle({ ...styles.subtitle, ...anim.subtitleStyle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
               {subtitle}
             </p>
           )}

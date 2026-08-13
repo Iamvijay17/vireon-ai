@@ -40,8 +40,8 @@ const T = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bc }}>
       <div style={{ ...s.container, ...bgS }}>
-        {t && <h1 style={mergeStyle({ ...s.title, ...tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
-        {sub && <div style={mergeStyle({ ...s.subtitle, ...subS, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{sub}</div>}
+        {t && <h1 data-style-role="title" style={mergeStyle({ ...s.title, ...tS, ...positionStyle(overrides.title?.position) }, overrides.title)}>{t}</h1>}
+        {sub && <div data-style-role="subtitle" style={mergeStyle({ ...s.subtitle, ...subS, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{sub}</div>}
         <div style={s.row}>
           {items.map((item, i) => (
             <PillItem key={i} item={item} index={i} fo={fo} color={colors[i % colors.length]} />

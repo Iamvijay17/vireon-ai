@@ -51,9 +51,9 @@ const Template006 = React.memo(({ scene }) => {
       <div style={{ ...s.container, opacity: bgFade }}>
         {badge && <div style={{ ...s.badge, opacity: badgeFade }}>{badge}</div>}
         <div style={{ ...s.quoteMark, ...markPop }}>&rdquo;</div>
-        {title && <h1 style={mergeStyle({ ...s.title, ...titleSlide, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {title && <h1 data-style-role="title" style={mergeStyle({ ...s.title, ...titleSlide, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
         <div style={{ ...s.line, opacity: lineFade }} />
-        {body && <div style={mergeStyle({ ...s.body, opacity: bodyFade, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{body}</div>}
+        {body && <div data-style-role="subtitle" style={mergeStyle({ ...s.body, opacity: bodyFade, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{body}</div>}
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}
     </AbsoluteFill>

@@ -35,7 +35,7 @@ const Template030 = React.memo(({ scene }) => {
       <div style={{ ...styles.container, ...anim.bgStyle }}>
         {badge && <div style={{ ...styles.badge, ...anim.badgeStyle }}>{badge}</div>}
         {title && (
-          <h1 style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+          <h1 data-style-role="title" style={mergeStyle({ ...styles.title, ...anim.titleStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
             {title}
           </h1>
         )}

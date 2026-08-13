@@ -37,8 +37,8 @@ const Template010 = React.memo(({ scene }) => {
         {/* Left Panel */}
         <div style={{ ...styles.leftPanel, ...anim.leftStyle }}>
           <div style={styles.accentBar} />
-          {title && <h1 style={mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
-          {subtitle && <p style={mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
+          {title && <h1 data-style-role="title" style={mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+          {subtitle && <p data-style-role="subtitle" style={mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         </div>
 
         {/* Right Panel */}

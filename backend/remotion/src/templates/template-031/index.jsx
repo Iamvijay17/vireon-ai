@@ -53,7 +53,7 @@ const Template031 = React.memo(({ scene }) => {
         <div style={{ ...s.glow, transform: `translate(-50%, -50%) scale(${glowScale})` }} />
         {badge && <div style={{ ...s.badge, ...badgePop }}>{badge}</div>}
         {title && (
-          <h1 style={mergeStyle({ ...s.title, opacity: titleZoom.opacity, transform: titleZoom.transform, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+          <h1 data-style-role="title" style={mergeStyle({ ...s.title, opacity: titleZoom.opacity, transform: titleZoom.transform, ...positionStyle(overrides.title?.position) }, overrides.title)}>
             {title}
           </h1>
         )}

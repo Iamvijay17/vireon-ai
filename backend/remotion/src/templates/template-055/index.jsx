@@ -28,8 +28,8 @@ const Template055 = React.memo(({ scene }) => {
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.04, backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '80px 80px' }} />
 
       <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '60px', boxSizing: 'border-box' }}>
-        {title && <h1 style={mergeStyle({ color: '#fff', fontSize: 48, fontWeight: 700, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 6, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
-        {subtitle && <p style={mergeStyle({ color: '#94a3b8', fontSize: 22, fontWeight: 400, fontFamily: "'Inter', Arial, sans-serif", margin: 0, marginBottom: 30, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
+        {title && <h1 data-style-role="title" style={mergeStyle({ color: '#fff', fontSize: 48, fontWeight: 700, fontFamily: "'Inter', Arial, sans-serif", textAlign: 'center', margin: 0, marginBottom: 6, opacity: titleO, transform: `translateY(${titleY}px)`, ...positionStyle(overrides.title?.position) }, overrides.title)}>{title}</h1>}
+        {subtitle && <p data-style-role="subtitle" style={mergeStyle({ color: '#94a3b8', fontSize: 22, fontWeight: 400, fontFamily: "'Inter', Arial, sans-serif", margin: 0, marginBottom: 30, opacity: subO, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</p>}
         {/* Chart bars */}
         {chartData.length > 0 && (
           <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', height: 160, opacity: subO }}>

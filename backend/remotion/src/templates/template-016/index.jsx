@@ -34,8 +34,8 @@ const Template016 = React.memo(({ scene }) => {
           })}
         </div>
         <div style={{ ...styles.overlay, ...anim.overlayStyle }}>
-          {caption && <div style={mergeStyle({ ...styles.caption, ...anim.captionStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>{caption}</div>}
-          {subtitle && <div style={mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</div>}
+          {caption && <div data-style-role="title" style={mergeStyle({ ...styles.caption, ...anim.captionStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>{caption}</div>}
+          {subtitle && <div data-style-role="subtitle" style={mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>{subtitle}</div>}
         </div>
       </div>
       {scene?.audio?.file && <Audio src={scene.audio.file} />}

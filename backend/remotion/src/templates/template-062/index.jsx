@@ -70,10 +70,11 @@ const Template062 = React.memo(({ scene }) => {
       <div style={{ ...styles.content, transform: `scale(${scale})`, transformOrigin: 'center center', width: `${100 / scale}%`, height: `${100 / scale}%` }}>
         {title && (
           <h1
+            data-style-role="title"
             style={{
               ...titleStyle,
               opacity: titleOpacity,
-              transform: `translateY(${titleY}px)`,
+              transform: overrides.title?.position ? titleStyle.transform : `translateY(${titleY}px)`,
             }}
           >
             {title}
