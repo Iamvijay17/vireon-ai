@@ -12,7 +12,15 @@ import { mergeStyle, positionStyle } from '../../theme';
 const Template011 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
   const title = elements.title || '';
-  const members = elements.members || elements.items || [];
+  const explicitMembers = elements.members || elements.items;
+  // Some generated scenes for this template arrive as a single flat
+  // name/role/bio profile (not a `members` array) - fall back to treating
+  // that as a one-member list instead of rendering nothing.
+  const members = explicitMembers && explicitMembers.length
+    ? explicitMembers
+    : elements.name || elements.role || elements.bio
+      ? [{ avatar: elements.image, name: elements.name, role: elements.role, bio: elements.bio }]
+      : [];
   const bgColor = elements.backgroundColor || backgroundColors.navy;
   const overrides = elements.styleConfig || {};
 

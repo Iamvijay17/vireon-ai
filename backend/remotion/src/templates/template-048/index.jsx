@@ -11,8 +11,14 @@ import { mergeStyle, positionStyle } from '../../theme';
 const Template048 = React.memo(({ scene }) => {
   const frame = useCurrentFrame(); const { fps } = useVideoConfig();
   const e = scene?.elements || {};
-  const title = e.title || ''; const guestName = e.guestName || ''; const guestTitle = e.guestTitle || '';
-  const guestImage = e.guestImage || ''; const caption = e.caption || '';
+  const title = e.title || '';
+  // Generated scenes for this template sometimes arrive with generic
+  // profile field names (name/role/image/bio) instead of the
+  // guest-specific ones this template was written for.
+  const guestName = e.guestName || e.name || '';
+  const guestTitle = e.guestTitle || e.role || '';
+  const guestImage = e.guestImage || e.image || e.avatar || '';
+  const caption = e.caption || e.bio || '';
   const timestamps = e.captionTimestamps || null;
   const bg = e.backgroundColor || '#111827'; const accent = e.accentColor || '#60a5fa';
   const overrides = e.styleConfig || {};

@@ -11,8 +11,13 @@ import { mergeStyle, positionStyle } from '../../theme';
  */
 const Template022 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
-  const title = elements.title || '';
-  const photos = elements.photos || elements.items || [];
+  const rawPhotos = elements.photos || elements.images || elements.items || [];
+  // Filter out placeholder entries with no actual image (generated scenes
+  // sometimes ship `images: [{url: ""}, ...]` when no image was sourced).
+  const photos = rawPhotos.filter((p) => p?.url || p?.src || (typeof p === 'string' && p));
+  // With no real photos to show, fall back to the scene's caption so the
+  // slide isn't left completely blank.
+  const title = elements.title || (photos.length === 0 ? elements.caption || '' : '');
   const bgColor = elements.backgroundColor || backgroundColors.navy;
   const overrides = elements.styleConfig || {};
 

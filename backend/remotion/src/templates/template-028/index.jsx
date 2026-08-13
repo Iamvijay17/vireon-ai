@@ -42,8 +42,16 @@ const Row = ({ item, index }) => {
 
 const Template028 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
-  const title = elements.title || '';
-  const items = elements.items || elements.rows || [];
+  // Some generated scenes arrive as a single `leftCard`/`rightCard` pair
+  // (not an `items`/`rows` list) - fall back to treating that pair as a
+  // one-row table instead of rendering nothing.
+  const explicitItems = elements.items || elements.rows;
+  const items = explicitItems && explicitItems.length
+    ? explicitItems
+    : elements.leftCard || elements.rightCard
+      ? [{ left: elements.leftCard?.body || elements.leftCard?.title || '', right: elements.rightCard?.body || elements.rightCard?.title || '' }]
+      : [];
+  const title = elements.title || elements.header || '';
   const bgColor = elements.backgroundColor || backgroundColors.navy;
   const overrides = elements.styleConfig || {};
   const titleFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 12 });

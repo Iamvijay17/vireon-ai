@@ -40,6 +40,17 @@ const getSceneStartFrames = (scenes) => {
 
 const clamp01 = (n) => Math.min(1, Math.max(0, n));
 
+// Most templates fade/slide their title and subtitle in over their first
+// ~20-35 frames. Seeking to a scene's exact first frame (frame 0 of its
+// Sequence) freezes the preview mid fade-in - title/subtitle can render at
+// near-zero opacity, reading as "the text isn't showing" even though it's
+// there. Landing a little further in shows the settled, fully-visible state.
+const SETTLE_FRAMES = 40;
+const settleOffsetFor = (sceneDurationSeconds) => {
+  const sceneDurationFrames = Math.round((sceneDurationSeconds || 8) * FPS);
+  return Math.min(SETTLE_FRAMES, Math.floor(sceneDurationFrames / 2));
+};
+
 // Locates the currently-active scene's rendered frame (`VideoComposition`'s
 // Scene component tags its root with `data-scene-frame`/`data-scene-number`
 // - see backend/remotion/src/VideoComposition.jsx) and, within it, whichever
@@ -119,17 +130,48 @@ export function ScenePreview({
   const sceneStarts = useMemo(() => getSceneStartFrames(scenes), [scenes]);
   const durationInFrames = useMemo(() => calculateTotalDurationInFrames(scenes), [scenes]);
   const activeScene = scenes[activeIndex];
+  // Kept in sync every render (not as effect deps) so the drag-listener and
+  // polling effects below don't need `activeScene`/`onTextPositionChange` in
+  // their dependency arrays - both change on every keystroke of a drag
+  // (new scene object, new inline callback from Studio), which previously
+  // caused those effects to tear down and re-attach their native listeners
+  // mid-drag.
+  const activeSceneRef = useRef(activeScene);
+  const onTextPositionChangeRef = useRef(onTextPositionChange);
+  useEffect(() => {
+    activeSceneRef.current = activeScene;
+    onTextPositionChangeRef.current = onTextPositionChange;
+  });
 
   const seekToScene = useCallback(
     (index) => {
       const player = playerRef.current;
       if (!player) return;
       player.pause();
-      player.seekTo(sceneStarts[index] || 0);
+      player.seekTo((sceneStarts[index] || 0) + settleOffsetFor(scenes[index]?.duration));
       setActiveIndex(index);
     },
-    [sceneStarts],
+    [sceneStarts, scenes],
   );
+
+  // Land on the settled frame of the first scene once scenes actually
+  // arrive - without this, the initial view is stuck at frame 0 of the
+  // whole timeline. This can't be a mount-only effect: the caller (Studio)
+  // fetches job data asynchronously, so `scenes` is typically still `[]` on
+  // this component's first mount and only becomes populated a render or two
+  // later - a `[]`-deps effect would see the empty array, no-op, and never
+  // run again once the real data shows up.
+  const hasSettledInitialRef = useRef(false);
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player || scenes.length === 0 || hasSettledInitialRef.current) return;
+    hasSettledInitialRef.current = true;
+    player.seekTo(settleOffsetFor(scenes[0]?.duration));
+    // Deliberately keyed on `scenes.length` (not `scenes`) plus the ref
+    // guard above: this should fire exactly once, the first time scenes
+    // goes from empty to populated - not on every subsequent scenes edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenes.length]);
 
   useEffect(() => {
     const player = playerRef.current;
@@ -164,7 +206,7 @@ export function ScenePreview({
     if (!editable) return undefined;
     const tick = () => {
       if (dragRef.current) return; // don't fight an in-progress drag
-      setOverlay(measureTextRoles(containerRef.current, activeScene?.sceneNumber));
+      setOverlay(measureTextRoles(containerRef.current, activeSceneRef.current?.sceneNumber));
     };
     tick();
     const id = setInterval(tick, 300);
@@ -173,7 +215,7 @@ export function ScenePreview({
       clearInterval(id);
       window.removeEventListener("resize", tick);
     };
-  }, [editable, activeScene?.sceneNumber, activeScene?.elements?.styleConfig]);
+  }, [editable, activeScene?.sceneNumber]);
 
   // Drag is wired imperatively (native `addEventListener` inside an effect)
   // rather than via React `onPointerDown` props: those handlers need to read
@@ -190,7 +232,7 @@ export function ScenePreview({
       const frameEls = container.querySelectorAll('[data-scene-frame="true"]');
       let frameEl = null;
       frameEls.forEach((el) => {
-        if (String(el.getAttribute("data-scene-number")) === String(activeScene?.sceneNumber)) frameEl = el;
+        if (String(el.getAttribute("data-scene-number")) === String(activeSceneRef.current?.sceneNumber)) frameEl = el;
       });
       if (!frameEl && frameEls.length) frameEl = frameEls[frameEls.length - 1];
       return frameEl;
@@ -204,18 +246,38 @@ export function ScenePreview({
       const frameEl = findFrameEl();
       if (!frameEl) return;
 
+      // Stop propagation so this doesn't also reach the Player's own
+      // `clickToPlay` listener - without it, starting a drag on the title
+      // would toggle play/pause underneath the drag at the same time.
       e.preventDefault();
+      e.stopPropagation();
       playerRef.current?.pause();
       const fRect = frameEl.getBoundingClientRect();
       dragRef.current = { role, frame: fRect };
       setDraggingRole(role);
+
+      // Pointer capture retargets all subsequent pointer events to `handle`
+      // regardless of what's visually underneath the cursor. Without this,
+      // dragging the text down into the Player's own control bar (which
+      // stops propagation for its own seek-bar scrubbing) would silently
+      // stop delivering move events partway through the drag, leaving the
+      // text stuck wherever the last-received move event placed it.
+      // Wrapped in try/catch: browsers can throw here (e.g. no active
+      // pointer for the given id) and an uncaught throw here would abort
+      // the rest of this handler before the move/up listeners are attached.
+      try {
+        handle.setPointerCapture?.(e.pointerId);
+      } catch {
+        // Non-fatal - drag still works via the listeners below, just
+        // without capture (so it can lose events over Player's controls).
+      }
 
       const onPointerMove = (moveEvent) => {
         const drag = dragRef.current;
         if (!drag) return;
         const xPct = clamp01((moveEvent.clientX - drag.frame.left) / drag.frame.width);
         const yPct = clamp01((moveEvent.clientY - drag.frame.top) / drag.frame.height);
-        onTextPositionChange?.(drag.role, { xPct, yPct });
+        onTextPositionChangeRef.current?.(drag.role, { xPct, yPct });
         // Optimistically track the overlay box under the cursor while the
         // template's own re-render (one React tick behind) catches up.
         setOverlay((prev) => ({
@@ -233,21 +295,37 @@ export function ScenePreview({
         }));
       };
 
-      const onPointerUp = () => {
+      const onPointerUp = (upEvent) => {
         dragRef.current = null;
         setDraggingRole(null);
-        window.removeEventListener("pointermove", onPointerMove);
-        window.removeEventListener("pointerup", onPointerUp);
-        setOverlay(measureTextRoles(container, activeScene?.sceneNumber));
+        handle.removeEventListener("pointermove", onPointerMove);
+        handle.removeEventListener("pointerup", onPointerUp);
+        try {
+          handle.releasePointerCapture?.(upEvent.pointerId);
+        } catch {
+          // Already released/never captured - fine to ignore.
+        }
+        // Deferred two frames rather than measured synchronously here: the
+        // very last `onTextPositionChange` call (from the last pointermove,
+        // which can fire right before pointerup with almost no gap) may not
+        // have been committed to the DOM yet. Measuring immediately risked
+        // reading the pre-drag layout and visually snapping the overlay
+        // back to the old spot for a moment before the real position caught
+        // up. rAF x2 waits for React's commit and the browser's paint.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setOverlay(measureTextRoles(container, activeSceneRef.current?.sceneNumber));
+          });
+        });
       };
 
-      window.addEventListener("pointermove", onPointerMove);
-      window.addEventListener("pointerup", onPointerUp);
+      handle.addEventListener("pointermove", onPointerMove);
+      handle.addEventListener("pointerup", onPointerUp);
     };
 
     container.addEventListener("pointerdown", onPointerDown);
     return () => container.removeEventListener("pointerdown", onPointerDown);
-  }, [editable, activeScene?.sceneNumber, onTextPositionChange]);
+  }, [editable]);
 
   if (previewScenes.length === 0) return null;
 
