@@ -15,6 +15,17 @@ const lessonSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// The course-level promotional trailer pitch (see LMStudioService.generateCurriculum) -
+// one per course, not a lesson, so it isn't numbered/reordered with the lesson list.
+const promoSchema = new mongoose.Schema(
+  {
+    title: { type: String, default: '' },
+    topic: { type: String, default: '' },
+    description: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
 /**
  * A saved snapshot of an AI-generated (or user-edited) Udemy-style course
  * structure for a course, kept separately from Course.curriculumDraft (the
@@ -42,6 +53,17 @@ const courseCurriculumSchema = new mongoose.Schema(
     topic: {
       type: String,
       default: '',
+    },
+    // Course-level tagline (e.g. shown under the course title), distinct
+    // from any per-lesson text - generated alongside the lesson list.
+    subtitle: {
+      type: String,
+      default: '',
+    },
+    // Course-level promo trailer pitch, separate from the lesson list.
+    promo: {
+      type: promoSchema,
+      default: () => ({}),
     },
     lessons: {
       type: [lessonSchema],

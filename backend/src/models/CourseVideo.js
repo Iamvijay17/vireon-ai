@@ -29,6 +29,13 @@ const courseVideoSchema = new mongoose.Schema(
       maxlength: 1000,
       default: '',
     },
+    // True for the one auto-generated course trailer/promo video created
+    // alongside a curriculum (see CourseCurriculum.lessons[].isPromo) -
+    // uses a promotional script prompt instead of the standard lesson one.
+    isPromo: {
+      type: Boolean,
+      default: false,
+    },
     order: {
       type: Number,
       default: 0,

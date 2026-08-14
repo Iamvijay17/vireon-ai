@@ -10,7 +10,7 @@ class CourseCurriculumService {
   /**
    * Save a generated (or user-edited) curriculum snapshot for a course.
    */
-  static async save(courseId, { title, topic, lessons, source = 'ai-generated' }) {
+  static async save(courseId, { title, topic, subtitle = '', promo = null, lessons, source = 'ai-generated' }) {
     if (!Array.isArray(lessons) || lessons.length === 0) {
       throw { status: 400, message: 'lessons must be a non-empty array' };
     }
@@ -19,6 +19,8 @@ class CourseCurriculumService {
       courseId,
       title,
       topic,
+      subtitle,
+      promo: promo || undefined,
       lessons,
       source,
     });

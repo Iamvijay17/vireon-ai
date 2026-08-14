@@ -113,6 +113,8 @@ class CourseVideoService {
    * shows this as an editable preview; the user can modify titles/topics,
    * remove lessons, or add their own before approving creation via
    * createFromLessons(). Purely a read: no DB writes, no socket emit.
+   * Returns { subtitle, promo, lessons } - `promo` is the course-level
+   * trailer pitch (title/topic/description), separate from `lessons`.
    */
   static async previewCurriculum(title, topic) {
     return LMStudioService.generateCurriculum(title, topic);
@@ -168,6 +170,59 @@ class CourseVideoService {
     });
 
     return videos;
+  }
+
+  /**
+   * Create (or replace) the course's single promotional trailer video, from
+   * the { title, topic, description } pitch generated alongside the
+   * curriculum (see LMStudioService.generateCurriculum). This is
+   * course-level, not a lesson: exactly one per course, given order -1 so
+   * it always sorts before every numbered lesson without shifting their
+   * order values, and flagged isPromo so buildScriptPrompt uses the
+   * promotional prompt instead of the standard lesson one. Calling this
+   * again (e.g. curriculum regenerated) replaces the existing promo video's
+   * title/topic rather than creating a duplicate.
+   */
+  static async createPromoVideo(courseId, promo, options = {}) {
+    const { voice, style, duration, additionalInstructions, fastAudio } = options;
+
+    if (!promo || !promo.topic) {
+      throw { status: 400, message: 'promo.topic is required' };
+    }
+
+    const existing = await CourseVideo.findOne({ courseId, isPromo: true });
+
+    if (existing) {
+      existing.title = promo.title || existing.title;
+      existing.topic = promo.topic;
+      await existing.save();
+
+      LoggerService.info('Course promo video updated', { courseId, videoId: existing._id });
+      SocketService.emitToCourse(courseId, SOCKET_EVENTS.COURSE_VIDEO_CREATED, { bulk: false, count: 1 });
+
+      return existing;
+    }
+
+    const video = await CourseVideo.create({
+      courseId,
+      title: promo.title || 'Course Trailer',
+      topic: promo.topic,
+      isPromo: true,
+      order: -1,
+      duration: duration || 5,
+      voice: voice || 'female-1',
+      style: style || 'educational',
+      additionalInstructions: additionalInstructions || '',
+      fastAudio: fastAudio ?? false,
+      status: VIDEO_STATUS.DRAFT,
+    });
+
+    await CourseService.recalculateStatus(courseId);
+
+    LoggerService.info('Course promo video created', { courseId, videoId: video._id });
+    SocketService.emitToCourse(courseId, SOCKET_EVENTS.COURSE_VIDEO_CREATED, { bulk: false, count: 1 });
+
+    return video;
   }
 
   /**
@@ -432,6 +487,7 @@ class CourseVideoService {
       // in the same course don't all draw the identical template sequence.
       const scriptData = ScriptParserService.validate(rawScriptData, video.style || 'educational', {
         seed: video._id.toString(),
+        disableCaptions: true,
       });
 
       // Store the generated script
@@ -492,15 +548,22 @@ class CourseVideoService {
     // with a floor of 3 so short videos still get an intro/content/summary
     // shape.
     const sceneCount = Math.max(3, Math.round(durationMinutes * 2));
-    // Scene 1 is always the title card. Of the remaining scenes, ~80% are
-    // plain "content" and ~20% are "contentwithimage", per course video
-    // requirements (only title/content/contentwithimage are used - no
-    // separate "image"-only or "intro"/"summary" scene types).
+    // Scene 1 is always the title card. Of the remaining scenes, only a
+    // sparing number get "contentwithimage" - roughly 1 per 8 scenes (5
+    // scenes -> 1, 10 scenes -> 2, 20 scenes -> 3), not a flat percentage,
+    // so most of the video stays plain "content" and images are used
+    // sparingly rather than on every other scene.
     const remainingSceneCount = sceneCount - 1;
-    const contentWithImageCount = Math.max(1, Math.round(remainingSceneCount * 0.2));
+    const contentWithImageCount = Math.min(remainingSceneCount, Math.max(1, Math.ceil(sceneCount / 8)));
     const contentSceneCount = remainingSceneCount - contentWithImageCount;
     const avgSceneSeconds = Math.round((durationMinutes * 60) / sceneCount);
     const wordsPerScene = Math.round(wordCount / sceneCount);
+
+    if (video.isPromo) {
+      return CourseVideoService.buildPromoScriptPrompt(video, {
+        sceneCount, contentSceneCount, contentWithImageCount, avgSceneSeconds, wordsPerScene, wordCount,
+      });
+    }
 
     return `Create a ${durationMinutes}min educational video script about "${video.topic}".
 
@@ -534,12 +597,62 @@ Rules:
 - Scene duration: about ${avgSceneSeconds} seconds each
 - sceneType must be one of: "title", "content", or "contentwithimage"
 - Use "title" ONLY for scene 1, the opening title card
-- Use "content" for the majority (~80%) of the remaining scenes - main educational content, text only
-- Use "contentwithimage" for the other ~20% of remaining scenes - main content paired with a supporting AI-generated image
+- Use "content" for most of the remaining scenes - main educational content, text only
+- Use "contentwithimage" sparingly (only ${contentWithImageCount} scene${contentWithImageCount === 1 ? '' : 's'} total) - main content paired with a supporting AI-generated image, reserved for the most visual moments
 - Only include "imagePrompt" when sceneType is "contentwithimage"; leave it as empty string for other scene types
 - For every scene with sceneType "content" or "contentwithimage", include a scene_meta object with a "content" array containing the narration text split into individual sentences
 - Make it beginner-friendly with examples
 - End with a call to action
+- ${video.additionalInstructions ? `Additional: ${video.additionalInstructions}` : ''}
+- Return ONLY valid JSON, no markdown, no code blocks`;
+  }
+
+  /**
+   * Build the prompt for a course's promotional trailer video (the
+   * isPromo lesson auto-generated alongside the curriculum) - a short sales
+   * pitch for the whole course rather than a teaching lesson. Reuses the
+   * same scene-type/JSON contract as buildScriptPrompt so it flows through
+   * the identical ScriptParserService validation and render pipeline.
+   */
+  static buildPromoScriptPrompt(video, { sceneCount, contentSceneCount, contentWithImageCount, avgSceneSeconds, wordsPerScene, wordCount }) {
+    return `Create a ${video.duration}min promotional trailer video script for a course titled "${video.title}", about "${video.topic}".
+
+Return ONLY valid JSON with this structure:
+{
+  "title": "${video.title}",
+  "description": "Brief description",
+  "tags": ["tag1", "tag2"],
+  "thumbnailPrompt": "image generation prompt",
+  "scenes": [
+    {
+      "sceneNumber": 1,
+      "sceneType": "title|content|contentwithimage",
+      "title": "Scene title",
+      "subtitle": "Supporting text",
+      "backgroundColor": "#1a1a2e",
+      "transition": "fade",
+      "cameraMotion": "static",
+      "animation": "",
+      "imagePrompt": "",
+      "scene_meta": { "content": ["", "", ""] },
+      "audio": { "text": "Narration text here (~${wordsPerScene} words per scene)" }
+    }
+  ]
+}
+
+Rules:
+- This is a PROMOTIONAL TRAILER for the whole course, not a teaching lesson - sell the course, don't teach its content. Hook the viewer, describe who the course is for, what they'll be able to do after finishing, and why they should enroll now. Do NOT teach actual technical material.
+- Total narration: ~${wordCount} words across all scenes
+- Exactly ${sceneCount} scenes total: 1 title, ${contentSceneCount} content, ${contentWithImageCount} contentwithimage
+- Scene duration: about ${avgSceneSeconds} seconds each
+- sceneType must be one of: "title", "content", or "contentwithimage"
+- Use "title" ONLY for scene 1, the opening title card
+- Use "content" for most of the remaining scenes - main promotional narration, text only
+- Use "contentwithimage" sparingly (only ${contentWithImageCount} scene${contentWithImageCount === 1 ? '' : 's'} total) - the most exciting/visual moments, paired with a supporting AI-generated image
+- Only include "imagePrompt" when sceneType is "contentwithimage"; leave it as empty string for other scene types
+- For every scene with sceneType "content" or "contentwithimage", include a scene_meta object with a "content" array containing the narration text split into individual sentences
+- Energetic, confident tone - this is marketing copy, not a lecture
+- End with a strong, direct call to action to enroll in the course
 - ${video.additionalInstructions ? `Additional: ${video.additionalInstructions}` : ''}
 - Return ONLY valid JSON, no markdown, no code blocks`;
   }

@@ -152,7 +152,7 @@ class CourseController {
         throw { status: 400, message: 'title and topic are required' };
       }
 
-      const lessons = await CourseVideoService.previewCurriculum(req.body.title, req.body.topic);
+      const { subtitle, promo, lessons } = await CourseVideoService.previewCurriculum(req.body.title, req.body.topic);
 
       // Persist this generated structure to its own collection so past
       // generations have a history, separate from Course.curriculumDraft
@@ -160,10 +160,12 @@ class CourseController {
       const curriculum = await CourseCurriculumService.save(req.params.id, {
         title: req.body.title,
         topic: req.body.topic,
+        subtitle,
+        promo,
         lessons,
       });
 
-      res.json({ lessons, curriculum });
+      res.json({ subtitle, promo, lessons, curriculum });
     } catch (err) {
       next(err);
     }
@@ -187,21 +189,23 @@ class CourseController {
   /**
    * POST /api/courses/:id/curriculum-videos - Create one CourseVideo per
    * lesson from an approved (possibly user-edited) lesson list, the output
-   * of generate-curriculum above.
+   * of generate-curriculum above. If `promo` is included in the body, also
+   * creates/updates the course's single course-level trailer video (not a
+   * lesson - see CourseVideoService.createPromoVideo).
    */
   static async createCurriculumVideos(req, res, next) {
     try {
-      const { lessons, voice, style, duration, additionalInstructions, fastAudio } = req.body;
+      const { lessons, promo, voice, style, duration, additionalInstructions, fastAudio } = req.body;
+      const options = { voice, style, duration, additionalInstructions, fastAudio };
 
-      const videos = await CourseVideoService.createFromLessons(req.params.id, lessons, {
-        voice,
-        style,
-        duration,
-        additionalInstructions,
-        fastAudio,
-      });
+      const videos = await CourseVideoService.createFromLessons(req.params.id, lessons, options);
 
-      res.status(201).json({ videos });
+      let promoVideo = null;
+      if (promo && promo.topic) {
+        promoVideo = await CourseVideoService.createPromoVideo(req.params.id, promo, options);
+      }
+
+      res.status(201).json({ videos, promoVideo });
     } catch (err) {
       next(err);
     }

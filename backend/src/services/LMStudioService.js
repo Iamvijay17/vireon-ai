@@ -109,9 +109,11 @@ class LMStudioService {
   }
 
   /**
-   * Generate a full Udemy-style course curriculum: an ordered list of
-   * lessons covering the topic from introduction through a practical
-   * summary. Returns { lessons: [{ order, title, topic, description }] }.
+   * Generate a full Udemy-style course curriculum: a course subtitle, a
+   * course-level promotional trailer pitch (NOT a lesson - it's rendered
+   * separately as the course's single trailer video), and an ordered list
+   * of lessons covering the topic from introduction through a practical
+   * summary. Returns { subtitle, promo: { title, topic, description }, lessons }.
    * Uses a longer timeout than a single script - curriculum responses are
    * larger (10-20 items) even though each item is short.
    */
@@ -120,18 +122,22 @@ class LMStudioService {
 
 Return ONLY valid JSON with this structure:
 {
+  "subtitle": "A short, catchy one-line course tagline (under 15 words)",
+  "promo": { "title": "Course Trailer", "topic": "A short, energetic promotional pitch for the whole course - who it's for, what they'll be able to do after finishing, and why they should enroll now", "description": "Course promo/trailer video" },
   "lessons": [
     { "order": 1, "title": "Welcome to the Course", "topic": "A short welcome that introduces the instructor and names the topics covered ahead, without teaching any of them yet", "description": "Short one-sentence summary" }
   ]
 }
 
 Rules:
-- Produce 12-20 lessons, ordered logically like a real Udemy course: start with a short welcome/orientation lesson, cover fundamentals, then core concepts one at a time, then a practical/project lesson, then a course summary/next-steps lesson.
+- "promo" is COURSE-LEVEL, not a lesson - it is the pitch for one standalone trailer video for the whole course, separate from the lesson list. It must NOT teach any technical content, only sell the course itself (who it's for, what they'll be able to do after finishing, why enroll now).
+- Produce 12-20 regular lessons (order 1, 2, 3, ...), ordered logically like a real Udemy course: start with a short welcome/orientation lesson, cover fundamentals, then core concepts one at a time, then a practical/project lesson, then a course summary/next-steps lesson.
 - "title" is the short lesson name shown in a course outline (e.g., "What is React?", "Components", "State").
 - "topic" is 1-2 sentences describing exactly what THAT ONE lesson's video should teach - this is used later to generate that lesson's script IN ISOLATION, with no knowledge of the other lessons, so it must be narrow and self-contained.
 - Each lesson's "topic" must cover ONLY that lesson's own slice of the subject. Do not let one lesson's topic summarize, preview, or teach content assigned to other lessons.
-- The first lesson's "topic" must be a brief welcome/orientation only (who this course is for, what topics are ahead) - it must NOT preview or teach any actual technical content, since that belongs to the later lessons.
+- The first lesson's (order 1) "topic" must be a brief welcome/orientation only (who this course is for, what topics are ahead) - it must NOT preview or teach any actual technical content, since that belongs to the later lessons.
 - "description" is a short one-sentence summary for display purposes.
+- "subtitle" is course-level, not per-lesson - one short tagline for the whole course.
 - Return ONLY valid JSON, no markdown, no code blocks, no commentary.`;
 
     const parsed = await this._callLLM(prompt, {
@@ -144,12 +150,28 @@ Rules:
       throw new Error('LM Studio returned no lessons for curriculum');
     }
 
+    const subtitle = typeof parsed?.subtitle === 'string' ? parsed.subtitle : '';
+
+    // Fall back to a generic pitch if the model omitted "promo" entirely,
+    // so the course always gets a trailer video option.
+    const promo = parsed?.promo && typeof parsed.promo === 'object'
+      ? {
+          title: parsed.promo.title || 'Course Trailer',
+          topic: parsed.promo.topic || '',
+          description: parsed.promo.description || 'Course promo/trailer video',
+        }
+      : {
+          title: 'Course Trailer',
+          topic: `A short, energetic promotional pitch for the course "${courseTitle}" about "${topic}" - who it's for, what they'll be able to do after finishing, and why they should enroll now.`,
+          description: 'Course promo/trailer video',
+        };
+
     LoggerService.lmstudio('Curriculum generated successfully', {
       courseTitle,
       lessons: lessons.length,
     });
 
-    return lessons;
+    return { subtitle, promo, lessons };
   }
 }
 

@@ -44,7 +44,7 @@ class ScriptParserService {
   };
 
   static validate(scriptData, videoType = 'educational', options = {}) {
-    const { hostVoice = '', guestVoice = '', hostName = '', guestName = '', seed = '' } = options;
+    const { hostVoice = '', guestVoice = '', hostName = '', guestName = '', seed = '', disableCaptions = false } = options;
     const errors = [];
 
     if (!scriptData.title || typeof scriptData.title !== 'string') {
@@ -114,13 +114,13 @@ class ScriptParserService {
       // Ensure elements structure matches the template
       let elements = scene.elements || null;
       if (templateId) {
-        const defaultElements = ScriptParserService._createDefaultElements(templateId, scene, { hostName, guestName });
-        
+        const defaultElements = ScriptParserService._createDefaultElements(templateId, scene, { hostName, guestName, disableCaptions });
+
         // Prefer scene_meta.content over empty defaults for content scenes
         if (sceneType === 'content' && scene.scene_meta?.content) {
           const contentItems = scene.scene_meta.content.filter(s => s.trim().length > 0);
           if (contentItems.length > 0) {
-            elements = ScriptParserService._createContentElementsFromMeta(templateId, contentItems, scene);
+            elements = ScriptParserService._createContentElementsFromMeta(templateId, contentItems, scene, { disableCaptions });
           } else {
             elements = defaultElements;
           }
@@ -211,12 +211,12 @@ class ScriptParserService {
    * Ensures the template has the data it needs to render properly.
    */
   static _createDefaultElements(templateId, scene, names = {}) {
-    const { hostName = '', guestName = '' } = names;
+    const { hostName = '', guestName = '', disableCaptions = false } = names;
     const base = {
       title: scene.title || '',
       subtitle: scene.subtitle || '',
     };
-    const caption = scene.audio?.text || scene.subtitle || '';
+    const caption = disableCaptions ? '' : (scene.audio?.text || scene.subtitle || '');
 
     // One branch per sceneType, matching the elements shape its templates
     // actually read (see each template's own JSDoc header in
@@ -254,14 +254,15 @@ class ScriptParserService {
    * body paragraph) - the other 3 (title/image/podcast) don't render
    * scene_meta.content at all, so this only needs 2 branches.
    */
-  static _createContentElementsFromMeta(templateId, contentItems, scene) {
+  static _createContentElementsFromMeta(templateId, contentItems, scene, options = {}) {
+    const { disableCaptions = false } = options;
     // Content variants: plain items array, one row per content sentence -
     // each variant's component decides how to lay the rows out.
     if (ScriptParserService.SCENE_TYPE_TEMPLATE_IDS.content.includes(templateId)) {
       return {
         title: scene.title || '',
         items: contentItems.map((text) => ({ heading: '', text })),
-        caption: scene.audio?.text || scene.subtitle || '',
+        caption: disableCaptions ? '' : (scene.audio?.text || scene.subtitle || ''),
         captionTimestamps: null,
       };
     }
