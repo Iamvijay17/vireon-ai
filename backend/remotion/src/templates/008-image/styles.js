@@ -1,0 +1,45 @@
+export const styles = {
+  container: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    boxSizing: 'border-box',
+  },
+  frame: {
+    width: '62%',
+    height: '62%',
+    boxSizing: 'border-box',
+    border: '8px solid #60a5fa',
+    overflow: 'hidden',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  plaque: {
+    marginTop: 32,
+    textAlign: 'center',
+    maxWidth: '70%',
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: 700,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  caption: {
+    color: '#ffffff',
+    fontSize: 26,
+    fontWeight: 400,
+    lineHeight: 1.4,
+    margin: 0,
+  },
+};

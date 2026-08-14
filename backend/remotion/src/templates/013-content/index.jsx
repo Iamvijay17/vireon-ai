@@ -5,18 +5,18 @@ import { typography, spacing, palette, mergeStyle, positionStyle } from '../../t
 import { styles } from './styles';
 
 /**
- * 007-content template ("Step Cards" variant of the "content" scene type)
+ * 013-content template ("Ribbon List" variant of the "content" scene type)
  *
- * Title + the `items` array rendered as a horizontal, left-to-right row of
- * numbered step cards - each card carries a bold circular number badge, the
- * item.heading as a card title, and item.text underneath. A fundamentally
- * different layout (bordered horizontal card row with number badges) than
- * the pill-tag/bullet/grid/timeline/checklist/column/glossary layouts
- * already built. Same elements shape as every other content variant.
+ * Title + the `items` array rendered as full-width horizontal ribbon rows
+ * stacked vertically, each with a giant faint index numeral bleeding off
+ * the left edge behind the heading/text - a table-of-contents/magazine
+ * index feel, distinct from the compact bullet rows, cards, badges, and
+ * columns of every other content variant. Same elements shape as every
+ * other content variant.
  *
  * Data format: same as "001-content" - { title, items: [{heading?, text}] }.
  */
-const Content007 = React.memo(({ scene }) => {
+const Content013 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
   const elements = scene?.elements || {};
@@ -33,7 +33,7 @@ const Content007 = React.memo(({ scene }) => {
     return (elements.items || []).map((item) => ({ heading: item.heading || '', text: item.text || '' }));
   }, [elements.items]);
 
-  const titleStyle = mergeStyle({ ...typography.title, fontSize: 52, textAlign: 'left', marginBottom: spacing.xl, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const titleStyle = mergeStyle({ ...typography.title, fontSize: 46, textAlign: 'left', marginBottom: spacing.lg, ...positionStyle(overrides.title?.position) }, overrides.title);
   const titleOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
   const titleY = interpolate(frame, [0, 25], [40, 0], { extrapolateRight: 'clamp' });
 
@@ -55,19 +55,25 @@ const Content007 = React.memo(({ scene }) => {
           </h1>
         )}
 
-        <div style={styles.row}>
+        <div style={styles.list}>
           {items.map((item, index) => {
-            if (!item.heading && !item.text) return null;
-            const cardOpacity = interpolate(frame, [15 + index * 8, 32 + index * 8], [0, 1], { extrapolateRight: 'clamp' });
-            const cardY = interpolate(frame, [15 + index * 8, 35 + index * 8], [24, 0], { extrapolateRight: 'clamp' });
-            const badgeScale = interpolate(frame, [20 + index * 8, 36 + index * 8], [0.4, 1], { extrapolateRight: 'clamp' });
+            const ribbonOpacity = interpolate(frame, [14 + index * 8, 30 + index * 8], [0, 1], { extrapolateRight: 'clamp' });
+            const ribbonX = interpolate(frame, [14 + index * 8, 34 + index * 8], [-40, 0], { extrapolateRight: 'clamp' });
             return (
-              <div key={index} style={{ ...styles.card, opacity: cardOpacity, transform: `translateY(${cardY}px)` }}>
-                <div style={{ ...styles.badge, ...(accentColor ? { background: accentColor } : {}), transform: `scale(${badgeScale})` }}>
-                  {index + 1}
+              <div
+                key={index}
+                style={{
+                  ...styles.ribbon,
+                  ...(index % 2 === 1 ? styles.ribbonAlt : {}),
+                  opacity: ribbonOpacity,
+                  transform: `translateX(${ribbonX}px)`,
+                }}
+              >
+                <span style={{ ...styles.bigIndex, ...(accentColor ? { color: accentColor } : {}) }}>{String(index + 1).padStart(2, '0')}</span>
+                <div style={styles.ribbonText}>
+                  {item.heading && <p style={styles.ribbonHeading}>{item.heading}</p>}
+                  {item.text && <p style={styles.ribbonBody}>{item.text}</p>}
                 </div>
-                {item.heading && <p style={styles.cardHeading}>{item.heading}</p>}
-                {item.text && <p style={styles.cardText}>{item.text}</p>}
               </div>
             );
           })}
@@ -100,5 +106,5 @@ const Content007 = React.memo(({ scene }) => {
   );
 });
 
-Content007.displayName = 'Content007';
-export default Content007;
+Content013.displayName = 'Content013';
+export default Content013;

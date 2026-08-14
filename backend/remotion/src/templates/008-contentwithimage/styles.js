@@ -1,0 +1,57 @@
+import { typography, palette } from '../../theme';
+
+export const styles = {
+  container: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    textAlign: 'center',
+    boxSizing: 'border-box',
+    padding: '60px 120px',
+  },
+  circleWrap: {
+    width: 220,
+    height: 220,
+    borderRadius: '50%',
+    overflow: 'hidden',
+    marginBottom: 28,
+    boxShadow: '0 16px 50px rgba(0,0,0,0.4)',
+    border: '4px solid rgba(255,255,255,0.15)',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  badge: {
+    display: 'inline-block',
+    backgroundColor: 'rgba(96, 165, 250, 0.15)',
+    color: palette.accentSolid,
+    fontSize: 15,
+    fontWeight: 600,
+    padding: '5px 14px',
+    borderRadius: 20,
+    marginBottom: 16,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  title: {
+    ...typography.title,
+    color: palette.textOnDark,
+    fontSize: 44,
+    fontWeight: 700,
+    textAlign: 'center',
+    lineHeight: 1.2,
+    marginBottom: 14,
+  },
+  body: {
+    ...typography.body,
+    color: palette.textMuted,
+    fontSize: 21,
+    textAlign: 'center',
+    maxWidth: '90%',
+  },
+};

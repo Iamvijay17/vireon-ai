@@ -66,7 +66,7 @@ const SCENE_TYPE_OPTIONS = [
 
 // The 3 "content" scene-type variants all use `elements.items: [{ heading?, text? }]`
 // - keep in sync with STANDARDIZED_ITEMS_TEMPLATE_IDS in backend/src/controllers/sceneController.js.
-const ITEMS_EDITABLE_TEMPLATE_IDS = ["001-content", "002-content", "003-content", "004-content", "005-content", "006-content", "007-content"];
+const ITEMS_EDITABLE_TEMPLATE_IDS = ["001-content", "002-content", "003-content", "004-content", "005-content", "006-content", "007-content", "008-content", "009-content", "010-content", "011-content", "012-content", "013-content"];
 
 const FONT_WEIGHT_OPTIONS = [
   { value: 300, label: "Light" },

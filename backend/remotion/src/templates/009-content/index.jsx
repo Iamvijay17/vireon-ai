@@ -5,18 +5,19 @@ import { typography, spacing, palette, mergeStyle, positionStyle } from '../../t
 import { styles } from './styles';
 
 /**
- * 007-content template ("Step Cards" variant of the "content" scene type)
+ * 009-content template ("Magazine Dek" variant of the "content" scene type)
  *
- * Title + the `items` array rendered as a horizontal, left-to-right row of
- * numbered step cards - each card carries a bold circular number badge, the
- * item.heading as a card title, and item.text underneath. A fundamentally
- * different layout (bordered horizontal card row with number badges) than
- * the pill-tag/bullet/grid/timeline/checklist/column/glossary layouts
- * already built. Same elements shape as every other content variant.
+ * Editorial magazine layout: title as a headline, the first `items` entry
+ * elevated into a large italic "dek" (deck) line beneath it, and the
+ * remaining items rendered as a compact numbered list below a rule -
+ * distinct from the step-cards, flow path, bullet list, card grid,
+ * timeline, checklist, two-column, and glossary layouts already built.
+ * Same elements shape as every other content variant - only the first
+ * item is styled differently, no new fields are read.
  *
  * Data format: same as "001-content" - { title, items: [{heading?, text}] }.
  */
-const Content007 = React.memo(({ scene }) => {
+const Content009 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
   const elements = scene?.elements || {};
@@ -33,9 +34,14 @@ const Content007 = React.memo(({ scene }) => {
     return (elements.items || []).map((item) => ({ heading: item.heading || '', text: item.text || '' }));
   }, [elements.items]);
 
-  const titleStyle = mergeStyle({ ...typography.title, fontSize: 52, textAlign: 'left', marginBottom: spacing.xl, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const dek = items[0];
+  const rest = items.slice(1);
+
+  const titleStyle = mergeStyle({ ...typography.title, fontSize: 58, textAlign: 'left', marginBottom: spacing.md, ...positionStyle(overrides.title?.position) }, overrides.title);
   const titleOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
   const titleY = interpolate(frame, [0, 25], [40, 0], { extrapolateRight: 'clamp' });
+  const dekOpacity = interpolate(frame, [16, 34], [0, 1], { extrapolateRight: 'clamp' });
+  const ruleScale = interpolate(frame, [30, 46], [0, 1], { extrapolateRight: 'clamp' });
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
@@ -55,23 +61,33 @@ const Content007 = React.memo(({ scene }) => {
           </h1>
         )}
 
-        <div style={styles.row}>
-          {items.map((item, index) => {
-            if (!item.heading && !item.text) return null;
-            const cardOpacity = interpolate(frame, [15 + index * 8, 32 + index * 8], [0, 1], { extrapolateRight: 'clamp' });
-            const cardY = interpolate(frame, [15 + index * 8, 35 + index * 8], [24, 0], { extrapolateRight: 'clamp' });
-            const badgeScale = interpolate(frame, [20 + index * 8, 36 + index * 8], [0.4, 1], { extrapolateRight: 'clamp' });
-            return (
-              <div key={index} style={{ ...styles.card, opacity: cardOpacity, transform: `translateY(${cardY}px)` }}>
-                <div style={{ ...styles.badge, ...(accentColor ? { background: accentColor } : {}), transform: `scale(${badgeScale})` }}>
-                  {index + 1}
-                </div>
-                {item.heading && <p style={styles.cardHeading}>{item.heading}</p>}
-                {item.text && <p style={styles.cardText}>{item.text}</p>}
-              </div>
-            );
-          })}
-        </div>
+        {dek && (dek.heading || dek.text) && (
+          <p style={{ ...styles.dek, ...(accentColor ? { borderLeftColor: accentColor } : {}), opacity: dekOpacity }}>
+            {dek.heading && <span style={styles.dekHeading}>{dek.heading} </span>}
+            {dek.text}
+          </p>
+        )}
+
+        {rest.length > 0 && (
+          <>
+            <div style={{ ...styles.rule, transform: `scaleX(${ruleScale})`, transformOrigin: 'left center' }} />
+            <div style={styles.list}>
+              {rest.map((item, index) => {
+                const rowOpacity = interpolate(frame, [40 + index * 7, 56 + index * 7], [0, 1], { extrapolateRight: 'clamp' });
+                const rowX = interpolate(frame, [40 + index * 7, 58 + index * 7], [-16, 0], { extrapolateRight: 'clamp' });
+                return (
+                  <div key={index} style={{ ...styles.row, opacity: rowOpacity, transform: `translateX(${rowX}px)` }}>
+                    <span style={{ ...styles.index, ...(accentColor ? { color: accentColor } : {}) }}>{String(index + 2).padStart(2, '0')}</span>
+                    <div>
+                      {item.heading && <span style={styles.rowHeading}>{item.heading} </span>}
+                      <span style={styles.rowText}>{item.text}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       <CaptionRenderer
@@ -100,5 +116,5 @@ const Content007 = React.memo(({ scene }) => {
   );
 });
 
-Content007.displayName = 'Content007';
-export default Content007;
+Content009.displayName = 'Content009';
+export default Content009;

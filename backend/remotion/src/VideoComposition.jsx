@@ -1,10 +1,5 @@
 import React, { Suspense } from "react";
-import {
-  AbsoluteFill,
-  Sequence,
-  interpolate,
-  useCurrentFrame,
-} from "remotion";
+import { AbsoluteFill, Sequence, interpolate, useCurrentFrame } from "remotion";
 import TemplateRegistry from "./templates/TemplateRegistry";
 import DefaultTemplate from "./templates/DefaultTemplate";
 
@@ -122,7 +117,9 @@ const resolveTemplate = (templateId) => {
   const normalizedId = String(templateId).trim().toLowerCase();
   const Template = TemplateRegistry[normalizedId];
   if (!Template) {
-    console.warn(`Unknown template: "${templateId}" (normalized: "${normalizedId}") — using DefaultTemplate`);
+    console.warn(
+      `Unknown template: "${templateId}" (normalized: "${normalizedId}") — using DefaultTemplate`,
+    );
     return DefaultTemplate;
   }
 
@@ -136,7 +133,10 @@ const Scene = React.memo(({ scene, jobId }) => {
   const Template = resolveTemplate(templateId);
 
   return (
-    <AbsoluteFill data-scene-frame="true" data-scene-number={scene?.sceneNumber ?? ""}>
+    <AbsoluteFill
+      data-scene-frame="true"
+      data-scene-number={scene?.sceneNumber ?? ""}
+    >
       <Suspense fallback={<TemplateLoadingFallback />}>
         <Template scene={scene} />
       </Suspense>
@@ -182,11 +182,19 @@ export const VideoComposition = ({ assets, jobId }) => {
         // either adjacent scene's own length (keeps very short scenes sane).
         const overlapWithNext =
           index < layout.length - 1
-            ? Math.min(MAX_TRANSITION_FRAMES, Math.floor(sceneFrames / 3), Math.floor(nextFrames / 3))
+            ? Math.min(
+                MAX_TRANSITION_FRAMES,
+                Math.floor(sceneFrames / 3),
+                Math.floor(nextFrames / 3),
+              )
             : 0;
         const overlapWithPrev =
           index > 0
-            ? Math.min(MAX_TRANSITION_FRAMES, Math.floor(sceneFrames / 3), Math.floor(prevFrames / 3))
+            ? Math.min(
+                MAX_TRANSITION_FRAMES,
+                Math.floor(sceneFrames / 3),
+                Math.floor(prevFrames / 3),
+              )
             : 0;
 
         const bgColor = scene.backgroundColor || "#1a1a2e";
@@ -199,7 +207,10 @@ export const VideoComposition = ({ assets, jobId }) => {
             // stays mounted underneath the next scene's fade-in.
             durationInFrames={sceneFrames + overlapWithNext}
           >
-            <SceneTransition backgroundColor={bgColor} fadeInFrames={overlapWithPrev}>
+            <SceneTransition
+              backgroundColor={bgColor}
+              fadeInFrames={overlapWithPrev}
+            >
               <Scene scene={scene} jobId={jobId} />
             </SceneTransition>
           </Sequence>

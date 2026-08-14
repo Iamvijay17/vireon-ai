@@ -1,0 +1,46 @@
+export const styles = {
+  container: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'row',
+    boxSizing: 'border-box',
+  },
+  imageArea: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  bar: {
+    width: 340,
+    flexShrink: 0,
+    backgroundColor: 'rgba(13,17,23,0.92)',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    padding: '0 40px',
+    boxSizing: 'border-box',
+  },
+  label: {
+    color: '#f59e0b',
+    fontSize: 16,
+    fontWeight: 700,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    marginBottom: 14,
+  },
+  caption: {
+    color: '#ffffff',
+    fontSize: 26,
+    fontWeight: 500,
+    lineHeight: 1.4,
+    margin: 0,
+  },
+};

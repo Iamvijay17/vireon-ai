@@ -16,7 +16,7 @@ const CARRYOVER_ELEMENT_FIELDS = ['backgroundColor', 'styleConfig'];
 // `items: [{ heading?, text? }]` shape - kept as a list (rather than a
 // sceneType check) since the carry-over logic just needs "is this
 // templateId one that speaks the items shape".
-const STANDARDIZED_ITEMS_TEMPLATE_IDS = ['001-content', '002-content', '003-content', '004-content', '005-content', '006-content', '007-content'];
+const STANDARDIZED_ITEMS_TEMPLATE_IDS = ['001-content', '002-content', '003-content', '004-content', '005-content', '006-content', '007-content', '008-content', '009-content', '010-content', '011-content', '012-content', '013-content'];
 
 class SceneController {
   /**
