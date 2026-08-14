@@ -53,6 +53,7 @@ import {
   createCourseVideosFromCurriculum,
   saveCourseCurriculumDraft,
   clearCourseCurriculumDraft,
+  getCourseCurriculumHistory,
   bulkGenerateCourseVideos,
   bulkApproveCourseVideoScripts,
   bulkDeleteCourseVideos,
@@ -307,6 +308,14 @@ const CourseDetail = () => {
   // lessons. Marks hydration done (hydratedDraftIdRef) *before* the autosave
   // effect below is allowed to run, so that effect can't fire on stale
   // pre-hydration state and overwrite the draft it's about to restore.
+  //
+  // The draft is only a best-effort, debounced autosave (see the effect
+  // below) - it can be empty even though a curriculum was successfully
+  // generated, because CourseCurriculumService.save() persists a durable
+  // snapshot synchronously on every generate-curriculum call, independent
+  // of the draft. So if there's no draft, fall back to the most recent
+  // saved snapshot from that durable history instead of silently showing
+  // nothing for a course that does have a generated structure.
   useEffect(() => {
     if (!course?._id) return;
     if (hydratedDraftIdRef.current === course._id) return;
@@ -316,7 +325,20 @@ const CourseDetail = () => {
       setCurriculumForm(draft.form || EMPTY_FORM);
       setCurriculumLessons(draft.lessons);
       setCurriculumStep(draft.step || "preview");
+      return;
     }
+
+    getCourseCurriculumHistory(course._id, { page: 1, limit: 1 })
+      .then((res) => {
+        const latest = res.data?.curricula?.[0];
+        if (!latest?.lessons?.length) return;
+        setCurriculumForm((prev) => ({ ...prev, title: latest.title || prev.title, topic: latest.topic || prev.topic }));
+        setCurriculumLessons(latest.lessons);
+        setCurriculumStep("preview");
+      })
+      .catch(() => {
+        // Best-effort restore - a failure here shouldn't block the page.
+      });
   }, [course]);
 
   // Autosave the curriculum draft to the course document (debounced) so it

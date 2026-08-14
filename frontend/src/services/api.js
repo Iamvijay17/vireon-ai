@@ -201,6 +201,12 @@ export const saveCourseCurriculumDraft = (courseId, draft) =>
 export const clearCourseCurriculumDraft = (courseId) =>
   api.delete(`/api/courses/${courseId}/curriculum-draft`);
 
+// Durable history of past AI-generated curriculum structures for a course
+// (separate from the single in-progress curriculumDraft above) - each
+// generate-curriculum call is saved here permanently.
+export const getCourseCurriculumHistory = (courseId, params) =>
+  api.get(`/api/courses/${courseId}/curriculum-history`, { params });
+
 export const bulkGenerateCourseVideos = (videoIds, action) =>
   api.post(`/api/course-videos/bulk-generate`, { videoIds, action });
 
