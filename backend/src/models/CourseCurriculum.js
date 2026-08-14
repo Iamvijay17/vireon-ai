@@ -27,11 +27,14 @@ const promoSchema = new mongoose.Schema(
 );
 
 /**
- * A saved snapshot of an AI-generated (or user-edited) Udemy-style course
- * structure for a course, kept separately from Course.curriculumDraft (the
- * transient in-progress form state) so past generations have their own
- * persistent history/collection instead of being overwritten on every
- * regenerate.
+ * The saved snapshot of a course's AI-generated (or user-edited) Udemy-style
+ * structure, kept separately from Course.curriculumDraft (the transient
+ * in-progress form state). One document per course - CourseCurriculumService.save()
+ * upserts on courseId, so regenerating replaces this course's existing
+ * snapshot in place rather than creating a new history row. There is no
+ * schema-level unique index on courseId (to avoid breaking on any duplicate
+ * rows left over from before this became upsert-based) - one-per-course is
+ * enforced at the application layer in CourseCurriculumService.save().
  */
 const courseCurriculumSchema = new mongoose.Schema(
   {

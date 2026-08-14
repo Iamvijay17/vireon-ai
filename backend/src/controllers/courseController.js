@@ -154,9 +154,10 @@ class CourseController {
 
       const { subtitle, promo, lessons } = await CourseVideoService.previewCurriculum(req.body.title, req.body.topic);
 
-      // Persist this generated structure to its own collection so past
-      // generations have a history, separate from Course.curriculumDraft
-      // (which only ever holds the latest in-progress form state).
+      // Persist this generated structure to its own collection, separate
+      // from Course.curriculumDraft (which only ever holds the latest
+      // in-progress form state). One curriculum per course - this replaces
+      // any existing snapshot for the course (see CourseCurriculumService.save).
       const curriculum = await CourseCurriculumService.save(req.params.id, {
         title: req.body.title,
         topic: req.body.topic,
