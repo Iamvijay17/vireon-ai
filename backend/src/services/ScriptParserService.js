@@ -36,10 +36,10 @@ class ScriptParserService {
    * (a plain bullet list, a card grid, and a numbered timeline).
    */
   static SCENE_TYPE_TEMPLATE_IDS = {
-    title: ['001-title', '002-title', '003-title'],
-    content: ['001-content', '002-content', '003-content', '004-content', '005-content'],
-    contentwithimage: ['001-contentwithimage', '002-contentwithimage'],
-    image: ['001-image', '002-image', '003-image'],
+    title: ['001-title', '002-title', '003-title', '004-title', '005-title'],
+    content: ['001-content', '002-content', '003-content', '004-content', '005-content', '006-content', '007-content'],
+    contentwithimage: ['001-contentwithimage', '002-contentwithimage', '003-contentwithimage', '004-contentwithimage'],
+    image: ['001-image', '002-image', '003-image', '004-image', '005-image'],
     podcast: ['001-podcast', '002-podcast'],
   };
 

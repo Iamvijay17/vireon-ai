@@ -24,16 +24,24 @@ import { lazy } from 'react';
 const Title001 = lazy(() => import('./001-title'));
 const Title002 = lazy(() => import('./002-title'));
 const Title003 = lazy(() => import('./003-title'));
+const Title004 = lazy(() => import('./004-title'));
+const Title005 = lazy(() => import('./005-title'));
 const Content001 = lazy(() => import('./001-content'));
 const Content002 = lazy(() => import('./002-content'));
 const Content003 = lazy(() => import('./003-content'));
 const Content004 = lazy(() => import('./004-content'));
 const Content005 = lazy(() => import('./005-content'));
+const Content006 = lazy(() => import('./006-content'));
+const Content007 = lazy(() => import('./007-content'));
 const ContentWithImage001 = lazy(() => import('./001-contentwithimage'));
 const ContentWithImage002 = lazy(() => import('./002-contentwithimage'));
+const ContentWithImage003 = lazy(() => import('./003-contentwithimage'));
+const ContentWithImage004 = lazy(() => import('./004-contentwithimage'));
 const Image001 = lazy(() => import('./001-image'));
 const Image002 = lazy(() => import('./002-image'));
 const Image003 = lazy(() => import('./003-image'));
+const Image004 = lazy(() => import('./004-image'));
+const Image005 = lazy(() => import('./005-image'));
 const Podcast001 = lazy(() => import('./001-podcast'));
 const Podcast002 = lazy(() => import('./002-podcast'));
 
@@ -46,16 +54,24 @@ const TemplateRegistry = {
   '001-title': Title001,
   '002-title': Title002,
   '003-title': Title003,
+  '004-title': Title004,
+  '005-title': Title005,
   '001-content': Content001,
   '002-content': Content002,
   '003-content': Content003,
   '004-content': Content004,
   '005-content': Content005,
+  '006-content': Content006,
+  '007-content': Content007,
   '001-contentwithimage': ContentWithImage001,
   '002-contentwithimage': ContentWithImage002,
+  '003-contentwithimage': ContentWithImage003,
+  '004-contentwithimage': ContentWithImage004,
   '001-image': Image001,
   '002-image': Image002,
   '003-image': Image003,
+  '004-image': Image004,
+  '005-image': Image005,
   '001-podcast': Podcast001,
   '002-podcast': Podcast002,
 };

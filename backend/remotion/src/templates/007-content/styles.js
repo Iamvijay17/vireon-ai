@@ -1,0 +1,58 @@
+import { spacing, palette } from '../../theme';
+
+export const styles = {
+  background: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  content: {
+    position: 'relative',
+    zIndex: 1,
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    padding: `${spacing.xxl}px ${spacing.xxxl}px`,
+    boxSizing: 'border-box',
+  },
+  row: {
+    display: 'flex',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.lg,
+    width: '100%',
+    maxWidth: '92%',
+  },
+  pillGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    maxWidth: 360,
+  },
+  pill: {
+    display: 'inline-block',
+    background: palette.accentGradient,
+    color: '#0d1117',
+    fontSize: 24,
+    fontWeight: 700,
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    padding: '12px 28px',
+    borderRadius: 999,
+    whiteSpace: 'nowrap',
+  },
+  caption: {
+    color: palette.textMuted,
+    fontSize: 18,
+    fontWeight: 400,
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    lineHeight: 1.4,
+    margin: 0,
+    marginTop: 10,
+    paddingLeft: 8,
+  },
+};

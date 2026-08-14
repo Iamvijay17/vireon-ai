@@ -35,6 +35,26 @@ export const sampleScenes = {
     },
     duration: 8,
   },
+  '004-title': {
+    templateId: '004-title',
+    elements: {
+      title: 'Stop Scrolling',
+      subtitle: 'A preview of the hook opener title template in action.',
+      backgroundColor: '#1a1a2e',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=600&fit=crop',
+    },
+    duration: 8,
+  },
+  '005-title': {
+    templateId: '005-title',
+    elements: {
+      title: 'Quarterly Growth Report',
+      subtitle: 'A preview of the report cover title template in action.',
+      backgroundColor: '#0d1117',
+      image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=800&fit=crop',
+    },
+    duration: 8,
+  },
   '001-content': {
     templateId: '001-content',
     elements: {
@@ -107,6 +127,35 @@ export const sampleScenes = {
     },
     duration: 8,
   },
+  '006-content': {
+    templateId: '006-content',
+    elements: {
+      title: 'Key Terms',
+      items: [
+        { heading: 'Latency', text: 'The delay between a request being sent and a response being received.' },
+        { heading: 'Throughput', text: 'The amount of work a system completes in a given time period.' },
+        { heading: 'Idempotency', text: 'A property where repeating an operation has the same effect as doing it once.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content definition glossary template in action.',
+    },
+    duration: 8,
+  },
+  '007-content': {
+    templateId: '007-content',
+    elements: {
+      title: 'What We Cover',
+      items: [
+        { heading: 'Strategy', text: 'Where to focus first.' },
+        { heading: 'Design', text: 'How it should feel.' },
+        { heading: 'Engineering', text: 'How it gets built.' },
+        { heading: 'Growth', text: 'How it reaches people.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content pill tags template in action.',
+    },
+    duration: 8,
+  },
   '001-contentwithimage': {
     templateId: '001-contentwithimage',
     elements: {
@@ -128,6 +177,28 @@ export const sampleScenes = {
       body: 'Every great product starts with a single small observation.',
       image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&h=600&fit=crop',
       badge: 'Chapter 1',
+    },
+    duration: 8,
+  },
+  '003-contentwithimage': {
+    templateId: '003-contentwithimage',
+    elements: {
+      title: 'Chasing the Horizon',
+      backgroundColor: '#1a1a2e',
+      body: 'Every frontier starts with someone willing to look past the edge of the map.',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1920&h=1080&fit=crop',
+      badge: 'Cinematic',
+    },
+    duration: 8,
+  },
+  '004-contentwithimage': {
+    templateId: '004-contentwithimage',
+    elements: {
+      title: 'A New Perspective',
+      backgroundColor: '#16213e',
+      body: 'Reframing the problem is often the fastest way to find the solution.',
+      image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1200&h=1200&fit=crop',
+      badge: 'Reveal',
     },
     duration: 8,
   },
@@ -155,6 +226,24 @@ export const sampleScenes = {
       image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop',
       caption: 'Layers of light across the horizon.',
       label: 'Gallery',
+    },
+    duration: 8,
+  },
+  '004-image': {
+    templateId: '004-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=900&fit=crop',
+      caption: 'We found this trail just before sunset, and never forgot it.',
+      label: 'Chapter Three',
+    },
+    duration: 8,
+  },
+  '005-image': {
+    templateId: '005-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&h=1200&fit=crop',
+      caption: 'Summer, somewhere near the coast.',
+      label: 'Snapshot',
     },
     duration: 8,
   },
