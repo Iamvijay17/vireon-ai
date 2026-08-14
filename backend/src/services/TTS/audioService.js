@@ -161,10 +161,19 @@ class AudioService {
   }
 
   /**
-   * Resolve a voice selection string into either a custom-voice speaker
-   * or a clone-voice reference file, validating clone files on disk.
+   * Resolve a voice selection string into a custom-voice speaker, a
+   * clone-voice reference file, or a from-scratch designed voice,
+   * validating clone files on disk.
    */
   static async resolveVoice(voice) {
+    if (typeof voice === "string" && voice.startsWith("design:")) {
+      const description = voice.slice("design:".length).trim();
+      if (!description) {
+        throw new Error("Voice design requires a non-empty description");
+      }
+      return { mode: "design", description };
+    }
+
     if (typeof voice === "string" && voice.startsWith("clone:")) {
       const file = path.basename(voice.slice("clone:".length));
       if (!/\.(wav|mp3)$/i.test(file)) {
@@ -237,6 +246,24 @@ class AudioService {
   }
 
   /**
+   * Clone/custom voices are anchored by a reference file or a fixed preset
+   * id, so varying the seed per turn/chunk only changes prosody - identity
+   * stays put. A designed voice ("design:<description>" - see resolveVoice)
+   * has no such anchor: identity is entirely (description text, seed), so
+   * a different seed for the same description can synthesize an audibly
+   * different-sounding voice. Pin the seed to (id, voice) for design mode
+   * so every turn/chunk from the same speaker reuses the exact same seed
+   * and stays one consistent voice; fall back to the caller's own
+   * per-turn/chunk variant key for every other mode.
+   */
+  static _seedForVoice(id, voice, variantKey) {
+    if (typeof voice === "string" && voice.startsWith("design:")) {
+      return this._seedFromJobId(`${id}:${voice}`);
+    }
+    return this._seedFromJobId(`${id}:${variantKey}`);
+  }
+
+  /**
    * Podcast voice-clone turns have no `instruct` param to hint delivery (see
    * _instructFor) - the Qwen3 clone endpoint just doesn't expose one - so a
    * shared per-job seed is the one place left that can vary. Reusing the
@@ -249,7 +276,10 @@ class AudioService {
    * which exists so a single narrator's pace/tone doesn't jump scene to
    * scene.
    */
-  static _seedForScene(jobId, scene) {
+  static _seedForScene(jobId, scene, voice) {
+    if (typeof voice === "string" && voice.startsWith("design:")) {
+      return this._seedFromJobId(`${jobId}:${voice}`);
+    }
     if (scene?.speaker === "host" || scene?.speaker === "guest") {
       return this._seedFromJobId(`${jobId}:${scene.sceneNumber}`);
     }
@@ -303,6 +333,27 @@ class AudioService {
     // to a flat, monotone read-the-text-aloud delivery instead of sounding
     // like a human narrator.
     return "Speak naturally and expressively like a human narrator telling a story: vary your pitch, pace and emphasis, add warmth and emotion that fits the content, and avoid a flat monotone reading.";
+  }
+
+  /**
+   * A designed voice has no reference audio to anchor it - identity comes
+   * entirely from `resolved.description` (see resolveVoice's "design:"
+   * mode), so per-turn delivery is folded into that same description
+   * string rather than a separate instruct param (the endpoint doesn't
+   * have one - see the Voice Design tab's single "Voice Description"
+   * field). Keeping the base description's wording stable across calls
+   * with the same seed is what keeps the identity from drifting turn to
+   * turn; only the appended delivery clause should vary.
+   */
+  static async _generateDesign(client, resolved, text, seed, instruct = "", fastMode = false) {
+    const voiceDescription = instruct ? `${resolved.description}. ${instruct}` : resolved.description;
+    return client.predict("/generate_voice_design", {
+      text,
+      language: "Auto",
+      voice_description: voiceDescription,
+      model_size: fastMode ? config.tts.fastModelSize : config.tts.modelSize,
+      seed,
+    });
   }
 
   static async _generateClone(client, resolved, text, seed, fastMode = false) {
@@ -393,7 +444,7 @@ class AudioService {
     // Fixed per-job (or per-podcast-turn) seed so every scene, including
     // later resumed ones, deterministically reproduces the same prosody
     // instead of a random seed per call.
-    const seed = this._seedForScene(jobId, scene);
+    const seed = this._seedForScene(jobId, scene, voice);
 
     for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
       try {
@@ -417,10 +468,13 @@ class AudioService {
 
         let result;
         try {
+          const instruct = this._instructFor(scene);
           result =
             resolved.mode === "clone"
               ? await this._generateClone(client, resolved, text, seed, fastMode)
-              : await this._generateCustom(client, resolved, text, seed, this._instructFor(scene), fastMode);
+              : resolved.mode === "design"
+                ? await this._generateDesign(client, resolved, text, seed, instruct, fastMode)
+                : await this._generateCustom(client, resolved, text, seed, instruct, fastMode);
         } finally {
           client.close();
         }
@@ -539,7 +593,9 @@ class AudioService {
           result =
             resolved.mode === "clone"
               ? await this._generateClone(client, resolved, text, seed, fastMode)
-              : await this._generateCustom(client, resolved, text, seed, instruct, fastMode);
+              : resolved.mode === "design"
+                ? await this._generateDesign(client, resolved, text, seed, instruct, fastMode)
+                : await this._generateCustom(client, resolved, text, seed, instruct, fastMode);
         } finally {
           client.close();
         }
@@ -625,8 +681,9 @@ class AudioService {
     // Per-chunk seed (id + chunkIndex), same reasoning as
     // generateDialogueTurnAudio - keeps prosody varied across chunks
     // instead of every chunk sounding byte-identical, while staying fully
-    // deterministic/resumable.
-    const seed = this._seedFromJobId(`${id}:${chunkIndex}`);
+    // deterministic/resumable. Designed voices are the exception - see
+    // _seedForVoice.
+    const seed = this._seedForVoice(id, voice, chunkIndex);
     const trimmedEmotion = emotion?.trim();
     const instruct = trimmedEmotion
       ? `Speak naturally like a human narrator, with this delivery: ${trimmedEmotion}.`
@@ -664,8 +721,9 @@ class AudioService {
     // Per-turn seed (id + turnIndex), not one shared seed for the whole
     // dialogue - see _seedForScene's reasoning: a fixed seed across every
     // turn gives every line byte-identical prosody, which reads as robotic
-    // repetition rather than a real back-and-forth.
-    const seed = this._seedFromJobId(`${id}:${turnIndex}`);
+    // repetition rather than a real back-and-forth. Designed voices are the
+    // exception - see _seedForVoice.
+    const seed = this._seedForVoice(id, voice, turnIndex);
     const trimmedEmotion = emotion?.trim();
     const instruct = trimmedEmotion
       ? `Speak like ${speakerName} in a live, natural conversation, with this delivery: ${trimmedEmotion}.`

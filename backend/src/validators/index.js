@@ -103,9 +103,9 @@ const idArraySchema = z.object({
 
 const createAudioSchema = z.object({
   text: z.string().min(1, 'Text is required').max(5000, 'Text must be 5000 characters or fewer').trim(),
-  // Same voice string format as video jobs - "custom:<Speaker>" or
-  // "clone:<file>.wav" (see AudioService.resolveVoice).
-  voice: z.string().min(1, 'Voice is required').max(200),
+  // Same voice string format as video jobs - "custom:<Speaker>",
+  // "clone:<file>.wav", or "design:<description>" (see AudioService.resolveVoice).
+  voice: z.string().min(1, 'Voice is required').max(260),
   // Free-text delivery/emotion note (e.g. "cheerful and energetic") passed
   // to the TTS model's instruct prompt - see AudioService.generateStandaloneAudio.
   emotion: z.string().max(200).trim().optional().default(''),
@@ -120,7 +120,7 @@ const audioIdSchema = z.object({
 
 const dialogueSpeakerSchema = z.object({
   name: z.string().min(1).max(40).trim(),
-  voice: z.string().min(1).max(200),
+  voice: z.string().min(1).max(260),
 });
 
 const createDialogueAudioSchema = z.object({

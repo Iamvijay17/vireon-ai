@@ -1,4 +1,4 @@
-import { Wand2, Loader2, Plus, X, Library, Zap } from "lucide-react";
+import { Wand2, Loader2, Plus, X, Library, Zap, Sparkles } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Textarea, Label, FieldHint, Input } from "../../components/ui/Input";
 import { VoiceSelect } from "../../components/ui/VoiceSelect";
@@ -44,44 +44,69 @@ export const DialoguePanel = ({
       <div>
         <Label required>Speakers</Label>
         <div className="flex flex-col gap-2">
-          {speakers.map((s, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input
-                className="w-32 shrink-0"
-                value={s.name}
-                maxLength={40}
-                onChange={(e) => updateSpeaker(i, { name: e.target.value })}
-                placeholder={`Speaker ${i + 1}`}
-              />
-              <VoiceSelect
-                className="min-w-0 flex-1"
-                options={voiceOptions}
-                value={s.voice}
-                onChange={(v) => updateSpeaker(i, { voice: v })}
-                placeholder="Select a voice..."
-                isFavorite={isFavorite}
-                onToggleFavorite={toggleFavorite}
-              />
-              <button
-                type="button"
-                onClick={() => onBrowseVoices(i)}
-                aria-label={`Browse voices for speaker ${i + 1}`}
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-hover hover:text-accent"
-              >
-                <Library className="size-3.5" />
-              </button>
-              {speakers.length > 2 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  iconOnly
-                  aria-label={`Remove speaker ${i + 1}`}
-                  icon={<X className="size-3.5" />}
-                  onClick={() => removeSpeaker(i)}
+          {speakers.map((s, i) => {
+            const isDesign = s.voice.startsWith("design:");
+            const designDescription = isDesign ? s.voice.slice("design:".length) : "";
+            return (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  className="w-32 shrink-0"
+                  value={s.name}
+                  maxLength={40}
+                  onChange={(e) => updateSpeaker(i, { name: e.target.value })}
+                  placeholder={`Speaker ${i + 1}`}
                 />
-              )}
-            </div>
-          ))}
+                {isDesign ? (
+                  <Input
+                    className="min-w-0 flex-1"
+                    value={designDescription}
+                    maxLength={250}
+                    onChange={(e) => updateSpeaker(i, { voice: `design:${e.target.value}` })}
+                    placeholder="Describe this speaker's voice, e.g. warm confident young male American"
+                  />
+                ) : (
+                  <VoiceSelect
+                    className="min-w-0 flex-1"
+                    options={voiceOptions}
+                    value={s.voice}
+                    onChange={(v) => updateSpeaker(i, { voice: v })}
+                    placeholder="Select a voice..."
+                    isFavorite={isFavorite}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => updateSpeaker(i, { voice: isDesign ? "" : "design:" })}
+                  aria-label={isDesign ? `Use a library voice for speaker ${i + 1}` : `Design a voice for speaker ${i + 1}`}
+                  title={isDesign ? "Use a library voice" : "Design a new voice"}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-hover hover:text-accent"
+                >
+                  <Sparkles className="size-3.5" />
+                </button>
+                {!isDesign && (
+                  <button
+                    type="button"
+                    onClick={() => onBrowseVoices(i)}
+                    aria-label={`Browse voices for speaker ${i + 1}`}
+                    className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-hover hover:text-accent"
+                  >
+                    <Library className="size-3.5" />
+                  </button>
+                )}
+                {speakers.length > 2 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    aria-label={`Remove speaker ${i + 1}`}
+                    icon={<X className="size-3.5" />}
+                    onClick={() => removeSpeaker(i)}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
         {speakers.length < MAX_SPEAKERS && (
           <Button

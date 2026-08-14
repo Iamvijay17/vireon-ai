@@ -1,4 +1,4 @@
-import { Wand2, Loader2, Library, Zap } from "lucide-react";
+import { Wand2, Loader2, Library, Zap, Sparkles } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Textarea, Label, FieldHint, Input } from "../../components/ui/Input";
 import { VoiceSelect } from "../../components/ui/VoiceSelect";
@@ -25,7 +25,9 @@ export const SingleVoicePanel = ({
   fastMode,
   setFastMode,
 }) => {
-  const disabled = generating || !text.trim() || !voice;
+  const isDesignVoice = voice.startsWith("design:");
+  const designDescription = isDesignVoice ? voice.slice("design:".length) : "";
+  const disabled = generating || !text.trim() || !voice || (isDesignVoice && !designDescription.trim());
 
   return (
     <>
@@ -44,23 +46,50 @@ export const SingleVoicePanel = ({
       <div className="mt-4">
         <div className="mb-1.5 flex items-center justify-between">
           <Label required className="mb-0">Voice</Label>
-          <button
-            type="button"
-            onClick={onBrowseVoices}
-            className="flex items-center gap-1 text-xs font-medium text-accent hover:underline"
-          >
-            <Library className="size-3" />
-            Browse voices
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setVoice(isDesignVoice ? "" : "design:")}
+              className="flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+            >
+              <Sparkles className="size-3" />
+              {isDesignVoice ? "Pick from voice library" : "Design a voice"}
+            </button>
+            {!isDesignVoice && (
+              <button
+                type="button"
+                onClick={onBrowseVoices}
+                className="flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+              >
+                <Library className="size-3" />
+                Browse voices
+              </button>
+            )}
+          </div>
         </div>
-        <VoiceSelect
-          options={voiceOptions}
-          value={voice}
-          onChange={setVoice}
-          placeholder="Select a voice..."
-          isFavorite={isFavorite}
-          onToggleFavorite={toggleFavorite}
-        />
+        {isDesignVoice ? (
+          <>
+            <Input
+              value={designDescription}
+              maxLength={250}
+              onChange={(e) => setVoice(`design:${e.target.value}`)}
+              placeholder="e.g. Young energetic male American voice, warm and confident, podcast host tone"
+            />
+            <FieldHint>
+              Synthesizes a brand-new voice matching this description (not a real recording) - unlike cloned
+              voices, it fully supports the Emotion/Delivery field below.
+            </FieldHint>
+          </>
+        ) : (
+          <VoiceSelect
+            options={voiceOptions}
+            value={voice}
+            onChange={setVoice}
+            placeholder="Select a voice..."
+            isFavorite={isFavorite}
+            onToggleFavorite={toggleFavorite}
+          />
+        )}
       </div>
 
       <div className="mt-4">

@@ -213,7 +213,7 @@ const AudioPage = () => {
       toast.error("Enter some text to generate");
       return;
     }
-    if (!voice) {
+    if (!voice || voice.trim() === "design:") {
       toast.error("Select a voice");
       return;
     }
@@ -244,8 +244,8 @@ const AudioPage = () => {
       toast.error("Enter a script to generate");
       return;
     }
-    const cleanSpeakers = speakers.map((s) => ({ name: s.name.trim(), voice: s.voice }));
-    if (cleanSpeakers.some((s) => !s.name || !s.voice)) {
+    const cleanSpeakers = speakers.map((s) => ({ name: s.name.trim(), voice: s.voice.trim() }));
+    if (cleanSpeakers.some((s) => !s.name || !s.voice || s.voice === "design:")) {
       toast.error("Every speaker needs a name and a voice");
       return;
     }
