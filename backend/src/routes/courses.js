@@ -184,6 +184,30 @@ router.post('/:id/generate-curriculum', authenticate, CourseController.generateC
 
 /**
  * @swagger
+ * /api/courses/{id}/curriculum-history:
+ *   get:
+ *     summary: List previously generated curriculum structures for a course
+ *     description: Each call to generate-curriculum is saved as its own CourseCurriculum record, so past generations remain available here even after the draft/videos have moved on.
+ *     tags: [Courses]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/EntityId' }
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/LimitParam'
+ *     responses:
+ *       200:
+ *         description: Paginated list of saved curriculum structures
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 curricula: { type: array, items: { type: object } }
+ *                 pagination: { $ref: '#/components/schemas/Pagination' }
+ */
+router.get('/:id/curriculum-history', authenticate, CourseController.listCurriculumHistory);
+
+/**
+ * @swagger
  * /api/courses/{id}/curriculum-videos:
  *   post:
  *     summary: Create one CourseVideo per lesson from an approved curriculum

@@ -22,7 +22,7 @@ import { EmptyState, LoadingState } from "../../components";
 import { useSetBreadcrumbLabel } from "../../shared/breadcrumbContextValue";
 import { loadSettings } from "../../shared/settingsStorage";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
-import { Card, CardHeader } from "../../components/ui/Card";
+import { Card, CardHeader, CardBody } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { Tooltip } from "../../components/ui/Tooltip";
@@ -1176,6 +1176,45 @@ const CourseDetail = () => {
               </Button>
             </div>
           </div>
+        </Card>
+      )}
+
+      {/* Course Structure Outline - the saved "Generate Udemy Course Structure" draft.
+          Shown whenever a generated structure is sitting in the DB draft, so closing
+          the modal (or reloading the page) doesn't make it disappear. Reopens the
+          review modal for editing; no videos are created until "Create Videos". */}
+      {curriculumLessons.length > 0 && (
+        <Card className="mb-4">
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <FileText className="size-4 text-text-tertiary" /> Course Structure
+              </span>
+            }
+            subtitle={`${curriculumLessons.length} lesson${curriculumLessons.length === 1 ? "" : "s"} drafted - not created as videos yet`}
+            extra={
+              <Button variant="secondary" size="sm" icon={<Sparkles className="size-3.5" />} onClick={showCurriculumModal}>
+                Review / Edit Structure
+              </Button>
+            }
+          />
+          <CardBody>
+            <ol className="space-y-2">
+              {curriculumLessons.map((lesson, index) => (
+                <li key={index} className="flex items-start gap-3 rounded-lg border border-border-light p-3">
+                  <Badge variant="neutral" className="mt-0.5 shrink-0">
+                    {index + 1}
+                  </Badge>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-text-primary">{lesson.title || "Untitled lesson"}</p>
+                    {lesson.topic && (
+                      <p className="mt-0.5 text-[13px] leading-snug text-text-secondary">{lesson.topic}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </CardBody>
         </Card>
       )}
 

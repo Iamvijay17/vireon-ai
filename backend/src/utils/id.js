@@ -19,6 +19,7 @@ const generateCourseVideoId = () => withPrefix('vid');
 const generateSceneId = () => withPrefix('sce');
 const generateFavoriteVoiceId = () => withPrefix('fav');
 const generateAudioGenerationId = () => withPrefix('aud');
+const generateCourseCurriculumId = () => withPrefix('crc');
 
 // Matches any id produced above - used to tell "already migrated" ids apart
 // from legacy MongoDB ObjectId strings (and from earlier id styles used
@@ -32,5 +33,6 @@ module.exports = {
   generateSceneId,
   generateFavoriteVoiceId,
   generateAudioGenerationId,
+  generateCourseCurriculumId,
   ID_PATTERN,
 };

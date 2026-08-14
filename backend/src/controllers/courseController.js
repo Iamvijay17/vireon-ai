@@ -1,5 +1,6 @@
 const CourseService = require('../services/CourseService');
 const CourseVideoService = require('../services/CourseVideoService');
+const CourseCurriculumService = require('../services/CourseCurriculumService');
 const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
@@ -153,7 +154,31 @@ class CourseController {
 
       const lessons = await CourseVideoService.previewCurriculum(req.body.title, req.body.topic);
 
-      res.json({ lessons });
+      // Persist this generated structure to its own collection so past
+      // generations have a history, separate from Course.curriculumDraft
+      // (which only ever holds the latest in-progress form state).
+      const curriculum = await CourseCurriculumService.save(req.params.id, {
+        title: req.body.title,
+        topic: req.body.topic,
+        lessons,
+      });
+
+      res.json({ lessons, curriculum });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/courses/:id/curriculum-history - List previously generated
+   * curriculum structures for a course, most recent first.
+   */
+  static async listCurriculumHistory(req, res, next) {
+    try {
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 20;
+      const result = await CourseCurriculumService.listByCourse(req.params.id, page, limit);
+      res.json(result);
     } catch (err) {
       next(err);
     }
