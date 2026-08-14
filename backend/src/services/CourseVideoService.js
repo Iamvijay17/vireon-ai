@@ -492,7 +492,13 @@ class CourseVideoService {
     // with a floor of 3 so short videos still get an intro/content/summary
     // shape.
     const sceneCount = Math.max(3, Math.round(durationMinutes * 2));
-    const contentSceneCount = sceneCount - 2;
+    // Scene 1 is always the title card. Of the remaining scenes, ~80% are
+    // plain "content" and ~20% are "contentwithimage", per course video
+    // requirements (only title/content/contentwithimage are used - no
+    // separate "image"-only or "intro"/"summary" scene types).
+    const remainingSceneCount = sceneCount - 1;
+    const contentWithImageCount = Math.max(1, Math.round(remainingSceneCount * 0.2));
+    const contentSceneCount = remainingSceneCount - contentWithImageCount;
     const avgSceneSeconds = Math.round((durationMinutes * 60) / sceneCount);
     const wordsPerScene = Math.round(wordCount / sceneCount);
 
@@ -507,7 +513,7 @@ Return ONLY valid JSON with this structure:
   "scenes": [
     {
       "sceneNumber": 1,
-      "sceneType": "intro|content|image",
+      "sceneType": "title|content|contentwithimage",
       "title": "Scene title",
       "subtitle": "Supporting text",
       "backgroundColor": "#1a1a2e",
@@ -524,14 +530,14 @@ Return ONLY valid JSON with this structure:
 Rules:
 - This is ONE lesson video from a larger course, not a full-course summary. Cover ONLY the specific topic given above - do not introduce, preview, or teach content that belongs to other lessons in the course.
 - Total narration: ~${wordCount} words across all scenes
-- Exactly ${sceneCount} scenes total: 1 intro, ${contentSceneCount} content, 1 summary
+- Exactly ${sceneCount} scenes total: 1 title, ${contentSceneCount} content, ${contentWithImageCount} contentwithimage
 - Scene duration: about ${avgSceneSeconds} seconds each
-- sceneType must be one of: "intro", "content", or "image"
-- Use "intro" for the opening scene
-- Use "content" for main educational content
-- Use "image" only for scenes requiring AI-generated background images
-- Only include "imagePrompt" when sceneType is "image"; leave it as empty string for other scene types
-- For every scene with sceneType "content", include a scene_meta object with a "content" array containing the narration text split into individual sentences
+- sceneType must be one of: "title", "content", or "contentwithimage"
+- Use "title" ONLY for scene 1, the opening title card
+- Use "content" for the majority (~80%) of the remaining scenes - main educational content, text only
+- Use "contentwithimage" for the other ~20% of remaining scenes - main content paired with a supporting AI-generated image
+- Only include "imagePrompt" when sceneType is "contentwithimage"; leave it as empty string for other scene types
+- For every scene with sceneType "content" or "contentwithimage", include a scene_meta object with a "content" array containing the narration text split into individual sentences
 - Make it beginner-friendly with examples
 - End with a call to action
 - ${video.additionalInstructions ? `Additional: ${video.additionalInstructions}` : ''}
@@ -696,9 +702,7 @@ Rules:
         let sceneType = s.sceneType;
         if (!sceneType) {
           const sceneNum = s.sceneNumber || (index + 1);
-          if (sceneNum === 1) sceneType = 'intro';
-          else if (scenes.length > 0 && sceneNum === scenes.length) sceneType = 'summary';
-          else sceneType = 'content';
+          sceneType = sceneNum === 1 ? 'title' : 'content';
         }
         return {
           sceneNumber: s.sceneNumber || (index + 1),
@@ -904,9 +908,7 @@ Rules:
          // Determine sceneType if not present (based on position)
          let sceneType = scene.sceneType;
          if (!sceneType) {
-           if (sceneNum === 1) sceneType = 'intro';
-           else if (scenes.length > 0 && sceneNum === scenes.length) sceneType = 'summary';
-           else sceneType = 'content';
+           sceneType = sceneNum === 1 ? 'title' : 'content';
          }
          // Use audio duration if available (set during generateAudio), otherwise use scene duration
          const audioDuration = scene.audio?.duration || scene.duration || 8;
