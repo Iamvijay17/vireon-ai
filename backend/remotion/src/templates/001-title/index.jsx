@@ -10,7 +10,7 @@ import { typography, spacing, slideLayout, mergeStyle, positionStyle } from '../
  *
  * Data format:
  * {
- *   templateId: "title",
+ *   templateId: "001-title",
  *   elements: {
  *     title: "string",
  *     subtitle: "string",

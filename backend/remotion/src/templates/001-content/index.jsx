@@ -5,24 +5,25 @@ import { typography, palette, mergeStyle, positionStyle } from '../../theme';
 import { styles } from './styles';
 
 /**
- * Content template - Title + Bullets
+ * 001-content template ("Bullet List" variant of the "content" scene type)
  *
  * Canonical "PPT slide" layout for content scenes: title, accent line, and a
  * plain vertical list of rows (a small accent dot + text) - no icon badges,
- * no glassmorphism cards, no giant centered stat numbers.
+ * no glassmorphism cards, no giant centered stat numbers. Every content
+ * variant (001 through 004) shares this exact same elements shape.
  *
  * Data format:
  * {
- *   templateId: "content",
+ *   templateId: "001-content",
  *   elements: {
  *     title: "string",
- *     items: [{ heading?, text }] | stats: [{ value, label }],
+ *     items: [{ heading?, text }],
  *     backgroundColor: "#hex",
  *     styleConfig: { title: {...}, subtitle: {...}, accentColor: "#hex" }
  *   }
  * }
  */
-const Content = React.memo(({ scene }) => {
+const Content001 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
   const elements = scene?.elements || {};
@@ -39,16 +40,9 @@ const Content = React.memo(({ scene }) => {
   const caption = elements.caption || '';
   const captionTimestamps = elements.captionTimestamps || null;
 
-  // Accept either a plain bullet list or a stats array - either way it
-  // renders as plain rows, not stat cards.
   const rows = useMemo(() => {
-    const items = elements.items || elements.bullets;
-    if (items?.length) {
-      return items.map((item) => ({ heading: item.heading || item.title, text: item.text || item.description || '' }));
-    }
-    const stats = elements.stats || [];
-    return stats.map((s) => ({ heading: s.value, text: s.label }));
-  }, [elements.items, elements.bullets, elements.stats]);
+    return (elements.items || []).map((item) => ({ heading: item.heading || '', text: item.text || '' }));
+  }, [elements.items]);
 
   const titleStyle = mergeStyle({ ...typography.title, fontSize: 56, textAlign: 'left', marginBottom: 16, ...positionStyle(overrides.title?.position) }, overrides.title);
   const rowTextStyle = mergeStyle(typography.body, overrides.body);
@@ -133,5 +127,5 @@ const Content = React.memo(({ scene }) => {
   );
 });
 
-Content.displayName = 'Content';
-export default Content;
+Content001.displayName = 'Content001';
+export default Content001;

@@ -1,0 +1,73 @@
+import { spacing, palette } from '../../theme';
+
+export const styles = {
+  background: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  content: {
+    position: 'relative',
+    zIndex: 1,
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    padding: `${spacing.xxl}px ${spacing.xxxl}px`,
+    boxSizing: 'border-box',
+  },
+  accentLine: {
+    width: 60,
+    height: 4,
+    borderRadius: 2,
+    background: palette.accentGradient,
+    marginBottom: spacing.lg,
+  },
+  columns: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: spacing.xxl,
+    width: '100%',
+  },
+  column: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: spacing.md,
+    minWidth: 0,
+  },
+  row: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  bulletDot: {
+    flexShrink: 0,
+    width: 10,
+    height: 10,
+    borderRadius: '50%',
+    marginTop: 8,
+    background: palette.accentSolid,
+  },
+  rowHeading: {
+    color: palette.textOnDark,
+    fontSize: 24,
+    fontWeight: 600,
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    margin: 0,
+    marginBottom: 2,
+  },
+  rowText: {
+    color: palette.textMuted,
+    fontSize: 20,
+    fontWeight: 400,
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    lineHeight: 1.4,
+    margin: 0,
+  },
+};

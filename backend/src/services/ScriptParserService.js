@@ -10,11 +10,12 @@ const { VIDEO_TYPES } = require('../constants');
  */
 class ScriptParserService {
   /**
-   * Validate the structure of a generated script.
-   *
-   * Valid scene types - these are also the only 5 templateId values in the
-   * Remotion template registry (see remotion/src/templates/TemplateRegistry.js),
-   * so a scene's sceneType and templateId are always the same string.
+   * Valid scene types. Each maps to one or more numbered templateId values
+   * in the Remotion template registry (see
+   * remotion/src/templates/TemplateRegistry.js and this file's
+   * SCENE_TYPE_TEMPLATE_IDS below) - a scene's sceneType is the stable,
+   * semantic value; its templateId is the specific numbered visual variant
+   * ("NNN-<sceneType>") picked to render it.
    * Each scene can be one of:
    *   - "title":            Opening/intro title card (text only, no image)
    *   - "content":          Informational/educational content (text only, no image)
@@ -24,6 +25,23 @@ class ScriptParserService {
    *   - "podcast":          Podcast/interview dialogue turn (host or guest)
    */
   static VALID_SCENE_TYPES = ['title', 'content', 'image', 'contentwithimage', 'podcast'];
+
+  /**
+   * sceneType -> numbered templateId(s), mirroring SceneTypeCategories in
+   * remotion/src/templates/TemplateCategories.js (duplicated here since
+   * backend/src is CommonJS and can't import that ESM package directly).
+   * Every id sharing a sceneType renders the exact same `elements` data
+   * structure - they're purely alternate visual layouts - so one is picked
+   * at random per scene. Only "content" currently has more than one
+   * (a plain bullet list, a card grid, and a numbered timeline).
+   */
+  static SCENE_TYPE_TEMPLATE_IDS = {
+    title: ['001-title', '002-title', '003-title'],
+    content: ['001-content', '002-content', '003-content', '004-content', '005-content'],
+    contentwithimage: ['001-contentwithimage', '002-contentwithimage'],
+    image: ['001-image', '002-image', '003-image'],
+    podcast: ['001-podcast', '002-podcast'],
+  };
 
   static validate(scriptData, videoType = 'educational', options = {}) {
     const { hostVoice = '', guestVoice = '', hostName = '', guestName = '', seed = '' } = options;
@@ -87,11 +105,10 @@ class ScriptParserService {
     scriptData.scenes = scriptData.scenes.map((scene) => {
       const sceneType = resolvedType === 'podcast' ? 'podcast' : (scene.sceneType || 'content');
 
-      // With exactly 5 templates (one per scene type), templateId always
-      // equals sceneType - no more per-video-type/per-position template
-      // selection or rotation needed. Any templateId the LLM/legacy data
-      // supplied is ignored in favor of the current sceneType so an old
-      // numeric template id can never leak into a freshly-validated script.
+      // templateId is always derived fresh from sceneType (randomly, when
+      // the sceneType has multiple visual variants) rather than trusting
+      // whatever the LLM/legacy data supplied, so a stale or unknown
+      // template id can never leak into a freshly-validated script.
       const templateId = ScriptParserService._getDefaultTemplateForType(sceneType);
 
       // Ensure elements structure matches the template
@@ -177,17 +194,16 @@ class ScriptParserService {
   }
 
   /**
-   * Get the default template ID for a scene type. There are exactly 5
-   * templates now, one per scene type (see remotion/src/templates/
-   * TemplateRegistry.js), so this is just an identity mapping - kept as a
-   * named method (rather than inlining `sceneType` directly) so the
-   * "templateId comes from sceneType" relationship stays a single,
-   * greppable seam instead of being implicit at every call site. Previously
-   * this picked from a large per-videoType/per-position rotation pool
-   * across 60+ numeric templates; that pool no longer exists.
+   * Get the default template ID for a scene type: a random pick from
+   * SCENE_TYPE_TEMPLATE_IDS[sceneType] (a single-element array for scene
+   * types with only one visual variant, so the "randomness" is a no-op
+   * there). Previously this picked from a large per-videoType/per-position
+   * rotation pool across 60+ numeric templates; that pool no longer exists.
    */
   static _getDefaultTemplateForType(sceneType = 'content') {
-    return ScriptParserService.VALID_SCENE_TYPES.includes(sceneType) ? sceneType : 'content';
+    const variants = ScriptParserService.SCENE_TYPE_TEMPLATE_IDS[sceneType]
+      || ScriptParserService.SCENE_TYPE_TEMPLATE_IDS.content;
+    return variants[Math.floor(Math.random() * variants.length)];
   }
 
   /**
@@ -202,12 +218,17 @@ class ScriptParserService {
     };
     const caption = scene.audio?.text || scene.subtitle || '';
 
-    // Exactly 5 templates now - one branch per templateId, matching the
-    // elements shape each template component actually reads (see each
-    // template's own JSDoc header in remotion/src/templates/<id>/index.jsx).
-    const templateElements = {
+    // One branch per sceneType, matching the elements shape its templates
+    // actually read (see each template's own JSDoc header in
+    // remotion/src/templates/<id>/index.jsx). All templates sharing a
+    // sceneType (see SCENE_TYPE_TEMPLATE_IDS) read the exact same shape -
+    // they only differ in how they render it - so keying on sceneType
+    // rather than templateId keeps this correct automatically as variants
+    // are added/removed.
+    const contentDefault = { title: scene.title || '', items: [{ heading: '', text: scene.subtitle || '' }], caption, captionTimestamps: null };
+    const sceneTypeElements = {
       title: { ...base, image: '' },
-      content: { title: scene.title || '', items: [{ heading: '', text: scene.subtitle || '' }], caption, captionTimestamps: null },
+      content: contentDefault,
       contentwithimage: { title: scene.title || '', body: scene.subtitle || '', image: '', badge: '' },
       image: { image: '', caption: scene.subtitle || '', label: 'Featured' },
       podcast: {
@@ -219,21 +240,24 @@ class ScriptParserService {
         captionTimestamps: null,
       },
     };
+    const sceneType = Object.keys(ScriptParserService.SCENE_TYPE_TEMPLATE_IDS)
+      .find((type) => ScriptParserService.SCENE_TYPE_TEMPLATE_IDS[type].includes(templateId));
 
-    return templateElements[templateId] || base;
+    return sceneTypeElements[sceneType] || base;
   }
 
   /**
    * Create elements from scene_meta.content when the LLM didn't provide explicit elements.
-   * Maps content sentences to template-specific element structures. Of the 5
-   * templates, only "content" and "contentwithimage" actually care about
-   * structured content items (bullet list vs. a single body paragraph) -
-   * the other 3 (title/image/podcast) don't render scene_meta.content at
-   * all, so this only needs 2 branches now instead of ~25.
+   * Maps content sentences to template-specific element structures. Only
+   * the 4 "content" variants and "contentwithimage" actually care about
+   * structured content items (bullet/grid/timeline/stats rows vs. a single
+   * body paragraph) - the other 3 (title/image/podcast) don't render
+   * scene_meta.content at all, so this only needs 2 branches.
    */
   static _createContentElementsFromMeta(templateId, contentItems, scene) {
-    // Content: plain bullet list, one row per content sentence.
-    if (templateId === 'content') {
+    // Content variants: plain items array, one row per content sentence -
+    // each variant's component decides how to lay the rows out.
+    if (ScriptParserService.SCENE_TYPE_TEMPLATE_IDS.content.includes(templateId)) {
       return {
         title: scene.title || '',
         items: contentItems.map((text) => ({ heading: '', text })),
@@ -244,7 +268,7 @@ class ScriptParserService {
 
     // Content + image: a single body paragraph alongside the image, not a
     // bulleted list (the split image/text panel has room for prose, not rows).
-    if (templateId === 'contentwithimage') {
+    if (ScriptParserService.SCENE_TYPE_TEMPLATE_IDS.contentwithimage.includes(templateId)) {
       return {
         title: scene.title || '',
         body: contentItems.join(' '),

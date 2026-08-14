@@ -64,9 +64,9 @@ const SCENE_TYPE_OPTIONS = [
   { value: "podcast", label: "Podcast" },
 ];
 
-// Of the 5 templates, only "content" uses `elements.items: [{ heading?, text? }]`
+// The 3 "content" scene-type variants all use `elements.items: [{ heading?, text? }]`
 // - keep in sync with STANDARDIZED_ITEMS_TEMPLATE_IDS in backend/src/controllers/sceneController.js.
-const ITEMS_EDITABLE_TEMPLATE_IDS = ["content"];
+const ITEMS_EDITABLE_TEMPLATE_IDS = ["001-content", "002-content", "003-content", "004-content", "005-content"];
 
 const FONT_WEIGHT_OPTIONS = [
   { value: 300, label: "Light" },

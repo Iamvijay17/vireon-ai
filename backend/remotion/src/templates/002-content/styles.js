@@ -1,0 +1,61 @@
+import { spacing, palette } from '../../theme';
+
+export const styles = {
+  background: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  content: {
+    position: 'relative',
+    zIndex: 1,
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    padding: `${spacing.xxl}px ${spacing.xxxl}px`,
+    boxSizing: 'border-box',
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: spacing.lg,
+    width: '100%',
+  },
+  card: {
+    position: 'relative',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    padding: `${spacing.lg}px ${spacing.lg}px`,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: spacing.xs,
+  },
+  cardAccent: {
+    width: 32,
+    height: 3,
+    borderRadius: 2,
+    background: palette.accentGradient,
+    marginBottom: spacing.xs,
+  },
+  cardHeading: {
+    color: palette.textOnDark,
+    fontSize: 26,
+    fontWeight: 600,
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    margin: 0,
+  },
+  cardText: {
+    color: palette.textMuted,
+    fontSize: 22,
+    fontWeight: 400,
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    lineHeight: 1.4,
+    margin: 0,
+  },
+};

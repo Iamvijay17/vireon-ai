@@ -11,11 +11,12 @@ const { JOB_STATUS } = require('../constants');
 // be lost just because the layout changed).
 const CARRYOVER_ELEMENT_FIELDS = ['backgroundColor', 'styleConfig'];
 
-// Of the 5 templates, only "content" uses the `items: [{ heading?, text? }]`
-// shape - kept as a list (rather than a plain `templateId === 'content'`
-// check below) since the carry-over logic just needs "is this templateId
-// one that speaks the items shape", regardless of how many ids qualify.
-const STANDARDIZED_ITEMS_TEMPLATE_IDS = ['content'];
+// The 3 "content" scene-type variants (see SceneTypeCategories.content in
+// remotion/src/templates/TemplateCategories.js) all use the
+// `items: [{ heading?, text? }]` shape - kept as a list (rather than a
+// sceneType check) since the carry-over logic just needs "is this
+// templateId one that speaks the items shape".
+const STANDARDIZED_ITEMS_TEMPLATE_IDS = ['001-content', '002-content', '003-content', '004-content', '005-content'];
 
 class SceneController {
   /**

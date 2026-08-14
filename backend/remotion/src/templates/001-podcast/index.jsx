@@ -17,7 +17,7 @@ import { mergeStyle, positionStyle } from '../../theme';
  *
  * Data format:
  * {
- *   templateId: "podcast",
+ *   templateId: "001-podcast",
  *   elements: {
  *     title: "string",
  *     subtitle: "string (episode name)",

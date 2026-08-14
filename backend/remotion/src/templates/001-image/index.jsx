@@ -11,7 +11,7 @@ import { mergeStyle, positionStyle } from '../../theme';
  *
  * JSON data format:
  * {
- *   templateId: "image",
+ *   templateId: "001-image",
  *   elements: {
  *     image: "url or path",
  *     caption: "string",

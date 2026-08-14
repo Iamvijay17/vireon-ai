@@ -6,26 +6,18 @@ import { backgroundColors } from '../../styles';
 import { mergeStyle, positionStyle } from '../../theme';
 
 /**
- * ContentWithImage template (Image + Text split)
- * Layout: Left image with ken burns zoom, right text panel with badge/title/body.
- * Canonical template for the "contentwithimage" scene type - content
- * delivery paired with a supporting image, no stat/icon chrome.
+ * 002-contentwithimage template ("Image Card" variant of the
+ * "contentwithimage" scene type)
  *
- * Data format:
- * {
- *   templateId: "contentwithimage",
- *   elements: {
- *     title: "string",
- *     body: "string",
- *     image: "url or path",
- *     badge: "string" (optional),
- *     backgroundColor: "#hex" (optional)
- *   },
- *   audio: { file: "path" },
- *   duration: number
- * }
+ * Full-bleed image with a floating badge/label overlaid directly on the
+ * image (top-left) and a bottom gradient panel carrying the title/body -
+ * instead of 001-contentwithimage's side-by-side split image/text panel.
+ * Same elements shape as "001-contentwithimage".
+ *
+ * Data format: same as "001-contentwithimage" -
+ * { title, body, image, badge, backgroundColor?, styleConfig }.
  */
-const ContentWithImage = React.memo(({ scene }) => {
+const ContentWithImage002 = React.memo(({ scene }) => {
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const body = elements.body || elements.text || '';
@@ -41,12 +33,12 @@ const ContentWithImage = React.memo(({ scene }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={styles.container}>
-        <div style={styles.imagePanel}>
-          <div style={{ ...styles.imageOverlay }} />
-          {image && <Img src={image} style={{ ...styles.storyImage, ...anim.imageStyle }} />}
-        </div>
-        <div style={{ ...styles.textPanel, ...anim.bgStyle }}>
-          {badge && <div style={{ ...styles.stepBadge, ...anim.badgeStyle }}>{badge}</div>}
+        {image && <Img src={image} style={{ ...styles.image, ...anim.imageStyle }} />}
+        <div style={{ ...styles.overlay, ...anim.bgStyle }} />
+
+        {badge && <div style={{ ...styles.badge, ...anim.badgeStyle }}>{badge}</div>}
+
+        <div style={styles.textPanel}>
           {title && <h1 data-style-role="title" style={{ ...titleStyle, ...anim.titleStyle }}>{title}</h1>}
           {body && <p style={{ ...bodyStyle, ...anim.bodyStyle }}>{body}</p>}
         </div>
@@ -56,5 +48,5 @@ const ContentWithImage = React.memo(({ scene }) => {
   );
 });
 
-ContentWithImage.displayName = 'ContentWithImage';
-export default ContentWithImage;
+ContentWithImage002.displayName = 'ContentWithImage002';
+export default ContentWithImage002;
