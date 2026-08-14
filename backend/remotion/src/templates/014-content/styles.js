@@ -1,0 +1,63 @@
+import { spacing, palette } from '../../theme';
+
+export const styles = {
+  background: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  content: {
+    position: 'relative',
+    zIndex: 1,
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    padding: `${spacing.xxl}px ${spacing.xxxl}px`,
+    boxSizing: 'border-box',
+  },
+  slideStage: {
+    position: 'relative',
+    width: '100%',
+    maxWidth: '85%',
+    minHeight: 280,
+  },
+  slide: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: spacing.sm,
+  },
+  slideIndex: {
+    color: palette.accentSolid,
+    fontSize: 20,
+    fontWeight: 700,
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    letterSpacing: '0.08em',
+    marginBottom: spacing.sm,
+  },
+  slideHeading: {
+    color: palette.textOnDark,
+    fontSize: 40,
+    fontWeight: 600,
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    margin: 0,
+    marginBottom: spacing.sm,
+  },
+  slideText: {
+    color: palette.textMuted,
+    fontSize: 30,
+    fontWeight: 400,
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    lineHeight: 1.55,
+    maxWidth: '90%',
+    margin: 0,
+  },
+};

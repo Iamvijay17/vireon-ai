@@ -37,7 +37,7 @@ class ScriptParserService {
    */
   static SCENE_TYPE_TEMPLATE_IDS = {
     title: ['001-title', '002-title', '003-title', '004-title', '005-title', '006-title', '007-title', '008-title', '009-title', '010-title'],
-    content: ['001-content', '002-content', '003-content', '004-content', '005-content', '006-content', '007-content', '008-content', '009-content', '010-content', '011-content', '012-content', '013-content'],
+    content: ['001-content', '002-content', '003-content', '004-content', '005-content', '006-content', '007-content', '008-content', '009-content', '010-content', '011-content', '012-content', '013-content', '014-content', '015-content'],
     contentwithimage: ['001-contentwithimage', '002-contentwithimage', '003-contentwithimage', '004-contentwithimage', '005-contentwithimage', '006-contentwithimage', '007-contentwithimage', '008-contentwithimage', '009-contentwithimage'],
     image: ['001-image', '002-image', '003-image', '004-image', '005-image', '006-image', '007-image', '008-image', '009-image', '010-image'],
     podcast: ['001-podcast', '002-podcast'],

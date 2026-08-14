@@ -295,6 +295,48 @@ export const sampleScenes = {
     },
     duration: 8,
   },
+  '014-content': {
+    templateId: '014-content',
+    elements: {
+      title: 'What We Learned',
+      items: [
+        {
+          heading: 'Start smaller than feels comfortable',
+          text: 'Every team we studied that shipped something people actually used began with a version they were slightly embarrassed by. The instinct to polish before releasing almost always cost more in delay than the rough edges ever cost in credibility.',
+        },
+        {
+          heading: 'Feedback beats forecasting',
+          text: 'Roadmaps built entirely from internal predictions consistently missed what users actually needed. The teams that grew fastest treated their first release as a question, not an answer, and let real usage tell them what to build next.',
+        },
+        {
+          heading: 'Constraints are a feature, not a bug',
+          text: 'Limited time and limited resources forced hard prioritization that unlimited budgets never would have. Almost every team credited an early constraint with saving them from building something nobody wanted.',
+        },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content paragraph slides template in action.',
+    },
+    duration: 15,
+  },
+  '015-content': {
+    templateId: '015-content',
+    elements: {
+      title: 'Why This Matters',
+      items: [
+        {
+          heading: 'The problem isn’t effort, it’s clarity',
+          text: 'Most teams aren’t short on motivation — they’re short on a shared, specific picture of what "done" looks like, which is why work stalls even when everyone is busy.',
+        },
+        {
+          heading: 'Clarity has to be written down',
+          text: 'A clear idea that only lives in one person’s head isn’t actually clear to the team. Writing it down is what turns a good intention into something other people can act on without guessing.',
+        },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content paragraph stack template in action.',
+    },
+    duration: 8,
+  },
   '001-contentwithimage': {
     templateId: '001-contentwithimage',
     elements: {

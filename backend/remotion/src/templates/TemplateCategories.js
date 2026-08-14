@@ -22,7 +22,7 @@
 
 export const SceneTypeCategories = {
   title: ['001-title', '002-title', '003-title', '004-title', '005-title', '006-title', '007-title', '008-title', '009-title', '010-title'],
-  content: ['001-content', '002-content', '003-content', '004-content', '005-content', '006-content', '007-content', '008-content', '009-content', '010-content', '011-content', '012-content', '013-content'],
+  content: ['001-content', '002-content', '003-content', '004-content', '005-content', '006-content', '007-content', '008-content', '009-content', '010-content', '011-content', '012-content', '013-content', '014-content', '015-content'],
   contentwithimage: ['001-contentwithimage', '002-contentwithimage', '003-contentwithimage', '004-contentwithimage', '005-contentwithimage', '006-contentwithimage', '007-contentwithimage', '008-contentwithimage', '009-contentwithimage'],
   image: ['001-image', '002-image', '003-image', '004-image', '005-image', '006-image', '007-image', '008-image', '009-image', '010-image'],
   podcast: ['001-podcast', '002-podcast'],
@@ -75,6 +75,8 @@ export const templateNames = {
   '011-content': 'Content - Quote Highlight (large pull quote + footnote list)',
   '012-content': 'Content - Versus (opposing two-side comparison with center divider)',
   '013-content': 'Content - Ribbon List (stacked full-width index ribbons)',
+  '014-content': 'Content - Paragraph Slides (one paragraph item at a time, auto-advancing)',
+  '015-content': 'Content - Paragraph Stack (single-column, generous spacing for paragraph-length items)',
   '001-contentwithimage': 'Content + Image (split image/text panel)',
   '002-contentwithimage': 'Content + Image - Image Card (badge overlaid on full-bleed image)',
   '003-contentwithimage': 'Content + Image - Cinematic (full-bleed image, bottom scrim, text anchored bottom)',
@@ -159,6 +161,8 @@ const TEMPLATE_METADATA = [
   { templateId: '011-content', title: 'Content - Quote Highlight', description: 'The first item is rendered as a huge pull quote with attribution; remaining items show as a small footnote row. Use for testimonials or key statements.' },
   { templateId: '012-content', title: 'Content - Versus', description: 'Items split into two opposing sides (alternating by index) around a center divider with a "VS" badge. Use for comparisons or trade-offs.' },
   { templateId: '013-content', title: 'Content - Ribbon List', description: 'Items rendered as full-width stacked ribbons with giant faint index numerals. Use for a table-of-contents/magazine index feel.' },
+  { templateId: '014-content', title: 'Content - Paragraph Slides', description: 'Shows one item at a time, full-width, cross-fading to the next partway through the scene. Use when each item.text is a full paragraph rather than a short phrase - avoids cramming long text into a static layout.' },
+  { templateId: '015-content', title: 'Content - Paragraph Stack', description: 'A single wide column with generous line-height and no card chrome. Use for 2-3 items whose text is a full paragraph and should stay visible together rather than cycling.' },
   { templateId: '001-contentwithimage', title: 'Content + Image', description: 'Split layout: supporting image on one side, title/body text on the other.' },
   { templateId: '002-contentwithimage', title: 'Content + Image - Image Card', description: 'Full-bleed image with a floating badge and bottom title/body panel. Use for a photo-forward story card look.' },
   { templateId: '003-contentwithimage', title: 'Content + Image - Cinematic', description: 'Full-bleed image with a bottom gradient scrim and bottom-anchored badge/title/body text. Use for a cinematic, photo-forward look.' },

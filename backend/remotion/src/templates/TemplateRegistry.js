@@ -44,6 +44,8 @@ const Content010 = lazy(() => import('./010-content'));
 const Content011 = lazy(() => import('./011-content'));
 const Content012 = lazy(() => import('./012-content'));
 const Content013 = lazy(() => import('./013-content'));
+const Content014 = lazy(() => import('./014-content'));
+const Content015 = lazy(() => import('./015-content'));
 const ContentWithImage001 = lazy(() => import('./001-contentwithimage'));
 const ContentWithImage002 = lazy(() => import('./002-contentwithimage'));
 const ContentWithImage003 = lazy(() => import('./003-contentwithimage'));
@@ -95,6 +97,8 @@ const TemplateRegistry = {
   '011-content': Content011,
   '012-content': Content012,
   '013-content': Content013,
+  '014-content': Content014,
+  '015-content': Content015,
   '001-contentwithimage': ContentWithImage001,
   '002-contentwithimage': ContentWithImage002,
   '003-contentwithimage': ContentWithImage003,

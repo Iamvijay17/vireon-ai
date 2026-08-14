@@ -66,7 +66,7 @@ const SCENE_TYPE_OPTIONS = [
 
 // The 3 "content" scene-type variants all use `elements.items: [{ heading?, text? }]`
 // - keep in sync with STANDARDIZED_ITEMS_TEMPLATE_IDS in backend/src/controllers/sceneController.js.
-const ITEMS_EDITABLE_TEMPLATE_IDS = ["001-content", "002-content", "003-content", "004-content", "005-content", "006-content", "007-content", "008-content", "009-content", "010-content", "011-content", "012-content", "013-content"];
+const ITEMS_EDITABLE_TEMPLATE_IDS = ["001-content", "002-content", "003-content", "004-content", "005-content", "006-content", "007-content", "008-content", "009-content", "010-content", "011-content", "012-content", "013-content", "014-content", "015-content"];
 
 const FONT_WEIGHT_OPTIONS = [
   { value: 300, label: "Light" },
@@ -268,15 +268,24 @@ const StudioPage = () => {
     updateScene(index, (scene) => ({ ...scene, elements: { ...(scene.elements || {}), [field]: value } }));
   };
 
+  // Every templateId is "NNN-<sceneType>" and all variants sharing a
+  // sceneType read the exact same `elements` shape (see
+  // remotion/src/templates/TemplateCategories.js's SceneTypeCategories) -
+  // so this strips the numeric prefix to compare scene types.
+  const sceneTypeOf = (templateId) => (templateId || "").replace(/^\d+-/, "");
+
   // Switching templates used to just swap templateId and leave the old
   // template's `elements` in place, so the new template rendered with
   // missing/mismatched fields (see remap-template endpoint's doc comment).
-  // Sets templateId immediately for responsive UI, then replaces `elements`
-  // once the server computes the new template's expected shape.
+  // Sets templateId immediately for responsive UI. Only hits the remap API
+  // when the new template is a different scene type - variants of the same
+  // scene type (e.g. two "content" layouts) read identical elements, so
+  // there's nothing to remap and no need for the round trip/spinner.
   const handleTemplateSelect = async (index, templateId) => {
     const scene = editedScenes[index];
     handleFieldChange(index, "templateId", templateId);
     if (!jobId || !scene) return;
+    if (sceneTypeOf(templateId) === sceneTypeOf(scene.templateId)) return;
     setRemappingTemplate(true);
     try {
       const res = await remapSceneElementsForTemplate(jobId, scene.sceneNumber, templateId, scene);
