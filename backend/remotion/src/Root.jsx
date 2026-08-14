@@ -5,7 +5,6 @@ import { Logo } from "./HelloWorld/Logo";
 import { VideoComposition } from "./VideoComposition";
 import { sampleScenes } from "./sampleData";
 import { calculateVideoMetadata } from "./calculateVideoMetadata";
-import { templateNames } from "./templateNames";
 
 // Each <Composition> is an entry in the sidebar!
 
@@ -32,11 +31,7 @@ const createTemplateComposition = (templateId, durationInFrames = 240) => {
   };
 };
 
-const templateDurations = {
-  'template-009': 300,
-  'template-012': 300,
-  'template-013': 300,
-};
+const templateDurations = {};
 
 export const RemotionRoot = () => {
   return (
@@ -62,13 +57,13 @@ export const RemotionRoot = () => {
         height={1080}
       />
 
-      {/* Template Preview Compositions - All 60 Templates */}
+      {/* Template Preview Compositions - All 5 Templates */}
       {Object.keys(sampleScenes).map((templateId) => {
         const comp = createTemplateComposition(templateId, templateDurations[templateId] || 240);
         return (
           <Composition
             key={templateId}
-            id={templateNames[templateId]}
+            id={templateId}
             component={comp.component}
             durationInFrames={comp.durationInFrames}
             fps={comp.fps}

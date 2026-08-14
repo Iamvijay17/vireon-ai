@@ -43,7 +43,7 @@ const videoJobSchema = new mongoose.Schema(
       default: '',
     },
     // Podcast type only: display names for the two speakers - shown as the
-    // on-screen nameplate (template-061) and, if set, used in the script
+    // "podcast" template's host label and, if set, used in the script
     // prompt so the two speakers can address each other by name instead of
     // generically. Falls back to "Host"/"Guest" wherever unset (see
     // ScriptParserService and ChunkedScriptService).

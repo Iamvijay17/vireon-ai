@@ -13,7 +13,7 @@ import {
   Languages,
 } from "lucide-react";
 import { getCourseVideo, updateCourseVideoScript } from "../../services/api";
-import { templateNames } from "vireon-remotion-templates/src/templateNames";
+import { templateNames } from "vireon-remotion-templates/src/templates/TemplateCategories";
 import { LoadingState, EmptyState } from "../../components";
 import { ScenePreview } from "../../components/video/ScenePreview";
 import { SceneThumbnail } from "../../components/video/SceneThumbnail";

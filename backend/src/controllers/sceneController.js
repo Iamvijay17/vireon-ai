@@ -11,14 +11,11 @@ const { JOB_STATUS } = require('../constants');
 // be lost just because the layout changed).
 const CARRYOVER_ELEMENT_FIELDS = ['backgroundColor', 'styleConfig'];
 
-// Templates standardized on the same `items: [{ heading?, text? }]` shape
-// (see each template's own doc comment) - switching between any two of
-// these can carry the actual item content over as-is instead of blanking it
-// back out to _createDefaultElements's empty placeholder.
-const STANDARDIZED_ITEMS_TEMPLATE_IDS = [
-  'template-004', 'template-009', 'template-013', 'template-015',
-  'template-032', 'template-037', 'template-038',
-];
+// Of the 5 templates, only "content" uses the `items: [{ heading?, text? }]`
+// shape - kept as a list (rather than a plain `templateId === 'content'`
+// check below) since the carry-over logic just needs "is this templateId
+// one that speaks the items shape", regardless of how many ids qualify.
+const STANDARDIZED_ITEMS_TEMPLATE_IDS = ['content'];
 
 class SceneController {
   /**

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Check, Search } from "lucide-react";
-import { templateNames } from "vireon-remotion-templates/src/templateNames";
+import { templateNames } from "vireon-remotion-templates/src/templates/TemplateCategories";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";

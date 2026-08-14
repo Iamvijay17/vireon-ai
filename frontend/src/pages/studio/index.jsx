@@ -37,7 +37,7 @@ import {
   onJobStatus,
   isConnected,
 } from "../../services/socket";
-import { templateNames } from "vireon-remotion-templates/src/templateNames";
+import { templateNames } from "vireon-remotion-templates/src/templates/TemplateCategories";
 import { LoadingState, EmptyState } from "../../components";
 import { ScenePreview } from "../../components/video/ScenePreview";
 import { TextPositionPad } from "../../components/video/TextPositionPad";
@@ -57,15 +57,16 @@ import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 
 const SCENE_TYPE_OPTIONS = [
-  { value: "intro", label: "Intro" },
+  { value: "title", label: "Title" },
   { value: "content", label: "Content" },
   { value: "contentwithimage", label: "Content + Image" },
   { value: "image", label: "Image" },
+  { value: "podcast", label: "Podcast" },
 ];
 
-// Templates standardized on `elements.items: [{ heading?, text? }]` - keep in
-// sync with STANDARDIZED_ITEMS_TEMPLATE_IDS in backend/src/controllers/sceneController.js.
-const ITEMS_EDITABLE_TEMPLATE_IDS = ["template-004", "template-009", "template-013", "template-015", "template-032", "template-037", "template-038"];
+// Of the 5 templates, only "content" uses `elements.items: [{ heading?, text? }]`
+// - keep in sync with STANDARDIZED_ITEMS_TEMPLATE_IDS in backend/src/controllers/sceneController.js.
+const ITEMS_EDITABLE_TEMPLATE_IDS = ["content"];
 
 const FONT_WEIGHT_OPTIONS = [
   { value: 300, label: "Light" },
@@ -288,16 +289,8 @@ const StudioPage = () => {
   };
 
   // Generic editor for `elements.items: [{ heading?, text? }]` - the shape
-  // template-004/009/013/015/032/037/038 all standardized on (see each
-  // template's doc comment and ITEMS_EDITABLE_TEMPLATE_IDS below). One
-  // editor covers all of them instead of a bespoke form per template.
-  //
-  // Scenes generated before this standardization may still only have the
-  // old field name (`features` on template-015, `steps` on 013/032) - the
-  // templates themselves already fall back to these, so the editor reads
-  // the same fallback chain to show existing content instead of a
-  // misleadingly-empty list. The first edit writes to `items`, migrating
-  // the scene forward (templates prefer `items` when both are present).
+  // the "content" template uses (see its doc comment and
+  // ITEMS_EDITABLE_TEMPLATE_IDS above).
   const getSceneItems = (scene) => scene.elements?.items || scene.elements?.features || scene.elements?.steps || [];
 
   const handleItemFieldChange = (index, itemIndex, field, value) => {

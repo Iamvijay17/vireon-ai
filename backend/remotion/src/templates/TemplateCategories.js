@@ -1,231 +1,36 @@
 /**
  * Scene Type Categories
  *
- * Maps scene types (title, content, image, end) to their 
- * applicable Remotion template IDs. This is the PRIMARY categorization
- * that the LLM uses to select templates for each scene.
+ * There are exactly 5 templates, one per scene type, so each scene type
+ * maps to a single-element array (its own templateId). This mirrors
+ * TemplateRegistry.js 1:1 - the templateId and sceneType are always the
+ * same value throughout the pipeline.
  *
  * Scene Types:
  * - "title": Introduction/title cards (opening scenes)
- * - "content": Main educational/promotional content
+ * - "content": Main educational/promotional content (text-only)
+ * - "contentwithimage": Content delivery paired with a supporting image
  * - "image": Image-focused scenes (AI-generated backgrounds)
- * - "end": Closing/summary/end cards
+ * - "podcast": Dedicated podcast/interview layout
  */
-
-import TemplateMetadata from './index.json';
 
 export const SceneTypeCategories = {
-  /**
-   * Title scenes: Opening/intro scenes with titles, headlines, or hooks
-   * Best for: First scene, chapter titles, section headers
-   */
-  title: [
-    'template-001',  // Educational Card - Title + subtitle + image
-    'template-012',  // Hook Opener - Bold hero-style opener
-    'template-019',  // Parallax Hero - Parallax scrolling effect
-    'template-030',  // Report Summary - Report layout
-    'template-041',  // Modern Minimal - Clean modern look
-    'template-049',  // Tutorial - Tutorial layout
-    'template-050',  // Gaming - Gaming style
-    'template-051',  // Fitness - Energetic style
-    'template-052',  // Cooking - How-to style
-    'template-053',  // Travel - Travel/variety
-    'template-042',  // Podcast - Dedicated podcast layout
-    'template-059',  // Event - Event highlights
-    'template-060',  // Comedy - Fun/entertaining
-  ],
-
-  /**
-   * Content scenes: Main educational/promotional content delivery
-   * Best for: Explanations, bullet points, steps, data, features
-   */
-  content: [
-    'template-004',  // Timeline - Sequential content flow
-    'template-005',  // Comparison - Two-column content comparison
-    'template-008',  // Pill Tags - Tag/chip display
-    'template-009',  // Bullet List - Clear bullet points
-    'template-011',  // Team Profiles - People/team display
-    'template-013',  // Steps How-To - Sequential steps
-    'template-015',  // Feature Grid - Grid of content points
-    'template-062',  // Title + Bullets - Clean PPT-style bulleted slide
-    'template-063',  // Title + Two-Column - Clean PPT-style comparison slide
-    'template-016',  // Image Collage Grid - Image grid layout
-    'template-017',  // Story Image Text - Image + text narrative
-    'template-018',  // Masonry Wall - Dynamic masonry layout
-    'template-022',  // Polaroid Collage - Collage style
-    'template-023',  // Story Cards - Card sequence
-    'template-024',  // Split Reveal - Split animation reveal
-    'template-025',  // Curtain Reveal - Curtain-style reveal
-    'template-026',  // Definition Glossary - Term definitions
-    'template-027',  // Checklist Points - Checklist style
-    'template-028',  // Comparison Table - Two-column row list
-    'template-029',  // Did You Know - Bold statement display
-    'template-032',  // Step Guide - Numbered guide
-    'template-033',  // Benefits Row - Horizontal content highlights
-    'template-034',  // Learning Paths - Path/flow visualization
-    'template-035',  // Tech Tags - Technology tags
-    'template-036',  // Case Study - Case study layout
-    'template-037',  // Milestones - Vertical content list
-    'template-039',  // Profile Spotlight - Speaker highlight
-    'template-040',  // Skills Chips - Skills display
-    'template-043',  // News - News-style layout
-    'template-044',  // Social Media - Social media optimized
-    'template-045',  // Cinematic - Cinematic layout
-    'template-046',  // Tech Review - Review format
-    'template-048',  // Interview - Interview format
-    'template-054',  // Educational - Dedicated educational
-    'template-055',  // Corporate - Professional corporate
-    'template-056',  // Music - Audio-focused
-    'template-057',  // Science - Scientific layout
-  ],
-
-  /**
-   * Content-with-image scenes: content delivery paired with a supporting
-   * image (split image/text layout) - distinct from "image" (background-only)
-   * and "content" (text-only).
-   * Best for: Explanations that benefit from a supporting photo/illustration
-   */
-  contentwithimage: [
-    'template-017',  // Story Image Text - Split image/text panel, no card chrome
-  ],
-
-  /**
-   * Image scenes: Image-focused scenes (used with AI-generated backgrounds)
-   * Best for: Scenes with imagePrompt in the LLM JSON
-   */
-  image: [
-    'template-003',  // Image Focus - Image-forward layout
-    'template-016',  // Image Collage Grid - Image grid layout
-    'template-017',  // Story Image Text - Image + text narrative
-    'template-020',  // Image Card Story - Card-based story
-    'template-021',  // Vignette Story - Cinematic vignette image
-    'template-022',  // Polaroid Collage - Collage style
-    'template-024',  // Split Reveal - Split animation reveal
-    'template-025',  // Curtain Reveal - Curtain-style reveal
-    'template-045',  // Cinematic - Cinematic layout
-    'template-058',  // Storytelling - Cinematic parchment-framed image
-  ],
-
-  /**
-   * End scenes: Closing/summary/end cards
-   * Best for: Final scene, call-to-action, summary, credits
-   */
-  end: [
-    'template-006',  // Quote Testimonial - Good for inspirational closing
-    'template-030',  // Report Summary - Summary/recap
-    'template-031',  // Expert Quote - Closing message with glow
-    'template-041',  // Modern Minimal - Clean closing
-    'template-047',  // Motivational - Inspirational closing
-    'template-059',  // Event - Good for event closing
-  ],
-};
-
-/**
- * Video Type Categories (kept for backward compatibility)
- */
-export const TemplateCategories = {
-  educational: [
-    'template-001',
-    'template-009',
-    'template-013',
-    'template-026',
-    'template-027',
-    'template-032',
-    'template-034',
-    'template-049',
-    'template-054',
-    'template-041',
-  ],
-  podcast: [
-    'template-042',
-    'template-048',
-    'template-056',
-    'template-031',
-    'template-039',
-    'template-036',
-  ],
-  marketing: [
-    'template-005',
-    'template-007',
-    'template-010',
-    'template-015',
-    'template-028',
-    'template-033',
-    'template-044',
-    'template-055',
-    'template-003',
-  ],
-  story: [
-    'template-017',
-    'template-020',
-    'template-021',
-    'template-022',
-    'template-023',
-    'template-045',
-    'template-058',
-    'template-024',
-    'template-025',
-  ],
-  motivational: [
-    'template-006',
-    'template-029',
-    'template-047',
-    'template-037',
-    'template-019',
-    'template-004',
-    'template-038',
-  ],
-  business: [
-    'template-004',
-    'template-011',
-    'template-014',
-    'template-030',
-    'template-036',
-    'template-038',
-    'template-043',
-    'template-055',
-    'template-010',
-  ],
-  youtube_shorts: [
-    'template-044',
-    'template-050',
-    'template-051',
-    'template-052',
-    'template-053',
-    'template-059',
-    'template-060',
-    'template-016',
-    'template-018',
-  ],
-  general: [
-    'template-008',
-    'template-012',
-    'template-035',
-    'template-040',
-    'template-046',
-    'template-057',
-  ],
+  title: ['title'],
+  content: ['content'],
+  contentwithimage: ['contentwithimage'],
+  image: ['image'],
+  podcast: ['podcast'],
 };
 
 /**
  * Get templates filtered by scene type.
  * Primary categorization for scene template selection.
  *
- * @param {string} sceneType - The scene type: "title", "content", "image", or "end"
+ * @param {string} sceneType - The scene type: "title", "content", "contentwithimage", "image", or "podcast"
  * @returns {string[]} Array of template IDs suitable for this scene type
  */
 export const getTemplatesForSceneType = (sceneType) => {
   return SceneTypeCategories[sceneType] || SceneTypeCategories.content || [];
-};
-
-/**
- * Get templates filtered by video type (legacy support).
- *
- * @param {string} videoType - The video type (e.g., "podcast", "educational")
- * @returns {string[]} Array of template IDs
- */
-export const getTemplatesForType = (videoType) => {
-  return TemplateCategories[videoType] || TemplateCategories.general || [];
 };
 
 /**
@@ -237,78 +42,15 @@ export const getSceneTypes = () => {
 };
 
 /**
- * Get all video type keys.
- * @returns {string[]}
+ * Readable template names, shared between the LLM prompt hints and the
+ * frontend/Studio template pickers.
  */
-export const getVideoTypes = () => {
-  return Object.keys(TemplateCategories);
-};
-
-/**
- * Get readable template names for LLM prompt.
- */
-const templateNames = {
-  'template-001': 'Educational Card (title + subtitle + image)',
-  'template-003': 'Image Focus (image-forward layout)',
-  'template-004': 'Timeline (sequential alternating-card content flow)',
-  'template-005': 'Comparison (two-column content comparison)',
-  'template-006': 'Quote Testimonial (closing message with attribution)',
-  'template-007': 'Stats Dashboard (plain-row statistics/metrics, no card chrome)',
-  'template-008': 'Pill Tags (tag/chip display)',
-  'template-009': 'Bullet List (clear bullet points)',
-  'template-010': 'Split Hero (split hero layout)',
-  'template-011': 'Team Profiles (people/team display)',
-  'template-012': 'Hook Opener (bold hero-style opening scene)',
-  'template-013': 'Steps How-To (sequential steps)',
-  'template-014': 'Bar Chart (data visualization)',
-  'template-015': 'Feature Grid (plain two-column feature rows, no cards or icons)',
-  'template-016': 'Image Collage Grid (image grid layout)',
-  'template-017': 'Story Image Text (image + text narrative)',
-  'template-018': 'Masonry Wall (dynamic masonry layout)',
-  'template-019': 'Parallax Hero (parallax hero opener)',
-  'template-020': 'Image Card Story (card-based story)',
-  'template-021': 'Vignette Story (cinematic vignette image scene)',
-  'template-022': 'Polaroid Collage (collage style)',
-  'template-023': 'Story Cards (card sequence)',
-  'template-024': 'Split Reveal (split animation reveal)',
-  'template-025': 'Curtain Reveal (curtain-style reveal)',
-  'template-026': 'Definition Glossary (term definitions)',
-  'template-027': 'Checklist Points (checklist style)',
-  'template-028': 'Comparison Table (two-column content row list)',
-  'template-029': 'Did You Know (bold statement display)',
-  'template-030': 'Report Summary (report layout)',
-  'template-031': 'Expert Quote (closing message with radial glow)',
-  'template-032': 'Step Guide (numbered guide)',
-  'template-033': 'Benefits Row (horizontal content highlights)',
-  'template-034': 'Learning Paths (path/flow visualization)',
-  'template-035': 'Tech Tags (technology tags)',
-  'template-036': 'Case Study (case study layout)',
-  'template-037': 'Milestones (vertical numbered content list)',
-  'template-038': 'Metrics Grid (plain-row business metrics, no card chrome)',
-  'template-039': 'Profile Spotlight (speaker highlight)',
-  'template-040': 'Skills Chips (skills display)',
-  'template-041': 'Modern Minimal (clean modern look)',
-  'template-042': 'Podcast (dedicated podcast layout)',
-  'template-043': 'News (news-style layout)',
-  'template-044': 'Social Media (social media optimized)',
-  'template-045': 'Cinematic (cinematic layout)',
-  'template-046': 'Tech Review (review format)',
-  'template-047': 'Motivational (bold closing statement)',
-  'template-048': 'Interview (interview format)',
-  'template-049': 'Tutorial (tutorial layout)',
-  'template-050': 'Gaming (gaming style)',
-  'template-051': 'Fitness (energetic style)',
-  'template-052': 'Cooking (how-to style)',
-  'template-053': 'Travel (travel/variety)',
-  'template-054': 'Educational (dedicated educational)',
-  'template-055': 'Corporate (professional corporate)',
-  'template-056': 'Music (audio-focused)',
-  'template-057': 'Science (scientific layout)',
-  'template-058': 'Storytelling (cinematic parchment-framed image scene)',
-  'template-059': 'Event (event highlights)',
-  'template-060': 'Comedy (fun/entertaining)',
-  'template-062': 'Title + Bullets (clean PPT-style bulleted slide, no cards or icons)',
-  'template-063': 'Title + Two-Column (clean PPT-style comparison slide, no cards or icons)',
+export const templateNames = {
+  title: 'Title (title + subtitle + optional image)',
+  content: 'Content (title + bullet list)',
+  contentwithimage: 'Content + Image (split image/text panel)',
+  image: 'Image (full-bleed image with caption)',
+  podcast: 'Podcast (host image + waveform + captions)',
 };
 
 /**
@@ -333,7 +75,7 @@ export const getAllSceneTypeHints = () => {
     content: 'Use for main content scenes (explanations, bullet points, steps, data)',
     contentwithimage: 'Use for content scenes that should show a supporting image alongside the text (split image/text layout, requires imagePrompt)',
     image: 'Use ONLY when the scene has an AI-generated background image (imagePrompt provided)',
-    end: 'Use for closing/summary scenes (final cards, call-to-action, credits)',
+    podcast: 'Use for podcast/interview dialogue turns (host + guest conversation)',
   };
 
   return Object.entries(SceneTypeCategories)
@@ -345,17 +87,24 @@ export const getAllSceneTypeHints = () => {
 };
 
 /**
- * Template metadata accessor.
- * Loads template information from the index.json file.
+ * Small inline metadata array (replaces the old templates/index.json, which
+ * only existed to describe the 60+ numeric templates for the LLM/editor).
  */
+const TEMPLATE_METADATA = [
+  { templateId: 'title', title: 'Title', description: 'Centered title, subtitle, and optional image. Use for opening/intro scenes.' },
+  { templateId: 'content', title: 'Content', description: 'Title with a plain vertical bullet list. Use for main explanatory content.' },
+  { templateId: 'contentwithimage', title: 'Content + Image', description: 'Split layout: supporting image on one side, title/body text on the other.' },
+  { templateId: 'image', title: 'Image', description: 'Full-bleed image with a bottom caption/label. Use for image-forward scenes.' },
+  { templateId: 'podcast', title: 'Podcast', description: 'Host image, show title, waveform, and animated captions. Use for podcast/interview turns.' },
+];
 
 /**
  * Get template metadata by template ID.
- * @param {string} templateId - The template ID (e.g., "template-001")
+ * @param {string} templateId - The template ID (e.g., "content")
  * @returns {object|null} Template metadata or null if not found
  */
 export const getTemplateMetadata = (templateId) => {
-  return TemplateMetadata.find(t => t.templateId === templateId) || null;
+  return TEMPLATE_METADATA.find((t) => t.templateId === templateId) || null;
 };
 
 /**
@@ -363,7 +112,7 @@ export const getTemplateMetadata = (templateId) => {
  * @returns {object[]} Array of all template metadata
  */
 export const getAllTemplateMetadata = () => {
-  return TemplateMetadata;
+  return TEMPLATE_METADATA;
 };
 
 export default SceneTypeCategories;

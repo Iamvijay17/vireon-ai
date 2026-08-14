@@ -47,7 +47,7 @@ class RemotionService {
         let sceneType = scene.sceneType;
         if (!sceneType) {
           const sceneNum = scene.sceneNumber || (index + 1);
-          if (sceneNum === 1) sceneType = 'intro';
+          if (sceneNum === 1) sceneType = 'title';
           else sceneType = 'content';
         }
        return {
