@@ -16,6 +16,7 @@ import {
   RotateCw,
   Square,
   Ban,
+  ExternalLink,
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { EmptyState, LoadingState } from "../../components";
@@ -127,6 +128,7 @@ const STYLE_OPTIONS = [
 ];
 
 const EMPTY_FORM = { title: "", topic: "", duration: 5, voice: "female-1", style: "educational", additionalInstructions: "", fastAudio: false };
+const EMPTY_PROMO = { title: "", topic: "", description: "" };
 
 const CATEGORY_OPTIONS = [
   { value: "Web Development", label: "Web Development" },
@@ -257,6 +259,10 @@ const CourseDetail = () => {
   const [curriculumError, setCurriculumError] = useState("");
   const [curriculumPreviewLoading, setCurriculumPreviewLoading] = useState(false);
   const [curriculumLessons, setCurriculumLessons] = useState([]);
+  // Course-level tagline and promo/trailer pitch generated alongside the
+  // lessons - separate from the lessons array (see backend CourseCurriculum.subtitle/promo).
+  const [curriculumSubtitle, setCurriculumSubtitle] = useState("");
+  const [curriculumPromo, setCurriculumPromo] = useState(EMPTY_PROMO);
   const [curriculumCreating, setCurriculumCreating] = useState(false);
   // Tracks which course id the curriculum draft has been hydrated from the
   // server for, so the autosave effect below doesn't fire (and stomp the
@@ -324,7 +330,33 @@ const CourseDetail = () => {
     if (draft?.lessons?.length > 0) {
       setCurriculumForm(draft.form || EMPTY_FORM);
       setCurriculumLessons(draft.lessons);
-      setCurriculumStep(draft.step || "preview");
+      setCurriculumSubtitle(draft.subtitle || "");
+      setCurriculumPromo(draft.promo || EMPTY_PROMO);
+      // Always land on the preview of the existing structure, never the
+      // blank "form" step, even if an older draft (saved before subtitle/
+      // promo existed, or mid-edit with "Back" pressed) persisted step:
+      // "form" alongside its lessons - a generated structure exists, so
+      // reopening should show it, not ask the user to fill out the form
+      // again from scratch.
+      setCurriculumStep("preview");
+
+      // Older drafts predate the subtitle/promo fields and were saved with
+      // them blank. The durable per-course snapshot (CourseCurriculumService,
+      // saved on every generate-curriculum call) always has them when the
+      // structure was AI-generated, so backfill from there rather than
+      // showing an empty subtitle/promo for a structure that really has one.
+      if (!draft.subtitle && !draft.promo?.topic) {
+        getCourseCurriculumHistory(course._id, { page: 1, limit: 1 })
+          .then((res) => {
+            const latest = res.data?.curricula?.[0];
+            if (!latest) return;
+            if (latest.subtitle) setCurriculumSubtitle(latest.subtitle);
+            if (latest.promo?.topic) setCurriculumPromo(latest.promo);
+          })
+          .catch(() => {
+            // Best-effort backfill - a failure here shouldn't block the page.
+          });
+      }
       return;
     }
 
@@ -334,6 +366,8 @@ const CourseDetail = () => {
         if (!latest?.lessons?.length) return;
         setCurriculumForm((prev) => ({ ...prev, title: latest.title || prev.title, topic: latest.topic || prev.topic }));
         setCurriculumLessons(latest.lessons);
+        setCurriculumSubtitle(latest.subtitle || "");
+        setCurriculumPromo(latest.promo || EMPTY_PROMO);
         setCurriculumStep("preview");
       })
       .catch(() => {
@@ -350,12 +384,18 @@ const CourseDetail = () => {
     clearTimeout(draftSaveTimeoutRef.current);
     if (curriculumLessons.length === 0) return undefined;
     draftSaveTimeoutRef.current = setTimeout(() => {
-      saveCourseCurriculumDraft(id, { form: curriculumForm, lessons: curriculumLessons, step: curriculumStep }).catch(() => {
+      saveCourseCurriculumDraft(id, {
+        form: curriculumForm,
+        lessons: curriculumLessons,
+        subtitle: curriculumSubtitle,
+        promo: curriculumPromo,
+        step: curriculumStep,
+      }).catch(() => {
         // Best-effort autosave - a failure here shouldn't interrupt the user.
       });
     }, 600);
     return () => clearTimeout(draftSaveTimeoutRef.current);
-  }, [id, curriculumForm, curriculumLessons, curriculumStep]);
+  }, [id, curriculumForm, curriculumLessons, curriculumSubtitle, curriculumPromo, curriculumStep]);
 
   // Worker liveness for the "Generate/Render" buttons' running/offline
   // indicator: one REST call for the initial value, then the backend
@@ -609,6 +649,8 @@ const CourseDetail = () => {
       setCurriculumLessons(
         (res.data.lessons || []).map((l) => ({ title: l.title || "", topic: l.topic || "", description: l.description || "" }))
       );
+      setCurriculumSubtitle(res.data.subtitle || "");
+      setCurriculumPromo(res.data.promo ? { ...EMPTY_PROMO, ...res.data.promo } : EMPTY_PROMO);
       setCurriculumStep("preview");
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to generate curriculum");
@@ -638,18 +680,30 @@ const CourseDetail = () => {
     setCurriculumLessons((prev) => [...prev, { title: "", topic: "", description: "" }]);
   };
 
+  const updatePromoField = (field, value) => {
+    setCurriculumPromo((prev) => ({ ...prev, [field]: value }));
+  };
+
   const handleCreateCurriculumVideos = async () => {
     if (curriculumLessons.length === 0) return toast.error("Add at least one lesson before creating videos");
     if (curriculumLessons.some((l) => !l.title.trim())) return toast.error("Every lesson needs a title");
     try {
       setCurriculumCreating(true);
-      const res = await createCourseVideosFromCurriculum(id, { lessons: curriculumLessons, ...curriculumForm });
-      toast.success(`Created ${res.data.videos?.length || 0} lessons`);
+      const res = await createCourseVideosFromCurriculum(id, {
+        lessons: curriculumLessons,
+        promo: curriculumPromo.topic.trim() ? curriculumPromo : undefined,
+        ...curriculumForm,
+      });
+      const createdCount = res.data.videos?.length || 0;
+      const promoCreated = Boolean(res.data.promoVideo);
+      toast.success(`Created ${createdCount} lesson${createdCount === 1 ? "" : "s"}${promoCreated ? " + 1 promo video" : ""}`);
       // Videos are created now, so the preview is consumed - fully reset
       // (unlike closeCurriculumModal, which preserves it for resuming).
       setCurriculumModalVisible(false);
       setCurriculumStep("form");
       setCurriculumLessons([]);
+      setCurriculumSubtitle("");
+      setCurriculumPromo(EMPTY_PROMO);
       clearTimeout(draftSaveTimeoutRef.current);
       clearCourseCurriculumDraft(id).catch(() => {});
       // The backend also emits courseVideoCreated (which triggers a
@@ -898,8 +952,15 @@ const CourseDetail = () => {
       title: "Lesson",
       render: (video) => (
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-semibold text-text-primary">
-            {video.order + 1}. {video.title}
+          <p className="flex items-center gap-1.5 truncate text-[13px] font-semibold text-text-primary">
+            {video.isPromo ? (
+              <Badge variant="accent" className="shrink-0">
+                Promo
+              </Badge>
+            ) : (
+              <span>{video.order + 1}.</span>
+            )}
+            <span className="truncate">{video.title}</span>
           </p>
           <p className="mt-0.5 truncate text-xs text-text-tertiary">
             {video.duration} min • {video.topic?.substring(0, 60)}
@@ -1201,45 +1262,6 @@ const CourseDetail = () => {
         </Card>
       )}
 
-      {/* Course Structure Outline - the saved "Generate Udemy Course Structure" draft.
-          Shown whenever a generated structure is sitting in the DB draft, so closing
-          the modal (or reloading the page) doesn't make it disappear. Reopens the
-          review modal for editing; no videos are created until "Create Videos". */}
-      {curriculumLessons.length > 0 && (
-        <Card className="mb-4">
-          <CardHeader
-            title={
-              <span className="flex items-center gap-2">
-                <FileText className="size-4 text-text-tertiary" /> Course Structure
-              </span>
-            }
-            subtitle={`${curriculumLessons.length} lesson${curriculumLessons.length === 1 ? "" : "s"} drafted - not created as videos yet`}
-            extra={
-              <Button variant="secondary" size="sm" icon={<Sparkles className="size-3.5" />} onClick={showCurriculumModal}>
-                Review / Edit Structure
-              </Button>
-            }
-          />
-          <CardBody>
-            <ol className="space-y-2">
-              {curriculumLessons.map((lesson, index) => (
-                <li key={index} className="flex items-start gap-3 rounded-lg border border-border-light p-3">
-                  <Badge variant="neutral" className="mt-0.5 shrink-0">
-                    {index + 1}
-                  </Badge>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-text-primary">{lesson.title || "Untitled lesson"}</p>
-                    {lesson.topic && (
-                      <p className="mt-0.5 text-[13px] leading-snug text-text-secondary">{lesson.topic}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </CardBody>
-        </Card>
-      )}
-
       {/* Videos Table */}
       <Card>
         <CardHeader
@@ -1449,6 +1471,7 @@ const CourseDetail = () => {
               </Button>
               <Button variant="primary" icon={<CheckCircle2 className="size-4" />} loading={curriculumCreating} onClick={handleCreateCurriculumVideos}>
                 Create {curriculumLessons.length} Video{curriculumLessons.length === 1 ? "" : "s"}
+                {curriculumPromo.topic.trim() ? " + Trailer" : ""}
               </Button>
             </>
           )
@@ -1510,7 +1533,47 @@ const CourseDetail = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="max-h-[50vh] space-y-2.5 overflow-y-auto pr-1">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-xs font-medium text-accent-600 hover:underline"
+              onClick={() => {
+                closeCurriculumModal();
+                navigate(`/courses/${id}/curriculum`);
+              }}
+            >
+              <ExternalLink className="size-3.5" /> View full structure on its own page
+            </button>
+            <div>
+              <Label>Course Subtitle</Label>
+              <Input
+                placeholder="A short, catchy course tagline"
+                value={curriculumSubtitle}
+                onChange={(e) => setCurriculumSubtitle(e.target.value)}
+              />
+              <FieldHint>Course-level tagline, not tied to any single lesson.</FieldHint>
+            </div>
+            <div className="rounded-lg border border-border-light p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Badge variant="accent">Promo</Badge>
+                <span className="text-xs text-text-tertiary">
+                  Course-level trailer video, separate from the numbered lessons below.
+                </span>
+              </div>
+              <div className="space-y-2">
+                <Input
+                  placeholder="Trailer title"
+                  value={curriculumPromo.title}
+                  onChange={(e) => updatePromoField("title", e.target.value)}
+                />
+                <Textarea
+                  rows={2}
+                  placeholder="What the trailer should pitch (leave blank to skip the trailer video)"
+                  value={curriculumPromo.topic}
+                  onChange={(e) => updatePromoField("topic", e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2.5">
               {curriculumLessons.map((lesson, index) => (
                 <div key={index} className="rounded-lg border border-border-light p-3">
                   <div className="flex items-start gap-2">

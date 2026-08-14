@@ -45,13 +45,13 @@ export const Modal = ({
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
         className={cn(
-          "relative z-10 w-full animate-scale-in rounded-2xl border border-border bg-surface shadow-xl outline-none",
+          "relative z-10 flex max-h-[85vh] w-full animate-scale-in flex-col rounded-2xl border border-border bg-surface shadow-xl outline-none",
           WIDTHS[width],
           className
         )}
       >
         {(title || closable) && (
-          <div className="flex items-start justify-between gap-3 px-5 pt-5">
+          <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-5">
             <div className="min-w-0">
               {title && <h2 className="text-[15px] font-semibold text-text-primary">{title}</h2>}
               {description && <p className="mt-1 text-[13px] text-text-tertiary">{description}</p>}
@@ -67,8 +67,8 @@ export const Modal = ({
             )}
           </div>
         )}
-        <div className="px-5 py-4">{children}</div>
-        {footer && <div className="flex items-center justify-end gap-2 border-t border-border-light px-5 py-4">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {footer && <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-light px-5 py-4">{footer}</div>}
       </div>
     </div>,
     document.body

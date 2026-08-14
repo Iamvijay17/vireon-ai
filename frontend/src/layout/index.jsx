@@ -16,6 +16,7 @@ const StudioPage = lazy(() => import("../pages/studio"));
 const AudioPage = lazy(() => import("../pages/audio"));
 const CoursesList = lazy(() => import("../pages/courses/CoursesList"));
 const CourseDetail = lazy(() => import("../pages/courses/CourseDetail"));
+const CourseCurriculum = lazy(() => import("../pages/courses/CourseCurriculum"));
 const CourseVideoEditor = lazy(() => import("../pages/courses/CourseVideoEditor"));
 const CourseVideoStudio = lazy(() => import("../pages/courses/CourseVideoStudio"));
 const SettingsPage = lazy(() => import("../pages/settings"));
@@ -75,6 +76,7 @@ const AppLayout = () => {
                 <Route path="/editor/complete" element={<CompletedVideos />} />
                 <Route path="/courses" element={<CoursesList />} />
                 <Route path="/courses/:id" element={<CourseDetail />} />
+                <Route path="/courses/:id/curriculum" element={<CourseCurriculum />} />
                 <Route path="/courses/:courseId/videos/:videoId" element={<CourseVideoEditor />} />
                 <Route path="/courses/:courseId/videos/:videoId/studio" element={<CourseVideoStudio />} />
               </Routes>
