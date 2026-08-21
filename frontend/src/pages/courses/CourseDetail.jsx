@@ -127,7 +127,12 @@ const STYLE_OPTIONS = [
   { value: "business", label: "Business" },
 ];
 
-const EMPTY_FORM = { title: "", topic: "", duration: 5, voice: "female-1", style: "educational", additionalInstructions: "", fastAudio: false };
+const RESOLUTION_OPTIONS = [
+  { value: "1920x1080", label: "1080p" },
+  { value: "3840x2160", label: "4K (slower to render)" },
+];
+
+const EMPTY_FORM = { title: "", topic: "", duration: 5, voice: "female-1", style: "educational", resolution: "1920x1080", additionalInstructions: "", fastAudio: false };
 const EMPTY_PROMO = { title: "", topic: "", description: "" };
 
 const CATEGORY_OPTIONS = [
@@ -583,6 +588,7 @@ const CourseDetail = () => {
       duration: video.duration || EMPTY_FORM.duration,
       voice: video.voice || EMPTY_FORM.voice,
       style: video.style || EMPTY_FORM.style,
+      resolution: video.resolution || EMPTY_FORM.resolution,
       additionalInstructions: video.additionalInstructions || "",
       fastAudio: video.fastAudio ?? EMPTY_FORM.fastAudio,
     });
@@ -1339,6 +1345,10 @@ const CourseDetail = () => {
               <Label>Style</Label>
               <Select options={STYLE_OPTIONS} value={formValues.style} onChange={(v) => setFormValues((prev) => ({ ...prev, style: v }))} />
             </div>
+            <div>
+              <Label>Resolution</Label>
+              <Select options={RESOLUTION_OPTIONS} value={formValues.resolution} onChange={(v) => setFormValues((prev) => ({ ...prev, resolution: v }))} />
+            </div>
           </div>
           <div>
             <Label>Additional Instructions (optional)</Label>
@@ -1419,6 +1429,10 @@ const CourseDetail = () => {
             <div>
               <Label>Style</Label>
               <Select options={STYLE_OPTIONS} value={videoEditForm.style} onChange={(v) => setVideoEditForm((prev) => ({ ...prev, style: v }))} />
+            </div>
+            <div>
+              <Label>Resolution</Label>
+              <Select options={RESOLUTION_OPTIONS} value={videoEditForm.resolution} onChange={(v) => setVideoEditForm((prev) => ({ ...prev, resolution: v }))} />
             </div>
           </div>
           <div>
@@ -1521,6 +1535,10 @@ const CourseDetail = () => {
               <div>
                 <Label>Style</Label>
                 <Select options={STYLE_OPTIONS} value={curriculumForm.style} onChange={(v) => setCurriculumForm((prev) => ({ ...prev, style: v }))} />
+              </div>
+              <div>
+                <Label>Resolution</Label>
+                <Select options={RESOLUTION_OPTIONS} value={curriculumForm.resolution} onChange={(v) => setCurriculumForm((prev) => ({ ...prev, resolution: v }))} />
               </div>
             </div>
             <div className="flex items-center justify-between gap-4 rounded-lg border border-border-light px-3 py-2.5">

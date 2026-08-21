@@ -55,6 +55,14 @@ const courseVideoSchema = new mongoose.Schema(
       type: String,
       default: 'educational',
     },
+    // Course videos are always landscape (16:9), so only the two landscape
+    // presets apply here - unlike VideoJob.resolution which also allows
+    // portrait for Shorts. 4K renders take substantially longer.
+    resolution: {
+      type: String,
+      enum: ['1920x1080', '3840x2160'],
+      default: '1920x1080',
+    },
     additionalInstructions: {
       type: String,
       default: '',

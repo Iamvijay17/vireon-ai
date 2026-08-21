@@ -89,6 +89,7 @@ class CourseVideoService {
       duration: data.duration || 5,
       voice: data.voice || 'female-1',
       style: data.style || 'educational',
+      resolution: data.resolution || '1920x1080',
       additionalInstructions: data.additionalInstructions || '',
       fastAudio: data.fastAudio ?? false,
       status: VIDEO_STATUS.DRAFT,
@@ -129,7 +130,7 @@ class CourseVideoService {
    * appends after existing lessons, never replaces them.
    */
   static async createFromLessons(courseId, lessons, options) {
-    const { voice, style, duration, additionalInstructions, fastAudio } = options;
+    const { voice, style, duration, additionalInstructions, fastAudio, resolution } = options;
 
     if (!Array.isArray(lessons) || lessons.length === 0) {
       throw { status: 400, message: 'lessons must be a non-empty array' };
@@ -148,6 +149,7 @@ class CourseVideoService {
         duration: duration || 5,
         voice: voice || 'female-1',
         style: style || 'educational',
+        resolution: resolution || '1920x1080',
         additionalInstructions: additionalInstructions || '',
         fastAudio: fastAudio ?? false,
         status: VIDEO_STATUS.DRAFT,
@@ -184,7 +186,7 @@ class CourseVideoService {
    * title/topic rather than creating a duplicate.
    */
   static async createPromoVideo(courseId, promo, options = {}) {
-    const { voice, style, duration, additionalInstructions, fastAudio } = options;
+    const { voice, style, duration, additionalInstructions, fastAudio, resolution } = options;
 
     if (!promo || !promo.topic) {
       throw { status: 400, message: 'promo.topic is required' };
@@ -212,6 +214,7 @@ class CourseVideoService {
       duration: duration || 5,
       voice: voice || 'female-1',
       style: style || 'educational',
+      resolution: resolution || '1920x1080',
       additionalInstructions: additionalInstructions || '',
       fastAudio: fastAudio ?? false,
       status: VIDEO_STATUS.DRAFT,
@@ -311,7 +314,7 @@ class CourseVideoService {
   // Fields the client is allowed to edit via update(). Everything else
   // (status, approved, courseId, script, error, retryCount, ...) is
   // pipeline-managed state and must not be settable through this endpoint.
-  static UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'additionalInstructions', 'fastAudio'];
+  static UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'resolution', 'additionalInstructions', 'fastAudio'];
 
   /**
    * Update a video.
@@ -1056,7 +1059,7 @@ Rules:
 
       // Job config
       const jobConfig = {
-        resolution: '1920x1080',
+        resolution: video.resolution || '1920x1080',
         aspectRatio: '16:9',
         type: video.style || 'educational',
       };
