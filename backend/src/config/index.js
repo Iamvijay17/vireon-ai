@@ -37,6 +37,15 @@ const config = Object.freeze({
     maxRetries: parseInt(process.env.TTS_MAX_RETRIES, 10) || 3,
   },
 
+  avatar: {
+    url: process.env.LIVEPORTRAIT_URL || 'http://127.0.0.1:8890',
+    // Stock talking-head reference clip (bundled with the app) - drives the
+    // motion applied to whatever source photo the user uploads. See
+    // AvatarService.animatePortrait.
+    drivingVideoPath: path.resolve(__dirname, '../../assets/avatar/stock-driving.mp4'),
+    maxRetries: parseInt(process.env.AVATAR_MAX_RETRIES, 10) || 3,
+  },
+
   remotion: {
     binary: process.env.REMOTION_BINARY || 'npx remotion',
     timeout: parseInt(process.env.REMOTION_TIMEOUT, 10) || 300000,

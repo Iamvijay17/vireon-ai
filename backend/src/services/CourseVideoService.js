@@ -7,6 +7,7 @@ const SocketService = require('./SocketService');
 const ActivityLogService = require('./ActivityLogService');
 const LMStudioService = require('./LMStudioService');
 const AudioService = require('./TTS/audioService');
+const AvatarService = require('./Avatar/avatarService');
 const RemotionService = require('./RemotionService');
 const ScriptParserService = require('./ScriptParserService');
 const StorageService = require('./StorageService');
@@ -92,8 +93,14 @@ class CourseVideoService {
       resolution: data.resolution || '1920x1080',
       additionalInstructions: data.additionalInstructions || '',
       fastAudio: data.fastAudio ?? false,
+      avatarPosition: data.avatarPosition || null,
       status: VIDEO_STATUS.DRAFT,
     });
+
+    if (data.avatarImage) {
+      video.avatarImage = await AvatarService.saveSourceImage(video._id, data.avatarImage);
+      await video.save();
+    }
 
     // Update course status
     await CourseService.recalculateStatus(courseId);
@@ -103,6 +110,7 @@ class CourseVideoService {
       courseId,
       title: video.title,
       order,
+      hasAvatar: !!video.avatarImage,
     });
 
     return video;
@@ -314,7 +322,7 @@ class CourseVideoService {
   // Fields the client is allowed to edit via update(). Everything else
   // (status, approved, courseId, script, error, retryCount, ...) is
   // pipeline-managed state and must not be settable through this endpoint.
-  static UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'resolution', 'additionalInstructions', 'fastAudio'];
+  static UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'resolution', 'additionalInstructions', 'fastAudio', 'avatarPosition'];
 
   /**
    * Update a video.
@@ -323,6 +331,20 @@ class CourseVideoService {
     const update = {};
     for (const field of CourseVideoService.UPDATABLE_FIELDS) {
       if (data[field] !== undefined) update[field] = data[field];
+    }
+
+    // avatarImage is a base64 data URI on the wire, not the stored disk
+    // path - re-save it (see AvatarService.saveSourceImage) and clear the
+    // stale generated clip since it no longer matches the new source photo.
+    // Passing avatarImage: null removes the avatar entirely.
+    if ('avatarImage' in data) {
+      if (data.avatarImage) {
+        update.avatarImage = await AvatarService.saveSourceImage(videoId, data.avatarImage);
+      } else {
+        update.avatarImage = '';
+        update.avatarPosition = null;
+      }
+      update.avatarVideoUrl = '';
     }
 
     const video = await CourseVideo.findByIdAndUpdate(
@@ -1057,11 +1079,30 @@ Rules:
         scenes: scenesWithAudio,
       };
 
+      // Optional talking-head overlay (see AvatarService, VideoJob's
+      // equivalent GENERATING_AVATAR step in videoWorker.js). Course videos
+      // have no separate BullMQ pipeline stage the way the standalone
+      // wizard does, so this runs as part of the render step, right before
+      // assets prep - reused on any subsequent re-render since
+      // avatarVideoUrl persists once generated.
+      if (video.avatarImage && !video.avatarVideoUrl) {
+        await bailIfCancelled(videoId);
+        SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 62, 'Generating avatar overlay...');
+        await ActivityLogService.add(videoId, 'Avatar generation started');
+
+        const avatarResult = await AvatarService.animatePortrait(jobId, video.avatarImage);
+        video.avatarVideoUrl = avatarResult.path;
+        await video.save();
+
+        await ActivityLogService.add(videoId, 'Avatar overlay generated successfully.');
+      }
+
       // Job config
       const jobConfig = {
         resolution: video.resolution || '1920x1080',
         aspectRatio: '16:9',
         type: video.style || 'educational',
+        avatar: video.avatarVideoUrl ? { videoUrl: video.avatarVideoUrl, position: video.avatarPosition } : undefined,
       };
 
       // Prepare assets for Remotion

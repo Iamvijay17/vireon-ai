@@ -98,6 +98,18 @@ const videoJobSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Optional talking-head overlay. avatarImage is the uploaded source
+    // photo's path on disk (see VideoService.create); avatarVideoUrl is
+    // populated once AvatarService has animated it (see videoWorker.js's
+    // GENERATING_AVATAR step). Both empty/null means no overlay - the
+    // Remotion composition reserves no space for it (see AvatarOverlay).
+    avatarImage: { type: String, default: '' },
+    avatarPosition: {
+      type: String,
+      enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right', null],
+      default: null,
+    },
+    avatarVideoUrl: { type: String, default: '' },
     status: {
       type: String,
       enum: Object.values(JOB_STATUS),

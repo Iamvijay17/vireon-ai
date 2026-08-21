@@ -43,6 +43,7 @@ const ActivityLogService = require('../services/ActivityLogService');
 const ChunkedScriptService = require('../services/ChunkedScriptService');
 const ScriptParserService = require('../services/ScriptParserService');
 const AudioService = require('../services/TTS/audioService');
+const AvatarService = require('../services/Avatar/avatarService');
 const RemotionService = require('../services/RemotionService');
 const StorageService = require('../services/StorageService');
 const GitHubService = require('../services/GitHubService');
@@ -321,6 +322,28 @@ const worker = new Worker(
 
       await bailIfCancelled(jobId);
 
+      // ── Step 5.5: Avatar Generation (optional - only for jobs with an
+      // uploaded avatarImage; skipped entirely otherwise, and skipped on
+      // resume if already generated).
+      let avatarVideoUrl = videoJob.avatarVideoUrl;
+      if (videoJob.avatarImage && !avatarVideoUrl) {
+        currentStep = JOB_STATUS.GENERATING_AVATAR;
+        await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_AVATAR, { progress: 55 });
+        SocketService.emitJobProgress({ _id: jobId, progress: 55, status: JOB_STATUS.GENERATING_AVATAR, currentStep: JOB_STATUS.GENERATING_AVATAR, currentScene: 0 });
+
+        LoggerService.info('Starting avatar generation', { jobId });
+        await ActivityLogService.add(jobId, 'Avatar generation started');
+
+        const avatarResult = await AvatarService.animatePortrait(jobId, videoJob.avatarImage);
+        const jobWithAvatar = await VideoService.updateAvatar(jobId, avatarResult);
+        avatarVideoUrl = jobWithAvatar.avatarVideoUrl;
+
+        LoggerService.success('Avatar overlay generated', { jobId });
+        await ActivityLogService.add(jobId, 'Avatar overlay generated successfully.');
+      }
+
+      await bailIfCancelled(jobId);
+
       // ── Step 6: Prepare Assets (always regenerate to include latest imageUrl and templateId)
       // Delete old assets.json if it exists to force regeneration with updated data
       const fs = require('fs').promises;
@@ -336,6 +359,7 @@ const worker = new Worker(
         resolution: videoJob.resolution,
         aspectRatio: videoJob.aspectRatio,
         type: videoJob.type,
+        avatar: avatarVideoUrl ? { videoUrl: avatarVideoUrl, position: videoJob.avatarPosition } : undefined,
       });
 
       LoggerService.success('Assets prepared');

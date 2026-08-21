@@ -75,6 +75,17 @@ const courseVideoSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Optional talking-head overlay - same shape/pipeline as VideoJob's
+    // avatar fields (see VideoJob.js, AvatarService, videoWorker.js's
+    // GENERATING_AVATAR step). avatarImage is the uploaded source photo's
+    // path on disk; avatarVideoUrl is populated once animated.
+    avatarImage: { type: String, default: '' },
+    avatarPosition: {
+      type: String,
+      enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right', null],
+      default: null,
+    },
+    avatarVideoUrl: { type: String, default: '' },
     status: {
       type: String,
       enum: Object.values(VIDEO_STATUS),

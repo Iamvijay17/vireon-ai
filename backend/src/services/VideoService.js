@@ -2,6 +2,7 @@ const VideoJob = require('../models/VideoJob');
 const LoggerService = require('./LoggerService');
 const ActivityLogService = require('./ActivityLogService');
 const AudioService = require('./TTS/audioService');
+const AvatarService = require('./Avatar/avatarService');
 const {
   JOB_STATUS,
   getAspectRatioForResolution,
@@ -17,6 +18,7 @@ const {
 const BUSY_STATUSES = [
   JOB_STATUS.SCRIPT_GENERATION,
   JOB_STATUS.GENERATING_AUDIO,
+  JOB_STATUS.GENERATING_AVATAR,
   JOB_STATUS.GENERATING_IMAGES,
   JOB_STATUS.PREPARING_ASSETS,
   JOB_STATUS.RENDERING,
@@ -47,14 +49,21 @@ class VideoService {
       aspectRatio: getAspectRatioForResolution(data.resolution || '1920x1080'),
       fastGeneration: data.fastGeneration ?? true,
       fastAudio: data.fastAudio ?? false,
+      avatarPosition: data.avatarPosition || null,
       status: JOB_STATUS.QUEUED,
       progress: 0,
     });
+
+    if (data.avatarImage) {
+      job.avatarImage = await AvatarService.saveSourceImage(job._id, data.avatarImage);
+      await job.save();
+    }
 
     LoggerService.info('Video job created', {
       jobId: job._id,
       type: job.type,
       topic: job.topic,
+      hasAvatar: !!job.avatarImage,
     });
 
     return job;
@@ -177,7 +186,23 @@ class VideoService {
       if (!guestVoice) throw { status: 400, message: 'Guest voice is required for podcast videos' };
     }
 
-    Object.assign(job, updates);
+    // avatarImage is a base64 data URI on the wire, not the stored disk
+    // path - re-save it like create() does, and clear the stale generated
+    // clip since it no longer matches the new source photo. Passing
+    // avatarImage: null removes the avatar entirely.
+    if ('avatarImage' in updates) {
+      const { avatarImage, ...rest } = updates;
+      Object.assign(job, rest);
+      if (avatarImage) {
+        job.avatarImage = await AvatarService.saveSourceImage(jobId, avatarImage);
+      } else {
+        job.avatarImage = '';
+        job.avatarPosition = null;
+      }
+      job.avatarVideoUrl = '';
+    } else {
+      Object.assign(job, updates);
+    }
     job.duration = duration;
     job.resolution = resolution;
     job.aspectRatio = getAspectRatioForResolution(resolution);
@@ -278,6 +303,19 @@ class VideoService {
 
     await job.save();
     return job;
+  }
+
+  /**
+   * Persist the generated avatar overlay clip's path once AvatarService has
+   * animated the job's source photo (see videoWorker.js's GENERATING_AVATAR
+   * step).
+   */
+  static async updateAvatar(jobId, avatarData) {
+    return VideoJob.findByIdAndUpdate(
+      jobId,
+      { avatarVideoUrl: avatarData.path },
+      { new: true }
+    );
   }
 
   /**

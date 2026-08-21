@@ -42,6 +42,17 @@ class RemotionService {
       description: script.description,
       resolution: jobConfig.resolution || '1920x1080',
       aspectRatio: jobConfig.aspectRatio || '16:9',
+      // Optional talking-head overlay (see AvatarService + videoWorker.js's
+      // GENERATING_AVATAR step) - undefined when the job has no avatar, so
+      // VideoComposition's AvatarOverlay renders nothing and reserves no
+      // space. Served over HTTP like scene audio below, for the same reason
+      // (avoids Remotion's webpack public-dir caching on dynamic per-job files).
+      avatar: jobConfig.avatar
+        ? {
+            videoUrl: `http://localhost:${config.port || 3000}/public/${jobId}/avatar/avatar.mp4`,
+            position: jobConfig.avatar.position,
+          }
+        : undefined,
       scenes: script.scenes.map((scene, index) => {
         // Determine sceneType based on position if not explicitly provided
         let sceneType = scene.sceneType;
