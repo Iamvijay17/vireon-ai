@@ -3,34 +3,30 @@ const fs = require("fs").promises;
 const path = require("path");
 const config = require("../../config");
 const LoggerService = require("../LoggerService");
+const AudioService = require("../TTS/audioService");
 
 /**
  * Service for animating a source portrait photo into a small talking-head
  * clip via the LivePortrait Gradio app (see AvatarService.animatePortrait).
- * Motion is driven by a fixed stock reference clip (config.avatar.drivingVideoPath),
- * not anything user-supplied - LivePortrait transfers that clip's head
- * motion/expressions onto whatever source photo is given.
+ * Motion is driven by a fixed stock reference clip (config.avatar.drivingVideoPath).
+ * The source photo isn't user-supplied either - it's one of two bundled
+ * default portraits (config.avatar.default{Male,Female}ImagePath), picked by
+ * the job's own narration voice's gender (see resolveDefaultSourceImage) so
+ * the avatar matches the voice without asking the user for a photo.
  *
  * Single Responsibility: avatar overlay clip generation.
  */
 class AvatarService {
   /**
-   * Decode a base64 data URI (e.g. "data:image/jpeg;base64,...") to
-   * jobs/{jobId}/avatar/source.<ext> - shared by VideoService and
-   * CourseVideoService's create/update, both of which accept the avatar
-   * source photo as a base64 data URI in the request body.
+   * Picks the bundled default portrait matching `voice`'s gender (reusing
+   * AudioService's own voice-metadata gender lookup, the same data already
+   * driving the Voice Library's gender filter). Unknown/undetectable gender
+   * (e.g. a from-scratch "design:" voice with no gender cue in its
+   * description) falls back to the female portrait.
    */
-  static async saveSourceImage(jobId, dataUri) {
-    const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUri);
-    if (!match) {
-      throw { status: 400, message: "avatarImage must be a base64 image data URI" };
-    }
-    const [, ext, base64] = match;
-    const avatarDir = path.resolve(__dirname, "../../../jobs", jobId, "avatar");
-    await fs.mkdir(avatarDir, { recursive: true });
-    const filePath = path.join(avatarDir, `source.${ext === "jpeg" ? "jpg" : ext}`);
-    await fs.writeFile(filePath, Buffer.from(base64, "base64"));
-    return filePath;
+  static resolveDefaultSourceImage(voice) {
+    const gender = AudioService.resolveGenderSync(voice);
+    return gender === "male" ? config.avatar.defaultMaleImagePath : config.avatar.defaultFemaleImagePath;
   }
 
   /**

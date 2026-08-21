@@ -2,7 +2,6 @@ const VideoJob = require('../models/VideoJob');
 const LoggerService = require('./LoggerService');
 const ActivityLogService = require('./ActivityLogService');
 const AudioService = require('./TTS/audioService');
-const AvatarService = require('./Avatar/avatarService');
 const {
   JOB_STATUS,
   getAspectRatioForResolution,
@@ -49,21 +48,17 @@ class VideoService {
       aspectRatio: getAspectRatioForResolution(data.resolution || '1920x1080'),
       fastGeneration: data.fastGeneration ?? true,
       fastAudio: data.fastAudio ?? false,
-      avatarPosition: data.avatarPosition || null,
+      avatarEnabled: data.avatarEnabled ?? false,
+      avatarPosition: data.avatarEnabled ? data.avatarPosition || 'bottom-right' : null,
       status: JOB_STATUS.QUEUED,
       progress: 0,
     });
-
-    if (data.avatarImage) {
-      job.avatarImage = await AvatarService.saveSourceImage(job._id, data.avatarImage);
-      await job.save();
-    }
 
     LoggerService.info('Video job created', {
       jobId: job._id,
       type: job.type,
       topic: job.topic,
-      hasAvatar: !!job.avatarImage,
+      avatarEnabled: job.avatarEnabled,
     });
 
     return job;
@@ -186,25 +181,27 @@ class VideoService {
       if (!guestVoice) throw { status: 400, message: 'Guest voice is required for podcast videos' };
     }
 
-    // avatarImage is a base64 data URI on the wire, not the stored disk
-    // path - re-save it like create() does, and clear the stale generated
-    // clip since it no longer matches the new source photo. Passing
-    // avatarImage: null removes the avatar entirely.
-    if ('avatarImage' in updates) {
-      const { avatarImage, ...rest } = updates;
-      Object.assign(job, rest);
-      if (avatarImage) {
-        job.avatarImage = await AvatarService.saveSourceImage(jobId, avatarImage);
-      } else {
-        job.avatarImage = '';
-        job.avatarPosition = null;
-      }
-      job.avatarVideoUrl = '';
-    } else {
-      Object.assign(job, updates);
-    }
+    // Whether the currently-generated avatar clip (if any) is still valid:
+    // only when the avatar stays enabled and the voice - which determines
+    // which default portrait's gender it was animated from - hasn't
+    // changed. Any other transition (freshly enabling, disabling, or a
+    // voice change while enabled) invalidates it, so the next render
+    // regenerates via AvatarService (see videoWorker.js's GENERATING_AVATAR
+    // step and AvatarService.resolveDefaultSourceImage).
+    const wasAvatarEnabled = job.avatarEnabled;
+    const previousVoice = job.voice;
+
+    Object.assign(job, updates);
     job.duration = duration;
     job.resolution = resolution;
+
+    if (job.avatarEnabled && !job.avatarPosition) {
+      job.avatarPosition = 'bottom-right';
+    }
+    const keepExistingAvatarClip = job.avatarEnabled && wasAvatarEnabled && job.voice === previousVoice;
+    if (!keepExistingAvatarClip) {
+      job.avatarVideoUrl = '';
+    }
     job.aspectRatio = getAspectRatioForResolution(resolution);
     await job.save();
 

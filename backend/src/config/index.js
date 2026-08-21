@@ -40,9 +40,14 @@ const config = Object.freeze({
   avatar: {
     url: process.env.LIVEPORTRAIT_URL || 'http://127.0.0.1:8890',
     // Stock talking-head reference clip (bundled with the app) - drives the
-    // motion applied to whatever source photo the user uploads. See
+    // motion applied to the default source portrait below. See
     // AvatarService.animatePortrait.
     drivingVideoPath: path.resolve(__dirname, '../../assets/avatar/stock-driving.mp4'),
+    // No user-uploaded photo - the avatar's source portrait is always one of
+    // these two bundled defaults, picked by the job's voice's gender (see
+    // AvatarService.resolveDefaultSourceImage).
+    defaultMaleImagePath: path.resolve(__dirname, '../../assets/avatar/default-male.jpg'),
+    defaultFemaleImagePath: path.resolve(__dirname, '../../assets/avatar/default-female.jpg'),
     maxRetries: parseInt(process.env.AVATAR_MAX_RETRIES, 10) || 3,
   },
 

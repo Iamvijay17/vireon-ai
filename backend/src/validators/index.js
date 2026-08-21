@@ -45,17 +45,13 @@ const createVideoSchema = z
     // 0.6B model for this job's narration instead of the default 1.7B -
     // trades some audio quality for speed.
     fastAudio: z.boolean().optional().default(false),
-    // Optional talking-head overlay source photo, sent as a base64 data URI
-    // (e.g. "data:image/jpeg;base64,...") - the codebase is JSON-only
-    // everywhere else, so this avoids introducing a separate multipart
-    // upload endpoint. Decoded to disk in VideoService.create.
-    avatarImage: z.string().startsWith('data:image/').max(10_000_000).optional(),
+    // Optional talking-head overlay - explicit on/off, no user-uploaded
+    // photo. When true, AvatarService animates a bundled default portrait
+    // matching `voice`'s gender (see AvatarService.resolveDefaultSourceImage).
+    avatarEnabled: z.boolean().optional().default(false),
     avatarPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.avatarPosition && !data.avatarImage) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['avatarImage'], message: 'avatarImage is required when avatarPosition is set' });
-    }
     if (data.type === 'podcast') {
       if (!data.hostVoice) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['hostVoice'], message: 'Host voice is required for podcast videos' });
@@ -92,7 +88,7 @@ const updateVideoJobSchema = z
     hostName: z.string().max(80).trim().optional(),
     guestName: z.string().max(80).trim().optional(),
     resolution: z.enum(RESOLUTIONS).optional(),
-    avatarImage: z.string().startsWith('data:image/').max(10_000_000).nullable().optional(),
+    avatarEnabled: z.boolean().optional(),
     avatarPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No fields provided to update' });

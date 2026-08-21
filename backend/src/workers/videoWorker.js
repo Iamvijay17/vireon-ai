@@ -322,19 +322,21 @@ const worker = new Worker(
 
       await bailIfCancelled(jobId);
 
-      // ── Step 5.5: Avatar Generation (optional - only for jobs with an
-      // uploaded avatarImage; skipped entirely otherwise, and skipped on
-      // resume if already generated).
-      let avatarVideoUrl = videoJob.avatarVideoUrl;
-      if (videoJob.avatarImage && !avatarVideoUrl) {
+      // ── Step 5.5: Avatar Generation (optional - only for jobs with
+      // avatarEnabled; skipped entirely otherwise, and skipped on resume if
+      // already generated). No user-uploaded photo - the source portrait is
+      // a bundled default picked by the job's voice's gender.
+      let avatarVideoUrl = videoJob.avatarEnabled ? videoJob.avatarVideoUrl : null;
+      if (videoJob.avatarEnabled && !avatarVideoUrl) {
         currentStep = JOB_STATUS.GENERATING_AVATAR;
         await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_AVATAR, { progress: 55 });
         SocketService.emitJobProgress({ _id: jobId, progress: 55, status: JOB_STATUS.GENERATING_AVATAR, currentStep: JOB_STATUS.GENERATING_AVATAR, currentScene: 0 });
 
-        LoggerService.info('Starting avatar generation', { jobId });
+        LoggerService.info('Starting avatar generation', { jobId, voice: videoJob.voice });
         await ActivityLogService.add(jobId, 'Avatar generation started');
 
-        const avatarResult = await AvatarService.animatePortrait(jobId, videoJob.avatarImage);
+        const sourceImagePath = AvatarService.resolveDefaultSourceImage(videoJob.voice);
+        const avatarResult = await AvatarService.animatePortrait(jobId, sourceImagePath);
         const jobWithAvatar = await VideoService.updateAvatar(jobId, avatarResult);
         avatarVideoUrl = jobWithAvatar.avatarVideoUrl;
 

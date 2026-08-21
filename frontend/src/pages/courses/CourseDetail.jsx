@@ -148,10 +148,9 @@ const EMPTY_FORM = {
   resolution: "1920x1080",
   additionalInstructions: "",
   fastAudio: false,
-  // Optional talking-head overlay - avatarImage is a base64 data URI (see
-  // handleAvatarFileChange). Left undefined (not "") when unset so
-  // JSON.stringify drops the key entirely.
-  avatarImage: undefined,
+  // Optional talking-head overlay - no photo upload, the backend picks a
+  // bundled default portrait matching the selected voice's gender.
+  avatarEnabled: false,
   avatarPosition: undefined,
 };
 const EMPTY_PROMO = { title: "", topic: "", description: "" };
@@ -271,12 +270,6 @@ const CourseDetail = () => {
   const [videoEditModalVisible, setVideoEditModalVisible] = useState(false);
   const [editingVideoId, setEditingVideoId] = useState(null);
   const [videoEditForm, setVideoEditForm] = useState(EMPTY_FORM);
-  // Whether the video being edited currently has an avatar - drives the
-  // "Replace photo" vs "Upload photo" label and the "Remove" button, since
-  // videoEditForm.avatarImage itself stays undefined (no change) until the
-  // user actually uploads a new photo or clicks remove (see
-  // handleEditAvatarFileChange / clearEditAvatar).
-  const [videoEditHasAvatar, setVideoEditHasAvatar] = useState(false);
   const [videoEditError, setVideoEditError] = useState("");
   const [videoEditSubmitting, setVideoEditSubmitting] = useState(false);
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
@@ -577,44 +570,11 @@ const CourseDetail = () => {
   const pickDefaultVoice = (preferred) =>
     (preferred && voiceOptions.some((o) => o.value === preferred) ? preferred : voiceOptions[0]?.value) || EMPTY_FORM.voice;
 
-  // Reads a chosen avatar photo to a base64 data URI - createCourseVideo/
-  // updateCourseVideo are JSON-only endpoints (no multipart upload), so the
-  // photo travels in the request body like every other field.
-  const readAvatarFile = (file) =>
-    new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.readAsDataURL(file);
-    });
+  const handleCreateAvatarEnabledChange = (enabled) =>
+    setFormValues((prev) => ({ ...prev, avatarEnabled: enabled, avatarPosition: enabled ? prev.avatarPosition || "bottom-right" : undefined }));
 
-  const handleCreateAvatarFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const dataUri = await readAvatarFile(file);
-    setFormValues((prev) => ({ ...prev, avatarImage: dataUri, avatarPosition: prev.avatarPosition || "bottom-right" }));
-    e.target.value = "";
-  };
-
-  const clearCreateAvatar = () => setFormValues((prev) => ({ ...prev, avatarImage: undefined, avatarPosition: undefined }));
-
-  // Edit form only sends avatarImage when the user actually changes it - a
-  // new data URI to replace it, or `null` to remove it. Otherwise it stays
-  // undefined (dropped by JSON.stringify) so an edit that doesn't touch the
-  // avatar doesn't re-submit the existing avatar's raw disk path (not a
-  // valid data URI) back to the server. See videoEditHasAvatar.
-  const handleEditAvatarFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const dataUri = await readAvatarFile(file);
-    setVideoEditForm((prev) => ({ ...prev, avatarImage: dataUri, avatarPosition: prev.avatarPosition || "bottom-right" }));
-    setVideoEditHasAvatar(true);
-    e.target.value = "";
-  };
-
-  const clearEditAvatar = () => {
-    setVideoEditForm((prev) => ({ ...prev, avatarImage: null, avatarPosition: null }));
-    setVideoEditHasAvatar(false);
-  };
+  const handleEditAvatarEnabledChange = (enabled) =>
+    setVideoEditForm((prev) => ({ ...prev, avatarEnabled: enabled, avatarPosition: enabled ? prev.avatarPosition || "bottom-right" : undefined }));
 
   const showCreateModal = () => {
     const prefs = loadSettings();
@@ -657,15 +617,9 @@ const CourseDetail = () => {
       resolution: video.resolution || EMPTY_FORM.resolution,
       additionalInstructions: video.additionalInstructions || "",
       fastAudio: video.fastAudio ?? EMPTY_FORM.fastAudio,
-      // Not prefilled from video.avatarImage - that's a raw server disk
-      // path, not a data URI, so it must stay undefined ("no change")
-      // unless the user actually uploads a replacement (see
-      // handleEditAvatarFileChange). avatarPosition is a plain enum value,
-      // safe to round-trip either way.
-      avatarImage: undefined,
+      avatarEnabled: video.avatarEnabled ?? false,
       avatarPosition: video.avatarPosition || undefined,
     });
-    setVideoEditHasAvatar(!!video.avatarImage);
     setVideoEditError("");
     setVideoEditModalVisible(true);
   };
@@ -1434,29 +1388,19 @@ const CourseDetail = () => {
             />
           </div>
           <div>
-            <Label>Avatar overlay (optional)</Label>
-            <div className="flex items-center gap-3">
-              {formValues.avatarImage && (
-                <img
-                  src={formValues.avatarImage}
-                  alt="Avatar preview"
-                  className="size-12 shrink-0 rounded-full border border-border-light object-cover"
-                />
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleCreateAvatarFileChange}
-                className="block text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent/10 file:px-3 file:py-1.5 file:text-sm file:text-accent"
-              />
-              {formValues.avatarImage && (
-                <button type="button" onClick={clearCreateAvatar} className="text-xs text-text-tertiary hover:text-text-primary">
-                  Remove
-                </button>
-              )}
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border-light px-3 py-2.5">
+              <div>
+                <Label className="mb-0.5">Avatar Overlay</Label>
+                <FieldHint>
+                  {formValues.avatarEnabled
+                    ? "On: a talking-head overlay is generated automatically, using a default portrait matching the selected voice's gender."
+                    : "Off: no avatar is generated for this video."}
+                </FieldHint>
+              </div>
+              <Switch checked={formValues.avatarEnabled} onChange={handleCreateAvatarEnabledChange} />
             </div>
-            <FieldHint>Upload a portrait photo to add a small talking-head overlay, animated with a stock reference clip.</FieldHint>
-            {formValues.avatarImage && (
+
+            {formValues.avatarEnabled && (
               <div className="mt-3">
                 <Label>Avatar position</Label>
                 <Select
@@ -1553,33 +1497,19 @@ const CourseDetail = () => {
             />
           </div>
           <div>
-            <Label>Avatar overlay (optional)</Label>
-            <div className="flex items-center gap-3">
-              {videoEditForm.avatarImage && (
-                <img
-                  src={videoEditForm.avatarImage}
-                  alt="Avatar preview"
-                  className="size-12 shrink-0 rounded-full border border-border-light object-cover"
-                />
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleEditAvatarFileChange}
-                className="block text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent/10 file:px-3 file:py-1.5 file:text-sm file:text-accent"
-              />
-              {videoEditHasAvatar && (
-                <button type="button" onClick={clearEditAvatar} className="text-xs text-text-tertiary hover:text-text-primary">
-                  Remove
-                </button>
-              )}
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border-light px-3 py-2.5">
+              <div>
+                <Label className="mb-0.5">Avatar Overlay</Label>
+                <FieldHint>
+                  {videoEditForm.avatarEnabled
+                    ? "On: a talking-head overlay is generated automatically, using a default portrait matching the selected voice's gender."
+                    : "Off: no avatar overlay for this video."}
+                </FieldHint>
+              </div>
+              <Switch checked={videoEditForm.avatarEnabled} onChange={handleEditAvatarEnabledChange} />
             </div>
-            <FieldHint>
-              {videoEditHasAvatar && !videoEditForm.avatarImage
-                ? "This video already has an avatar overlay. Choose a file to replace it."
-                : "Upload a portrait photo to add a small talking-head overlay, animated with a stock reference clip."}
-            </FieldHint>
-            {videoEditHasAvatar && (
+
+            {videoEditForm.avatarEnabled && (
               <div className="mt-3">
                 <Label>Avatar position</Label>
                 <Select

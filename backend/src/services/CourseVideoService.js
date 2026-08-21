@@ -93,14 +93,10 @@ class CourseVideoService {
       resolution: data.resolution || '1920x1080',
       additionalInstructions: data.additionalInstructions || '',
       fastAudio: data.fastAudio ?? false,
-      avatarPosition: data.avatarPosition || null,
+      avatarEnabled: data.avatarEnabled ?? false,
+      avatarPosition: data.avatarEnabled ? data.avatarPosition || 'bottom-right' : null,
       status: VIDEO_STATUS.DRAFT,
     });
-
-    if (data.avatarImage) {
-      video.avatarImage = await AvatarService.saveSourceImage(video._id, data.avatarImage);
-      await video.save();
-    }
 
     // Update course status
     await CourseService.recalculateStatus(courseId);
@@ -110,7 +106,7 @@ class CourseVideoService {
       courseId,
       title: video.title,
       order,
-      hasAvatar: !!video.avatarImage,
+      avatarEnabled: video.avatarEnabled,
     });
 
     return video;
@@ -322,28 +318,34 @@ class CourseVideoService {
   // Fields the client is allowed to edit via update(). Everything else
   // (status, approved, courseId, script, error, retryCount, ...) is
   // pipeline-managed state and must not be settable through this endpoint.
-  static UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'resolution', 'additionalInstructions', 'fastAudio', 'avatarPosition'];
+  static UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'resolution', 'additionalInstructions', 'fastAudio', 'avatarEnabled', 'avatarPosition'];
 
   /**
    * Update a video.
    */
   static async update(videoId, data) {
+    const existing = await CourseVideo.findById(videoId).select('avatarEnabled voice').lean();
+    if (!existing) {
+      throw { status: 404, message: 'Video not found' };
+    }
+
     const update = {};
     for (const field of CourseVideoService.UPDATABLE_FIELDS) {
       if (data[field] !== undefined) update[field] = data[field];
     }
 
-    // avatarImage is a base64 data URI on the wire, not the stored disk
-    // path - re-save it (see AvatarService.saveSourceImage) and clear the
-    // stale generated clip since it no longer matches the new source photo.
-    // Passing avatarImage: null removes the avatar entirely.
-    if ('avatarImage' in data) {
-      if (data.avatarImage) {
-        update.avatarImage = await AvatarService.saveSourceImage(videoId, data.avatarImage);
-      } else {
-        update.avatarImage = '';
-        update.avatarPosition = null;
-      }
+    const avatarEnabled = update.avatarEnabled ?? existing.avatarEnabled;
+    if (avatarEnabled && !update.avatarPosition) {
+      update.avatarPosition = update.avatarPosition ?? 'bottom-right';
+    }
+    // Whether the currently-generated avatar clip (if any) is still valid:
+    // only when the avatar stays enabled and the voice - which determines
+    // which default portrait's gender it was animated from - hasn't
+    // changed. Any other transition invalidates it, so the next render
+    // regenerates via AvatarService (see renderVideo's avatar step).
+    const voice = update.voice ?? existing.voice;
+    const keepExistingAvatarClip = avatarEnabled && existing.avatarEnabled && voice === existing.voice;
+    if (!keepExistingAvatarClip) {
       update.avatarVideoUrl = '';
     }
 
@@ -1080,17 +1082,20 @@ Rules:
       };
 
       // Optional talking-head overlay (see AvatarService, VideoJob's
-      // equivalent GENERATING_AVATAR step in videoWorker.js). Course videos
-      // have no separate BullMQ pipeline stage the way the standalone
-      // wizard does, so this runs as part of the render step, right before
-      // assets prep - reused on any subsequent re-render since
-      // avatarVideoUrl persists once generated.
-      if (video.avatarImage && !video.avatarVideoUrl) {
+      // equivalent GENERATING_AVATAR step in videoWorker.js). No
+      // user-uploaded photo - the source portrait is a bundled default
+      // picked by the video's voice's gender. Course videos have no
+      // separate BullMQ pipeline stage the way the standalone wizard does,
+      // so this runs as part of the render step, right before assets prep -
+      // reused on any subsequent re-render since avatarVideoUrl persists
+      // once generated.
+      if (video.avatarEnabled && !video.avatarVideoUrl) {
         await bailIfCancelled(videoId);
         SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 62, 'Generating avatar overlay...');
         await ActivityLogService.add(videoId, 'Avatar generation started');
 
-        const avatarResult = await AvatarService.animatePortrait(jobId, video.avatarImage);
+        const sourceImagePath = AvatarService.resolveDefaultSourceImage(video.voice);
+        const avatarResult = await AvatarService.animatePortrait(jobId, sourceImagePath);
         video.avatarVideoUrl = avatarResult.path;
         await video.save();
 

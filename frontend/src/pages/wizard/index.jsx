@@ -166,11 +166,9 @@ const DEFAULT_VALUES = {
   resolution: "1920x1080",
   fastGeneration: false,
   fastAudio: false,
-  // Optional talking-head overlay - avatarImage is a base64 data URI (see
-  // handleAvatarFileChange). Left undefined (not "") when unset so
-  // JSON.stringify drops the key entirely - createVideoSchema treats an
-  // empty/null value as invalid, not "no avatar".
-  avatarImage: undefined,
+  // Optional talking-head overlay - no photo upload, the backend picks a
+  // bundled default portrait matching the selected voice's gender.
+  avatarEnabled: false,
   avatarPosition: undefined,
 };
 
@@ -325,25 +323,8 @@ const Wizard = () => {
 
   const setField = (name, value) => setValues((prev) => ({ ...prev, [name]: value }));
 
-  // Reads the chosen file to a base64 data URI - the create-job API is
-  // JSON-only (no multipart upload endpoint exists in this codebase), so
-  // the photo travels in the request body like every other field.
-  const handleAvatarFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setValues((prev) => ({
-        ...prev,
-        avatarImage: reader.result,
-        avatarPosition: prev.avatarPosition || "bottom-right",
-      }));
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
-
-  const clearAvatar = () => setValues((prev) => ({ ...prev, avatarImage: undefined, avatarPosition: undefined }));
+  const handleAvatarEnabledChange = (enabled) =>
+    setValues((prev) => ({ ...prev, avatarEnabled: enabled, avatarPosition: enabled ? prev.avatarPosition || "bottom-right" : undefined }));
 
   // Duration and resolution are each constrained to a different set of
   // valid options depending on video type (YouTube Shorts: 1-3 minutes,
@@ -668,37 +649,20 @@ const Wizard = () => {
           </div>
 
           <div className="mb-6">
-            <Label>Avatar overlay (optional)</Label>
-            <div className="flex items-center gap-3">
-              {values.avatarImage && (
-                <img
-                  src={values.avatarImage}
-                  alt="Avatar preview"
-                  className="size-12 shrink-0 rounded-full border border-border object-cover"
-                />
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarFileChange}
-                className="block text-sm text-text-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-accent/10 file:px-3 file:py-1.5 file:text-sm file:text-accent"
-              />
-              {values.avatarImage && (
-                <button
-                  type="button"
-                  onClick={clearAvatar}
-                  className="text-xs text-text-tertiary hover:text-text-primary"
-                >
-                  Remove
-                </button>
-              )}
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
+              <div>
+                <Label className="mb-1">Avatar Overlay</Label>
+                <p className="text-xs text-text-secondary">
+                  {values.avatarEnabled
+                    ? "On: a talking-head overlay is generated automatically, using a default portrait matching the selected voice's gender."
+                    : "Off: no avatar is generated for this video."}
+                </p>
+              </div>
+              <Switch checked={values.avatarEnabled} onChange={handleAvatarEnabledChange} />
             </div>
-            <FieldHint>
-              Upload a portrait photo to add a small talking-head overlay, animated with a stock reference clip.
-            </FieldHint>
 
-            {values.avatarImage && (
-              <div className="mt-3">
+            {values.avatarEnabled && (
+              <div className="mt-4">
                 <Label>Avatar position</Label>
                 <Select
                   options={AVATAR_POSITIONS}
