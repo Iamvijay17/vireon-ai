@@ -23,7 +23,6 @@ function getStorageProvider() {
   providerInstance = new MinioStorageProvider();
   LoggerService.info('Storage provider initialized: MinIO', {
     endpoint: `${config.minio.endpoint}:${config.minio.port}`,
-    jobsBucket: config.minio.jobsBucket,
     scenesBucket: config.minio.scenesBucket,
     videoBucket: config.minio.videoBucket,
   });

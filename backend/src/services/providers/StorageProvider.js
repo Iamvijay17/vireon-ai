@@ -10,23 +10,21 @@
 class StorageProvider {
   /**
    * Upload a single file to storage.
-   * @param {string} jobId - The job identifier.
+   * @param {string} id - The video identifier.
    * @param {string} filePath - Absolute path to the local file.
-   * @param {string} category - Asset category (e.g., 'script', 'audio', 'render').
+   * @param {string} category - Asset category (e.g., 'audio', 'render').
    * @returns {Promise<string>} The public URL of the uploaded file.
    * @abstract
    */
-  async uploadFile(jobId, filePath, category) {
+  async uploadFile(id, filePath, category) {
     throw new Error('Method "uploadFile" must be implemented by subclass');
   }
 
   /**
    * Delete all assets for a given job/video from storage. `videoId` defaults
    * to `jobId` since today they're always the same underlying id - kept as a
-   * separate param because job-level data (script/assets) and video-level
-   * data (audio/avatar/render) live under different keys once a provider
-   * splits them into separate buckets (see MinioStorageProvider).
-   * @param {string} jobId - The job identifier (script/assets data).
+   * separate param for providers that key different categories differently.
+   * @param {string} jobId - The job identifier.
    * @param {string} [videoId] - The video identifier (audio/avatar/render data).
    * @returns {Promise<void>}
    * @abstract
@@ -39,8 +37,8 @@ class StorageProvider {
    * Get the public download URL for a file already known to exist in
    * storage, without uploading anything. Used by RemotionService to point
    * Remotion's renderer straight at storage instead of a local file.
-   * @param {string} id - jobId for category 'script', videoId otherwise.
-   * @param {string} category - 'script', 'audio', 'avatar', or 'render'.
+   * @param {string} id - The video identifier.
+   * @param {string} category - 'audio', 'avatar', or 'render'.
    * @param {string} fileName
    * @returns {string}
    * @abstract
@@ -51,8 +49,8 @@ class StorageProvider {
 
   /**
    * Whether a given file already exists in storage.
-   * @param {string} id - jobId for category 'script', videoId otherwise.
-   * @param {string} category - 'script', 'audio', 'avatar', or 'render'.
+   * @param {string} id - The video identifier.
+   * @param {string} category - 'audio', 'avatar', or 'render'.
    * @param {string} fileName
    * @returns {Promise<boolean>}
    * @abstract

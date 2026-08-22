@@ -63,10 +63,10 @@ const config = Object.freeze({
     useSSL: process.env.MINIO_USE_SSL === 'true',
     accessKey: process.env.MINIO_ROOT_USER || '',
     secretKey: process.env.MINIO_ROOT_PASSWORD || '',
-    // Three buckets instead of one flat namespace: jobs = job-level data
-    // (script/assets), scenes = scene-level data (audio/avatar), video =
-    // final video-level output (render/thumbnail). See MinioStorageProvider.
-    jobsBucket: process.env.MINIO_JOBS_BUCKET || 'vireon-jobs',
+    // Two buckets instead of one flat namespace: scenes = scene-level data
+    // (audio/avatar), video = final video-level output (render/thumbnail).
+    // script.json/assets.json are local scratch only, never uploaded - the
+    // script content lives in MongoDB. See MinioStorageProvider.
     scenesBucket: process.env.MINIO_SCENES_BUCKET || 'vireon-scenes',
     videoBucket: process.env.MINIO_VIDEO_BUCKET || 'vireon-video',
     // Base URL used to build public download links returned to callers

@@ -200,17 +200,16 @@ const worker = new Worker(
           seed: jobId,
         });
 
-        // Save script to disk, then upload immediately - backend/jobs/ is
-        // scratch space, MinIO is the durable copy. Persisted (not just held
-        // in a local var) since this pipeline pauses for manual approval
-        // right after this step, resuming in a later worker invocation that
-        // won't have this variable.
-        const scriptPath = await ScriptParserService.saveScript(jobId, script);
-        const scriptUrl = await getStorageProvider().uploadFile(jobId, scriptPath, 'script');
+        // Save script to disk for the Remotion pipeline (backend/jobs/ is
+        // scratch space). The script content itself is persisted via
+        // updateScript below - not just held in a local var - since this
+        // pipeline pauses for manual approval right after this step,
+        // resuming in a later worker invocation that won't have this
+        // variable.
+        await ScriptParserService.saveScript(jobId, script);
 
         // Update job with script
         await VideoService.updateScript(jobId, script);
-        await VideoService.updateScriptUrl(jobId, scriptUrl);
 
         LoggerService.success('Script generated and saved', {
           title: script.title,
@@ -370,14 +369,6 @@ const worker = new Worker(
         avatar: avatarVideoUrl ? { videoUrl: avatarVideoUrl, position: videoJob.avatarPosition } : undefined,
       });
 
-      // Upload immediately rather than waiting for a final batch step -
-      // backend/jobs/ is scratch space, MinIO is the durable copy.
-      const assetsUrl = await getStorageProvider().uploadFile(
-        jobId,
-        path.join(path.resolve(__dirname, '../../jobs', jobId), 'assets.json'),
-        'script'
-      );
-
       LoggerService.success('Assets prepared');
 
       await bailIfCancelled(jobId);
@@ -413,8 +404,9 @@ const worker = new Worker(
       await bailIfCancelled(jobId);
 
       // ── Step 8: Upload the render output - the only "big" upload left,
-      // since script/assets/audio/avatar were all already uploaded inline
-      // as they were produced (see steps above and AudioService/AvatarService).
+      // since audio/avatar were already uploaded inline as they were
+      // produced (see AudioService/AvatarService); script/assets are only
+      // ever local scratch data, never uploaded to storage.
       currentStep = JOB_STATUS.UPLOADING;
       await VideoService.updateStatus(jobId, JOB_STATUS.UPLOADING, { progress: 95 });
       SocketService.emitJobProgress({ _id: jobId, progress: 95, status: JOB_STATUS.UPLOADING, currentStep: JOB_STATUS.UPLOADING, currentScene: 0 });
@@ -442,9 +434,7 @@ const worker = new Worker(
       const completedJob = await VideoService.complete(jobId, {
         videoUrl,
         thumbnailUrl,
-        scriptUrl: updatedJob.scriptUrl || '',
         audioUrls,
-        assetsUrl,
       });
 
       SocketService.emitJobCompleted(completedJob);

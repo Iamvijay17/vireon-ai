@@ -140,9 +140,7 @@ const videoJobSchema = new mongoose.Schema(
     },
     videoUrl: { type: String, default: '' },
     thumbnailUrl: { type: String, default: '' },
-    scriptUrl: { type: String, default: '' },
     audioUrls: [String],
-    assetsUrl: { type: String, default: '' },
     error: {
       message: { type: String, default: '' },
       step: { type: String, default: '' },

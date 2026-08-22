@@ -500,10 +500,9 @@ class CourseVideoService {
       video.scriptStatus = STAGE_STATUS.COMPLETED;
       video.scriptGeneratedAt = new Date();
 
-      // Save script to disk for Remotion pipeline, then upload immediately -
-      // backend/jobs/ is scratch space, MinIO is the durable copy.
-      const scriptPath = await ScriptParserService.saveScript(video._id.toString(), scriptData);
-      await getStorageProvider().uploadFile(video._id.toString(), scriptPath, 'script');
+      // Save script to disk for Remotion pipeline - backend/jobs/ is scratch
+      // space, the Mongo doc (saved below) is the durable copy.
+      await ScriptParserService.saveScript(video._id.toString(), scriptData);
       await video.save();
 
       LoggerService.info('Course video script generated', {
@@ -883,10 +882,9 @@ Rules:
       // Save updated script with audio durations back to database and disk
       video.script = scriptData;
 
-      // Also save updated script to disk for Remotion pipeline, then
-      // re-upload immediately (durations changed, content did too).
-      const scriptPath = await ScriptParserService.saveScript(video._id.toString(), scriptData);
-      await getStorageProvider().uploadFile(video._id.toString(), scriptPath, 'script');
+      // Also save updated script to disk for Remotion pipeline (durations
+      // changed, content did too).
+      await ScriptParserService.saveScript(video._id.toString(), scriptData);
 
       // Store audio URL (first scene's audio for preview). Each scene's
       // audio is already uploaded to storage the moment it's synthesized
@@ -1115,9 +1113,9 @@ Rules:
       SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.UPLOADING, 90, 'Uploading to storage...');
 
       // Upload the render output - the only "big" upload left, since
-      // script/audio/avatar were all already uploaded inline as they were
-      // produced (see ScriptParserService.saveScript callers above,
-      // AudioService._synthesizeSceneAudio, AvatarService.animatePortrait).
+      // audio/avatar were already uploaded inline as they were produced
+      // (see AudioService._synthesizeSceneAudio, AvatarService.animatePortrait);
+      // script is only ever local scratch data, never uploaded to storage.
       const renderDir = StorageService.getRenderDir(jobId);
       const renderFileNames = await fs.readdir(renderDir).catch(() => []);
       for (const fileName of renderFileNames) {

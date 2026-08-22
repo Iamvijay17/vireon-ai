@@ -260,16 +260,6 @@ class VideoService {
   }
 
   /**
-   * Persist the script's storage URL, uploaded immediately after script
-   * generation (see videoWorker.js) rather than at the end of the pipeline -
-   * needs its own DB write since the pipeline pauses for manual approval
-   * right after this point and resumes in a separate worker invocation.
-   */
-  static async updateScriptUrl(jobId, scriptUrl) {
-    return VideoJob.findByIdAndUpdate(jobId, { scriptUrl }, { new: true });
-  }
-
-  /**
    * Update scene image URL.
    */
   static async updateSceneImage(jobId, sceneNumber, imageData) {
@@ -380,9 +370,7 @@ class VideoService {
         currentStep: JOB_STATUS.COMPLETED,
         videoUrl: urls.videoUrl || '',
         thumbnailUrl: urls.thumbnailUrl || '',
-        scriptUrl: urls.scriptUrl || '',
         audioUrls: urls.audioUrls || [],
-        assetsUrl: urls.assetsUrl || '',
       },
       { new: true }
     );
@@ -449,9 +437,7 @@ class VideoService {
           currentStep: JOB_STATUS.PREPARING_ASSETS,
           videoUrl: '',
           thumbnailUrl: '',
-          scriptUrl: '',
           audioUrls: [],
-          assetsUrl: '',
         },
         $unset: { error: '' },
       },
@@ -506,9 +492,7 @@ class VideoService {
           script: null,
           videoUrl: '',
           thumbnailUrl: '',
-          scriptUrl: '',
           audioUrls: [],
-          assetsUrl: '',
         },
         $unset: { error: '' },
       },

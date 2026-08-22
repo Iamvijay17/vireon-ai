@@ -5,11 +5,11 @@ const LoggerService = require('../LoggerService');
 const StorageProvider = require('./StorageProvider');
 
 // Which bucket a category lives in, and what subfolder (if any) its files
-// sit under within a job/video's own prefix. 'script' data (script.json,
-// assets.json) is job-level; everything else is video-level - see the
-// bucket layout in the storage plan.
+// sit under within a video's own prefix. script.json/assets.json are local
+// scratch data only (never uploaded - the script content lives in Mongo,
+// assets.json is rebuilt fresh on every render), so there's no job-level
+// bucket - see the bucket layout in the storage plan.
 const CATEGORY_MAP = {
-  script: { bucket: () => config.minio.jobsBucket, subfolder: null },
   audio: { bucket: () => config.minio.scenesBucket, subfolder: 'audio' },
   avatar: { bucket: () => config.minio.scenesBucket, subfolder: 'avatar' },
   render: { bucket: () => config.minio.videoBucket, subfolder: null },
@@ -35,11 +35,10 @@ function publicReadPolicy(bucket) {
 /**
  * MinIO (S3-compatible) Storage Provider.
  *
- * Spreads job assets across three buckets instead of one flat namespace:
- * jobs (script/assets, keyed by jobId), scenes (audio/avatar, keyed by
- * videoId), video (render output, keyed by videoId). In this codebase
- * jobId and videoId are the same underlying Mongo _id - the distinction is
- * about what each bucket represents, not a second id to track.
+ * Spreads video assets across two buckets instead of one flat namespace:
+ * scenes (audio/avatar, keyed by videoId), video (render output, keyed by
+ * videoId). In this codebase jobId and videoId are the same underlying
+ * Mongo _id.
  */
 class MinioStorageProvider extends StorageProvider {
   constructor() {
@@ -57,7 +56,7 @@ class MinioStorageProvider extends StorageProvider {
   #ready;
 
   async #ensureBuckets() {
-    const buckets = [...new Set([config.minio.jobsBucket, config.minio.scenesBucket, config.minio.videoBucket])];
+    const buckets = [...new Set([config.minio.scenesBucket, config.minio.videoBucket])];
     for (const bucket of buckets) {
       const exists = await this.client.bucketExists(bucket).catch(() => false);
       if (!exists) {
@@ -97,13 +96,12 @@ class MinioStorageProvider extends StorageProvider {
   }
 
   /**
-   * Upload a single file to MinIO. `id` is the jobId for category 'script',
-   * or the videoId for every other category (see the bucket table above).
-   * Retries with exponential backoff on transient failures.
+   * Upload a single file to MinIO, keyed by videoId. Retries with
+   * exponential backoff on transient failures.
    *
    * @param {string} id
    * @param {string} filePath - Absolute path to local file.
-   * @param {string} category - 'script', 'audio', 'avatar', or 'render'.
+   * @param {string} category - 'audio', 'avatar', or 'render'.
    * @returns {Promise<string>} Public download URL.
    */
   async uploadFile(id, filePath, category) {
@@ -140,8 +138,8 @@ class MinioStorageProvider extends StorageProvider {
   }
 
   /**
-   * Delete all assets for a given job/video from MinIO: `{jobId}/*` from the
-   * jobs bucket, and `{videoId}/*` from the scenes and video buckets.
+   * Delete all assets for a given video from MinIO: `{videoId}/*` from the
+   * scenes and video buckets.
    *
    * @param {string} jobId
    * @param {string} [videoId]
@@ -151,7 +149,6 @@ class MinioStorageProvider extends StorageProvider {
     await this.#ready;
 
     const targets = [
-      { bucket: config.minio.jobsBucket, prefix: `${jobId}/` },
       { bucket: config.minio.scenesBucket, prefix: `${videoId}/` },
       { bucket: config.minio.videoBucket, prefix: `${videoId}/` },
     ];
