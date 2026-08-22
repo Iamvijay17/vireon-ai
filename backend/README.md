@@ -103,9 +103,3 @@ GITHUB_TOKEN=your-token
 GITHUB_REPO_OWNER=your-username
 GITHUB_REPO_NAME=vireon-ai-storage
 ```
-
-## Docker
-
-```bash
-docker build -t vireon-ai-backend .
-docker run -p 3000:3000 vireon-ai-backend
