@@ -11,7 +11,7 @@ const AvatarService = require('./Avatar/avatarService');
 const RemotionService = require('./RemotionService');
 const ScriptParserService = require('./ScriptParserService');
 const StorageService = require('./StorageService');
-const GitHubService = require('./GitHubService');
+const { getStorageProvider } = require('./providers');
 const courseQueue = require('../queues/courseQueue');
 const { VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../constants');
 
@@ -41,29 +41,6 @@ async function bailIfCancelled(videoId) {
   if (current?.status === VIDEO_STATUS.CANCELLED) {
     throw new CourseVideoCancelledError(videoId);
   }
-}
-
-/**
- * Run `fn` over `items` with at most `limit` in flight at once - used for
- * the cloud-upload step so a lesson's scene audio files upload in parallel
- * (each is now a separate GitHub file, safe to overlap - see
- * GitHubStorageProvider's per-path lock) instead of one full round-trip at
- * a time, without hitting GitHub's API rate limit the way full concurrency
- * could for a many-scene lesson.
- */
-async function mapWithConcurrency(items, limit, fn) {
-  const results = new Array(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const index = nextIndex++;
-      results[index] = await fn(items[index], index);
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
 }
 
 /**
@@ -523,8 +500,10 @@ class CourseVideoService {
       video.scriptStatus = STAGE_STATUS.COMPLETED;
       video.scriptGeneratedAt = new Date();
 
-      // Save script to disk for Remotion pipeline
-      await ScriptParserService.saveScript(video._id.toString(), scriptData);
+      // Save script to disk for Remotion pipeline, then upload immediately -
+      // backend/jobs/ is scratch space, MinIO is the durable copy.
+      const scriptPath = await ScriptParserService.saveScript(video._id.toString(), scriptData);
+      await getStorageProvider().uploadFile(video._id.toString(), scriptPath, 'script');
       await video.save();
 
       LoggerService.info('Course video script generated', {
@@ -904,15 +883,18 @@ Rules:
       // Save updated script with audio durations back to database and disk
       video.script = scriptData;
 
-      // Also save updated script to disk for Remotion pipeline
-      await ScriptParserService.saveScript(video._id.toString(), scriptData);
+      // Also save updated script to disk for Remotion pipeline, then
+      // re-upload immediately (durations changed, content did too).
+      const scriptPath = await ScriptParserService.saveScript(video._id.toString(), scriptData);
+      await getStorageProvider().uploadFile(video._id.toString(), scriptPath, 'script');
 
-      // Store audio URL (first scene's audio for preview). `path` is an
-      // absolute filesystem path (not servable), so build the public URL
-      // from `file` instead, matching the jobs/<id>/audio static route.
+      // Store audio URL (first scene's audio for preview). Each scene's
+      // audio is already uploaded to storage the moment it's synthesized
+      // (see AudioService._synthesizeSceneAudio), so build the public URL
+      // from the storage provider instead of the local-disk static route.
       if (audioResults.length > 0) {
         video.audioUrl = audioResults[0].file
-          ? `/public/${jobId}/audio/${audioResults[0].file}`
+          ? getStorageProvider().getPublicUrl(jobId, 'audio', audioResults[0].file)
           : '';
         video.audioDuration = audioResults.reduce((sum, r) => sum + (r.duration || 0), 0);
       }
@@ -1096,7 +1078,7 @@ Rules:
 
         const sourceImagePath = AvatarService.resolveDefaultSourceImage(video.voice);
         const avatarResult = await AvatarService.animatePortrait(jobId, sourceImagePath);
-        video.avatarVideoUrl = avatarResult.path;
+        video.avatarVideoUrl = avatarResult.url;
         await video.save();
 
         await ActivityLogService.add(videoId, 'Avatar overlay generated successfully.');
@@ -1122,25 +1104,29 @@ Rules:
       SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 80, 'Rendering video...');
 
       // Try Remotion render - throw error if it fails
-      const renderResult = await RemotionService.renderVideo(jobId);
-      const renderUrl = `/public/${jobId}/render/video.mp4`;
-      LoggerService.info('Course video rendered via Remotion', { videoId, renderUrl });
+      await RemotionService.renderVideo(jobId);
 
-      // Set the local render URL - the video is fully playable at this
-      // point even if the cloud upload below fails.
-      video.renderUrl = renderUrl;
       video.renderedAt = new Date();
       video.renderProgress = 90;
       video.status = VIDEO_STATUS.UPLOADING;
       await video.save();
 
-      await ActivityLogService.add(videoId, 'Rendering complete. Uploading assets to cloud storage...');
-      SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.UPLOADING, 90, 'Uploading assets to cloud storage...');
+      await ActivityLogService.add(videoId, 'Rendering complete. Uploading to storage...');
+      SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.UPLOADING, 90, 'Uploading to storage...');
 
-      // Automatically push generated assets to GitHub storage. Soft-fails:
-      // on any error the video stays on its local paths and is still
-      // fully playable, per the "local first, cloud when available" contract.
-      await this._uploadAssetsToCloud(video, scriptData);
+      // Upload the render output - the only "big" upload left, since
+      // script/audio/avatar were all already uploaded inline as they were
+      // produced (see ScriptParserService.saveScript callers above,
+      // AudioService._synthesizeSceneAudio, AvatarService.animatePortrait).
+      const renderDir = StorageService.getRenderDir(jobId);
+      const renderFileNames = await fs.readdir(renderDir).catch(() => []);
+      for (const fileName of renderFileNames) {
+        const url = await getStorageProvider().uploadFile(jobId, path.join(renderDir, fileName), 'render');
+        if (/\.(mp4|mov|webm)$/i.test(fileName)) video.renderUrl = url;
+      }
+
+      LoggerService.info('Course video rendered and uploaded', { videoId, renderUrl: video.renderUrl });
+      await ActivityLogService.add(videoId, 'Uploaded to storage.');
 
       video.status = VIDEO_STATUS.COMPLETED;
       video.videoStatus = STAGE_STATUS.COMPLETED;
@@ -1149,6 +1135,10 @@ Rules:
 
       // Update course status
       await CourseService.recalculateStatus(video.courseId);
+
+      // Scratch directory is done being useful - everything of value is
+      // already durably in storage (see cleanupJob's doc comment).
+      await StorageService.cleanupJob(jobId);
 
       LoggerService.info('Course video render completed', {
         videoId,
@@ -1180,84 +1170,6 @@ Rules:
       SocketService.emitCourseVideoFailed(video, err.message, 'Rendering');
 
       throw err;
-    }
-  }
-
-  /**
-   * Automatically push generated assets (per-scene narration audio + the
-   * rendered video/thumbnail) to GitHub storage after a successful render,
-   * swapping local /public paths for cloud URLs on the video record.
-   *
-   * Never throws: a failed upload leaves the video on its local paths,
-   * which stay fully playable, so rendering itself is never blocked on
-   * cloud availability. Scene audio files are uploaded individually
-   * (rather than via a directory listing) so each cloud URL can be mapped
-   * back to the exact scene it belongs to.
-   */
-  static async _uploadAssetsToCloud(video, scriptData) {
-    const jobId = video._id.toString();
-    let anyUploaded = false;
-
-    try {
-      if (scriptData?.scenes?.length) {
-        const audioDir = StorageService.getAudioDir(jobId);
-        const uploadedScenes = await mapWithConcurrency(scriptData.scenes, 4, async (scene) => {
-          const fileName = scene.audio?.file;
-          if (!fileName || /^https?:\/\//i.test(fileName)) return false;
-
-          const localPath = path.join(audioDir, fileName);
-          try {
-            await fs.access(localPath);
-          } catch {
-            return false; // scene has no local audio file (e.g. no narration)
-          }
-
-          const url = await GitHubService.uploadFile(jobId, localPath, 'audio');
-          scene.audio.file = url;
-          return true;
-        });
-        if (uploadedScenes.some(Boolean)) anyUploaded = true;
-
-        if (anyUploaded) {
-          video.script = scriptData;
-          const firstCloudUrl = scriptData.scenes.find((s) => /^https?:\/\//i.test(s.audio?.file || ''))?.audio?.file;
-          if (firstCloudUrl) video.audioUrl = firstCloudUrl;
-        }
-      }
-
-      const renderDir = StorageService.getRenderDir(jobId);
-      let renderFiles = [];
-      try {
-        renderFiles = await fs.readdir(renderDir);
-      } catch {
-        renderFiles = [];
-      }
-
-      if (renderFiles.length > 0) {
-        await mapWithConcurrency(renderFiles, 4, async (fileName) => {
-          const url = await GitHubService.uploadFile(jobId, path.join(renderDir, fileName), 'render');
-          if (/\.(mp4|mov|webm)$/i.test(fileName)) {
-            video.renderUrl = url;
-          }
-        });
-        anyUploaded = true;
-      }
-
-      if (anyUploaded) {
-        await video.save();
-        LoggerService.success('Course video assets uploaded to cloud storage', {
-          videoId: video._id,
-          renderUrl: video.renderUrl,
-        });
-        await ActivityLogService.add(video._id, 'Assets uploaded to cloud storage.');
-        SocketService.emitCourseVideoUpdated(video, 'Assets uploaded to cloud storage.');
-      }
-    } catch (err) {
-      LoggerService.warn('Course video cloud upload failed - keeping local assets', {
-        videoId: video._id,
-        error: err.message,
-      });
-      await ActivityLogService.add(video._id, `Cloud upload failed, using local assets: ${err.message}`);
     }
   }
 

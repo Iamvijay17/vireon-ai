@@ -44,6 +44,7 @@ import {
   regenerateCourseVideoSceneAudio,
   getCourseVideoActivityLogs,
   resolveMediaUrl,
+  resolveSceneAudioUrl,
   getCourseWorkerStatus,
 } from "../../services/api";
 import {
@@ -577,7 +578,6 @@ const CourseVideoEditor = () => {
   const isApproved = video?.approved;
   const hasAudio = video?.audioUrl && video.audioUrl.length > 0;
   const scenes = video?.script?.scenes || [];
-  const audioBaseUrl = video?._id ? resolveMediaUrl(`/public/${video._id}/audio`) : null;
 
   if (loading) return <LoadingState label="Loading video..." />;
 
@@ -914,15 +914,8 @@ const CourseVideoEditor = () => {
                   <div className="flex flex-col divide-y divide-border-light rounded-xl border border-border-light">
                     {scenes.map((scene, idx) => {
                       const sceneNum = scene.sceneNumber || idx + 1;
-                      // After a successful cloud upload, the backend swaps
-                      // scene.audio.file for the full GitHub URL in place -
-                      // use it directly when present, otherwise fall back
-                      // to the locally-served file.
-                      const audioFile = scene.audio?.file;
-                      const sceneReady = Boolean(audioFile);
-                      const sceneAudioUrl = sceneReady
-                        ? (/^https?:\/\//i.test(audioFile) ? audioFile : `${audioBaseUrl}/${audioFile}`)
-                        : null;
+                      const sceneReady = Boolean(scene.audio?.file);
+                      const sceneAudioUrl = resolveSceneAudioUrl(video._id, scene.audio?.file);
                       const sceneTitle = scene.title || `Scene ${sceneNum}`;
                       const sceneType = scene.sceneType || "content";
                       const isRegenerating = regeneratingScene === sceneNum;

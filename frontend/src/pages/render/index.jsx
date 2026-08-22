@@ -31,7 +31,7 @@ import {
   generateVideoAudio,
   generateVideoRender,
   regenerateVideoSceneAudio,
-  resolveMediaUrl,
+  resolveSceneAudioUrl,
   getVideoJobActivityLogs,
   getVoices,
 } from "../../services/api";
@@ -845,10 +845,7 @@ const RenderPage = () => {
                 {readyScenes.length > 0 ? (
                   <div className="flex flex-col gap-2 border-t border-border-light pt-4">
                     {readyScenes.map((scene) => {
-                      const audioFile = scene.audio.file;
-                      const sceneAudioUrl = /^https?:\/\//i.test(audioFile)
-                        ? audioFile
-                        : resolveMediaUrl(`/public/${job._id}/audio/${audioFile}`);
+                      const sceneAudioUrl = resolveSceneAudioUrl(job._id, scene.audio.file);
                       const isRegenerating = regeneratingScene === scene.sceneNumber;
                       return (
                         <div key={scene.sceneNumber} className="flex items-center gap-3">

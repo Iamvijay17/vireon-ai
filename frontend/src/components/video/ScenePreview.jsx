@@ -2,21 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Player } from "@remotion/player";
 import { VideoComposition } from "vireon-remotion-templates/src/VideoComposition";
 import { calculateTotalDurationInFrames, FPS } from "vireon-remotion-templates/src/calculateVideoMetadata";
-import { resolveMediaUrl } from "../../services/api";
+import { resolveMediaUrl, resolveSceneAudioUrl } from "../../services/api";
 
 // Live, in-browser preview of a course video's scenes using the same
 // Remotion composition/templates the backend renders with — no server
 // render, but scene audio still plays: each scene's narration file is
 // resolved to a browser-fetchable URL (same rule the per-scene audio
-// list in CourseVideoEditor uses - absolute URL as-is, otherwise served
-// from /public/<videoId>/audio/<file>).
-const resolveScenesMedia = (scenes, audioBaseUrl) =>
+// list in CourseVideoEditor uses - see resolveSceneAudioUrl).
+const resolveScenesMedia = (scenes, videoId) =>
   (scenes || []).map((scene) => {
     const elements = scene.elements || {};
-    const audioFile = scene.audio?.file;
-    const resolvedAudioFile = audioFile
-      ? (/^https?:\/\//i.test(audioFile) ? audioFile : `${audioBaseUrl}/${audioFile}`)
-      : undefined;
+    const resolvedAudioFile = resolveSceneAudioUrl(videoId, scene.audio?.file) || undefined;
     return {
       ...scene,
       audio: resolvedAudioFile ? { ...scene.audio, file: resolvedAudioFile } : undefined,
@@ -56,8 +52,7 @@ export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hid
   const [activeIndex, setActiveIndex] = useState(0);
   const lastFocusRef = useRef(focusIndex);
 
-  const audioBaseUrl = videoId ? resolveMediaUrl(`/public/${videoId}/audio`) : null;
-  const previewScenes = useMemo(() => resolveScenesMedia(scenes, audioBaseUrl), [scenes, audioBaseUrl]);
+  const previewScenes = useMemo(() => resolveScenesMedia(scenes, videoId), [scenes, videoId]);
   const sceneStarts = useMemo(() => getSceneStartFrames(scenes), [scenes]);
   const durationInFrames = useMemo(() => calculateTotalDurationInFrames(scenes), [scenes]);
 

@@ -11,7 +11,7 @@ AI-powered video generation platform backend with clean architecture.
 - **Realtime:** Socket.IO
 - **AI:** LM Studio (Gemma) + Pinokio Qwen3-TTS
 - **Rendering:** Remotion
-- **Storage:** GitHub (temporary)
+- **Storage:** MinIO (local S3-compatible object storage)
 - **Validation:** Zod
 - **Logging:** Winston
 
@@ -34,8 +34,8 @@ src/
 │   ├── ScriptParserService
 │   ├── AudioService (TTS)
 │   ├── RemotionService
-│   ├── StorageService
-│   ├── GitHubService
+│   ├── StorageService      # local scratch dir helpers
+│   ├── providers/          # StorageProvider (MinIO)
 │   ├── LoggerService
 │   └── SocketService
 ├── workers/        # BullMQ job processors
@@ -49,13 +49,15 @@ src/
 
 1. **QUEUED** → Job created, added to BullMQ queue
 2. **SCRIPT_GENERATION** (10%) → Prompt template rendered with user input
-3. **SCRIPT_COMPLETED** (20%) → LM Studio (Gemma) generates script, validated & saved
-4. **GENERATING_AUDIO** (40%) → Qwen3-TTS generates audio per scene
-5. **AUDIO_COMPLETED** (50%) → All audio files saved locally
-6. **PREPARING_ASSETS** (60%) → `assets.json` built for Remotion
-7. **RENDERING** (80%) → Remotion renders video + thumbnail
-8. **UPLOADING** (90%) → Files uploaded to GitHub repository
-9. **COMPLETED** (100%) → URLs saved, local files cleaned up
+3. **SCRIPT_COMPLETED** (20%) → LM Studio (Gemma) generates script, validated, saved & uploaded to MinIO
+4. **GENERATING_AUDIO** (40%) → Qwen3-TTS generates audio per scene, each uploaded to MinIO immediately
+5. **AUDIO_COMPLETED** (50%) → All scene audio generated and durably in MinIO
+6. **PREPARING_ASSETS** (60%) → `assets.json` built for Remotion (audio/avatar URLs point at MinIO) and uploaded
+7. **RENDERING** (80%) → Remotion renders video + thumbnail, fetching audio/avatar straight from MinIO
+8. **UPLOADING** (90%) → Render output uploaded to MinIO
+9. **COMPLETED** (100%) → URLs saved, local scratch directory wiped
+
+Storage is split across three MinIO buckets: `vireon-jobs` (script/assets, keyed by jobId), `vireon-scenes` (audio/avatar, keyed by videoId), `vireon-video` (render output, keyed by videoId) - see `services/providers/MinioStorageProvider.js`.
 
 ## Quick Start
 

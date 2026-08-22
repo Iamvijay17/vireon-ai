@@ -5,6 +5,7 @@ const fs = require("fs").promises;
 const path = require("path");
 const config = require("../../config");
 const LoggerService = require("../LoggerService");
+const { getStorageProvider } = require("../providers");
 const VOICE_METADATA = require("../../config/voiceMetadata");
 
 const execFileAsync = promisify(execFile);
@@ -563,6 +564,12 @@ class AudioService {
           // exact audio length.
           const turnGapSeconds =
             scene.speaker === "host" || scene.speaker === "guest" ? 0.15 + (seed % 350) / 1000 : 0;
+
+          // Upload to storage the moment the file exists, rather than
+          // waiting for a bulk end-of-pipeline upload - backend/jobs/ is
+          // scratch space now, MinIO is the durable copy. `jobId` here is
+          // the video's own id (see the storage plan's bucket table).
+          await getStorageProvider().uploadFile(jobId, outputFile, "audio");
 
           return {
             file: `scene${scene.sceneNumber}.mp3`,

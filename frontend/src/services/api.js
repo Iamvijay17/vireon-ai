@@ -46,6 +46,30 @@ export const resolveMediaUrl = (path) => {
   return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
 };
 
+// MinIO serves scene audio directly (anonymous-read bucket) rather than
+// through the backend, so it needs its own origin, not API_BASE. Mirrors
+// getApiBase()'s "derive from the current hostname, allow an env override"
+// pattern so LAN access still works. Bucket name matches the backend's
+// MINIO_SCENES_BUCKET default (see backend/src/config/index.js).
+const getMinioBase = () => {
+  if (import.meta.env.VITE_MINIO_PUBLIC_URL) return import.meta.env.VITE_MINIO_PUBLIC_URL;
+  const { hostname, protocol } = window.location;
+  return `${protocol}//${hostname}:9000`;
+};
+const MINIO_BASE = getMinioBase();
+const MINIO_SCENES_BUCKET = import.meta.env.VITE_MINIO_SCENES_BUCKET || 'vireon-scenes';
+
+// Resolves a scene's audio field (`scene.audio.file`) to a browser-fetchable
+// URL. The backend stores it as a bare filename (e.g. "scene1.mp3") and
+// uploads the actual bytes to MinIO the moment it's generated - already-
+// absolute values (a leftover from an older job, or a future provider
+// change) pass through unchanged, matching resolveMediaUrl's convention.
+export const resolveSceneAudioUrl = (videoId, audioFile) => {
+  if (!audioFile) return null;
+  if (/^https?:\/\//i.test(audioFile)) return audioFile;
+  return `${MINIO_BASE}/${MINIO_SCENES_BUCKET}/${videoId}/audio/${audioFile}`;
+};
+
 // ─── Video Jobs ───────────────────────────────────────────────────────────────
 
 export const createVideoJob = (data) => api.post('/api/videos', data);

@@ -46,7 +46,7 @@ const AudioService = require('../services/TTS/audioService');
 const AvatarService = require('../services/Avatar/avatarService');
 const RemotionService = require('../services/RemotionService');
 const StorageService = require('../services/StorageService');
-const GitHubService = require('../services/GitHubService');
+const { getStorageProvider } = require('../services/providers');
 const SocketService = require('../services/SocketService');
 const { JOB_STATUS } = require('../constants');
 
@@ -200,11 +200,17 @@ const worker = new Worker(
           seed: jobId,
         });
 
-        // Save script to disk
-        await ScriptParserService.saveScript(jobId, script);
+        // Save script to disk, then upload immediately - backend/jobs/ is
+        // scratch space, MinIO is the durable copy. Persisted (not just held
+        // in a local var) since this pipeline pauses for manual approval
+        // right after this step, resuming in a later worker invocation that
+        // won't have this variable.
+        const scriptPath = await ScriptParserService.saveScript(jobId, script);
+        const scriptUrl = await getStorageProvider().uploadFile(jobId, scriptPath, 'script');
 
         // Update job with script
         await VideoService.updateScript(jobId, script);
+        await VideoService.updateScriptUrl(jobId, scriptUrl);
 
         LoggerService.success('Script generated and saved', {
           title: script.title,
@@ -364,6 +370,14 @@ const worker = new Worker(
         avatar: avatarVideoUrl ? { videoUrl: avatarVideoUrl, position: videoJob.avatarPosition } : undefined,
       });
 
+      // Upload immediately rather than waiting for a final batch step -
+      // backend/jobs/ is scratch space, MinIO is the durable copy.
+      const assetsUrl = await getStorageProvider().uploadFile(
+        jobId,
+        path.join(path.resolve(__dirname, '../../jobs', jobId), 'assets.json'),
+        'script'
+      );
+
       LoggerService.success('Assets prepared');
 
       await bailIfCancelled(jobId);
@@ -395,32 +409,42 @@ const worker = new Worker(
 
         LoggerService.success('Video rendered', renderResult);
       }
-      await ActivityLogService.add(jobId, 'Rendering complete. Uploading assets to cloud storage...');
 
       await bailIfCancelled(jobId);
 
-      // ── Step 8: Upload to GitHub
+      // ── Step 8: Upload the render output - the only "big" upload left,
+      // since script/assets/audio/avatar were all already uploaded inline
+      // as they were produced (see steps above and AudioService/AvatarService).
       currentStep = JOB_STATUS.UPLOADING;
       await VideoService.updateStatus(jobId, JOB_STATUS.UPLOADING, { progress: 95 });
       SocketService.emitJobProgress({ _id: jobId, progress: 95, status: JOB_STATUS.UPLOADING, currentStep: JOB_STATUS.UPLOADING, currentScene: 0 });
 
-      const uploadFiles = await StorageService.getUploadFiles(jobId);
-      const uploaded = await GitHubService.uploadJobAssets(jobId, uploadFiles);
+      const renderDir = path.resolve(__dirname, '../../jobs', jobId, 'render');
+      const renderFileNames = await fs.readdir(renderDir).catch(() => []);
+      let videoUrl = '';
+      let thumbnailUrl = '';
+      for (const fileName of renderFileNames) {
+        const url = await getStorageProvider().uploadFile(jobId, path.join(renderDir, fileName), 'render');
+        if (/\.(mp4|mov|webm)$/i.test(fileName)) videoUrl = url;
+        else if (/\.(png|jpe?g)$/i.test(fileName)) thumbnailUrl = url;
+      }
 
-      LoggerService.success('Upload complete', {
-        script: uploaded.script?.length || 0,
-        audio: uploaded.audio?.length || 0,
-        render: uploaded.render?.length || 0,
-      });
+      LoggerService.success('Render output uploaded', { videoUrl, thumbnailUrl });
       await ActivityLogService.add(jobId, 'Assets uploaded to cloud storage.');
 
-      // ── Step 9: Complete Job
+      // ── Step 9: Complete Job. Scene audio URLs are deterministic from the
+      // storage convention, not tracked through the pipeline - reconstruct
+      // them here for the completed job's record.
+      const audioUrls = script.scenes
+        .filter((s) => s.audio?.file)
+        .map((s) => getStorageProvider().getPublicUrl(jobId, 'audio', s.audio.file));
+
       const completedJob = await VideoService.complete(jobId, {
-        videoUrl: uploaded.render?.[0] || '',
-        thumbnailUrl: uploaded.render?.[1] || '',
-        scriptUrl: uploaded.script?.[0] || '',
-        audioUrls: uploaded.audio || [],
-        assetsUrl: uploaded.script?.[1] || '',
+        videoUrl,
+        thumbnailUrl,
+        scriptUrl: updatedJob.scriptUrl || '',
+        audioUrls,
+        assetsUrl,
       });
 
       SocketService.emitJobCompleted(completedJob);

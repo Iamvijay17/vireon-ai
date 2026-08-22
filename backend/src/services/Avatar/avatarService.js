@@ -3,6 +3,7 @@ const fs = require("fs").promises;
 const path = require("path");
 const config = require("../../config");
 const LoggerService = require("../LoggerService");
+const { getStorageProvider } = require("../providers");
 const AudioService = require("../TTS/audioService");
 
 /**
@@ -122,9 +123,13 @@ class AvatarService {
         }
         await fs.writeFile(outputFile, Buffer.from(await videoRes.arrayBuffer()));
 
+        // Upload immediately - backend/jobs/ is scratch space, MinIO is the
+        // durable copy. `jobId` here is the video's own id.
+        const url = await getStorageProvider().uploadFile(jobId, outputFile, "avatar");
+
         LoggerService.success("Avatar overlay generated", { jobId, file: "avatar/avatar.mp4" });
 
-        return { file: "avatar.mp4", path: outputFile };
+        return { file: "avatar.mp4", path: outputFile, url };
       } catch (err) {
         lastError = err;
         const isLastAttempt = attempt === config.avatar.maxRetries;

@@ -57,26 +57,18 @@ const config = Object.freeze({
     maxRetries: parseInt(process.env.REMOTION_MAX_RETRIES, 10) || 2,
   },
 
-  github: {
-    token: process.env.GITHUB_TOKEN || '',
-    owner: process.env.GITHUB_REPO_OWNER || '',
-    repo: process.env.GITHUB_REPO_NAME || 'vireon-ai-storage',
-    branch: process.env.GITHUB_BRANCH || 'main',
-    uploadRetries: parseInt(process.env.GITHUB_UPLOAD_RETRIES, 10) || 3,
-  },
-
-  storage: {
-    // Which StorageProvider implementation providers/index.js hands back.
-    provider: process.env.STORAGE_PROVIDER || 'minio',
-  },
-
   minio: {
     endpoint: process.env.MINIO_ENDPOINT || '127.0.0.1',
     port: parseInt(process.env.MINIO_PORT, 10) || 9000,
     useSSL: process.env.MINIO_USE_SSL === 'true',
     accessKey: process.env.MINIO_ROOT_USER || '',
     secretKey: process.env.MINIO_ROOT_PASSWORD || '',
-    bucket: process.env.MINIO_BUCKET || 'vireon-ai-storage',
+    // Three buckets instead of one flat namespace: jobs = job-level data
+    // (script/assets), scenes = scene-level data (audio/avatar), video =
+    // final video-level output (render/thumbnail). See MinioStorageProvider.
+    jobsBucket: process.env.MINIO_JOBS_BUCKET || 'vireon-jobs',
+    scenesBucket: process.env.MINIO_SCENES_BUCKET || 'vireon-scenes',
+    videoBucket: process.env.MINIO_VIDEO_BUCKET || 'vireon-video',
     // Base URL used to build public download links returned to callers
     // (e.g. http://127.0.0.1:9000). Override for LAN access or a reverse proxy.
     publicUrl:

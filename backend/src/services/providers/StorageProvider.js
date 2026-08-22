@@ -1,9 +1,9 @@
 /**
  * Abstract Storage Provider Interface.
  *
- * Defines the contract for all storage providers (GitHub).
- * Each provider must implement these methods to ensure the backend
- * remains storage-agnostic and easily swappable.
+ * Defines the contract storage providers (currently just MinIO) implement,
+ * so callers like RemotionService, AudioService, and AvatarService never
+ * need to know which backend is active.
  *
  * @abstract
  */
@@ -21,44 +21,44 @@ class StorageProvider {
   }
 
   /**
-   * Upload multiple job assets grouped by category.
-   * @param {string} jobId - The job identifier.
-   * @param {Object<string, string[]>} files - Map of category → array of file paths.
-   * @returns {Promise<Object<string, string[]>>} Map of category → array of uploaded URLs.
-   * @abstract
-   */
-  async uploadJobAssets(jobId, files) {
-    throw new Error('Method "uploadJobAssets" must be implemented by subclass');
-  }
-
-  /**
-   * Delete all assets for a given job from storage.
-   * @param {string} jobId - The job identifier.
+   * Delete all assets for a given job/video from storage. `videoId` defaults
+   * to `jobId` since today they're always the same underlying id - kept as a
+   * separate param because job-level data (script/assets) and video-level
+   * data (audio/avatar/render) live under different keys once a provider
+   * splits them into separate buckets (see MinioStorageProvider).
+   * @param {string} jobId - The job identifier (script/assets data).
+   * @param {string} [videoId] - The video identifier (audio/avatar/render data).
    * @returns {Promise<void>}
    * @abstract
    */
-  async deleteJob(jobId) {
+  async deleteJob(jobId, videoId = jobId) {
     throw new Error('Method "deleteJob" must be implemented by subclass');
   }
 
   /**
-   * Get the base remote path for a job (e.g., "videos/{jobId}").
-   * @param {string} jobId
+   * Get the public download URL for a file already known to exist in
+   * storage, without uploading anything. Used by RemotionService to point
+   * Remotion's renderer straight at storage instead of a local file.
+   * @param {string} id - jobId for category 'script', videoId otherwise.
+   * @param {string} category - 'script', 'audio', 'avatar', or 'render'.
+   * @param {string} fileName
    * @returns {string}
+   * @abstract
    */
-  getJobPath(jobId) {
-    return `videos/${jobId}`;
+  getPublicUrl(id, category, fileName) {
+    throw new Error('Method "getPublicUrl" must be implemented by subclass');
   }
 
   /**
-   * Get the remote path for a specific file within a job.
-   * @param {string} jobId
-   * @param {string} category
+   * Whether a given file already exists in storage.
+   * @param {string} id - jobId for category 'script', videoId otherwise.
+   * @param {string} category - 'script', 'audio', 'avatar', or 'render'.
    * @param {string} fileName
-   * @returns {string}
+   * @returns {Promise<boolean>}
+   * @abstract
    */
-  getRemotePath(jobId, category, fileName) {
-    return `${this.getJobPath(jobId)}/${category}/${fileName}`;
+  async objectExists(id, category, fileName) {
+    throw new Error('Method "objectExists" must be implemented by subclass');
   }
 }
 

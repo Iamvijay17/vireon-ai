@@ -5,6 +5,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const config = require('../config');
 const LoggerService = require('./LoggerService');
+const { getStorageProvider } = require('./providers');
 
 const execFileAsync = promisify(execFile);
 
@@ -45,11 +46,12 @@ class RemotionService {
       // Optional talking-head overlay (see AvatarService + videoWorker.js's
       // GENERATING_AVATAR step) - undefined when the job has no avatar, so
       // VideoComposition's AvatarOverlay renders nothing and reserves no
-      // space. Served over HTTP like scene audio below, for the same reason
-      // (avoids Remotion's webpack public-dir caching on dynamic per-job files).
+      // space. `videoUrl` is already the real storage URL (uploaded the
+      // moment AvatarService generated it - see AvatarService.animatePortrait),
+      // so Remotion's headless renderer fetches it straight from storage.
       avatar: jobConfig.avatar
         ? {
-            videoUrl: `http://localhost:${config.port || 3000}/public/${jobId}/avatar/avatar.mp4`,
+            videoUrl: jobConfig.avatar.videoUrl,
             position: jobConfig.avatar.position,
           }
         : undefined,
@@ -80,11 +82,12 @@ class RemotionService {
             elements: scene.elements || null,
             scene_meta: scene.scene_meta || null,
             audio: {
-             // Use HTTP URL served by Express static middleware
-             // e.g. http://localhost:{port}/public/{jobId}/audio/scene{N}.mp3
-             // This avoids the Remotion webpack public dir caching issue where dynamic files are not available.
-             // The Express server serves the jobs directory at /public via express.static
-             file: `http://localhost:${config.port || 3000}/public/${jobId}/audio/scene${scene.sceneNumber}.mp3`,
+             // Storage URL, not a local file path - scene audio is uploaded
+             // to storage the moment AudioService synthesizes it (see
+             // AudioService._synthesizeSceneAudio), so Remotion's headless
+             // renderer fetches it straight from there. `jobId` here is the
+             // video's own id (see the storage plan's bucket table).
+             file: getStorageProvider().getPublicUrl(jobId, 'audio', `scene${scene.sceneNumber}.mp3`),
              duration: scene.audio?.duration || 0,
            },
            fonts: {
@@ -118,17 +121,18 @@ class RemotionService {
 
   /**
    * Verify every scene that's expected to have audio (audio.duration > 0
-   * in assets.json) actually has its mp3 on disk. Scenes with no audio
-   * text legitimately have duration 0 and are skipped.
+   * in assets.json) actually made it to storage. Scenes with no audio text
+   * legitimately have duration 0 and are skipped. Checks storage rather
+   * than local disk since scene audio is uploaded (and backend/jobs/ may
+   * already be cleaned up) well before rendering runs.
    */
   static async _verifySceneAudioFiles(jobId, scenes) {
-    const audioDir = path.resolve(__dirname, '../../jobs', jobId, 'audio');
+    const provider = getStorageProvider();
     const missing = [];
 
     for (const scene of scenes) {
       if (!(scene.audio?.duration > 0)) continue;
-      const audioFile = path.join(audioDir, `scene${scene.sceneNumber}.mp3`);
-      const exists = await fs.stat(audioFile).then(() => true).catch(() => false);
+      const exists = await provider.objectExists(jobId, 'audio', `scene${scene.sceneNumber}.mp3`);
       if (!exists) missing.push(scene.sceneNumber);
     }
 
@@ -302,9 +306,8 @@ class RemotionService {
         // retry can tell (via isRenderCurrent) whether this video.mp4 still
         // reflects the current scenes and skip a redundant re-render instead
         // of always redoing the most expensive step in the pipeline. Stored
-        // outside renderDir since StorageService.getUploadFiles uploads
-        // every file it finds there - this is internal bookkeeping, not a
-        // render output.
+        // outside renderDir since videoWorker.js uploads every file it finds
+        // there - this is internal bookkeeping, not a render output.
         await fs.writeFile(
           path.join(jobDir, '.render-fingerprint'),
           this._fingerprintAssets(assetsFile),

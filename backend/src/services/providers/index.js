@@ -1,12 +1,12 @@
 const config = require('../../config');
 const LoggerService = require('../LoggerService');
+const MinioStorageProvider = require('./MinioStorageProvider');
 
 /**
  * Storage Provider Factory.
  *
- * Returns the configured storage provider instance (singleton), selected
- * via config.storage.provider (STORAGE_PROVIDER env var): 'minio' (default,
- * local MinIO server) or 'github' (GitHub repository as object storage).
+ * Returns the MinIO storage provider instance (singleton) - the backend's
+ * only storage backend.
  */
 
 let providerInstance = null;
@@ -20,21 +20,13 @@ function getStorageProvider() {
     return providerInstance;
   }
 
-  if (config.storage.provider === 'github') {
-    const GitHubStorageProvider = require('./GitHubStorageProvider');
-    providerInstance = new GitHubStorageProvider();
-    LoggerService.info(`Storage provider initialized: GitHub`, {
-      repo: `${config.github.owner}/${config.github.repo}`,
-      branch: config.github.branch,
-    });
-  } else {
-    const MinioStorageProvider = require('./MinioStorageProvider');
-    providerInstance = new MinioStorageProvider();
-    LoggerService.info(`Storage provider initialized: MinIO`, {
-      endpoint: `${config.minio.endpoint}:${config.minio.port}`,
-      bucket: config.minio.bucket,
-    });
-  }
+  providerInstance = new MinioStorageProvider();
+  LoggerService.info('Storage provider initialized: MinIO', {
+    endpoint: `${config.minio.endpoint}:${config.minio.port}`,
+    jobsBucket: config.minio.jobsBucket,
+    scenesBucket: config.minio.scenesBucket,
+    videoBucket: config.minio.videoBucket,
+  });
 
   return providerInstance;
 }
