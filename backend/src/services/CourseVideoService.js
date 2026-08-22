@@ -476,6 +476,10 @@ class CourseVideoService {
     video.scriptStatus = STAGE_STATUS.PROCESSING;
     await video.save();
 
+    // Snapshot video details to storage before the expensive LM Studio call
+    // so a durable record of this job exists even if generation fails.
+    await getStorageProvider().uploadJSON(video._id.toString(), 'job', 'video-details.json', video.toObject());
+
     await ActivityLogService.add(videoId, 'Script generation started');
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_SCRIPT, 10, 'Generating script...');
 

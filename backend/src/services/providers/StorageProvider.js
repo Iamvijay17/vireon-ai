@@ -21,6 +21,21 @@ class StorageProvider {
   }
 
   /**
+   * Upload a JSON-serializable object directly to storage, with no local
+   * file involved. Used to persist job/video metadata snapshots (e.g.
+   * `job` category) ahead of expensive pipeline steps.
+   * @param {string} id - The job/video identifier.
+   * @param {string} category - Asset category (e.g., 'job').
+   * @param {string} fileName - e.g. 'job-details.json'.
+   * @param {object} data - JSON-serializable payload.
+   * @returns {Promise<string>} The public URL of the uploaded file.
+   * @abstract
+   */
+  async uploadJSON(id, category, fileName, data) {
+    throw new Error('Method "uploadJSON" must be implemented by subclass');
+  }
+
+  /**
    * Delete all assets for a given job/video from storage. `videoId` defaults
    * to `jobId` since today they're always the same underlying id - kept as a
    * separate param because job-level data (script/assets) and video-level

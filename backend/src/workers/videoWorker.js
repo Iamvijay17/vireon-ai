@@ -116,6 +116,10 @@ const worker = new Worker(
         LoggerService.info('Starting script generation', { topic: videoJob.topic, type: videoJob.type });
         await ActivityLogService.add(jobId, 'Script generation started');
 
+        // Snapshot job details to storage before the expensive LM Studio call
+        // so a durable record of this job exists even if generation fails.
+        await getStorageProvider().uploadJSON(jobId, 'job', 'job-details.json', videoJob.toObject());
+
         // ── Step 2: Derive an exact scene count from the requested duration.
         const durationMinutes = videoJob.duration || 5;
         const totalDuration = durationMinutes * 60;
