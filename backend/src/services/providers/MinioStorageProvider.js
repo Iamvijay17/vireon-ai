@@ -10,7 +10,6 @@ const StorageProvider = require('./StorageProvider');
 // bucket layout in the storage plan.
 const CATEGORY_MAP = {
   script: { bucket: () => config.minio.jobsBucket, subfolder: null },
-  job: { bucket: () => config.minio.jobsBucket, subfolder: null },
   audio: { bucket: () => config.minio.scenesBucket, subfolder: 'audio' },
   avatar: { bucket: () => config.minio.scenesBucket, subfolder: 'avatar' },
   render: { bucket: () => config.minio.videoBucket, subfolder: null },
@@ -138,33 +137,6 @@ class MinioStorageProvider extends StorageProvider {
     }
 
     throw new Error(`MinIO upload failed after ${config.minio.uploadRetries} attempts: ${lastError?.message}`);
-  }
-
-  /**
-   * Upload a JSON-serializable object directly to MinIO as a file, with no
-   * local temp file involved. Used to snapshot job/video metadata to
-   * storage ahead of expensive pipeline steps.
-   *
-   * @param {string} id
-   * @param {string} category - 'job' (or any other mapped category).
-   * @param {string} fileName - e.g. 'job-details.json'.
-   * @param {object} data - JSON-serializable payload.
-   * @returns {Promise<string>} Public download URL.
-   */
-  async uploadJSON(id, category, fileName, data) {
-    await this.#ready;
-    const { bucket, key } = this.#resolve(id, category, fileName);
-    const buffer = Buffer.from(JSON.stringify(data, null, 2), 'utf-8');
-
-    try {
-      await this.client.putObject(bucket, key, buffer, buffer.length, { 'Content-Type': 'application/json' });
-      const url = this.getPublicUrl(id, category, fileName);
-      LoggerService.upload(`Uploaded ${category}/${fileName}`, { url });
-      return url;
-    } catch (err) {
-      LoggerService.warn('MinIO JSON upload failed', { bucket, key, error: err.message });
-      throw err;
-    }
   }
 
   /**
