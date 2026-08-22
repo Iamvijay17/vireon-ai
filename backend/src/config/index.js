@@ -65,6 +65,26 @@ const config = Object.freeze({
     uploadRetries: parseInt(process.env.GITHUB_UPLOAD_RETRIES, 10) || 3,
   },
 
+  storage: {
+    // Which StorageProvider implementation providers/index.js hands back.
+    provider: process.env.STORAGE_PROVIDER || 'minio',
+  },
+
+  minio: {
+    endpoint: process.env.MINIO_ENDPOINT || '127.0.0.1',
+    port: parseInt(process.env.MINIO_PORT, 10) || 9000,
+    useSSL: process.env.MINIO_USE_SSL === 'true',
+    accessKey: process.env.MINIO_ROOT_USER || '',
+    secretKey: process.env.MINIO_ROOT_PASSWORD || '',
+    bucket: process.env.MINIO_BUCKET || 'vireon-ai-storage',
+    // Base URL used to build public download links returned to callers
+    // (e.g. http://127.0.0.1:9000). Override for LAN access or a reverse proxy.
+    publicUrl:
+      process.env.MINIO_PUBLIC_URL ||
+      `http${process.env.MINIO_USE_SSL === 'true' ? 's' : ''}://${process.env.MINIO_ENDPOINT || '127.0.0.1'}:${process.env.MINIO_PORT || 9000}`,
+    uploadRetries: parseInt(process.env.MINIO_UPLOAD_RETRIES, 10) || 3,
+  },
+
   cors: {
     // CORS_ORIGIN accepts a comma-separated list (e.g. for LAN access from multiple hosts)
     origins: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://172.24.0.1:5173,http://192.168.1.7:5173')
