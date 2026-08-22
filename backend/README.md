@@ -52,12 +52,12 @@ src/
 3. **SCRIPT_COMPLETED** (20%) → LM Studio (Gemma) generates script, validated, saved & uploaded to MinIO
 4. **GENERATING_AUDIO** (40%) → Qwen3-TTS generates audio per scene, each uploaded to MinIO immediately
 5. **AUDIO_COMPLETED** (50%) → All scene audio generated and durably in MinIO
-6. **PREPARING_ASSETS** (60%) → `assets.json` built for Remotion (audio/avatar URLs point at MinIO) and uploaded
+6. **PREPARING_ASSETS** (60%) → `assets.json` built for Remotion (audio/avatar URLs point at MinIO) - local scratch only, never uploaded
 7. **RENDERING** (80%) → Remotion renders video + thumbnail, fetching audio/avatar straight from MinIO
 8. **UPLOADING** (90%) → Render output uploaded to MinIO
 9. **COMPLETED** (100%) → URLs saved, local scratch directory wiped
 
-Storage is split across three MinIO buckets: `vireon-jobs` (script/assets, keyed by jobId), `vireon-scenes` (audio/avatar, keyed by videoId), `vireon-video` (render output, keyed by videoId) - see `services/providers/MinioStorageProvider.js`.
+Storage is split across two MinIO buckets: `vireon-scenes` (audio/avatar, keyed by videoId), `vireon-video` (render output, keyed by videoId) - see `services/providers/MinioStorageProvider.js`. Script content lives in MongoDB; script.json/assets.json are local scratch files only.
 
 ## Quick Start
 
