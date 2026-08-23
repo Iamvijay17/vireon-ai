@@ -289,7 +289,7 @@ class ScriptParserService {
    * Save script JSON to disk.
    */
   static async saveScript(jobId, script) {
-    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    const jobDir = path.resolve(__dirname, '../../../jobs', jobId);
     await fs.mkdir(jobDir, { recursive: true });
 
     const scriptPath = path.join(jobDir, 'script.json');
@@ -303,7 +303,7 @@ class ScriptParserService {
    * Read script from disk.
    */
   static async readScript(jobId) {
-    const scriptPath = path.resolve(__dirname, '../../jobs', jobId, 'script.json');
+    const scriptPath = path.resolve(__dirname, '../../../jobs', jobId, 'script.json');
     const data = await fs.readFile(scriptPath, 'utf-8');
     return JSON.parse(data);
   }

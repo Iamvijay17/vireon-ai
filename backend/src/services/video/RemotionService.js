@@ -28,14 +28,14 @@ class RemotionService {
    * Get the Remotion project root directory.
    */
   static getRemotionProjectRoot() {
-    return path.resolve(__dirname, '../../remotion');
+    return path.resolve(__dirname, '../../../remotion');
   }
 
   /**
    * Generate assets.json from the script for Remotion consumption.
    */
   static async prepareAssets(jobId, script, jobConfig) {
-    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    const jobDir = path.resolve(__dirname, '../../../jobs', jobId);
     await fs.mkdir(jobDir, { recursive: true });
 
     const assets = {
@@ -164,7 +164,7 @@ class RemotionService {
    * faster, never wrong.
    */
   static async isRenderCurrent(jobId, assetsFile) {
-    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    const jobDir = path.resolve(__dirname, '../../../jobs', jobId);
     const videoPath = path.join(jobDir, 'render', 'video.mp4');
     const fingerprintPath = path.join(jobDir, '.render-fingerprint');
 
@@ -181,7 +181,7 @@ class RemotionService {
    * Execute Remotion render process.
    */
   static async renderVideo(jobId, assets = null) {
-    const jobDir = path.resolve(__dirname, '../../jobs', jobId);
+    const jobDir = path.resolve(__dirname, '../../../jobs', jobId);
     const assetsPath = path.join(jobDir, 'assets.json');
     const renderDir = path.join(jobDir, 'render');
     const remotionRoot = this.getRemotionProjectRoot();

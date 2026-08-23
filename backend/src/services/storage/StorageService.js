@@ -8,7 +8,7 @@ const LoggerService = require('../common/LoggerService');
  */
 class StorageService {
   static getJobDir(jobId) {
-    return path.resolve(__dirname, '../../jobs', jobId);
+    return path.resolve(__dirname, '../../../jobs', jobId);
   }
 
   static getAudioDir(jobId) {
