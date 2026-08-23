@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Sparkles, Megaphone } from "lucide-react";
+import { ArrowLeft, Sparkles, Megaphone, CheckCircle2, ListChecks, Users, Mail, PartyPopper } from "lucide-react";
 import { PageHeader, LoadingState, EmptyState } from "../../components";
 import { useSetBreadcrumbLabel } from "../../shared/breadcrumbContextValue";
 import { Card, CardHeader, CardBody } from "../../components/ui/Card";
@@ -75,13 +75,23 @@ const CourseCurriculum = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          {(curriculum.subtitle || curriculum.promo?.topic) && (
+          {/* Landing Page */}
+          {(curriculum.subtitle || curriculum.description || curriculum.promo?.topic) && (
             <Card>
+              <CardHeader title="Landing Page" subtitle="What a prospective student sees before enrolling" />
               <CardBody className="space-y-4">
                 {curriculum.subtitle && (
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Course Subtitle</p>
                     <p className="mt-1 text-sm text-text-primary">{curriculum.subtitle}</p>
+                  </div>
+                )}
+                {curriculum.description && (
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Description</p>
+                    <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed text-text-secondary">
+                      {curriculum.description}
+                    </p>
                   </div>
                 )}
                 {curriculum.promo?.topic && (
@@ -101,9 +111,92 @@ const CourseCurriculum = () => {
             </Card>
           )}
 
+          {/* Intended Learners */}
+          {(curriculum.learningObjectives?.length > 0 ||
+            curriculum.requirements?.length > 0 ||
+            curriculum.targetAudience?.length > 0) && (
+            <Card>
+              <CardHeader title="Intended Learners" subtitle="What you'll learn, requirements, and who this course is for" />
+              <CardBody>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  {curriculum.learningObjectives?.length > 0 && (
+                    <div>
+                      <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-tertiary">
+                        <CheckCircle2 className="size-3.5" /> What You'll Learn
+                      </div>
+                      <ul className="space-y-1.5">
+                        {curriculum.learningObjectives.map((item, index) => (
+                          <li key={index} className="flex items-start gap-2 text-[13px] leading-snug text-text-secondary">
+                            <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-success-500" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {curriculum.requirements?.length > 0 && (
+                    <div>
+                      <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-tertiary">
+                        <ListChecks className="size-3.5" /> Requirements
+                      </div>
+                      <ul className="space-y-1.5">
+                        {curriculum.requirements.map((item, index) => (
+                          <li key={index} className="flex items-start gap-2 text-[13px] leading-snug text-text-secondary">
+                            <span className="mt-1.5 size-1 shrink-0 rounded-full bg-text-tertiary" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {curriculum.targetAudience?.length > 0 && (
+                    <div>
+                      <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-tertiary">
+                        <Users className="size-3.5" /> Who This Course Is For
+                      </div>
+                      <ul className="space-y-1.5">
+                        {curriculum.targetAudience.map((item, index) => (
+                          <li key={index} className="flex items-start gap-2 text-[13px] leading-snug text-text-secondary">
+                            <span className="mt-1.5 size-1 shrink-0 rounded-full bg-text-tertiary" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Course Messages */}
+          {(curriculum.welcomeMessage || curriculum.congratulationsMessage) && (
+            <Card>
+              <CardHeader title="Course Messages" subtitle="Automatic messages sent to enrolled students" />
+              <CardBody className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {curriculum.welcomeMessage && (
+                  <div className="rounded-lg border border-border-light p-3">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-tertiary">
+                      <Mail className="size-3.5" /> Welcome Message
+                    </div>
+                    <p className="text-[13px] leading-snug text-text-secondary">{curriculum.welcomeMessage}</p>
+                  </div>
+                )}
+                {curriculum.congratulationsMessage && (
+                  <div className="rounded-lg border border-border-light p-3">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-text-tertiary">
+                      <PartyPopper className="size-3.5" /> Congratulations Message
+                    </div>
+                    <p className="text-[13px] leading-snug text-text-secondary">{curriculum.congratulationsMessage}</p>
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+          )}
+
           <Card>
             <CardHeader
-              title="Lessons"
+              title="Curriculum"
               subtitle={`${curriculum.lessons.length} lesson${curriculum.lessons.length === 1 ? "" : "s"}`}
             />
             <CardBody>

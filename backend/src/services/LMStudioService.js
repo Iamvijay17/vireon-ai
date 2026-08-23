@@ -123,6 +123,12 @@ class LMStudioService {
 Return ONLY valid JSON with this structure:
 {
   "subtitle": "A short, catchy one-line course tagline (under 15 words)",
+  "description": "A compelling 2-4 paragraph landing-page description of the course - what it covers, how it's taught, and the outcome a student walks away with",
+  "learningObjectives": ["4-8 short bullet points, each starting with a verb, describing a concrete skill or outcome the student will have after finishing"],
+  "requirements": ["2-5 short bullet points listing what a student needs before starting (prior knowledge, software, hardware) - use \\"No prior experience needed\\" style entries if the course is truly beginner-friendly"],
+  "targetAudience": ["3-5 short bullet points describing who this course is for, e.g. specific roles, skill levels, or goals"],
+  "welcomeMessage": "A short, encouraging 2-3 sentence message automatically sent to a student the moment they enroll - welcome them, set expectations, and point them at lesson 1",
+  "congratulationsMessage": "A short, encouraging 2-3 sentence message automatically sent to a student the moment they complete every lesson - congratulate them and suggest a next step",
   "promo": { "title": "Course Trailer", "topic": "A short, energetic promotional pitch for the whole course - who it's for, what they'll be able to do after finishing, and why they should enroll now", "description": "Course promo/trailer video" },
   "lessons": [
     { "order": 1, "title": "Welcome to the Course", "topic": "A short welcome that introduces the instructor and names the topics covered ahead, without teaching any of them yet", "description": "Short one-sentence summary" }
@@ -136,8 +142,8 @@ Rules:
 - "topic" is 1-2 sentences describing exactly what THAT ONE lesson's video should teach - this is used later to generate that lesson's script IN ISOLATION, with no knowledge of the other lessons, so it must be narrow and self-contained.
 - Each lesson's "topic" must cover ONLY that lesson's own slice of the subject. Do not let one lesson's topic summarize, preview, or teach content assigned to other lessons.
 - The first lesson's (order 1) "topic" must be a brief welcome/orientation only (who this course is for, what topics are ahead) - it must NOT preview or teach any actual technical content, since that belongs to the later lessons.
-- "description" is a short one-sentence summary for display purposes.
-- "subtitle" is course-level, not per-lesson - one short tagline for the whole course.
+- "description" (per-lesson) is a short one-sentence summary for display purposes.
+- "subtitle", the course-level "description", "learningObjectives", "requirements", "targetAudience", "welcomeMessage", and "congratulationsMessage" are all course-level, not per-lesson - each appears exactly once for the whole course.
 - Return ONLY valid JSON, no markdown, no code blocks, no commentary.`;
 
     const parsed = await this._callLLM(prompt, {
@@ -151,6 +157,15 @@ Rules:
     }
 
     const subtitle = typeof parsed?.subtitle === 'string' ? parsed.subtitle : '';
+    const description = typeof parsed?.description === 'string' ? parsed.description : '';
+    const welcomeMessage = typeof parsed?.welcomeMessage === 'string' ? parsed.welcomeMessage : '';
+    const congratulationsMessage =
+      typeof parsed?.congratulationsMessage === 'string' ? parsed.congratulationsMessage : '';
+
+    const asStringList = (value) => (Array.isArray(value) ? value.filter((item) => typeof item === 'string' && item.trim()) : []);
+    const learningObjectives = asStringList(parsed?.learningObjectives);
+    const requirements = asStringList(parsed?.requirements);
+    const targetAudience = asStringList(parsed?.targetAudience);
 
     // Fall back to a generic pitch if the model omitted "promo" entirely,
     // so the course always gets a trailer video option.
@@ -171,7 +186,17 @@ Rules:
       lessons: lessons.length,
     });
 
-    return { subtitle, promo, lessons };
+    return {
+      subtitle,
+      description,
+      learningObjectives,
+      requirements,
+      targetAudience,
+      welcomeMessage,
+      congratulationsMessage,
+      promo,
+      lessons,
+    };
   }
 }
 

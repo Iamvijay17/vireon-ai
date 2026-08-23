@@ -63,6 +63,35 @@ const courseCurriculumSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Long-form landing page description (the "About this course" copy) -
+    // separate from Course.description, which is the short list-view blurb.
+    description: {
+      type: String,
+      default: '',
+    },
+    // Udemy-style "Intended Learners" section: bullet lists for what
+    // students will learn, what they need coming in, and who it's for.
+    learningObjectives: {
+      type: [String],
+      default: [],
+    },
+    requirements: {
+      type: [String],
+      default: [],
+    },
+    targetAudience: {
+      type: [String],
+      default: [],
+    },
+    // Course messages Udemy auto-sends students on enrollment/completion.
+    welcomeMessage: {
+      type: String,
+      default: '',
+    },
+    congratulationsMessage: {
+      type: String,
+      default: '',
+    },
     // Course-level promo trailer pitch, separate from the lesson list.
     promo: {
       type: promoSchema,

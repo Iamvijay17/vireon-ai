@@ -155,7 +155,17 @@ class CourseController {
         throw { status: 400, message: 'title and topic are required' };
       }
 
-      const { subtitle, promo, lessons } = await CourseVideoService.previewCurriculum(req.body.title, req.body.topic);
+      const {
+        subtitle,
+        description,
+        learningObjectives,
+        requirements,
+        targetAudience,
+        welcomeMessage,
+        congratulationsMessage,
+        promo,
+        lessons,
+      } = await CourseVideoService.previewCurriculum(req.body.title, req.body.topic);
 
       // Persist this generated structure to its own collection, separate
       // from Course.curriculumDraft (which only ever holds the latest
@@ -165,11 +175,28 @@ class CourseController {
         title: req.body.title,
         topic: req.body.topic,
         subtitle,
+        description,
+        learningObjectives,
+        requirements,
+        targetAudience,
+        welcomeMessage,
+        congratulationsMessage,
         promo,
         lessons,
       });
 
-      res.json({ subtitle, promo, lessons, curriculum });
+      res.json({
+        subtitle,
+        description,
+        learningObjectives,
+        requirements,
+        targetAudience,
+        welcomeMessage,
+        congratulationsMessage,
+        promo,
+        lessons,
+        curriculum,
+      });
     } catch (err) {
       next(err);
     }
