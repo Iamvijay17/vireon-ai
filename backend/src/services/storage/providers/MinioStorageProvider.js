@@ -1,7 +1,7 @@
 const path = require('path');
 const Minio = require('minio');
-const config = require('../../config');
-const LoggerService = require('../LoggerService');
+const config = require('../../../config');
+const LoggerService = require('../../common/LoggerService');
 const StorageProvider = require('./StorageProvider');
 
 // Which bucket a category lives in, and what subfolder (if any) its files

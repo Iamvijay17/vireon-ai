@@ -1,4 +1,4 @@
-const AnalyticsService = require('../services/AnalyticsService');
+const AnalyticsService = require('../services/common/AnalyticsService');
 
 class AnalyticsController {
   /**

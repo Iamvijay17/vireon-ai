@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const config = require('../config');
-const LoggerService = require('../services/LoggerService');
+const LoggerService = require('../services/common/LoggerService');
 
 function isPortOpen(host, port, timeout = 500) {
   return new Promise((resolve) => {

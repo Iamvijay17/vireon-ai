@@ -1,8 +1,8 @@
-const VideoService = require('../services/VideoService');
-const ActivityLogService = require('../services/ActivityLogService');
+const VideoService = require('../services/video/VideoService');
+const ActivityLogService = require('../services/common/ActivityLogService');
 const videoQueue = require('../queues/videoQueue');
-const LoggerService = require('../services/LoggerService');
-const SocketService = require('../services/SocketService');
+const LoggerService = require('../services/common/LoggerService');
+const SocketService = require('../services/common/SocketService');
 const { validate, createVideoSchema, updateVideoJobSchema, jobIdSchema, jobIdArraySchema } = require('../validators');
 
 /**

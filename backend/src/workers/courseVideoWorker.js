@@ -1,16 +1,16 @@
 const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
 const config = require('../config');
-const LoggerService = require('../services/LoggerService');
+const LoggerService = require('../services/common/LoggerService');
 
 // Fire-and-forget: spawns a local redis-server if REDIS_HOST is localhost
 // and nothing's listening there yet, so the queue connection below doesn't
 // spend the next several minutes retrying against a dead port.
 require('../utils/ensureRedis')();
 
-const CourseVideoService = require('../services/CourseVideoService');
-const SocketService = require('../services/SocketService');
-const StorageService = require('../services/StorageService');
+const CourseVideoService = require('../services/course/CourseVideoService');
+const SocketService = require('../services/common/SocketService');
+const StorageService = require('../services/storage/StorageService');
 
 // See videoWorker.js's identical handlers for why this process needs them
 // (it shares the same AudioService, which is where the unhandled-rejection

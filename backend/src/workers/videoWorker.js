@@ -1,7 +1,7 @@
 const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
 const config = require('../config');
-const LoggerService = require('../services/LoggerService');
+const LoggerService = require('../services/common/LoggerService');
 
 // Fire-and-forget: spawns a local redis-server if REDIS_HOST is localhost
 // and nothing's listening there yet, so the queue connection below doesn't
@@ -38,16 +38,16 @@ mongoose.connect(config.mongodb.uri, {
   LoggerService.error('Worker MongoDB connection failed', { error: err.message });
   process.exit(1);
 });
-const VideoService = require('../services/VideoService');
-const ActivityLogService = require('../services/ActivityLogService');
-const ChunkedScriptService = require('../services/ChunkedScriptService');
-const ScriptParserService = require('../services/ScriptParserService');
-const AudioService = require('../services/TTS/audioService');
-const AvatarService = require('../services/Avatar/avatarService');
-const RemotionService = require('../services/RemotionService');
-const StorageService = require('../services/StorageService');
-const { getStorageProvider } = require('../services/providers');
-const SocketService = require('../services/SocketService');
+const VideoService = require('../services/video/VideoService');
+const ActivityLogService = require('../services/common/ActivityLogService');
+const ChunkedScriptService = require('../services/video/ChunkedScriptService');
+const ScriptParserService = require('../services/video/ScriptParserService');
+const AudioService = require('../services/audio/audioService');
+const AvatarService = require('../services/avatar/avatarService');
+const RemotionService = require('../services/video/RemotionService');
+const StorageService = require('../services/storage/StorageService');
+const { getStorageProvider } = require('../services/storage/providers');
+const SocketService = require('../services/common/SocketService');
 const { JOB_STATUS } = require('../constants');
 
 const connection = {

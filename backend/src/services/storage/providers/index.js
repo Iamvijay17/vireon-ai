@@ -1,5 +1,5 @@
-const config = require('../../config');
-const LoggerService = require('../LoggerService');
+const config = require('../../../config');
+const LoggerService = require('../../common/LoggerService');
 const MinioStorageProvider = require('./MinioStorageProvider');
 
 /**

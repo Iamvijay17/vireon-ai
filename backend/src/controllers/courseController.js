@@ -1,11 +1,11 @@
 const archiver = require('archiver');
-const CourseService = require('../services/CourseService');
-const CourseVideoService = require('../services/CourseVideoService');
-const CourseCurriculumService = require('../services/CourseCurriculumService');
-const LoggerService = require('../services/LoggerService');
-const SocketService = require('../services/SocketService');
+const CourseService = require('../services/course/CourseService');
+const CourseVideoService = require('../services/course/CourseVideoService');
+const CourseCurriculumService = require('../services/course/CourseCurriculumService');
+const LoggerService = require('../services/common/LoggerService');
+const SocketService = require('../services/common/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
-const { getStorageProvider } = require('../services/providers');
+const { getStorageProvider } = require('../services/storage/providers');
 const { sanitizeFilename } = require('../utils/filename');
 
 class CourseController {

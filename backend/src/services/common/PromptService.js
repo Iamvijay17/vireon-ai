@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const LoggerService = require('./LoggerService');
 
-const TEMPLATES_DIR = path.resolve(__dirname, '../../templates');
+const TEMPLATES_DIR = path.resolve(__dirname, '../../../templates');
 
 /**
  * Service responsible for loading and rendering prompt templates.

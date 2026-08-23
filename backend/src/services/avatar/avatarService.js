@@ -2,9 +2,9 @@ const { Client } = require("@gradio/client");
 const fs = require("fs").promises;
 const path = require("path");
 const config = require("../../config");
-const LoggerService = require("../LoggerService");
-const { getStorageProvider } = require("../providers");
-const AudioService = require("../TTS/audioService");
+const LoggerService = require("../common/LoggerService");
+const { getStorageProvider } = require("../storage/providers");
+const AudioService = require("../audio/audioService");
 
 /**
  * Service for animating a source portrait photo into a small talking-head

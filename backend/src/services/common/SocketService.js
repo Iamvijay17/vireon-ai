@@ -1,11 +1,11 @@
 const { Server } = require('socket.io');
 const Redis = require('ioredis');
-const config = require('../config');
+const config = require('../../config');
 const LoggerService = require('./LoggerService');
-const { SOCKET_EVENTS, VIDEO_STATUS, REDIS_CHANNEL, REDIS_LOG_BUFFER_KEY } = require('../constants');
-const VideoService = require('./VideoService');
-const courseQueue = require('../queues/courseQueue');
-const { ID_PATTERN } = require('../utils/id');
+const { SOCKET_EVENTS, VIDEO_STATUS, REDIS_CHANNEL, REDIS_LOG_BUFFER_KEY } = require('../../constants');
+const VideoService = require('../video/VideoService');
+const courseQueue = require('../../queues/courseQueue');
+const { ID_PATTERN } = require('../../utils/id');
 
 // Matches both entity ids (utils/id.js's "prefix-XXXXXXXX" shape) and the
 // legacy "job-XXXXXXXX"/standalone-job style ids already in use elsewhere,

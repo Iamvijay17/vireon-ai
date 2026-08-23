@@ -1,4 +1,4 @@
-const AudioService = require('../services/TTS/audioService');
+const AudioService = require('../services/audio/audioService');
 const FavoriteVoice = require('../models/FavoriteVoice');
 
 // Fallback for the rare custom-voice preset with no matching reference .wav

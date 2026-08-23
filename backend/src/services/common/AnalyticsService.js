@@ -1,7 +1,7 @@
-const VideoJob = require('../models/VideoJob');
-const Course = require('../models/Course');
-const CourseVideo = require('../models/CourseVideo');
-const { JOB_STATUS, STAGE_STATUS } = require('../constants');
+const VideoJob = require('../../models/VideoJob');
+const Course = require('../../models/Course');
+const CourseVideo = require('../../models/CourseVideo');
+const { JOB_STATUS, STAGE_STATUS } = require('../../constants');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

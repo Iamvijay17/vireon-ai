@@ -1,11 +1,11 @@
-const CourseVideoService = require('../services/CourseVideoService');
-const ActivityLogService = require('../services/ActivityLogService');
+const CourseVideoService = require('../services/course/CourseVideoService');
+const ActivityLogService = require('../services/common/ActivityLogService');
 const courseQueue = require('../queues/courseQueue');
-const LoggerService = require('../services/LoggerService');
-const SocketService = require('../services/SocketService');
+const LoggerService = require('../services/common/LoggerService');
+const SocketService = require('../services/common/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
 const { validate, idSchema, idArraySchema } = require('../validators');
-const { getStorageProvider } = require('../services/providers');
+const { getStorageProvider } = require('../services/storage/providers');
 const { sanitizeFilename } = require('../utils/filename');
 
 const VALID_BULK_ACTIONS = ['generate-script', 'generate-audio', 'render', 'generate-full'];

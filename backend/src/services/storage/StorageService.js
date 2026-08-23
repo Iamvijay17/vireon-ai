@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs').promises;
-const LoggerService = require('./LoggerService');
+const LoggerService = require('../common/LoggerService');
 
 /**
  * Local storage service for managing job files on disk.

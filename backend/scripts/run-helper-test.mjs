@@ -25,7 +25,7 @@ console.log('Created test file:', testFile);
 console.log('Expected duration:', sec, 'seconds');
 
 // Run the helper
-const helper = path.resolve(__dirname, 'src/services/TTS/getAudioDuration.mjs');
+const helper = path.resolve(__dirname, '../src/services/audio/getAudioDuration.mjs');
 console.log('Helper:', helper);
 
 try {

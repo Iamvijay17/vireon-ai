@@ -1,7 +1,7 @@
-const Course = require('../models/Course');
-const CourseVideo = require('../models/CourseVideo');
-const LoggerService = require('./LoggerService');
-const { COURSE_STATUS, VIDEO_STATUS } = require('../constants');
+const Course = require('../../models/Course');
+const CourseVideo = require('../../models/CourseVideo');
+const LoggerService = require('../common/LoggerService');
+const { COURSE_STATUS, VIDEO_STATUS } = require('../../constants');
 
 /**
  * Service for managing courses.

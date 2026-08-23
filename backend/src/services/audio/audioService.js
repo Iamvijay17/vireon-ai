@@ -4,8 +4,8 @@ const { promisify } = require("util");
 const fs = require("fs").promises;
 const path = require("path");
 const config = require("../../config");
-const LoggerService = require("../LoggerService");
-const { getStorageProvider } = require("../providers");
+const LoggerService = require("../common/LoggerService");
+const { getStorageProvider } = require("../storage/providers");
 const VOICE_METADATA = require("../../config/voiceMetadata");
 
 const execFileAsync = promisify(execFile);

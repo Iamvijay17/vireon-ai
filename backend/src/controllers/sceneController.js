@@ -1,8 +1,8 @@
 const VideoJob = require('../models/VideoJob');
 const { validate, jobIdSchema } = require('../validators');
-const LoggerService = require('../services/LoggerService');
-const VideoService = require('../services/VideoService');
-const ScriptParserService = require('../services/ScriptParserService');
+const LoggerService = require('../services/common/LoggerService');
+const VideoService = require('../services/video/VideoService');
+const ScriptParserService = require('../services/video/ScriptParserService');
 const { JOB_STATUS } = require('../constants');
 
 // Cross-cutting fields that aren't part of any template's per-template shape

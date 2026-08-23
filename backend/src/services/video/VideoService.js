@@ -1,13 +1,13 @@
-const VideoJob = require('../models/VideoJob');
-const LoggerService = require('./LoggerService');
-const ActivityLogService = require('./ActivityLogService');
-const AudioService = require('./TTS/audioService');
+const VideoJob = require('../../models/VideoJob');
+const LoggerService = require('../common/LoggerService');
+const ActivityLogService = require('../common/ActivityLogService');
+const AudioService = require('../audio/audioService');
 const {
   JOB_STATUS,
   getAspectRatioForResolution,
   STANDALONE_VIDEO_DURATIONS,
   SHORTS_VIDEO_DURATIONS,
-} = require('../constants');
+} = require('../../constants');
 
 // A job actively being worked on by the worker can't have its details
 // edited underneath it - the same "actively processing" concern as

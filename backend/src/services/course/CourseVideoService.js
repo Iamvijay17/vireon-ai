@@ -1,19 +1,19 @@
 const fs = require('fs').promises;
 const path = require('path');
-const CourseVideo = require('../models/CourseVideo');
+const CourseVideo = require('../../models/CourseVideo');
 const CourseService = require('./CourseService');
-const LoggerService = require('./LoggerService');
-const SocketService = require('./SocketService');
-const ActivityLogService = require('./ActivityLogService');
-const LMStudioService = require('./LMStudioService');
-const AudioService = require('./TTS/audioService');
-const AvatarService = require('./Avatar/avatarService');
-const RemotionService = require('./RemotionService');
-const ScriptParserService = require('./ScriptParserService');
-const StorageService = require('./StorageService');
-const { getStorageProvider } = require('./providers');
-const courseQueue = require('../queues/courseQueue');
-const { VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../constants');
+const LoggerService = require('../common/LoggerService');
+const SocketService = require('../common/SocketService');
+const ActivityLogService = require('../common/ActivityLogService');
+const LMStudioService = require('../common/LMStudioService');
+const AudioService = require('../audio/audioService');
+const AvatarService = require('../avatar/avatarService');
+const RemotionService = require('../video/RemotionService');
+const ScriptParserService = require('../video/ScriptParserService');
+const StorageService = require('../storage/StorageService');
+const { getStorageProvider } = require('../storage/providers');
+const courseQueue = require('../../queues/courseQueue');
+const { VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../../constants');
 
 /**
  * Thrown when a course video is found to be CANCELLED at one of the

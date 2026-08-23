@@ -1,8 +1,8 @@
 const fs = require('fs').promises;
 const path = require('path');
-const config = require('../config');
-const LoggerService = require('./LoggerService');
-const { VIDEO_TYPES } = require('../constants');
+const config = require('../../config');
+const LoggerService = require('../common/LoggerService');
+const { VIDEO_TYPES } = require('../../constants');
 
 /**
  * Service for parsing, validating and saving generated scripts.

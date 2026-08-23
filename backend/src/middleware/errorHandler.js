@@ -1,4 +1,4 @@
-const LoggerService = require('../services/LoggerService');
+const LoggerService = require('../services/common/LoggerService');
 const config = require('../config');
 
 /**

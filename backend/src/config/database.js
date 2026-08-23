@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const config = require('./index');
-const LoggerService = require('../services/LoggerService');
+const LoggerService = require('../services/common/LoggerService');
 
 /**
  * Connect to MongoDB with retry logic.

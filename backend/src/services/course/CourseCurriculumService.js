@@ -1,5 +1,5 @@
-const CourseCurriculum = require('../models/CourseCurriculum');
-const LoggerService = require('./LoggerService');
+const CourseCurriculum = require('../../models/CourseCurriculum');
+const LoggerService = require('../common/LoggerService');
 
 /**
  * Service for persisting generated Udemy-style course structures.

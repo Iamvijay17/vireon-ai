@@ -8,14 +8,14 @@ const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 const config = require('./config');
 const swaggerSpec = require('./config/swagger');
-const LoggerService = require('./services/LoggerService');
+const LoggerService = require('./services/common/LoggerService');
 
 // Fire-and-forget: spawns a local redis-server if REDIS_HOST is localhost
 // and nothing's listening there yet, so the queue connections below don't
 // spend the next several minutes retrying against a dead port.
 require('./utils/ensureRedis')();
 
-const SocketService = require('./services/SocketService');
+const SocketService = require('./services/common/SocketService');
 const errorHandler = require('./middleware/errorHandler');
 const videoRoutes = require('./routes/videos');
 const courseRoutes = require('./routes/courses');

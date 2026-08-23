@@ -1,4 +1,4 @@
-const SocketService = require('../services/SocketService');
+const SocketService = require('../services/common/SocketService');
 
 class LogsController {
   /**

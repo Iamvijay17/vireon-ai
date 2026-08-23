@@ -1,7 +1,7 @@
-const config = require('../config');
-const PromptService = require('./PromptService');
-const LMStudioService = require('./LMStudioService');
-const LoggerService = require('./LoggerService');
+const config = require('../../config');
+const PromptService = require('../common/PromptService');
+const LMStudioService = require('../common/LMStudioService');
+const LoggerService = require('../common/LoggerService');
 
 // Target size for a single chunk's LLM response, in tokens. Deliberately
 // well under the old flat 32000-token ceiling - a local model reliably

@@ -3,10 +3,10 @@ const Transport = require('winston-transport');
 const Redis = require('ioredis');
 const path = require('path');
 const fs = require('fs');
-const config = require('../config');
-const { REDIS_CHANNEL } = require('../constants');
+const config = require('../../config');
+const { REDIS_CHANNEL } = require('../../constants');
 
-const logDir = path.resolve(__dirname, '../../logs');
+const logDir = path.resolve(__dirname, '../../../logs');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }

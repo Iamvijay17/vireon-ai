@@ -1,5 +1,5 @@
 const axios = require('axios');
-const config = require('../config');
+const config = require('../../config');
 const LoggerService = require('./LoggerService');
 const JsonRepairService = require('./JsonRepairService');
 

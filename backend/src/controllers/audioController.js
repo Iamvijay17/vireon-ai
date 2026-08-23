@@ -1,10 +1,10 @@
 const fs = require('fs').promises;
 const path = require('path');
 const AudioGeneration = require('../models/AudioGeneration');
-const AudioService = require('../services/TTS/audioService');
-const { getStorageProvider } = require('../services/providers');
-const LoggerService = require('../services/LoggerService');
-const SocketService = require('../services/SocketService');
+const AudioService = require('../services/audio/audioService');
+const { getStorageProvider } = require('../services/storage/providers');
+const LoggerService = require('../services/common/LoggerService');
+const SocketService = require('../services/common/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
 const { parseDialogueScript } = require('../utils/parseDialogueScript');
 const { chunkText } = require('../utils/textChunking');
