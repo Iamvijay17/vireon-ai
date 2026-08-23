@@ -24,3 +24,4 @@ export { confirmDialog } from "./confirmBus";
 export { Table } from "./Table";
 export { CircularProgress } from "./CircularProgress";
 export { AudioPlayer } from "./AudioPlayer";
+export { CopyButton } from "./CopyButton";
