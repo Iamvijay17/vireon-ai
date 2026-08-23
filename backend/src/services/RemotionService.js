@@ -190,7 +190,7 @@ class RemotionService {
 
      // Read assets.json for duration calculation
      const assetsFile = assets || JSON.parse(await fs.readFile(assetsPath, 'utf-8'));
-     
+
      // Calculate total duration from scene durations (which should now include audio durations)
      const totalDuration = assetsFile.scenes.reduce(
        (sum, scene) => {

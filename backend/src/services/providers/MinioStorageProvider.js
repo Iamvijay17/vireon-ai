@@ -13,6 +13,10 @@ const CATEGORY_MAP = {
   audio: { bucket: () => config.minio.scenesBucket, subfolder: 'audio' },
   avatar: { bucket: () => config.minio.scenesBucket, subfolder: 'avatar' },
   render: { bucket: () => config.minio.videoBucket, subfolder: null },
+  // Audio Studio generations are keyed by AudioGeneration._id, not a video
+  // jobId - kept in their own subfolder of scenesBucket so they can't
+  // collide with a video's own audio/ files.
+  'audio-studio': { bucket: () => config.minio.scenesBucket, subfolder: 'audio-studio' },
 };
 
 // Anonymous-read policy applied to each bucket so uploaded assets are

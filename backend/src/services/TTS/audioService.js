@@ -542,7 +542,7 @@ class AudioService {
             [helperScript, outputFile],
             { encoding: "utf8", timeout: 30000 },
           );
-          const duration = Math.round(parseFloat(durationStr) * 100) / 100;
+          const duration = parseFloat(durationStr);
 
           LoggerService.tts(`Audio generated for scene ${scene.sceneNumber}`, {
             file: `scene${scene.sceneNumber}.mp3`,
@@ -609,6 +609,10 @@ class AudioService {
     const result = await this._synthesizeSceneAudio(jobId, scene, voice, fastMode);
     if (!result) return null;
     const captionTimestamps = await this._alignCaptions(result.path);
+    // Already uploaded to storage inside _synthesizeSceneAudio - see the
+    // matching cleanup in generateAllAudio for why the local copy isn't
+    // needed once alignment (the last local-path consumer) is done.
+    await fs.unlink(result.path).catch(() => {});
     return { ...result, captionTimestamps };
   }
 
@@ -669,7 +673,7 @@ class AudioService {
           [helperScript, outputFile],
           { encoding: "utf8", timeout: 30000 },
         );
-        const duration = Math.round(parseFloat(durationStr) * 100) / 100;
+        const duration = parseFloat(durationStr);
 
         LoggerService.tts("Audio generated", { ...logCtx, duration });
 
@@ -838,6 +842,12 @@ class AudioService {
         if (typeof onSceneComplete === "function") {
           await onSceneComplete(pending.scene.sceneNumber, result);
         }
+        // Already durably in storage (see _synthesizeSceneAudio's upload)
+        // and alignment (the only other consumer of the local path) just
+        // finished above - nothing left needs the local copy, so drop it
+        // instead of letting backend/jobs/ accumulate every scene's audio
+        // for the whole pipeline run.
+        await fs.unlink(pending.synthResult.path).catch(() => {});
       }
       pending = null;
 

@@ -2,6 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const AudioGeneration = require('../models/AudioGeneration');
 const AudioService = require('../services/TTS/audioService');
+const { getStorageProvider } = require('../services/providers');
 const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
@@ -40,11 +41,13 @@ class AudioController {
         record = await AudioGeneration.create({ text, voice, emotion, fastMode, status: 'PENDING' });
 
         const result = await AudioService.generateStandaloneAudio(record._id, text, voice, emotion, fastMode);
+        const audioUrl = await getStorageProvider().uploadFile(record._id, result.path, 'audio-studio');
 
         record.status = 'COMPLETED';
-        record.audioUrl = `/public/audio-studio/${record._id}/${result.file}`;
+        record.audioUrl = audioUrl;
         record.duration = result.duration;
         await record.save();
+        await fs.rm(path.dirname(result.path), { recursive: true, force: true }).catch(() => {});
 
         return res.status(201).json({ audio: record });
       }
@@ -60,7 +63,7 @@ class AudioController {
 
       for (let i = 0; i < textChunks.length; i++) {
         const result = await AudioService.generateStandaloneAudioChunk(record._id, i, textChunks[i], voice, emotion, fastMode);
-        record.chunks[i].file = `/public/audio-studio/${record._id}/${result.file}`;
+        record.chunks[i].file = await getStorageProvider().uploadFile(record._id, result.path, 'audio-studio');
         record.chunks[i].duration = result.duration;
         await record.save();
         SocketService.emitToJob(record._id, SOCKET_EVENTS.AUDIO_STUDIO_CHUNK_READY, {
@@ -74,12 +77,14 @@ class AudioController {
       const chunkFilePaths = record.chunks.map((c) => path.join(audioDir, path.basename(c.file)));
       const merged = await concatWavFiles(chunkFilePaths, () => CHUNK_GAP_SECONDS);
       const mergedFile = 'audio.mp3';
-      await fs.writeFile(path.join(audioDir, mergedFile), merged.buffer);
+      const mergedPath = path.join(audioDir, mergedFile);
+      await fs.writeFile(mergedPath, merged.buffer);
 
       record.status = 'COMPLETED';
-      record.audioUrl = `/public/audio-studio/${record._id}/${mergedFile}`;
+      record.audioUrl = await getStorageProvider().uploadFile(record._id, mergedPath, 'audio-studio');
       record.duration = merged.durationSeconds;
       await record.save();
+      await fs.rm(audioDir, { recursive: true, force: true }).catch(() => {});
       SocketService.emitToJob(record._id, SOCKET_EVENTS.AUDIO_STUDIO_COMPLETED, { id: record._id, audio: record });
 
       res.status(201).json({ audio: record });
@@ -105,8 +110,11 @@ class AudioController {
    * the given speaker roster and synthesized with that speaker's voice, one
    * file per turn (see AudioService.generateDialogueTurnAudio), then merged
    * into a single output file (audioUrl/duration, same fields single-voice
-   * mode uses) with a short silence between turns - the per-turn files stay
-   * on disk too, kept as the source material behind that merge.
+   * mode uses) with a short silence between turns. Per-turn files are the
+   * source material behind that merge but each is uploaded to storage as
+   * soon as it's synthesized (record.turns[i].file), so once the merge
+   * itself is uploaded the whole local audioDir is deleted - nothing left
+   * needs the local copies.
    */
   static async generateDialogue(req, res, next) {
     let record;
@@ -152,7 +160,7 @@ class AudioController {
           turn.emotion,
           fastMode,
         );
-        record.turns[i].file = `/public/audio-studio/${record._id}/${result.file}`;
+        record.turns[i].file = await getStorageProvider().uploadFile(record._id, result.path, 'audio-studio');
         record.turns[i].duration = result.duration;
         // Persist after each turn (not just once at the end) so the history
         // list can show real "N of M turns done" progress instead of a bare
@@ -175,12 +183,14 @@ class AudioController {
         AudioService.turnGapSeconds(`${record._id}:gap:${i}`),
       );
       const mergedFile = 'dialogue.mp3';
-      await fs.writeFile(path.join(audioDir, mergedFile), merged.buffer);
+      const mergedPath = path.join(audioDir, mergedFile);
+      await fs.writeFile(mergedPath, merged.buffer);
 
       record.status = 'COMPLETED';
-      record.audioUrl = `/public/audio-studio/${record._id}/${mergedFile}`;
+      record.audioUrl = await getStorageProvider().uploadFile(record._id, mergedPath, 'audio-studio');
       record.duration = merged.durationSeconds;
       await record.save();
+      await fs.rm(audioDir, { recursive: true, force: true }).catch(() => {});
       SocketService.emitToJob(record._id, SOCKET_EVENTS.AUDIO_STUDIO_COMPLETED, { id: record._id, audio: record });
 
       res.status(201).json({ audio: record });
@@ -235,6 +245,7 @@ class AudioController {
 
       const audioDir = path.resolve(__dirname, '../../jobs/audio-studio', id);
       await fs.rm(audioDir, { recursive: true, force: true });
+      await getStorageProvider().deleteJob(id);
 
       res.json({ id });
     } catch (err) {
