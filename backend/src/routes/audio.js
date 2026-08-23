@@ -34,7 +34,7 @@ router.post('/generate', authenticate, AudioController.generate);
  * /api/audio/generate-dialogue:
  *   post:
  *     summary: Generate multi-speaker (podcast-style) TTS audio from a script
- *     description: Parses a "Name: line" script against a speaker roster and synthesizes one audio file per turn, in order. Synchronous - can take a while for longer scripts (one TTS call per turn).
+ *     description: 'Parses a "Name: line" script against a speaker roster and synthesizes one audio file per turn, in order. Synchronous - can take a while for longer scripts (one TTS call per turn).'
  *     tags: [Audio]
  *     requestBody:
  *       required: true
