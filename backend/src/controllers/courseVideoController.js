@@ -5,6 +5,8 @@ const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
 const { validate, idSchema, idArraySchema } = require('../validators');
+const { getStorageProvider } = require('../services/providers');
+const { sanitizeFilename } = require('../utils/filename');
 
 const VALID_BULK_ACTIONS = ['generate-script', 'generate-audio', 'render', 'generate-full'];
 
@@ -325,6 +327,32 @@ class CourseVideoController {
 
       const result = await CourseVideoService.regenerateSceneAudio(id, sceneNumber);
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/course-videos/:id/download - Stream the rendered video file,
+   * named after the video's title instead of MinIO's internal fileName.
+   */
+  static async download(req, res, next) {
+    try {
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.getById(id);
+
+      if (!video.renderUrl) {
+        throw { status: 404, message: 'This video has not been rendered yet' };
+      }
+
+      const storage = getStorageProvider();
+      const { bucket, key } = storage.parsePublicUrl(video.renderUrl);
+      const stream = await storage.getObjectStream(bucket, key);
+
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(video.title)}.mp4"`);
+      stream.on('error', next);
+      stream.pipe(res);
     } catch (err) {
       next(err);
     }

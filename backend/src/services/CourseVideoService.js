@@ -236,6 +236,14 @@ class CourseVideoService {
   }
 
   /**
+   * Get every video for a course, unpaginated - used by the course-level
+   * "download all" endpoint, which needs the full set rather than one page.
+   */
+  static async getAllByCourse(courseId) {
+    return CourseVideo.find({ courseId }).sort({ order: 1 }).lean();
+  }
+
+  /**
    * Get a single video by ID.
    */
   static async getById(videoId) {

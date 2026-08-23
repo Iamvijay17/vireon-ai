@@ -160,6 +160,11 @@ export const deleteCourse = (id) => api.delete(`/api/courses/${id}`);
 
 export const stopCourse = (id) => api.post(`/api/courses/${id}/stop`);
 
+// Plain URLs (not axios calls) - handed to an <a download> so the browser
+// streams straight from the backend instead of buffering the whole file in
+// JS first. The backend sets Content-Disposition to the video/course title.
+export const getCourseDownloadAllUrl = (courseId) => resolveMediaUrl(`/api/courses/${courseId}/download-all`);
+
 // ─── Course Videos ──────────────────────────────────────────────────────────────
 
 export const getCourseVideos = (courseId, page = 1, limit = 50) =>
@@ -169,6 +174,8 @@ export const createCourseVideo = (courseId, data) =>
   api.post(`/api/courses/${courseId}/videos`, data);
 
 export const getCourseVideo = (id) => api.get(`/api/course-videos/${id}`);
+
+export const getCourseVideoDownloadUrl = (id) => resolveMediaUrl(`/api/course-videos/${id}/download`);
 
 export const updateCourseVideo = (id, data) => api.put(`/api/course-videos/${id}`, data);
 

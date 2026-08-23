@@ -311,4 +311,18 @@ router.post('/:id/scenes/:sceneNumber/regenerate-audio', authenticate, CourseVid
  */
 router.get('/:id/activity-logs', authenticate, CourseVideoController.getActivityLogs);
 
+/**
+ * @swagger
+ * /api/course-videos/{id}/download:
+ *   get:
+ *     summary: Download the rendered video file
+ *     description: Streams the video from MinIO with Content-Disposition set to the video's title, so the saved file is named after the lesson instead of its internal storage fileName.
+ *     tags: [Course Videos]
+ *     parameters: [{ $ref: '#/components/parameters/EntityId' }]
+ *     responses:
+ *       200: { description: Video file stream }
+ *       404: { description: Video not found, or not yet rendered }
+ */
+router.get('/:id/download', authenticate, CourseVideoController.download);
+
 module.exports = router;

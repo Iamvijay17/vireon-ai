@@ -17,6 +17,7 @@ import {
   Square,
   Ban,
   ExternalLink,
+  Download,
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { EmptyState, LoadingState } from "../../components";
@@ -58,6 +59,8 @@ import {
   bulkGenerateCourseVideos,
   bulkApproveCourseVideoScripts,
   bulkDeleteCourseVideos,
+  getCourseVideoDownloadUrl,
+  getCourseDownloadAllUrl,
   getCourseWorkerStatus,
 } from "../../services/api";
 import {
@@ -1053,6 +1056,16 @@ const CourseDetail = () => {
                 <DropdownItem icon={<PlayCircle className="size-4" />} onClick={() => navigate(`/courses/${id}/videos/${video._id}`)}>
                   Open Video
                 </DropdownItem>
+                {video.renderUrl && (
+                  <DropdownItem
+                    icon={<Download className="size-4" />}
+                    onClick={() => {
+                      window.location.href = getCourseVideoDownloadUrl(video._id);
+                    }}
+                  >
+                    Download Video
+                  </DropdownItem>
+                )}
                 <DropdownItem
                   icon={<Pencil className="size-4" />}
                   disabled={isVideoBusy(video)}
@@ -1164,6 +1177,17 @@ const CourseDetail = () => {
           <Button variant="secondary" icon={<Sparkles className="size-4" />} onClick={showCurriculumModal}>
             Generate Udemy Course Structure
           </Button>
+          {videos.some((v) => v.renderUrl) && (
+            <Button
+              variant="secondary"
+              icon={<Download className="size-4" />}
+              onClick={() => {
+                window.location.href = getCourseDownloadAllUrl(id);
+              }}
+            >
+              Download All
+            </Button>
+          )}
           <Button variant="primary" icon={<Plus className="size-4" />} onClick={showCreateModal}>
             Create Video
           </Button>

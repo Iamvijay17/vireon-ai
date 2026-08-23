@@ -153,6 +153,20 @@ router.post('/:id/videos', authenticate, CourseController.createVideo);
 
 /**
  * @swagger
+ * /api/courses/{id}/download-all:
+ *   get:
+ *     summary: Download every rendered video in the course as a single zip
+ *     description: Each zip entry is named after its video's title (deduped when titles collide).
+ *     tags: [Courses]
+ *     parameters: [{ $ref: '#/components/parameters/EntityId' }]
+ *     responses:
+ *       200: { description: Zip file stream }
+ *       404: { description: No rendered videos to download }
+ */
+router.get('/:id/download-all', authenticate, CourseController.downloadAll);
+
+/**
+ * @swagger
  * /api/courses/{id}/generate-curriculum:
  *   post:
  *     summary: Generate a full Udemy-style curriculum via the LLM for review

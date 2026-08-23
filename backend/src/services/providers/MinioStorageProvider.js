@@ -88,6 +88,31 @@ class MinioStorageProvider extends StorageProvider {
     return `${config.minio.publicUrl}/${bucket}/${key}`;
   }
 
+  /**
+   * Reverse of getPublicUrl: split a previously-returned public URL back
+   * into its bucket + in-bucket key, so a caller holding only the stored
+   * URL (e.g. CourseVideo.renderUrl) can stream the object's bytes directly
+   * instead of proxying an extra HTTP request to MinIO's public endpoint.
+   */
+  parsePublicUrl(url) {
+    const prefix = `${config.minio.publicUrl}/`;
+    if (!url || !url.startsWith(prefix)) {
+      throw new Error(`Not a recognized MinIO public URL: ${url}`);
+    }
+    const [bucket, ...keyParts] = url.slice(prefix.length).split('/');
+    return { bucket, key: keyParts.join('/') };
+  }
+
+  /**
+   * Open a readable stream for an object, given its bucket + key (as
+   * returned by parsePublicUrl). Used for download endpoints that need to
+   * set a custom filename via Content-Disposition.
+   */
+  async getObjectStream(bucket, key) {
+    await this.#ready;
+    return this.client.getObject(bucket, key);
+  }
+
   async objectExists(id, category, fileName) {
     await this.#ready;
     const { bucket, key } = this.#resolve(id, category, fileName);

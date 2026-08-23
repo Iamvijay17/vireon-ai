@@ -1,9 +1,12 @@
+const archiver = require('archiver');
 const CourseService = require('../services/CourseService');
 const CourseVideoService = require('../services/CourseVideoService');
 const CourseCurriculumService = require('../services/CourseCurriculumService');
 const LoggerService = require('../services/LoggerService');
 const SocketService = require('../services/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
+const { getStorageProvider } = require('../services/providers');
+const { sanitizeFilename } = require('../utils/filename');
 
 class CourseController {
   /**
@@ -207,6 +210,52 @@ class CourseController {
       }
 
       res.status(201).json({ videos, promoVideo });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/courses/:id/download-all - Stream every rendered video in the
+   * course as a single zip, each entry named after its video title.
+   */
+  static async downloadAll(req, res, next) {
+    try {
+      const { course } = await CourseService.getById(req.params.id);
+      const videos = await CourseVideoService.getAllByCourse(req.params.id);
+      const rendered = videos.filter((v) => v.renderUrl);
+
+      if (rendered.length === 0) {
+        throw { status: 404, message: 'No rendered videos to download for this course' };
+      }
+
+      const storage = getStorageProvider();
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(course.title)}.zip"`);
+
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      archive.on('error', (err) => next(err));
+      archive.pipe(res);
+
+      // Dedupe identically-titled lessons so one doesn't clobber another
+      // inside the zip.
+      const usedNames = new Set();
+      for (const video of rendered) {
+        const { bucket, key } = storage.parsePublicUrl(video.renderUrl);
+        const stream = await storage.getObjectStream(bucket, key);
+
+        const base = sanitizeFilename(video.title);
+        let name = `${base}.mp4`;
+        for (let n = 2; usedNames.has(name); n++) {
+          name = `${base} (${n}).mp4`;
+        }
+        usedNames.add(name);
+
+        archive.append(stream, { name });
+      }
+
+      await archive.finalize();
     } catch (err) {
       next(err);
     }
