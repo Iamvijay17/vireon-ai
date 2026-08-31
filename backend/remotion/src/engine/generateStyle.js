@@ -1,41 +1,76 @@
-import { createSeededRng, pick } from './seedRandom';
+import { createSeededRng, pick, range } from './seedRandom';
+import { hslToHex } from './color';
 
 /**
  * Style Generator - layer 3 of the generative scene engine.
  *
- * Extends theme.js's single fixed palette into a seeded family: same seed
- * (a job's shared seed, reused across every scene) always resolves to the
- * same StylePlan, so a whole video looks coherent instead of each scene
- * picking its own random look.
+ * Generates a palette procedurally from a continuous hue (via HSL color
+ * math) instead of picking from a small fixed list - a fixed list of N
+ * palettes collides constantly at real usage volume (N jobs before a
+ * repeat becomes likely). A continuous hue space makes two jobs landing on
+ * a visually identical look extremely unlikely, while a harmony rule
+ * (complementary/triadic/analogous/split-complementary, picked per seed)
+ * keeps the background/accent/text combination coherent rather than
+ * arbitrary. Background lightness/saturation stay in a narrow dark band so
+ * white/near-white text always has enough contrast, whatever hue lands.
+ *
+ * Same seed (a job's shared seed, reused across every scene) always
+ * resolves to the same StylePlan, so a whole video looks coherent instead
+ * of each scene picking its own random look.
  */
-const PALETTES = [
-  { bg: '#0d1117', bgGradient: 'linear-gradient(135deg, #0d1117 0%, #161b22 60%, #1a1a2e 100%)', accent: '#60a5fa', text: '#ffffff', textMuted: '#94a3b8' },
-  { bg: '#1a1a2e', bgGradient: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%)', accent: '#a78bfa', text: '#ffffff', textMuted: '#c4b5fd' },
-  { bg: '#0f172a', bgGradient: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%)', accent: '#34d399', text: '#f1f5f9', textMuted: '#94a3b8' },
-  { bg: '#2d1b2e', bgGradient: 'linear-gradient(135deg, #2d1b2e 0%, #4c1d3d 60%, #1a1a2e 100%)', accent: '#f472b6', text: '#ffffff', textMuted: '#e9d5ff' },
-  { bg: '#0c2b23', bgGradient: 'linear-gradient(135deg, #0c2b23 0%, #114b3f 60%, #1a936f 100%)', accent: '#fbbf24', text: '#ffffff', textMuted: '#d1fae5' },
-  { bg: '#111827', bgGradient: 'linear-gradient(135deg, #111827 0%, #1f2937 60%, #374151 100%)', accent: '#fb923c', text: '#f9fafb', textMuted: '#d1d5db' },
-];
+const HARMONY_OFFSETS = [180, 150, 210, 120, 240]; // complementary, split-complementary (x2), triadic (x2)
 
+const buildPalette = (rng) => {
+  const hue = range(rng, 0, 360);
+  const accentHue = hue + pick(rng, HARMONY_OFFSETS);
+
+  const bgSat = range(rng, 0.35, 0.6);
+  const bgLight = range(rng, 0.08, 0.14);
+  const midLight = bgLight + range(rng, 0.05, 0.09);
+
+  const bg = hslToHex(hue, bgSat, bgLight);
+  const bgMid = hslToHex(hue + range(rng, -20, 20), bgSat * 0.9, midLight);
+  const bgDark = hslToHex(hue + range(rng, 10, 40), bgSat * 0.7, bgLight * 0.5);
+
+  const accent = hslToHex(accentHue, range(rng, 0.55, 0.85), range(rng, 0.58, 0.72));
+  const textMuted = hslToHex(hue, range(rng, 0.15, 0.3), range(rng, 0.72, 0.82));
+
+  return {
+    bg,
+    bgGradient: `linear-gradient(135deg, ${bg} 0%, ${bgMid} 60%, ${bgDark} 100%)`,
+    accent,
+    text: '#ffffff',
+    textMuted,
+  };
+};
+
+// A handful of pairings rather than a continuous "font space" - unlike
+// color, typefaces can't be interpolated, so variety here comes from
+// having enough distinct pairings that repeats are uncommon rather than
+// impossible. Sticks to system-safe stacks (no font loading dependency).
 const FONT_PAIRINGS = [
   { title: "'Helvetica Neue', Helvetica, Arial, sans-serif", body: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
   { title: "Georgia, 'Times New Roman', serif", body: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
+  { title: "'Trebuchet MS', 'Helvetica Neue', sans-serif", body: "Verdana, Geneva, sans-serif" },
+  { title: "Cambria, Georgia, serif", body: "Cambria, Georgia, serif" },
+  { title: "'Segoe UI', 'Helvetica Neue', sans-serif", body: "'Segoe UI', 'Helvetica Neue', sans-serif" },
+  { title: "'Courier New', Courier, monospace", body: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
 ];
 
-const SHAPES = [
-  { radius: 8, shadow: '0 8px 24px rgba(0,0,0,0.25)' },
-  { radius: 20, shadow: '0 12px 32px rgba(0,0,0,0.35)' },
-  { radius: 2, shadow: 'none' },
-];
-
-const TITLE_WEIGHTS = [300, 600, 800];
+const TITLE_WEIGHTS = [300, 500, 600, 700, 800];
 
 export const generateStyle = (seedInput) => {
   const rng = createSeededRng(`${seedInput}-style`);
   return {
-    palette: pick(rng, PALETTES),
+    palette: buildPalette(rng),
     fonts: pick(rng, FONT_PAIRINGS),
-    shape: pick(rng, SHAPES),
+    // Continuous radius/shadow intensity, same reasoning as the palette -
+    // a handful of fixed shape presets repeats far more often than a
+    // sampled range does.
+    shape: {
+      radius: Math.round(range(rng, 2, 26)),
+      shadow: `0 ${Math.round(range(rng, 6, 14))}px ${Math.round(range(rng, 20, 36))}px rgba(0,0,0,${range(rng, 0.2, 0.4).toFixed(2)})`,
+    },
     titleWeight: pick(rng, TITLE_WEIGHTS),
     accentStyle: pick(rng, ['solid', 'gradient']),
   };
