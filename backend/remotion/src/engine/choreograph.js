@@ -13,6 +13,7 @@ const ROLE_MOTION_POOL = {
   listItem: ['fadeSlideUp', 'fadeSlideLeft'],
   body: ['fadeIn', 'fadeSlideUp'],
   image: ['scaleIn', 'fadeIn'],
+  label: ['fadeIn', 'fadeSlideUp'],
 };
 
 export const choreograph = (layoutPlan, seedInput) => {

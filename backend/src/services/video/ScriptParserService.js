@@ -53,15 +53,16 @@ class ScriptParserService {
   static GENERATIVE_TEMPLATE_ID = 'generative';
 
   /**
-   * sceneTypes the generative engine's Layout Solver currently handles well:
-   * "title" (title[+subtitle][+image]), "content" (title+items), and
-   * "contentwithimage" (title+body+image, via the solver's split-image
-   * strategy). "image" (caption/label-keyed, not title/items/body) and
-   * "podcast" (hostName/hostImage-keyed) use a differently-shaped `elements`
-   * the solver doesn't read yet - those two keep using the legacy
-   * hand-coded templates until the solver is extended to them.
+   * sceneTypes the generative engine's Layout Solver handles: "title"
+   * (title[+subtitle][+image]), "content" (title+items),
+   * "contentwithimage" (title+body+image, via the split-image strategy),
+   * "image" (caption/label headline+kicker, via the image-fullbleed
+   * strategy - see analyzeContent's "image" branch for the field remap),
+   * and "podcast" (hostName/hostImage, via the podcast-split strategy -
+   * see analyzeContent's "podcast" branch). All five sceneTypes in
+   * VALID_SCENE_TYPES are covered.
    */
-  static GENERATIVE_SUPPORTED_SCENE_TYPES = ['title', 'content', 'contentwithimage'];
+  static GENERATIVE_SUPPORTED_SCENE_TYPES = ['title', 'content', 'contentwithimage', 'image', 'podcast'];
 
   static validate(scriptData, videoType = 'educational', options = {}) {
     const { hostVoice = '', guestVoice = '', hostName = '', guestName = '', seed = '', disableCaptions = false } = options;

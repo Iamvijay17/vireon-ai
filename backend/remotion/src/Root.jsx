@@ -76,7 +76,13 @@ export const RemotionRoot = () => {
 
       {/* Generative Scene Engine preview - covers short title, long
           paragraph, 6-item list, and list+image content shapes (see the
-          generative-engine plan's verification section). */}
+          generative-engine plan's verification section). jobId is set to
+          each sceneId (rather than one shared "preview" id) so every
+          sample composition here still gets its own distinct generated
+          style, standing in for "a different video" - in real usage every
+          scene of the SAME video shares the SAME jobId, which is exactly
+          what keeps a real video's look coherent scene-to-scene (see
+          GeneratedScene.jsx's styleSeed). */}
       {Object.keys(sampleGenerativeScenes).map((sceneId) => (
         <Composition
           key={sceneId}
@@ -84,7 +90,7 @@ export const RemotionRoot = () => {
           component={() => (
             <VideoComposition
               assets={{ title: sceneId, scenes: [{ ...sampleGenerativeScenes[sceneId], duration: 8 }] }}
-              jobId="preview"
+              jobId={sceneId}
             />
           )}
           durationInFrames={240}
@@ -93,6 +99,31 @@ export const RemotionRoot = () => {
           height={1080}
         />
       ))}
+
+      {/* Style-coherence check: 3 generative scenes sharing ONE jobId,
+          verifying every scene resolves to the same palette/font pairing
+          (see GeneratedScene.jsx's styleSeed) instead of each scene
+          picking its own. */}
+      <Composition
+        id="gen-style-coherence-check"
+        component={() => (
+          <VideoComposition
+            assets={{
+              title: 'coherence-check',
+              scenes: [
+                { ...sampleGenerativeScenes['gen-short-title'], sceneNumber: 1, duration: 6 },
+                { ...sampleGenerativeScenes['gen-six-item-list'], sceneNumber: 2, duration: 6 },
+                { ...sampleGenerativeScenes['gen-list-with-image'], sceneNumber: 3, duration: 6 },
+              ],
+            }}
+            jobId="coherence-check-job"
+          />
+        )}
+        durationInFrames={540}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
 
       {/* Video Composition for Vireon AI (used for rendering) */}
       <Composition

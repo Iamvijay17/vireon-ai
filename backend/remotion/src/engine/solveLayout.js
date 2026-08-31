@@ -156,6 +156,114 @@ const buildSplitImage = (profile, rng) => {
   return slots;
 };
 
+// "image" scenes: full-bleed background image with a bottom-anchored
+// headline/kicker (normalized into title/subtitle by analyzeContent - see
+// its "image" branch), rather than the split image/text panel used for
+// content-with-image. Marked `scrim: true` so GeneratedScene renders a
+// bottom gradient behind the text for legibility over arbitrary imagery,
+// same purpose as templates/001-image's gradient overlay.
+const buildImageFullbleed = (profile) => {
+  const boxWidth = CANVAS.width - PAD.x * 2;
+  const slots = [{ id: 'image', role: 'image', xPct: 0, yPct: 0, wPct: 1, hPct: 1 }];
+
+  if (profile.subtitle) {
+    slots.push({
+      id: 'label', role: 'label', text: profile.subtitle,
+      xPct: PAD.x / CANVAS.width, yPct: 0.72,
+      wPct: boxWidth / CANVAS.width, hPct: 0.05, fontSize: 22, textAlign: 'left',
+    });
+  }
+  if (profile.title) {
+    const { fontSize } = fitTextToBox(profile.title, { boxWidth, boxHeight: 220, maxFontSize: 64, minFontSize: 36 });
+    slots.push({
+      id: 'title', role: 'title', text: profile.title,
+      xPct: PAD.x / CANVAS.width, yPct: 0.79,
+      wPct: boxWidth / CANVAS.width, hPct: 0.19, fontSize, textAlign: 'left',
+    });
+  }
+  return slots;
+};
+
+// "podcast" scenes, split-screen variant (mirrors templates/002-podcast):
+// host image fills one half (side picked by seed, same as buildSplitImage),
+// with hostName rendered as a nameplate overlay on the image itself (not in
+// the text panel - `nameplateText` on the image slot, rendered by
+// SlotImage), while the other half carries show title, episode subtitle,
+// and a decorative waveform. Normalized field names from analyzeContent's
+// "podcast" branch (title/subtitle/hostName/imageSrc).
+const buildPodcastSplit = (profile, rng) => {
+  const imageLeft = pick(rng, [true, false]);
+  const halfWidth = CANVAS.width / 2;
+  const textPad = 90;
+  const textBoxWidth = halfWidth - textPad * 2;
+  const textX = imageLeft ? halfWidth + textPad : textPad;
+  const slots = [{
+    id: 'image', role: 'image',
+    xPct: (imageLeft ? 0 : halfWidth) / CANVAS.width, yPct: 0,
+    wPct: halfWidth / CANVAS.width, hPct: 1,
+    nameplateText: profile.hostName || '',
+  }];
+
+  const title = titleSlot(profile.title, textBoxWidth, 0.38, 50);
+  if (title) slots.push({ ...title, xPct: textX / CANVAS.width, wPct: textBoxWidth / CANVAS.width });
+
+  if (profile.subtitle) {
+    const { fontSize } = fitTextToBox(profile.subtitle, { boxWidth: textBoxWidth, boxHeight: 140, maxFontSize: 26, minFontSize: 18 });
+    slots.push({
+      id: 'subtitle', role: 'body', text: profile.subtitle,
+      xPct: textX / CANVAS.width, yPct: 0.56,
+      wPct: textBoxWidth / CANVAS.width, hPct: 0.14, fontSize, textAlign: 'left',
+    });
+  }
+
+  return { slots, waveform: { xPct: textX / CANVAS.width, yPct: 0.74, wPct: 0.16 } };
+};
+
+// "podcast" scenes, centered variant (mirrors templates/001-podcast): a
+// single panel with a circular host avatar, hostName below it as a small
+// label, centered title/subtitle, and a centered waveform - the seed-picked
+// alternative to buildPodcastSplit's two-panel composition (see
+// chooseStrategy), giving podcast content the same kind of structural
+// variety "content" scenes already get from grid/timeline.
+const buildPodcastCentered = (profile) => {
+  const avatarSize = 220;
+  const avatarWPct = avatarSize / CANVAS.width;
+  const avatarHPct = avatarSize / CANVAS.height;
+  const centerWidth = CANVAS.width * 0.7;
+  const centerX = (CANVAS.width - centerWidth) / 2;
+  const slots = [];
+
+  if (profile.imageSrc) {
+    slots.push({
+      id: 'image', role: 'image', circle: true,
+      xPct: 0.5 - avatarWPct / 2, yPct: 0.13,
+      wPct: avatarWPct, hPct: avatarHPct,
+    });
+  }
+
+  if (profile.hostName) {
+    slots.push({
+      id: 'label', role: 'label', text: profile.hostName,
+      xPct: centerX / CANVAS.width, yPct: 0.40,
+      wPct: centerWidth / CANVAS.width, hPct: 0.05, fontSize: 22, textAlign: 'center',
+    });
+  }
+
+  const title = titleSlot(profile.title, centerWidth, 0.46, 56);
+  if (title) slots.push({ ...title, xPct: centerX / CANVAS.width, wPct: centerWidth / CANVAS.width, textAlign: 'center' });
+
+  if (profile.subtitle) {
+    const { fontSize } = fitTextToBox(profile.subtitle, { boxWidth: centerWidth, boxHeight: 100, maxFontSize: 26, minFontSize: 18 });
+    slots.push({
+      id: 'subtitle', role: 'body', text: profile.subtitle,
+      xPct: centerX / CANVAS.width, yPct: 0.62,
+      wPct: centerWidth / CANVAS.width, hPct: 0.1, fontSize, textAlign: 'center',
+    });
+  }
+
+  return { slots, waveform: { xPct: 0.5 - 0.08, yPct: 0.76, wPct: 0.16 } };
+};
+
 const STRATEGY_BUILDERS = {
   'title-only': buildTitleOnly,
   'stack-list': buildStackList,
@@ -163,16 +271,27 @@ const STRATEGY_BUILDERS = {
   timeline: buildTimeline,
   'paragraph-stack': buildParagraphStack,
   'split-image': buildSplitImage,
+  'image-fullbleed': buildImageFullbleed,
+  'podcast-split': buildPodcastSplit,
+  'podcast-centered': buildPodcastCentered,
 };
+
+const SCRIM_STRATEGIES = new Set(['image-fullbleed']);
 
 /**
  * Picks a macro composition strategy by rule, not by hand-authored recipe
  * lookup - the seed only breaks ties between multiple equally-valid
  * strategies for the same content shape (e.g. a 5-item short list reads
- * fine as either a grid or a numbered timeline), so the same content
+ * fine as either a grid or a numbered timeline; a podcast turn reads fine
+ * as either the split-screen or centered composition), so the same content
  * doesn't always resolve to an identical structure across different videos.
+ * sceneType-specific shapes ("image", "podcast") are routed to their own
+ * dedicated strategy before the generic content-shape rules apply.
  */
 const chooseStrategy = (profile, rng) => {
+  if (profile.sceneType === 'image') return 'image-fullbleed';
+  if (profile.sceneType === 'podcast') return pick(rng, ['podcast-split', 'podcast-centered']);
+
   const { itemCount, density, hasImage, hasHeadings } = profile;
   if (hasImage) return 'split-image';
   if (itemCount === 0) return 'title-only';
@@ -181,10 +300,19 @@ const chooseStrategy = (profile, rng) => {
   return hasHeadings ? 'timeline' : 'stack-list';
 };
 
+// Builders return either a plain slot array (most strategies) or
+// `{ slots, waveform }` when they also place the decorative podcast
+// waveform (see GeneratedScene.jsx's Waveform primitive) - normalized here
+// so solveLayout always returns a consistent LayoutPlan shape either way.
+const runBuilder = (strategy, profile, rng) => {
+  const builder = STRATEGY_BUILDERS[strategy] || STRATEGY_BUILDERS['stack-list'];
+  const result = builder(profile, rng);
+  return Array.isArray(result) ? { slots: result, waveform: null } : result;
+};
+
 export const solveLayout = (profile, seedInput) => {
   const rng = createSeededRng(`${seedInput}-layout`);
   const strategy = chooseStrategy(profile, rng);
-  const builder = STRATEGY_BUILDERS[strategy] || STRATEGY_BUILDERS['stack-list'];
-  const slots = builder(profile, rng).filter(Boolean);
-  return { strategy, canvas: CANVAS, slots };
+  const { slots, waveform } = runBuilder(strategy, profile, rng);
+  return { strategy, canvas: CANVAS, slots: slots.filter(Boolean), scrim: SCRIM_STRATEGIES.has(strategy), waveform: waveform || null };
 };

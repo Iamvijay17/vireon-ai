@@ -5,7 +5,7 @@ import { solveLayout } from '../../engine/solveLayout';
 import { generateStyle } from '../../engine/generateStyle';
 import { choreograph } from '../../engine/choreograph';
 import { computeMotionStyle } from '../../engine/motion';
-import { SlotText, SlotImage } from '../../engine/primitives';
+import { SlotText, SlotImage, Waveform } from '../../engine/primitives';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
 import { mergeStyle, typography } from '../../theme';
 
@@ -26,7 +26,7 @@ import { mergeStyle, typography } from '../../theme';
  * fields required, so any existing scene can point templateId at
  * "generative" and render through the engine unchanged.
  */
-const GeneratedScene = React.memo(({ scene }) => {
+const GeneratedScene = React.memo(({ scene, jobId }) => {
   const frame = useCurrentFrame();
   const { width } = useVideoConfig();
   const elements = scene?.elements || {};
@@ -35,19 +35,54 @@ const GeneratedScene = React.memo(({ scene }) => {
 
   // Deterministic seed: the scene's stable sceneId (see sceneSchema.js -
   // independent of sceneNumber, which shifts on reorder) so the same scene
-  // always resolves to the same generated layout/style/motion across
-  // preview and final render. Falls back to templateId+title for sample
-  // data that has no sceneId (e.g. Remotion Studio previews).
+  // always resolves to the same generated layout/motion across preview and
+  // final render. Falls back to templateId+title for sample data that has
+  // no sceneId (e.g. Remotion Studio previews).
   const seed = scene?.sceneId || `${scene?.templateId || 'generative'}-${elements.title || ''}`;
+
+  // Style uses a separate, job-level seed (falling back to the per-scene
+  // seed when no jobId is available, e.g. a standalone scene render) so
+  // every scene in the same video resolves to the same palette/font
+  // pairing - layout and motion still vary per scene via `seed` above,
+  // only the look stays consistent across the whole job.
+  const styleSeed = jobId || seed;
 
   const profile = useMemo(() => analyzeContent(scene), [scene]);
   const layoutPlan = useMemo(() => solveLayout(profile, seed), [profile, seed]);
-  const stylePlan = useMemo(() => generateStyle(seed), [seed]);
+  const stylePlan = useMemo(() => generateStyle(styleSeed), [styleSeed]);
   const motionPlan = useMemo(() => choreograph(layoutPlan, seed), [layoutPlan, seed]);
 
   const bgColor = elements.backgroundColor || stylePlan.palette.bg;
-  const caption = elements.caption || '';
-  const captionTimestamps = elements.captionTimestamps || null;
+  // Spoken word-timed captions only exist for "content"/"podcast" shapes
+  // (see analyzeContent's per-sceneType branches) - "image" scenes' own
+  // `elements.caption` is an on-screen headline instead, already folded
+  // into layoutPlan's title/label slots, not the bottom CaptionRenderer.
+  const caption = profile.spokenCaption;
+  const captionTimestamps = profile.captionTimestamps;
+
+  const renderSlot = (slot) => {
+    const motionStyle = computeMotionStyle(frame, motionPlan[slot.id]);
+
+    if (slot.role === 'image') {
+      return (
+        <SlotImage key={slot.id} slot={slot} src={profile.imageSrc} motionStyle={motionStyle} stylePlan={stylePlan} />
+      );
+    }
+
+    const overrideKey = slot.role === 'title' ? 'title' : slot.role === 'body' ? 'body' : null;
+    const overrideStyle = overrideKey && overrides[overrideKey] ? mergeStyle({}, overrides[overrideKey]) : null;
+
+    return (
+      <SlotText key={slot.id} slot={slot} stylePlan={stylePlan} motionStyle={motionStyle} overrideStyle={overrideStyle} />
+    );
+  };
+
+  // Image slots render first (bottom of the stack), then an optional scrim
+  // for legibility over arbitrary imagery (see solveLayout's
+  // SCRIM_STRATEGIES), then every other slot on top - plain DOM order since
+  // none of these carry an explicit z-index.
+  const imageSlots = layoutPlan.slots.filter((slot) => slot.role === 'image');
+  const otherSlots = layoutPlan.slots.filter((slot) => slot.role !== 'image');
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
@@ -59,22 +94,12 @@ const GeneratedScene = React.memo(({ scene }) => {
           transform: `scale(${scale})`, transformOrigin: 'center center',
         }}
       >
-        {layoutPlan.slots.map((slot) => {
-          const motionStyle = computeMotionStyle(frame, motionPlan[slot.id]);
-
-          if (slot.role === 'image') {
-            return (
-              <SlotImage key={slot.id} slot={slot} src={elements.image} motionStyle={motionStyle} stylePlan={stylePlan} />
-            );
-          }
-
-          const overrideKey = slot.role === 'title' ? 'title' : slot.role === 'body' ? 'body' : null;
-          const overrideStyle = overrideKey && overrides[overrideKey] ? mergeStyle({}, overrides[overrideKey]) : null;
-
-          return (
-            <SlotText key={slot.id} slot={slot} stylePlan={stylePlan} motionStyle={motionStyle} overrideStyle={overrideStyle} />
-          );
-        })}
+        {imageSlots.map(renderSlot)}
+        {layoutPlan.scrim && (
+          <AbsoluteFill style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.35) 45%, transparent 70%)' }} />
+        )}
+        {otherSlots.map(renderSlot)}
+        <Waveform waveform={layoutPlan.waveform} stylePlan={stylePlan} />
       </div>
 
       <CaptionRenderer

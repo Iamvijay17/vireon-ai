@@ -21,6 +21,12 @@ const roleBaseStyle = (slot, stylePlan) => {
         color: palette.textMuted, fontFamily: fonts.body, fontWeight: 400,
         fontSize: slot.fontSize, lineHeight: 1.5, textAlign: slot.textAlign || 'left', margin: 0,
       };
+    case 'label':
+      return {
+        color: palette.accent, fontFamily: fonts.body, fontWeight: 600,
+        fontSize: slot.fontSize, letterSpacing: '0.08em', textTransform: 'uppercase',
+        textAlign: slot.textAlign || 'left', margin: 0,
+      };
     case 'listItem':
     default:
       return {

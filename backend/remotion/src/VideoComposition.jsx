@@ -127,7 +127,12 @@ const resolveTemplate = (templateId) => {
 };
 
 // Scene component that dynamically selects and renders the correct template
-// Each template handles its own audio rendering internally
+// Each template handles its own audio rendering internally. `jobId` is
+// passed through in addition to `scene` - every hand-coded template still
+// only destructures `{ scene }` and ignores it, but GeneratedScene
+// (templateId "generative") uses it as its Style Generator seed so every
+// scene in the same job resolves to the same palette/font pairing instead
+// of each scene picking its own (see GeneratedScene.jsx).
 const Scene = React.memo(({ scene, jobId }) => {
   const templateId = scene?.templateId;
   const Template = resolveTemplate(templateId);
@@ -138,7 +143,7 @@ const Scene = React.memo(({ scene, jobId }) => {
       data-scene-number={scene?.sceneNumber ?? ""}
     >
       <Suspense fallback={<TemplateLoadingFallback />}>
-        <Template scene={scene} />
+        <Template scene={scene} jobId={jobId} />
       </Suspense>
     </AbsoluteFill>
   );
