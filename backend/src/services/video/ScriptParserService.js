@@ -247,7 +247,25 @@ class ScriptParserService {
       title: scene.title || '',
       subtitle: scene.subtitle || '',
     };
-    const caption = disableCaptions ? '' : (scene.audio?.text || scene.subtitle || '');
+
+    // GENERATIVE_TEMPLATE_ID is one shared id across multiple sceneTypes,
+    // so it can't be reverse-looked-up from SCENE_TYPE_TEMPLATE_IDS the way
+    // a numbered "NNN-<sceneType>" id can - callers that already know the
+    // sceneType (ScriptParserService.validate) pass it explicitly instead.
+    // Resolved before `caption` below since captions-by-default now depends
+    // on it.
+    const sceneType = explicitSceneType
+      || Object.keys(ScriptParserService.SCENE_TYPE_TEMPLATE_IDS)
+        .find((type) => ScriptParserService.SCENE_TYPE_TEMPLATE_IDS[type].includes(templateId));
+
+    // Spoken word-timed captions (CaptionRenderer's bottom overlay) default
+    // ON only for "podcast" scenes - a dialogue turn has no other on-screen
+    // text, so burned-in captions carry the narration. Every other
+    // sceneType already shows its narration as visible title/body/item
+    // text, so a redundant caption track defaults OFF - still fully
+    // overridable afterwards by editing elements.caption directly.
+    const captionsOnByDefault = sceneType === 'podcast';
+    const caption = (!disableCaptions && captionsOnByDefault) ? (scene.audio?.text || scene.subtitle || '') : '';
 
     // One branch per sceneType, matching the elements shape its templates
     // actually read (see each template's own JSDoc header in
@@ -261,6 +279,9 @@ class ScriptParserService {
       title: { ...base, image: '' },
       content: contentDefault,
       contentwithimage: { title: scene.title || '', body: scene.subtitle || '', image: '', badge: '' },
+      // "image" scenes' own `caption` field is an on-screen headline
+      // overlaid on the image (see templates/001-image), unrelated to
+      // CaptionRenderer's spoken captions - not gated by captionsOnByDefault.
       image: { image: '', caption: scene.subtitle || '', label: 'Featured' },
       podcast: {
         title: scene.title || '',
@@ -271,13 +292,6 @@ class ScriptParserService {
         captionTimestamps: null,
       },
     };
-    // GENERATIVE_TEMPLATE_ID is one shared id across multiple sceneTypes,
-    // so it can't be reverse-looked-up from SCENE_TYPE_TEMPLATE_IDS the way
-    // a numbered "NNN-<sceneType>" id can - callers that already know the
-    // sceneType (ScriptParserService.validate) pass it explicitly instead.
-    const sceneType = explicitSceneType
-      || Object.keys(ScriptParserService.SCENE_TYPE_TEMPLATE_IDS)
-        .find((type) => ScriptParserService.SCENE_TYPE_TEMPLATE_IDS[type].includes(templateId));
 
     return sceneTypeElements[sceneType] || base;
   }
@@ -291,7 +305,6 @@ class ScriptParserService {
    * scene_meta.content at all, so this only needs 2 branches.
    */
   static _createContentElementsFromMeta(templateId, contentItems, scene, options = {}, explicitSceneType = null) {
-    const { disableCaptions = false } = options;
     // GENERATIVE_TEMPLATE_ID can't be reverse-looked-up from
     // SCENE_TYPE_TEMPLATE_IDS (see _createDefaultElements) - callers that
     // already know the sceneType pass it explicitly instead.
@@ -299,12 +312,16 @@ class ScriptParserService {
     const isContentWithImageShape = explicitSceneType === 'contentwithimage' || ScriptParserService.SCENE_TYPE_TEMPLATE_IDS.contentwithimage.includes(templateId);
 
     // Content variants: plain items array, one row per content sentence -
-    // each variant's component decides how to lay the rows out.
+    // each variant's component decides how to lay the rows out. Spoken
+    // word-timed captions default OFF for "content" (only "podcast" turns
+    // get them by default - see _createDefaultElements's captionsOnByDefault) -
+    // this method is only ever called for sceneType "content" (see
+    // validate()'s call site), so caption is always empty here.
     if (isContentShape) {
       return {
         title: scene.title || '',
         items: contentItems.map((text) => ({ heading: '', text })),
-        caption: disableCaptions ? '' : (scene.audio?.text || scene.subtitle || ''),
+        caption: '',
         captionTimestamps: null,
       };
     }
