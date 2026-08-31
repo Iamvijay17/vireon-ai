@@ -27,11 +27,15 @@ export const defaultCaptionConfig = {
   framesPerWord: 3,
   wordSpacing: '0.3em',
   letterSpacing: '0.02em',
-  // When set, only this many words are rendered at once (chunked by
-  // activeIndex) instead of the entire caption wrapping across multiple
-  // lines. Opt-in so existing templates keep their current full-text
-  // behavior unless they explicitly ask for windowing.
-  maxVisibleWords: 0,
+  // Only this many words are rendered at once (chunked by activeIndex),
+  // matching how short-form captions actually read (a few words at a
+  // time, not the whole line as one wrapped paragraph). Defaulting to 0
+  // (unbounded) rendered the ENTIRE narration line as one multi-line block
+  // regardless of length - for anything but a short line, that box grew
+  // tall enough to overlap the template's own title/body content above it.
+  // A template can still opt back into the old unbounded behavior by
+  // passing `maxVisibleWords: 0` in its styleConfig.captions.
+  maxVisibleWords: 6,
 };
 
 /**

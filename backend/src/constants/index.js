@@ -202,7 +202,7 @@ const VIDEO_DURATIONS = Object.freeze([5, 10, 15]);
 
 // Standalone (Wizard) video duration options in minutes - a separate scale
 // from course videos' VIDEO_DURATIONS since it's a distinct pipeline.
-const STANDALONE_VIDEO_DURATIONS = Object.freeze([5, 8, 10, 15, 20, 25, 30]);
+const STANDALONE_VIDEO_DURATIONS = Object.freeze([1, 2, 3, 4, 5, 8, 10, 15, 20, 25, 30]);
 
 // YouTube Shorts have their own duration scale (YouTube caps Shorts at 3
 // minutes) - validated separately from STANDALONE_VIDEO_DURATIONS in
