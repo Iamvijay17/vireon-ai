@@ -68,6 +68,11 @@ const Image010 = lazy(() => import('./010-image'));
 const Podcast001 = lazy(() => import('./001-podcast'));
 const Podcast002 = lazy(() => import('./002-podcast'));
 
+// Generative Scene Engine - computes layout/style/motion procedurally from
+// scene content instead of being a hand-authored layout (see
+// remotion/src/engine/*.js and templates/generative/GeneratedScene.jsx).
+const Generative = lazy(() => import('./generative/GeneratedScene'));
+
 /**
  * Template registry object.
  * Key: templateId (string, "NNN-<sceneType>").
@@ -120,6 +125,7 @@ const TemplateRegistry = {
   '010-image': Image010,
   '001-podcast': Podcast001,
   '002-podcast': Podcast002,
+  generative: Generative,
 };
 
 export default TemplateRegistry;

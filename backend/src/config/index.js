@@ -57,6 +57,16 @@ const config = Object.freeze({
     maxRetries: parseInt(process.env.REMOTION_MAX_RETRIES, 10) || 2,
   },
 
+  // Generative Scene Engine (remotion/src/engine/*.js): computes layout,
+  // style, and motion procedurally from scene content instead of picking
+  // one of the ~46 hand-coded template files. Defaults on; set
+  // GENERATIVE_ENGINE_ENABLED=false to roll back new scripts to the legacy
+  // random-pick-from-fixed-templates behavior (see
+  // ScriptParserService._getDefaultTemplateForType).
+  generativeEngine: {
+    enabled: process.env.GENERATIVE_ENGINE_ENABLED !== 'false',
+  },
+
   minio: {
     endpoint: process.env.MINIO_ENDPOINT || '127.0.0.1',
     port: parseInt(process.env.MINIO_PORT, 10) || 9000,

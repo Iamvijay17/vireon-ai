@@ -4,6 +4,7 @@ import { HelloWorld } from "./HelloWorld";
 import { Logo } from "./HelloWorld/Logo";
 import { VideoComposition } from "./VideoComposition";
 import { sampleScenes } from "./sampleData";
+import { sampleGenerativeScenes } from "./engine/sampleGenerativeScenes";
 import { calculateVideoMetadata } from "./calculateVideoMetadata";
 
 // Each <Composition> is an entry in the sidebar!
@@ -72,6 +73,26 @@ export const RemotionRoot = () => {
           />
         );
       })}
+
+      {/* Generative Scene Engine preview - covers short title, long
+          paragraph, 6-item list, and list+image content shapes (see the
+          generative-engine plan's verification section). */}
+      {Object.keys(sampleGenerativeScenes).map((sceneId) => (
+        <Composition
+          key={sceneId}
+          id={sceneId}
+          component={() => (
+            <VideoComposition
+              assets={{ title: sceneId, scenes: [{ ...sampleGenerativeScenes[sceneId], duration: 8 }] }}
+              jobId="preview"
+            />
+          )}
+          durationInFrames={240}
+          fps={30}
+          width={1920}
+          height={1080}
+        />
+      ))}
 
       {/* Video Composition for Vireon AI (used for rendering) */}
       <Composition

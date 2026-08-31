@@ -43,6 +43,26 @@ class ScriptParserService {
     podcast: ['001-podcast', '002-podcast'],
   };
 
+  /**
+   * templateId for the Generative Scene Engine (see
+   * remotion/src/engine/*.js and
+   * remotion/src/templates/generative/GeneratedScene.jsx), which computes
+   * layout/style/motion procedurally from a scene's `elements` instead of
+   * rendering one of the hand-coded SCENE_TYPE_TEMPLATE_IDS files.
+   */
+  static GENERATIVE_TEMPLATE_ID = 'generative';
+
+  /**
+   * sceneTypes the generative engine's Layout Solver currently handles well:
+   * "title" (title[+subtitle][+image]), "content" (title+items), and
+   * "contentwithimage" (title+body+image, via the solver's split-image
+   * strategy). "image" (caption/label-keyed, not title/items/body) and
+   * "podcast" (hostName/hostImage-keyed) use a differently-shaped `elements`
+   * the solver doesn't read yet - those two keep using the legacy
+   * hand-coded templates until the solver is extended to them.
+   */
+  static GENERATIVE_SUPPORTED_SCENE_TYPES = ['title', 'content', 'contentwithimage'];
+
   static validate(scriptData, videoType = 'educational', options = {}) {
     const { hostVoice = '', guestVoice = '', hostName = '', guestName = '', seed = '', disableCaptions = false } = options;
     const errors = [];
@@ -111,16 +131,19 @@ class ScriptParserService {
       // template id can never leak into a freshly-validated script.
       const templateId = ScriptParserService._getDefaultTemplateForType(sceneType);
 
-      // Ensure elements structure matches the template
+      // Ensure elements structure matches the template. Passed explicitly
+      // rather than re-derived from templateId, since GENERATIVE_TEMPLATE_ID
+      // is one shared id across multiple sceneTypes - it can't be reverse-
+      // looked-up the way a numbered "NNN-<sceneType>" id can.
       let elements = scene.elements || null;
       if (templateId) {
-        const defaultElements = ScriptParserService._createDefaultElements(templateId, scene, { hostName, guestName, disableCaptions });
+        const defaultElements = ScriptParserService._createDefaultElements(templateId, scene, { hostName, guestName, disableCaptions }, sceneType);
 
         // Prefer scene_meta.content over empty defaults for content scenes
         if (sceneType === 'content' && scene.scene_meta?.content) {
           const contentItems = scene.scene_meta.content.filter(s => s.trim().length > 0);
           if (contentItems.length > 0) {
-            elements = ScriptParserService._createContentElementsFromMeta(templateId, contentItems, scene, { disableCaptions });
+            elements = ScriptParserService._createContentElementsFromMeta(templateId, contentItems, scene, { disableCaptions }, sceneType);
           } else {
             elements = defaultElements;
           }
@@ -194,13 +217,20 @@ class ScriptParserService {
   }
 
   /**
-   * Get the default template ID for a scene type: a random pick from
-   * SCENE_TYPE_TEMPLATE_IDS[sceneType] (a single-element array for scene
-   * types with only one visual variant, so the "randomness" is a no-op
-   * there). Previously this picked from a large per-videoType/per-position
-   * rotation pool across 60+ numeric templates; that pool no longer exists.
+   * Get the default template ID for a scene type. When the Generative
+   * Scene Engine is enabled (config.generativeEngine.enabled, default on)
+   * and the sceneType is one the solver handles
+   * (GENERATIVE_SUPPORTED_SCENE_TYPES), every new script routes through it
+   * instead of the ~46 hand-coded templates. Falls back to the legacy
+   * random pick from SCENE_TYPE_TEMPLATE_IDS[sceneType] otherwise - either
+   * because the engine is disabled (GENERATIVE_ENGINE_ENABLED=false) or the
+   * sceneType ("image"/"podcast") isn't supported by the solver yet.
    */
   static _getDefaultTemplateForType(sceneType = 'content') {
+    if (config.generativeEngine.enabled && ScriptParserService.GENERATIVE_SUPPORTED_SCENE_TYPES.includes(sceneType)) {
+      return ScriptParserService.GENERATIVE_TEMPLATE_ID;
+    }
+
     const variants = ScriptParserService.SCENE_TYPE_TEMPLATE_IDS[sceneType]
       || ScriptParserService.SCENE_TYPE_TEMPLATE_IDS.content;
     return variants[Math.floor(Math.random() * variants.length)];
@@ -210,7 +240,7 @@ class ScriptParserService {
    * Create default elements structure for a given template.
    * Ensures the template has the data it needs to render properly.
    */
-  static _createDefaultElements(templateId, scene, names = {}) {
+  static _createDefaultElements(templateId, scene, names = {}, explicitSceneType = null) {
     const { hostName = '', guestName = '', disableCaptions = false } = names;
     const base = {
       title: scene.title || '',
@@ -240,8 +270,13 @@ class ScriptParserService {
         captionTimestamps: null,
       },
     };
-    const sceneType = Object.keys(ScriptParserService.SCENE_TYPE_TEMPLATE_IDS)
-      .find((type) => ScriptParserService.SCENE_TYPE_TEMPLATE_IDS[type].includes(templateId));
+    // GENERATIVE_TEMPLATE_ID is one shared id across multiple sceneTypes,
+    // so it can't be reverse-looked-up from SCENE_TYPE_TEMPLATE_IDS the way
+    // a numbered "NNN-<sceneType>" id can - callers that already know the
+    // sceneType (ScriptParserService.validate) pass it explicitly instead.
+    const sceneType = explicitSceneType
+      || Object.keys(ScriptParserService.SCENE_TYPE_TEMPLATE_IDS)
+        .find((type) => ScriptParserService.SCENE_TYPE_TEMPLATE_IDS[type].includes(templateId));
 
     return sceneTypeElements[sceneType] || base;
   }
@@ -254,11 +289,17 @@ class ScriptParserService {
    * body paragraph) - the other 3 (title/image/podcast) don't render
    * scene_meta.content at all, so this only needs 2 branches.
    */
-  static _createContentElementsFromMeta(templateId, contentItems, scene, options = {}) {
+  static _createContentElementsFromMeta(templateId, contentItems, scene, options = {}, explicitSceneType = null) {
     const { disableCaptions = false } = options;
+    // GENERATIVE_TEMPLATE_ID can't be reverse-looked-up from
+    // SCENE_TYPE_TEMPLATE_IDS (see _createDefaultElements) - callers that
+    // already know the sceneType pass it explicitly instead.
+    const isContentShape = explicitSceneType === 'content' || ScriptParserService.SCENE_TYPE_TEMPLATE_IDS.content.includes(templateId);
+    const isContentWithImageShape = explicitSceneType === 'contentwithimage' || ScriptParserService.SCENE_TYPE_TEMPLATE_IDS.contentwithimage.includes(templateId);
+
     // Content variants: plain items array, one row per content sentence -
     // each variant's component decides how to lay the rows out.
-    if (ScriptParserService.SCENE_TYPE_TEMPLATE_IDS.content.includes(templateId)) {
+    if (isContentShape) {
       return {
         title: scene.title || '',
         items: contentItems.map((text) => ({ heading: '', text })),
@@ -269,7 +310,7 @@ class ScriptParserService {
 
     // Content + image: a single body paragraph alongside the image, not a
     // bulleted list (the split image/text panel has room for prose, not rows).
-    if (ScriptParserService.SCENE_TYPE_TEMPLATE_IDS.contentwithimage.includes(templateId)) {
+    if (isContentWithImageShape) {
       return {
         title: scene.title || '',
         body: contentItems.join(' '),
