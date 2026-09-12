@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Terminal,
   AudioLines,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "../../components/ui/cn";
 
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, route: "/" },
   { key: "courses", label: "Courses", icon: BookOpen, route: "/courses" },
   { key: "projects", label: "Projects", icon: FolderKanban, route: "/projects" },
+  { key: "jobs", label: "Job Management", icon: ListChecks, route: "/jobs" },
   { key: "render", label: "Render", icon: Rocket, route: "/render" },
   { key: "audio", label: "Audio Studio", icon: AudioLines, route: "/audio" },
   {

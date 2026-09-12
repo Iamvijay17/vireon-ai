@@ -247,6 +247,19 @@ export const bulkApproveCourseVideoScripts = (videoIds) =>
 export const bulkDeleteCourseVideos = (videoIds) =>
   api.post(`/api/course-videos/bulk-delete`, { videoIds });
 
+// ─── Job Management (unified video/course/audio job view) ────────────────────────
+
+export const getJobs = (page = 1, limit = 20, filters = {}) =>
+  api.get('/api/jobs', { params: { page, limit, ...filters } });
+
+export const getJob = (type, id) => api.get(`/api/jobs/${type}/${id}`);
+
+export const cancelJob = (type, id) => api.post(`/api/jobs/${type}/${id}/cancel`);
+
+export const retryJob = (type, id) => api.post(`/api/jobs/${type}/${id}/retry`);
+
+export const bulkJobAction = (jobs, action) => api.post('/api/jobs/bulk', { jobs, action });
+
 // ─── Analytics ──────────────────────────────────────────────────────────────────
 
 export const getAnalyticsOverview = (days = 30) =>
