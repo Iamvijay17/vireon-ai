@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
 import { cn } from "../ui/cn";
 
-const CHART_HEIGHT = 240;
+const CHART_HEIGHT = 180;
 const CHART_WIDTH = 640;
-const PAD = { top: 16, right: 12, bottom: 24, left: 32 };
+const PAD = { top: 12, right: 12, bottom: 20, left: 28 };
 
 const formatDate = (iso) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -93,7 +93,7 @@ export const TrendChart = ({ data = [], series = [], className }) => {
   return (
     <div className={className}>
       {series.length > 1 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
           {series.map((s) => {
             const isHidden = hidden.has(s.key);
             return (

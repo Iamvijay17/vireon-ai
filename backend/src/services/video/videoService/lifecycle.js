@@ -22,14 +22,21 @@ async function rerender(jobId) {
     throw { status: 400, message: `Job is in ${job.status} state and cannot be re-rendered. Only COMPLETED or FAILED jobs can be re-rendered.` };
   }
 
-  // Clean up old render and assets files so the worker re-creates them
+  // Delete assets/props so the worker regenerates them with the latest
+  // scene data (prepareAssets always does this anyway - see renderStep.js).
+  // Deliberately does NOT touch render/ here: renderStep.render() compares
+  // the freshly-prepared assets against that existing video.mp4's recorded
+  // fingerprint (RemotionService.isRenderCurrent) and skips re-rendering
+  // when nothing actually changed since the last render - eagerly deleting
+  // it here used to destroy that video.mp4 before the check could ever see
+  // it, forcing every "Re-render" click to pay for a full Remotion render
+  // (often minutes) even when no scene/image/template had changed.
+  // renderStep.render() deletes render/ itself, right before it actually
+  // decides a real re-render is needed.
   const jobDir = path.resolve(__dirname, '../../../../jobs', jobId);
-  const renderDir = path.join(jobDir, 'render');
   const assetsPath = path.join(jobDir, 'assets.json');
   const propsPath = path.join(jobDir, 'render-props.json');
 
-  // Delete render output and assets (keep audio and script)
-  try { await fs.rm(renderDir, { recursive: true, force: true }); } catch {}
   try { await fs.unlink(assetsPath); } catch {}
   try { await fs.unlink(propsPath); } catch {}
 

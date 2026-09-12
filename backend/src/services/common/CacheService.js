@@ -112,6 +112,45 @@ class CacheService {
       LoggerService.warn('Smart Cache failed to store TTS audio', { hash, error: err.message });
     }
   }
+
+  // ---- Voice-clone reference transcripts: keyed by the (bundled, fixed)
+  // reference audio filename - same "small fixed set of files" shape as
+  // avatar clips above, not user-uploaded content. ----
+
+  /**
+   * ttsClient.getReferenceText already memoizes this in an in-process Map,
+   * which only helps repeat calls within one worker's lifetime - every
+   * worker restart (deploy, crash-recovery, or just a second worker
+   * process) re-pays for transcribing the same handful of bundled
+   * reference-voice files. Persisting it here like TTS audio itself makes
+   * that transcription a true one-time cost.
+   */
+  static async getReferenceTranscript(cacheKey) {
+    if (!config.cache.enabled) return null;
+    const key = `tts-transcript/${cacheKey}.txt`;
+    try {
+      const chunks = [];
+      const stream = await this.#client().getObject(config.minio.cacheBucket, key);
+      for await (const chunk of stream) chunks.push(chunk);
+      LoggerService.info('Smart Cache hit: reference transcript', { cacheKey });
+      MetricsService.increment('cache.hits');
+      return Buffer.concat(chunks).toString('utf8');
+    } catch {
+      MetricsService.increment('cache.misses');
+      return null;
+    }
+  }
+
+  static async putReferenceTranscript(cacheKey, transcript) {
+    if (!config.cache.enabled) return;
+    const key = `tts-transcript/${cacheKey}.txt`;
+    try {
+      await this.#client().putObject(config.minio.cacheBucket, key, Buffer.from(transcript, 'utf8'));
+      LoggerService.info('Smart Cache stored: reference transcript', { cacheKey });
+    } catch (err) {
+      LoggerService.warn('Smart Cache failed to store reference transcript', { cacheKey, error: err.message });
+    }
+  }
 }
 
 module.exports = CacheService;

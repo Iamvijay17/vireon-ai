@@ -39,8 +39,8 @@ export const StatusDonut = ({ rows = [], emptyLabel = "No data yet", className }
   }));
 
   return (
-    <div className={cn("flex flex-col items-center gap-4 sm:flex-row", className)}>
-      <div className="relative size-32 shrink-0">
+    <div className={cn("flex flex-col items-center gap-3 sm:flex-row", className)}>
+      <div className="relative size-24 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie

@@ -47,7 +47,7 @@ export const RankedBarChart = ({
     fill: palette ? palette[i % palette.length] : color,
   }));
   const total = sorted.reduce((sum, r) => sum + r.count, 0);
-  const height = Math.max(sorted.length * 30, 56);
+  const height = Math.max(sorted.length * 24, 44);
 
   return (
     <div className={className} style={{ height }}>
@@ -55,21 +55,21 @@ export const RankedBarChart = ({
         <BarChart
           data={sorted}
           layout="vertical"
-          margin={{ top: 2, right: 40, bottom: 2, left: 2 }}
-          barCategoryGap={8}
+          margin={{ top: 0, right: 36, bottom: 0, left: 0 }}
+          barCategoryGap={6}
         >
           <XAxis type="number" hide domain={[0, "dataMax"]} />
           <YAxis
             type="category"
             dataKey="label"
             tickFormatter={formatLabel}
-            width={104}
-            tick={{ fill: "var(--color-text-secondary)", fontSize: 12, fontWeight: 500 }}
+            width={92}
+            tick={{ fill: "var(--color-text-secondary)", fontSize: 11.5, fontWeight: 500 }}
             tickLine={false}
             axisLine={false}
           />
           <Tooltip cursor={{ fill: "var(--color-surface-hover)" }} content={<BarTooltip total={total} formatValue={formatValue} />} />
-          <Bar dataKey="count" radius={[6, 6, 6, 6]} maxBarSize={14} isAnimationActive animationDuration={500} background={{ fill: "var(--color-surface-active)", radius: 6 }}>
+          <Bar dataKey="count" radius={[5, 5, 5, 5]} maxBarSize={11} isAnimationActive animationDuration={500} background={{ fill: "var(--color-surface-active)", radius: 5 }}>
             {sorted.map((row) => (
               <Cell key={row.label} fill={row.fill} />
             ))}

@@ -57,7 +57,10 @@ const worker = new Worker(
   processVideoJob,
   {
     connection,
-    concurrency: 3, // Process up to 3 jobs concurrently
+    // See config/index.js's videoWorker.concurrency comment - scales with
+    // CPU count (capped at 3) instead of a flat number, since each job's
+    // Remotion render step is CPU-bound.
+    concurrency: config.videoWorker.concurrency,
     // BullMQ auto-renews this lock (roughly every lockDuration/2) for as
     // long as the worker process is alive and actively processing - a long
     // render doesn't need a long lockDuration, it just needs the process to
@@ -134,7 +137,7 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 LoggerService.border('🎥 Video Worker Started', 'event');
 LoggerService.info('Worker listening for jobs', {
   queue: 'video-rendering',
-  concurrency: 3,
+  concurrency: config.videoWorker.concurrency,
   redis: `${config.redis.host}:${config.redis.port}`,
 });
 

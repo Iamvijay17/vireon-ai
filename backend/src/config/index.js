@@ -1,5 +1,6 @@
 const dotenv = require('dotenv');
 const path = require('path');
+const os = require('os');
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -110,6 +111,22 @@ const config = Object.freeze({
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000,
     max: parseInt(process.env.RATE_LIMIT_MAX, 10) || 600,
+  },
+
+  // Each concurrent video job spends most of its time on network/GPU-bound
+  // TTS calls, but also runs a CPU-heavy Remotion render (see renderStep.js)
+  // as one step of the same job - so worker concurrency doubles as a cap on
+  // how many simultaneous Remotion renders a single host can take. A flat
+  // "3" was fine on the dev machine it was tuned on but oversubscribes a
+  // smaller host (e.g. a 2-core box hitting 3 concurrent renders) and
+  // under-uses a bigger one. Default scales with core count instead;
+  // VIDEO_WORKER_CONCURRENCY still overrides it directly when you know the
+  // right number for a given deployment (e.g. after splitting render into
+  // its own queue).
+  videoWorker: {
+    concurrency:
+      parseInt(process.env.VIDEO_WORKER_CONCURRENCY, 10) ||
+      Math.max(1, Math.min(os.cpus().length - 1, 3)),
   },
 });
 

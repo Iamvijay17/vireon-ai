@@ -1,17 +1,30 @@
 const config = require("../../../config");
 const LoggerService = require("../../common/LoggerService");
 const MetricsService = require("../../common/MetricsService");
+const CacheService = require("../../common/CacheService");
 
+// Fast path for repeat calls within this process only - the persistent
+// Smart Cache lookup below is what survives across worker restarts/processes.
 const transcriptCache = new Map();
 
 /**
  * Get (and cache) a transcript for a reference audio file, used as the
  * clone's ref_text. Falls back to x-vector-only cloning if transcription
- * fails, rather than failing the whole scene.
+ * fails, rather than failing the whole scene. Checked in two layers: an
+ * in-process Map (instant, but empty on every worker restart) backed by
+ * CacheService's persistent Smart Cache (survives restarts, shared across
+ * worker processes) - reference voices are a small fixed bundled set, so
+ * this transcription is realistically a one-time cost per voice, ever.
  */
 async function getReferenceText(client, filePath, cacheKey) {
   if (transcriptCache.has(cacheKey)) {
     return transcriptCache.get(cacheKey);
+  }
+
+  const cached = await CacheService.getReferenceTranscript(cacheKey);
+  if (cached !== null) {
+    transcriptCache.set(cacheKey, cached);
+    return cached;
   }
 
   try {
@@ -24,12 +37,17 @@ async function getReferenceText(client, filePath, cacheKey) {
     });
     const transcript = (result.data?.[0] || "").toString().trim();
     transcriptCache.set(cacheKey, transcript);
+    await CacheService.putReferenceTranscript(cacheKey, transcript);
     return transcript;
   } catch (err) {
     LoggerService.warn(
       `Failed to transcribe reference voice "${cacheKey}", falling back to x-vector-only cloning`,
       { error: err.message },
     );
+    // Not written to the persistent cache - a transcription failure here is
+    // more likely transient (TTS server hiccup) than a permanent property
+    // of the file, so let the next call retry instead of locking in "no
+    // transcript" forever the way a persisted empty string would.
     transcriptCache.set(cacheKey, "");
     return "";
   }

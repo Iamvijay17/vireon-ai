@@ -14,7 +14,6 @@ import {
   BookOpen,
   Tag,
   Mic2,
-  Zap,
   HardDrive,
   XCircle,
   Clock,
@@ -32,7 +31,7 @@ import { RankedBarChart } from "../../components/charts/RankedBarChart";
 import { CATEGORICAL_PALETTE } from "../../lib/chartPalette";
 import { StatusStackedBar } from "../../components/charts/StatusStackedBar";
 import { StatusDonut } from "../../components/charts/StatusDonut";
-import { Sparkline } from "../../components/charts/Sparkline";
+import { GaugeRing } from "../../components/charts/GaugeRing";
 import { toast } from "../../components/ui/toastBus";
 
 const RANGE_OPTIONS = [
@@ -80,43 +79,44 @@ const successRateSeries = (trend) =>
     return resolved ? Math.round((d.jobsCompleted / resolved) * 100) : 0;
   });
 
-const DeltaBadge = ({ delta, suffix = "%" }) => {
+// Pill-shaped delta badge (solid tint background, not just colored text) -
+// reads more like a real dashboard's "+15.5%" chip than plain inline text.
+// `invert` flips which sign reads as "good" (e.g. Failed Jobs, where a
+// decrease is the good outcome) without touching the displayed number.
+const DeltaBadge = ({ delta, suffix = "%", invert = false }) => {
   if (!delta || delta.pct === 0) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-text-tertiary">
+      <span className="inline-flex items-center gap-1 rounded-full bg-neutral-500/10 px-1.5 py-0.5 text-[11px] font-medium text-text-tertiary">
         <Minus className="size-3" /> flat
       </span>
     );
   }
-  const positive = delta.pct > 0;
+  const up = delta.pct > 0;
+  const good = invert ? !up : up;
   return (
     <span
-      className={`inline-flex items-center gap-1 text-xs font-medium ${
-        positive ? "text-success-600 dark:text-success-500" : "text-danger-600 dark:text-danger-500"
+      className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
+        good
+          ? "bg-success-500/10 text-success-600 dark:text-success-500"
+          : "bg-danger-500/10 text-danger-600 dark:text-danger-500"
       }`}
     >
-      {positive ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-      {positive ? "+" : ""}
+      {up ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+      {up ? "+" : ""}
       {delta.pct}
       {suffix}
     </span>
   );
 };
 
+// Solid, circular icon badges (not soft gradient squares) to match a
+// real-dashboard look - each KPI card's icon reads as a colored dot.
 const toneCls = {
-  accent: "bg-gradient-to-br from-accent-500/20 to-accent-500/5 text-accent",
-  warning: "bg-gradient-to-br from-warning-500/20 to-warning-500/5 text-warning-600 dark:text-warning-500",
-  success: "bg-gradient-to-br from-success-500/20 to-success-500/5 text-success-600 dark:text-success-500",
-  danger: "bg-gradient-to-br from-danger-500/20 to-danger-500/5 text-danger-600 dark:text-danger-500",
-  info: "bg-gradient-to-br from-info-500/20 to-info-500/5 text-info-600 dark:text-info-500",
-};
-
-const toneLine = {
-  accent: "var(--color-accent-500)",
-  warning: "var(--color-warning-500)",
-  success: "var(--color-success-500)",
-  danger: "var(--color-danger-500)",
-  info: "var(--color-info-500)",
+  accent: "bg-accent-500/15 text-accent-600 dark:text-accent-400",
+  warning: "bg-warning-500/15 text-warning-600 dark:text-warning-500",
+  success: "bg-success-500/15 text-success-600 dark:text-success-500",
+  danger: "bg-danger-500/15 text-danger-600 dark:text-danger-500",
+  info: "bg-info-500/15 text-info-600 dark:text-info-500",
 };
 
 const BREAKDOWN_TABS = [
@@ -168,61 +168,58 @@ const Analytics = () => {
     );
   }
 
-  const heroStats = [
+  const successDelta = (() => {
+    const rates = successRateSeries(trend);
+    const n = rates.length;
+    if (n < 4) return null;
+    const mid = Math.floor(n / 2);
+    const avg = (arr) => arr.reduce((s, v) => s + v, 0) / (arr.length || 1);
+    const prev = avg(rates.slice(0, mid));
+    const curr = avg(rates.slice(mid));
+    if (!prev) return null;
+    return { pct: Math.round(curr - prev) };
+  })();
+
+  const kpiTiles = [
     {
       title: "Total Videos",
       value: summary.totalVideos ?? 0,
       icon: Video,
       tone: "accent",
-      spark: trend.map((d) => d.jobsCreated + d.courseVideosRendered),
       delta: trendDelta(trend, "jobsCreated"),
       caption: `${summary.totalVideoJobs ?? 0} jobs · ${summary.totalCourseVideos ?? 0} course videos`,
     },
     {
-      title: "Job Success Rate",
+      title: "Success Rate",
       value: formatPercent(summary.jobSuccessRate),
       icon: CheckCircle2,
       tone: "success",
-      spark: successRateSeries(trend),
-      delta: (() => {
-        const rates = successRateSeries(trend);
-        const n = rates.length;
-        if (n < 4) return null;
-        const mid = Math.floor(n / 2);
-        const avg = (arr) => arr.reduce((s, v) => s + v, 0) / (arr.length || 1);
-        const prev = avg(rates.slice(0, mid));
-        const curr = avg(rates.slice(mid));
-        if (!prev) return null;
-        return { pct: Math.round(curr - prev) };
-      })(),
+      delta: successDelta,
       deltaSuffix: "pt",
-      caption: `${summary.completedVideoJobs ?? 0} completed · ${summary.failedVideoJobs ?? 0} failed`,
+      caption: "vs last period",
     },
     {
-      title: "Avg. Render Time",
-      value: formatDuration(summary.avgRenderTimeMs),
-      icon: Timer,
-      tone: "warning",
-      spark: trend.map((d) => d.jobsCompleted),
-      delta: null,
-      caption: `${summary.activeVideoJobs ?? 0} jobs in progress`,
+      title: "Failed Jobs",
+      value: summary.failedVideoJobs ?? 0,
+      icon: XCircle,
+      tone: "danger",
+      delta: trendDelta(trend, "jobsFailed"),
+      invertDelta: true,
+      caption: "vs last period",
     },
     {
       title: "Course Completion",
       value: formatPercent(summary.courseCompletionRate),
       icon: GraduationCap,
       tone: "info",
-      spark: trend.map((d) => d.courseVideosRendered),
       delta: trendDelta(trend, "courseVideosRendered"),
-      caption: `${summary.completedCourses ?? 0} of ${summary.totalCourses ?? 0} courses done`,
+      caption: `${summary.completedCourses ?? 0} of ${summary.totalCourses ?? 0} courses`,
     },
   ];
 
-  const resourceStats = [
-    { title: "Failed Jobs", value: summary.failedVideoJobs ?? 0, icon: XCircle, tone: "danger" },
+  const timeStats = [
+    { title: "Avg. Render Time", value: formatDuration(summary.avgRenderTimeMs), icon: Timer, tone: "warning" },
     { title: "Avg. TTS Time", value: formatDuration(summary.avgTtsTimeMs), icon: Mic2, tone: "accent" },
-    { title: "Cache Hit Rate", value: formatPercent(summary.cacheHitRate), icon: Zap, tone: "success" },
-    { title: "Storage Used", value: formatBytes(summary.totalStorageBytes), icon: HardDrive, tone: "info" },
   ];
 
   const trendSeries = [
@@ -282,72 +279,91 @@ const Analytics = () => {
         }
       />
 
-      {/* Hero KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {heroStats.map((s, i) => (
+      {/* KPI cards - individual panels, not a fused strip: soft shadow, solid
+          circular icon badge, bold value, pill delta badge + caption */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {kpiTiles.map((s, i) => (
           <Card
             key={s.title}
-            hoverable
-            className="animate-slide-up overflow-hidden p-4"
+            className="animate-slide-up rounded-2xl p-4 shadow-sm"
             style={{ "--stagger-index": i }}
           >
             <div className="flex items-start justify-between">
-              <div className={`flex size-8 items-center justify-center rounded-lg ${toneCls[s.tone]}`}>
+              <p className="text-xs font-medium text-text-tertiary">{s.title}</p>
+              <div className={`flex size-8 shrink-0 items-center justify-center rounded-full ${toneCls[s.tone]}`}>
                 <s.icon className="size-4" />
               </div>
-              {s.delta && <DeltaBadge delta={s.delta} suffix={s.deltaSuffix || "%"} />}
             </div>
-            <p className="mt-2 text-xs font-medium text-text-tertiary">{s.title}</p>
-            <p className="mt-0.5 text-xl font-semibold tracking-tight text-text-primary">{s.value}</p>
-            {s.caption && <p className="mt-0.5 truncate text-[11px] text-text-tertiary">{s.caption}</p>}
-            <div className="-mx-1 -mb-1 mt-2">
-              <Sparkline values={s.spark} color={toneLine[s.tone]} className="h-6" />
+            <p className="mt-3 text-[26px] font-bold leading-none tracking-tight text-text-primary">{s.value}</p>
+            <div className="mt-2.5 flex items-center gap-1.5">
+              {s.delta && (
+                <DeltaBadge delta={s.delta} suffix={s.deltaSuffix || "%"} invert={s.invertDelta} />
+              )}
+              <span className="truncate text-[11px] text-text-tertiary">{s.caption}</span>
             </div>
           </Card>
         ))}
       </div>
 
-      {/* Resource & performance strip */}
-      <Card className="mt-3 animate-slide-up" style={{ "--stagger-index": 4 }}>
-        <div className="grid grid-cols-2 divide-y divide-border-light sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-          {resourceStats.map((s) => (
-            <div key={s.title} className="flex items-center gap-2.5 px-4 py-3">
-              <div className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${toneCls[s.tone]}`}>
-                <s.icon className="size-3.5" />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-[11px] font-medium text-text-tertiary">{s.title}</p>
-                <p className="text-base font-semibold tracking-tight text-text-primary">{s.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+      {/* Trend + at-a-glance side column, mirroring a chart-plus-gauges layout */}
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="animate-slide-up rounded-2xl shadow-sm lg:col-span-2" style={{ "--stagger-index": 4 }}>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Activity className="size-4 text-text-tertiary" /> Render Activity
+              </span>
+            }
+            subtitle={`Jobs and course videos over the last ${days} days`}
+          />
+          <div className="p-3">
+            {hasActivity ? (
+              <TrendChart data={data.trend} series={trendSeries} />
+            ) : (
+              <EmptyState description="No render activity in this range yet." />
+            )}
+          </div>
+        </Card>
 
-      {/* Trend */}
-      <Card className="mt-5 animate-slide-up" style={{ "--stagger-index": 5 }}>
-        <CardHeader
-          title={
-            <span className="flex items-center gap-2">
-              <Activity className="size-4 text-text-tertiary" /> Render Activity
-            </span>
-          }
-          subtitle={`Jobs and course videos over the last ${days} days`}
-        />
-        <div className="p-4">
-          {hasActivity ? (
-            <TrendChart data={data.trend} series={trendSeries} />
-          ) : (
-            <EmptyState description="No render activity in this range yet." />
-          )}
+        <div className="flex flex-col gap-4">
+          <Card className="animate-slide-up rounded-2xl p-4 shadow-sm" style={{ "--stagger-index": 5 }}>
+            <p className="text-xs font-medium text-text-secondary">Processing Time</p>
+            <div className="mt-3 space-y-3">
+              {timeStats.map((s) => (
+                <div key={s.title} className="flex items-center gap-2.5">
+                  <div className={`flex size-8 shrink-0 items-center justify-center rounded-full ${toneCls[s.tone]}`}>
+                    <s.icon className="size-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] text-text-tertiary">{s.title}</p>
+                    <p className="text-base font-semibold tracking-tight text-text-primary">{s.value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="animate-slide-up flex flex-1 flex-col items-center justify-center rounded-2xl p-4 text-center shadow-sm" style={{ "--stagger-index": 6 }}>
+            <p className="self-start text-xs font-medium text-text-secondary">Cache Hit Rate</p>
+            <GaugeRing
+              value={summary.cacheHitRate}
+              color="var(--color-success-500)"
+              label="avatar clips & TTS audio reuse"
+              size={112}
+              className="mt-2"
+            />
+            <p className="mt-2 flex items-center gap-1.5 text-[11px] text-text-tertiary">
+              <HardDrive className="size-3" /> {formatBytes(summary.totalStorageBytes)} stored
+            </p>
+          </Card>
         </div>
-      </Card>
+      </div>
 
       {/* Breakdown - tabbed to keep six related views in one focused card */}
-      <Card className="mt-5 animate-slide-up" style={{ "--stagger-index": 6 }}>
-        <Tabs items={BREAKDOWN_TABS} active={breakdownTab} onChange={setBreakdownTab} className="px-4" />
-        <div className="p-4" key={breakdownTab}>
-          <p className="mb-3 text-xs text-text-tertiary">
+      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 7 }}>
+        <Tabs items={BREAKDOWN_TABS} active={breakdownTab} onChange={setBreakdownTab} className="px-3" />
+        <div className="p-3" key={breakdownTab}>
+          <p className="mb-2 text-xs text-text-tertiary">
             {activeTabMeta?.label} breakdown across {breakdownTab.startsWith("course") || breakdownTab === "categories" ? "all courses" : "all video jobs"}
           </p>
           {renderBreakdown()}
@@ -355,9 +371,9 @@ const Analytics = () => {
       </Card>
 
       {/* Course pipeline health */}
-      <Card className="mt-5 animate-slide-up" style={{ "--stagger-index": 7 }}>
+      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 8 }}>
         <CardHeader title="Course Video Pipeline" subtitle="Script, audio and render stage status across all lessons" />
-        <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-3">
           <StatusStackedBar label="Script" rows={data?.courseVideoStages?.script || []} />
           <StatusStackedBar label="Audio" rows={data?.courseVideoStages?.audio || []} />
           <StatusStackedBar label="Video" rows={data?.courseVideoStages?.video || []} />
@@ -365,7 +381,7 @@ const Analytics = () => {
       </Card>
 
       {/* Recent failures */}
-      <Card className="mt-5 animate-slide-up" style={{ "--stagger-index": 8 }}>
+      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 9 }}>
         <CardHeader
           title={
             <span className="flex items-center gap-2">
@@ -385,7 +401,7 @@ const Analytics = () => {
           ) : (
             <div className="divide-y divide-border-light">
               {data.recentFailures.map((f) => (
-                <div key={`${f.source}-${f.id}`} className="flex items-start gap-3 px-3 py-3">
+                <div key={`${f.source}-${f.id}`} className="flex items-start gap-3 px-3 py-2">
                   <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600 dark:text-danger-500">
                     <AlertTriangle className="size-4" />
                   </div>
