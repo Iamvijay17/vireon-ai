@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  FolderKanban,
   CheckCircle2,
   Timer,
   GraduationCap,
@@ -13,6 +12,12 @@ import {
   Layers,
   MonitorPlay,
   BookOpen,
+  Mic2,
+  Zap,
+  HardDrive,
+  XCircle,
+  Clock,
+  Video,
 } from "lucide-react";
 import { getAnalyticsOverview } from "../../services/api";
 import { PageHeader, LoadingState, EmptyState } from "../../components";
@@ -21,8 +26,9 @@ import { Button } from "../../components/ui/Button";
 import { Select } from "../../components/ui/Select";
 import { Badge } from "../../components/ui/Badge";
 import { TrendChart } from "../../components/charts/TrendChart";
-import { BarList } from "../../components/charts/BarList";
+import { RankedBarChart } from "../../components/charts/RankedBarChart";
 import { StatusStackedBar } from "../../components/charts/StatusStackedBar";
+import { StatusDonut } from "../../components/charts/StatusDonut";
 import { Sparkline } from "../../components/charts/Sparkline";
 import { toast } from "../../components/ui/toastBus";
 
@@ -34,13 +40,21 @@ const RANGE_OPTIONS = [
 
 const formatDuration = (ms) => {
   if (!ms && ms !== 0) return "—";
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
   const minutes = ms / 60000;
-  if (minutes < 1) return `${Math.round(ms / 1000)}s`;
   if (minutes < 60) return `${minutes.toFixed(1)}m`;
   return `${(minutes / 60).toFixed(1)}h`;
 };
 
 const formatPercent = (v) => (v === null || v === undefined ? "—" : `${v}%`);
+
+const formatBytes = (bytes) => {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+};
 
 // Splits a trend series in half and returns the % change of `key`'s sum
 // (or, for `ratio`, the completed/created ratio) between the two halves -
@@ -141,14 +155,15 @@ const Analytics = () => {
     (d) => d.jobsCreated || d.jobsCompleted || d.jobsFailed || d.courseVideosRendered
   );
 
-  const stats = [
+  const topStats = [
     {
-      title: "Total Video Jobs",
-      value: summary.totalVideoJobs ?? 0,
-      icon: FolderKanban,
+      title: "Total Videos",
+      value: summary.totalVideos ?? 0,
+      icon: Video,
       tone: "accent",
-      spark: trend.map((d) => d.jobsCreated),
+      spark: trend.map((d) => d.jobsCreated + d.courseVideosRendered),
       delta: trendDelta(trend, "jobsCreated"),
+      caption: `${summary.totalVideoJobs ?? 0} jobs · ${summary.totalCourseVideos ?? 0} course videos`,
     },
     {
       title: "Job Success Rate",
@@ -168,15 +183,16 @@ const Analytics = () => {
         return { pct: Math.round(curr - prev) };
       })(),
       deltaSuffix: "pt",
+      caption: `${summary.completedVideoJobs ?? 0} completed`,
     },
     {
-      title: "Avg. Render Time",
-      value: formatDuration(summary.avgRenderTimeMs),
-      icon: Timer,
-      tone: "warning",
-      spark: trend.map((d) => d.jobsCompleted),
-      delta: null,
-      caption: `${summary.completedVideoJobs ?? 0} completed jobs`,
+      title: "Failed Jobs",
+      value: summary.failedVideoJobs ?? 0,
+      icon: XCircle,
+      tone: "danger",
+      spark: trend.map((d) => d.jobsFailed),
+      delta: trendDelta(trend, "jobsFailed"),
+      invertDelta: true,
     },
     {
       title: "Course Completion",
@@ -185,6 +201,38 @@ const Analytics = () => {
       tone: "info",
       spark: trend.map((d) => d.courseVideosRendered),
       delta: trendDelta(trend, "courseVideosRendered"),
+      caption: `${summary.completedCourses ?? 0} of ${summary.totalCourses ?? 0} courses done`,
+    },
+  ];
+
+  const perfStats = [
+    {
+      title: "Avg. Render Time",
+      value: formatDuration(summary.avgRenderTimeMs),
+      icon: Timer,
+      tone: "warning",
+      caption: "Per completed video job",
+    },
+    {
+      title: "Avg. TTS Time",
+      value: formatDuration(summary.avgTtsTimeMs),
+      icon: Mic2,
+      tone: "accent",
+      caption: "Per synthesis call",
+    },
+    {
+      title: "Cache Hit Rate",
+      value: formatPercent(summary.cacheHitRate),
+      icon: Zap,
+      tone: "success",
+      caption: "Avatar clips & TTS audio reuse",
+    },
+    {
+      title: "Storage Used",
+      value: formatBytes(summary.totalStorageBytes),
+      icon: HardDrive,
+      tone: "info",
+      caption: "Across all MinIO assets",
     },
   ];
 
@@ -210,9 +258,9 @@ const Analytics = () => {
         }
       />
 
-      {/* Stats */}
+      {/* Top stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s, i) => (
+        {topStats.map((s, i) => (
           <Card
             key={s.title}
             hoverable
@@ -223,11 +271,11 @@ const Analytics = () => {
               <div className={`flex size-10 items-center justify-center rounded-[10px] ${toneCls[s.tone]}`}>
                 <s.icon className="size-[19px]" />
               </div>
-              {s.delta && <DeltaBadge delta={s.delta} suffix={s.deltaSuffix || "%"} />}
+              {s.delta && <DeltaBadge delta={s.invertDelta ? { ...s.delta, pct: -s.delta.pct } : s.delta} suffix={s.deltaSuffix || "%"} />}
             </div>
             <p className="mt-3 text-xs font-medium text-text-tertiary">{s.title}</p>
             <p className="mt-1 text-2xl font-semibold tracking-tight text-text-primary">{s.value}</p>
-            {s.caption && <p className="mt-0.5 text-[11px] text-text-tertiary">{s.caption}</p>}
+            {s.caption && <p className="mt-0.5 truncate text-[11px] text-text-tertiary">{s.caption}</p>}
             <div className="-mx-1 -mb-1 mt-3">
               <Sparkline values={s.spark} color={toneLine[s.tone]} />
             </div>
@@ -235,8 +283,27 @@ const Analytics = () => {
         ))}
       </div>
 
+      {/* Performance & cost stats */}
+      <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {perfStats.map((s, i) => (
+          <Card
+            key={s.title}
+            hoverable
+            className="animate-slide-up overflow-hidden p-5"
+            style={{ "--stagger-index": i + 4 }}
+          >
+            <div className={`flex size-10 items-center justify-center rounded-[10px] ${toneCls[s.tone]}`}>
+              <s.icon className="size-[19px]" />
+            </div>
+            <p className="mt-3 text-xs font-medium text-text-tertiary">{s.title}</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight text-text-primary">{s.value}</p>
+            <p className="mt-0.5 text-[11px] text-text-tertiary">{s.caption}</p>
+          </Card>
+        ))}
+      </div>
+
       {/* Trend */}
-      <Card className="mt-6 animate-slide-up" style={{ "--stagger-index": 4 }}>
+      <Card className="mt-6 animate-slide-up" style={{ "--stagger-index": 8 }}>
         <CardHeader
           title={
             <span className="flex items-center gap-2">
@@ -254,9 +321,9 @@ const Analytics = () => {
         </div>
       </Card>
 
-      {/* Breakdown row 1 */}
+      {/* Breakdown row 1: status donuts */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="animate-slide-up" style={{ "--stagger-index": 5 }}>
+        <Card className="animate-slide-up" style={{ "--stagger-index": 9 }}>
           <CardHeader
             title={
               <span className="flex items-center gap-2">
@@ -265,38 +332,48 @@ const Analytics = () => {
             }
           />
           <div className="p-5">
-            {(data?.jobsByStatus || []).length === 0 ? (
-              <EmptyState description="No video jobs yet." />
-            ) : (
-              <StatusStackedBar label="All video jobs" rows={data.jobsByStatus} />
-            )}
+            <StatusDonut rows={data?.jobsByStatus || []} emptyLabel="No video jobs yet." />
           </div>
         </Card>
 
-        <Card className="animate-slide-up" style={{ "--stagger-index": 6 }}>
+        <Card className="animate-slide-up" style={{ "--stagger-index": 10 }}>
           <CardHeader
             title={
               <span className="flex items-center gap-2">
-                <MonitorPlay className="size-4 text-text-tertiary" /> Video Jobs by Type
+                <BookOpen className="size-4 text-text-tertiary" /> Courses by Status
               </span>
             }
           />
           <div className="p-5">
-            <BarList rows={data?.jobsByType || []} color="var(--color-accent-500)" emptyLabel="No video jobs yet." />
+            <StatusDonut rows={data?.coursesByStatus || []} emptyLabel="No courses yet." />
           </div>
         </Card>
       </div>
 
-      {/* Breakdown row 2 */}
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="animate-slide-up" style={{ "--stagger-index": 7 }}>
-          <CardHeader title="Video Jobs by Resolution" />
+      {/* Breakdown row 2: ranked bars */}
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card className="animate-slide-up" style={{ "--stagger-index": 11 }}>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <MonitorPlay className="size-4 text-text-tertiary" /> Most-Used Templates
+              </span>
+            }
+            subtitle="By video type"
+          />
           <div className="p-5">
-            <BarList rows={data?.jobsByResolution || []} color="var(--color-info-500)" emptyLabel="No video jobs yet." />
+            <RankedBarChart rows={data?.topTemplates || []} color="var(--color-accent-500)" emptyLabel="No video jobs yet." />
           </div>
         </Card>
 
-        <Card className="animate-slide-up" style={{ "--stagger-index": 8 }}>
+        <Card className="animate-slide-up" style={{ "--stagger-index": 12 }}>
+          <CardHeader title="Video Jobs by Resolution" />
+          <div className="p-5">
+            <RankedBarChart rows={data?.jobsByResolution || []} color="var(--color-info-500)" emptyLabel="No video jobs yet." />
+          </div>
+        </Card>
+
+        <Card className="animate-slide-up" style={{ "--stagger-index": 13 }}>
           <CardHeader
             title={
               <span className="flex items-center gap-2">
@@ -305,13 +382,36 @@ const Analytics = () => {
             }
           />
           <div className="p-5">
-            <BarList rows={data?.coursesByCategory || []} color="var(--color-accent-500)" emptyLabel="No courses yet." />
+            <RankedBarChart rows={data?.coursesByCategory || []} color="var(--color-accent-500)" emptyLabel="No courses yet." />
           </div>
         </Card>
       </div>
 
+      {/* Storage breakdown */}
+      <Card className="mt-6 animate-slide-up" style={{ "--stagger-index": 14 }}>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <HardDrive className="size-4 text-text-tertiary" /> Storage Usage by Category
+            </span>
+          }
+          subtitle={`${formatBytes(summary.totalStorageBytes)} total across MinIO`}
+        />
+        <div className="p-5">
+          {(data?.storageByCategory || []).length === 0 ? (
+            <EmptyState description="No assets uploaded yet." />
+          ) : (
+            <RankedBarChart
+              rows={(data.storageByCategory || []).map((r) => ({ label: r.label, count: r.bytes }))}
+              color="var(--color-info-500)"
+              formatValue={formatBytes}
+            />
+          )}
+        </div>
+      </Card>
+
       {/* Course pipeline health */}
-      <Card className="mt-6 animate-slide-up" style={{ "--stagger-index": 9 }}>
+      <Card className="mt-6 animate-slide-up" style={{ "--stagger-index": 15 }}>
         <CardHeader title="Course Video Pipeline" subtitle="Script, audio and render stage status across all lessons" />
         <div className="grid grid-cols-1 gap-6 p-5 md:grid-cols-3">
           <StatusStackedBar label="Script" rows={data?.courseVideoStages?.script || []} />
@@ -321,7 +421,7 @@ const Analytics = () => {
       </Card>
 
       {/* Recent failures */}
-      <Card className="mt-6 animate-slide-up" style={{ "--stagger-index": 10 }}>
+      <Card className="mt-6 animate-slide-up" style={{ "--stagger-index": 16 }}>
         <CardHeader
           title={
             <span className="flex items-center gap-2">
@@ -354,7 +454,10 @@ const Analytics = () => {
                     <p className="mt-1 text-xs text-danger-600 dark:text-danger-500">{f.message}</p>
                   </div>
                   <div className="shrink-0 text-right text-xs text-text-tertiary">
-                    {new Date(f.occurredAt).toLocaleString()}
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="size-3" />
+                      {new Date(f.occurredAt).toLocaleString()}
+                    </span>
                   </div>
                 </div>
               ))}

@@ -1,5 +1,6 @@
 const config = require("../../../config");
 const LoggerService = require("../../common/LoggerService");
+const MetricsService = require("../../common/MetricsService");
 
 const transcriptCache = new Map();
 
@@ -93,10 +94,16 @@ async function generateClone(client, resolved, text, seed, fastMode = false) {
  * attempt.
  */
 async function generate(client, resolved, text, seed, instruct, fastMode) {
+  const startedAt = Date.now();
   try {
-    if (resolved.mode === "clone") return await generateClone(client, resolved, text, seed, fastMode);
-    if (resolved.mode === "design") return await generateDesign(client, resolved, text, seed, instruct, fastMode);
-    return await generateCustom(client, resolved, text, seed, instruct, fastMode);
+    const result =
+      resolved.mode === "clone"
+        ? await generateClone(client, resolved, text, seed, fastMode)
+        : resolved.mode === "design"
+          ? await generateDesign(client, resolved, text, seed, instruct, fastMode)
+          : await generateCustom(client, resolved, text, seed, instruct, fastMode);
+    MetricsService.recordDuration("tts.duration", Date.now() - startedAt);
+    return result;
   } finally {
     client.close();
   }

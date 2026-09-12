@@ -1,6 +1,8 @@
 const VideoJob = require('../../models/VideoJob');
 const Course = require('../../models/Course');
 const CourseVideo = require('../../models/CourseVideo');
+const Asset = require('../../models/Asset');
+const MetricsService = require('./MetricsService');
 const { JOB_STATUS, STAGE_STATUS } = require('../../constants');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -47,6 +49,9 @@ class AnalyticsService {
       courseVideoTrendRows,
       recentFailedJobs,
       recentFailedCourseVideos,
+      storageByCategory,
+      avgTtsTimeMs,
+      cacheHitRate,
     ] = await Promise.all([
       VideoJob.countDocuments(),
       VideoJob.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
@@ -88,6 +93,9 @@ class AnalyticsService {
         .limit(5)
         .select('title courseId scriptError audioError videoError updatedAt')
         .populate('courseId', 'title'),
+      Asset.aggregate([{ $group: { _id: '$category', bytes: { $sum: '$size' } } }]),
+      MetricsService.getAverage('tts.duration'),
+      MetricsService.getRate('cache.hits', 'cache.misses'),
     ]);
 
     const jobStatusCounts = countsByKey(jobStatusRows);
@@ -125,6 +133,11 @@ class AnalyticsService {
 
     const toChartRows = (rows) => rows.filter((r) => r._id).map((r) => ({ label: r._id, count: r.count }));
 
+    const storageRows = storageByCategory
+      .filter((r) => r._id)
+      .map((r) => ({ label: r._id, bytes: r.bytes || 0 }));
+    const totalStorageBytes = storageRows.reduce((sum, r) => sum + r.bytes, 0);
+
     const failureEntries = (msg) => (msg && msg.trim() ? msg.trim() : null);
 
     const recentFailures = [
@@ -155,12 +168,16 @@ class AnalyticsService {
     return {
       range: { days, since: since.toISOString(), until: until.toISOString() },
       summary: {
+        totalVideos: totalVideoJobs + totalCourseVideos,
         totalVideoJobs,
         completedVideoJobs: completedJobs,
         failedVideoJobs: failedJobs,
         activeVideoJobs: activeJobs,
         jobSuccessRate: resolvedJobs ? Math.round((completedJobs / resolvedJobs) * 1000) / 10 : null,
         avgRenderTimeMs: avgRenderRows[0]?.avgMs ?? null,
+        avgTtsTimeMs,
+        cacheHitRate,
+        totalStorageBytes,
         totalCourses,
         totalCourseVideos,
         completedCourseVideos,
@@ -171,9 +188,11 @@ class AnalyticsService {
       trend,
       jobsByStatus: toChartRows(jobStatusRows),
       jobsByType: toChartRows(jobTypeRows),
+      topTemplates: toChartRows(jobTypeRows),
       jobsByResolution: toChartRows(jobResolutionRows),
       coursesByStatus: toChartRows(courseStatusRows),
       coursesByCategory: toChartRows(courseCategoryRows),
+      storageByCategory: storageRows,
       courseVideoStages: {
         script: toChartRows(scriptStageRows),
         audio: toChartRows(audioStageRows),

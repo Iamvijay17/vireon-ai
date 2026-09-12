@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const config = require('../../config');
 const LoggerService = require('./LoggerService');
+const MetricsService = require('./MetricsService');
 const { getStorageProvider } = require('../storage/providers');
 
 /**
@@ -45,8 +46,10 @@ class CacheService {
       await this.#client().statObject(config.minio.cacheBucket, key);
       const url = `${config.minio.publicUrl}/${config.minio.cacheBucket}/${key}`;
       LoggerService.info('Smart Cache hit: avatar clip', { gender });
+      MetricsService.increment('cache.hits');
       return url;
     } catch {
+      MetricsService.increment('cache.misses');
       return null;
     }
   }
@@ -85,8 +88,10 @@ class CacheService {
       await provider.copyObject(config.minio.scenesBucket, `${jobId}/audio/${fileName}`, config.minio.cacheBucket, audioKey);
 
       LoggerService.info('Smart Cache hit: TTS audio', { hash, jobId, fileName });
+      MetricsService.increment('cache.hits');
       return metadata;
     } catch {
+      MetricsService.increment('cache.misses');
       return null;
     }
   }
