@@ -1,9 +1,9 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img } from 'remotion';
+import { AbsoluteFill, Audio, Img, useVideoConfig } from 'remotion';
 import { styles } from './styles';
 import { useContentWithImageAnimations } from './animations';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getContentScale } from '../../theme';
 
 /**
  * 002-contentwithimage template ("Image Card" variant of the
@@ -18,6 +18,11 @@ import { mergeStyle, positionStyle } from '../../theme';
  * { title, body, image, badge, backgroundColor?, styleConfig }.
  */
 const ContentWithImage002 = React.memo(({ scene }) => {
+  const { width } = useVideoConfig();
+  // Full-bleed image + overlaid badge/bottom text panel is already
+  // structurally resolution-tolerant - scale the fixed-px badge/panel/font
+  // sizing, tuned for a 1920-wide canvas, against the shorter dimension.
+  const scale = getContentScale(width);
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const body = elements.body || elements.text || '';
@@ -27,8 +32,8 @@ const ContentWithImage002 = React.memo(({ scene }) => {
   const overrides = elements.styleConfig || {};
 
   const anim = useContentWithImageAnimations({ frameOffset: 0 });
-  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
-  const bodyStyle = mergeStyle(styles.body, overrides.body);
+  const titleStyle = mergeStyle({ ...styles.title, fontSize: styles.title.fontSize * scale, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const bodyStyle = mergeStyle({ ...styles.body, fontSize: styles.body.fontSize * scale }, overrides.body);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
@@ -36,9 +41,9 @@ const ContentWithImage002 = React.memo(({ scene }) => {
         {image && <Img src={image} style={{ ...styles.image, ...anim.imageStyle }} />}
         <div style={{ ...styles.overlay, ...anim.bgStyle }} />
 
-        {badge && <div style={{ ...styles.badge, ...anim.badgeStyle }}>{badge}</div>}
+        {badge && <div style={{ ...styles.badge, fontSize: styles.badge.fontSize * scale, top: 40 * scale, left: 40 * scale, padding: `${8 * scale}px ${18 * scale}px`, ...anim.badgeStyle }}>{badge}</div>}
 
-        <div style={styles.textPanel}>
+        <div style={{ ...styles.textPanel, padding: `0 ${70 * scale}px ${70 * scale}px` }}>
           {title && <h1 data-style-role="title" style={{ ...titleStyle, ...anim.titleStyle }}>{title}</h1>}
           {body && <p style={{ ...bodyStyle, ...anim.bodyStyle }}>{body}</p>}
         </div>

@@ -1,9 +1,9 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img } from 'remotion';
+import { AbsoluteFill, Audio, Img, useVideoConfig } from 'remotion';
 import { styles } from './styles';
 import { useSplitRevealAnimations } from './animations';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getOrientation } from '../../theme';
 
 /**
  * 004-contentwithimage template ("Split Reveal" variant of the
@@ -19,6 +19,13 @@ import { mergeStyle, positionStyle } from '../../theme';
  * { title, body, image, badge, backgroundColor?, styleConfig }.
  */
 const ContentWithImage004 = React.memo(({ scene }) => {
+  const { width, height } = useVideoConfig();
+  // The diagonal-edged panel is a fixed 52%-wide, full-height overlay tuned
+  // for a wide canvas - on portrait/square that leaves too little text
+  // width and an awkward clip angle. Switch it to a full-width, bottom-half
+  // panel (image stays visible in the top half) instead of just widening
+  // the same full-height overlay, which would hide the image completely.
+  const isLandscape = getOrientation(width, height) === 'landscape';
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const body = elements.body || elements.text || '';
@@ -37,7 +44,23 @@ const ContentWithImage004 = React.memo(({ scene }) => {
         {image && <Img src={image} style={{ ...styles.image, ...anim.imageStyle }} />}
         <div style={styles.dim} />
 
-        <div style={{ ...styles.panel, backgroundColor: bgColor, ...anim.panelStyle }}>
+        <div
+          style={
+            isLandscape
+              ? { ...styles.panel, backgroundColor: bgColor, ...anim.panelStyle }
+              : {
+                  ...styles.panel,
+                  backgroundColor: bgColor,
+                  top: 'auto',
+                  bottom: 0,
+                  width: '100%',
+                  height: '55%',
+                  clipPath: 'none',
+                  padding: '30px 50px',
+                  ...anim.panelStyle,
+                }
+          }
+        >
           {badge && <div style={{ ...styles.badge, ...anim.badgeStyle }}>{badge}</div>}
           {title && <h1 data-style-role="title" style={{ ...titleStyle, ...anim.titleStyle }}>{title}</h1>}
           {body && <p style={{ ...bodyStyle, ...anim.bodyStyle }}>{body}</p>}

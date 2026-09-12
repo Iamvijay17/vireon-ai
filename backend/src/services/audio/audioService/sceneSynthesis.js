@@ -52,6 +52,16 @@ function instructFor(scene) {
 }
 
 /**
+ * Connects to the Gradio Qwen3-TTS server. Broken out so a job's scenes can
+ * share one connection (see clientHolder below) instead of paying Gradio's
+ * websocket handshake cost per scene.
+ */
+async function connectTtsClient() {
+  const { Client } = require("@gradio/client");
+  return Client.connect(config.tts.url.replace(/\/generate$/, "").replace(/\/$/, ""));
+}
+
+/**
  * Synthesize + download a single scene's audio and resolve its final
  * timeline duration. Implements retry with exponential backoff.
  * Deliberately does NOT run caption alignment (see captionAlignment.js) -
@@ -60,9 +70,14 @@ function instructFor(scene) {
  * scene's synthesis instead of paying for both serially. generateSceneAudio
  * below (the public single-scene entry point) still does both together for
  * standalone callers like "regenerate this one scene's audio".
+ *
+ * `clientHolder` is an optional { current: gradioClient } box owned by the
+ * caller (generateAllAudio), letting every scene in a job reuse the same
+ * connection instead of reconnecting per scene. When omitted (standalone
+ * single-scene callers), this function connects and closes its own client
+ * so concurrent unrelated calls never share - or fight over - one socket.
  */
-async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipCache = false) {
-  const { Client } = require("@gradio/client");
+async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipCache = false, clientHolder = null) {
   const { text } = scene.audio;
   if (!text) {
     LoggerService.warn("Scene has no audio text, skipping", {
@@ -117,106 +132,117 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
     }
   }
 
-  for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
-    try {
-      LoggerService.tts(
-        `Generating audio scene ${scene.sceneNumber} (attempt ${attempt})`,
-        {
-          voice,
-          mode: resolved.mode,
-          speaker: resolved.speaker,
-          cloneFile: resolved.file,
-          textLength: text.length,
-        },
-      );
-
-      // Connect to Gradio Qwen3-TTS server. ttsClient.generate always
-      // closes the connection, even on failure, so a run of TTS
-      // retries/scenes doesn't leak one websocket connection per attempt.
-      const client = await Client.connect(
-        config.tts.url.replace(/\/generate$/, "").replace(/\/$/, ""),
-      );
-
-      const result = await ttsClient.generate(client, resolved, text, seed, instruct, fastMode);
-
-      const audio = result.data[0];
-
-      if (audio && audio.url) {
-        // Download the generated audio
-        const outputResponse = await fetch(audio.url);
-        if (!outputResponse.ok) {
-          throw new Error(
-            `Failed to download generated audio: ${outputResponse.status} ${outputResponse.statusText}`,
-          );
-        }
-        const outputAudioBuffer = await outputResponse.arrayBuffer();
-        await fs.writeFile(outputFile, Buffer.from(outputAudioBuffer));
-
-        // Get exact duration by decoding the audio file via helper ESM script
-        const helperScript = path.resolve(__dirname, "../getAudioDuration.mjs");
-        const { stdout: durationStr } = await execFileAsync(
-          "node",
-          [helperScript, outputFile],
-          { encoding: "utf8", timeout: 30000 },
-        );
-        const duration = parseFloat(durationStr);
-
-        LoggerService.tts(`Audio generated for scene ${scene.sceneNumber}`, {
-          file: `scene${scene.sceneNumber}.mp3`,
-          duration: duration,
-        });
-
-        const spokenDuration = duration || Math.ceil(text.split(" ").length * 0.4); // fallback: ~0.4s per word
-
-        // Podcast turns are rendered back-to-back with zero gap (the next
-        // scene's Sequence starts the instant this one's declared duration
-        // ends), so the next speaker cut in immediately - reading as two
-        // people talking at/over each other rather than a real
-        // back-and-forth. Pad the timeline duration (not the clip itself)
-        // with a short natural beat so the next turn has a breath of space
-        // to land in. A fixed gap read as metronomic across 30 turns, so
-        // vary it (0.15-0.5s) using the same per-turn seed already derived
-        // above - still fully deterministic/resumable, just not identical
-        // every time. Non-podcast scenes (scene.speaker is unset) keep the
-        // exact audio length.
-        const turnGap =
-          scene.speaker === "host" || scene.speaker === "guest" ? 0.15 + (seed % 350) / 1000 : 0;
-
-        // Upload to storage the moment the file exists, rather than
-        // waiting for a bulk end-of-pipeline upload - backend/jobs/ is
-        // scratch space now, MinIO is the durable copy. `jobId` here is
-        // the video's own id (see the storage plan's bucket table).
-        await getStorageProvider().uploadFile(jobId, outputFile, "audio");
-
-        return {
-          file: `scene${scene.sceneNumber}.mp3`,
-          path: outputFile,
-          duration: spokenDuration + turnGap,
-          fromCache: false,
-          cacheHash,
-        };
-      }
-
-      throw new Error("No audio URL returned from TTS API");
-    } catch (err) {
-      lastError = err;
-      const isLastAttempt = attempt === config.tts.maxRetries;
-
-      LoggerService.warn(
-        `TTS attempt ${attempt} failed for scene ${scene.sceneNumber}${isLastAttempt ? " (final)" : ""}`,
-        { error: err.message },
-      );
-
-      if (!isLastAttempt) {
-        const delay = Math.min(2000 * Math.pow(2, attempt - 1), 16000);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
+  // Own our connection unless the caller handed us a shared one (see
+  // clientHolder doc above).
+  const ownsClient = !clientHolder;
+  if (ownsClient) {
+    clientHolder = { current: await connectTtsClient() };
   }
 
-  throw new Error(
-    `TTS failed after ${config.tts.maxRetries} attempts for scene ${scene.sceneNumber}: ${lastError.message}`,
-  );
+  try {
+    for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
+      try {
+        LoggerService.tts(
+          `Generating audio scene ${scene.sceneNumber} (attempt ${attempt})`,
+          {
+            voice,
+            mode: resolved.mode,
+            speaker: resolved.speaker,
+            cloneFile: resolved.file,
+            textLength: text.length,
+          },
+        );
+
+        const result = await ttsClient.generate(clientHolder.current, resolved, text, seed, instruct, fastMode);
+
+        const audio = result.data[0];
+
+        if (audio && audio.url) {
+          // Download the generated audio
+          const outputResponse = await fetch(audio.url);
+          if (!outputResponse.ok) {
+            throw new Error(
+              `Failed to download generated audio: ${outputResponse.status} ${outputResponse.statusText}`,
+            );
+          }
+          const outputAudioBuffer = await outputResponse.arrayBuffer();
+          await fs.writeFile(outputFile, Buffer.from(outputAudioBuffer));
+
+          // Get exact duration by decoding the audio file via helper ESM script
+          const helperScript = path.resolve(__dirname, "../getAudioDuration.mjs");
+          const { stdout: durationStr } = await execFileAsync(
+            "node",
+            [helperScript, outputFile],
+            { encoding: "utf8", timeout: 30000 },
+          );
+          const duration = parseFloat(durationStr);
+
+          LoggerService.tts(`Audio generated for scene ${scene.sceneNumber}`, {
+            file: `scene${scene.sceneNumber}.mp3`,
+            duration: duration,
+          });
+
+          const spokenDuration = duration || Math.ceil(text.split(" ").length * 0.4); // fallback: ~0.4s per word
+
+          // Podcast turns are rendered back-to-back with zero gap (the next
+          // scene's Sequence starts the instant this one's declared duration
+          // ends), so the next speaker cut in immediately - reading as two
+          // people talking at/over each other rather than a real
+          // back-and-forth. Pad the timeline duration (not the clip itself)
+          // with a short natural beat so the next turn has a breath of space
+          // to land in. A fixed gap read as metronomic across 30 turns, so
+          // vary it (0.15-0.5s) using the same per-turn seed already derived
+          // above - still fully deterministic/resumable, just not identical
+          // every time. Non-podcast scenes (scene.speaker is unset) keep the
+          // exact audio length.
+          const turnGap =
+            scene.speaker === "host" || scene.speaker === "guest" ? 0.15 + (seed % 350) / 1000 : 0;
+
+          // Upload to storage the moment the file exists, rather than
+          // waiting for a bulk end-of-pipeline upload - backend/jobs/ is
+          // scratch space now, MinIO is the durable copy. `jobId` here is
+          // the video's own id (see the storage plan's bucket table).
+          await getStorageProvider().uploadFile(jobId, outputFile, "audio");
+
+          return {
+            file: `scene${scene.sceneNumber}.mp3`,
+            path: outputFile,
+            duration: spokenDuration + turnGap,
+            fromCache: false,
+            cacheHash,
+          };
+        }
+
+        throw new Error("No audio URL returned from TTS API");
+      } catch (err) {
+        lastError = err;
+        const isLastAttempt = attempt === config.tts.maxRetries;
+
+        LoggerService.warn(
+          `TTS attempt ${attempt} failed for scene ${scene.sceneNumber}${isLastAttempt ? " (final)" : ""}`,
+          { error: err.message },
+        );
+
+        if (!isLastAttempt) {
+          const delay = Math.min(2000 * Math.pow(2, attempt - 1), 16000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          // The failure may have been the connection itself going stale -
+          // reconnect before the next attempt. When this client is shared
+          // across scenes (clientHolder), the fresh connection replaces it
+          // for every scene still to come, not just this retry.
+          clientHolder.current = await connectTtsClient();
+        }
+      }
+    }
+
+    throw new Error(
+      `TTS failed after ${config.tts.maxRetries} attempts for scene ${scene.sceneNumber}: ${lastError.message}`,
+    );
+  } finally {
+    if (ownsClient) {
+      clientHolder.current.close();
+    }
+  }
 }
 
 /**
@@ -262,6 +288,10 @@ async function generateSceneAudio(jobId, scene, voice, fastMode = false, skipCac
  * resources with no reason to serialize. This never has two TTS requests
  * in flight at once, so it doesn't depend on the TTS server supporting
  * concurrent generation.
+ *
+ * All scenes share one Gradio connection (clientHolder) instead of each
+ * paying the websocket-connect cost, since they're already serialized onto
+ * a single TTS call at a time anyway.
  */
 async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled, fastMode = false, skipCache = false) {
   LoggerService.tts("Starting batch audio generation", {
@@ -276,50 +306,57 @@ async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCanc
   // onSceneComplete) once the *next* scene's synthesis has already been
   // kicked off - not before.
   let pending = null;
+  const clientHolder = scenes.length > 0 ? { current: await connectTtsClient() } : null;
 
-  for (let i = 0; i <= scenes.length; i++) {
-    const scene = scenes[i]; // undefined on the final flush-only pass
+  try {
+    for (let i = 0; i <= scenes.length; i++) {
+      const scene = scenes[i]; // undefined on the final flush-only pass
 
-    let synthesizing = null;
-    if (scene) {
-      if (typeof checkCancelled === "function") {
-        await checkCancelled();
+      let synthesizing = null;
+      if (scene) {
+        if (typeof checkCancelled === "function") {
+          await checkCancelled();
+        }
+        synthesizing = synthesizeSceneAudio(jobId, scene, voice || scene.audio?.voice, fastMode, skipCache, clientHolder);
       }
-      synthesizing = synthesizeSceneAudio(jobId, scene, voice || scene.audio?.voice, fastMode, skipCache);
+
+      if (pending) {
+        const captionTimestamps = await pending.alignmentPromise;
+        const result = { file: pending.synthResult.file, duration: pending.synthResult.duration, captionTimestamps };
+        results.push(result);
+        if (typeof onSceneComplete === "function") {
+          await onSceneComplete(pending.scene.sceneNumber, result);
+        }
+        if (!pending.synthResult.fromCache) {
+          await CacheService.putTtsAudio(pending.synthResult.cacheHash, pending.synthResult.path, {
+            duration: pending.synthResult.duration,
+            captionTimestamps,
+          });
+          // Already durably in storage (see synthesizeSceneAudio's upload)
+          // and alignment (the only other consumer of the local path) just
+          // finished above - nothing left needs the local copy, so drop it
+          // instead of letting backend/jobs/ accumulate every scene's audio
+          // for the whole pipeline run.
+          await fs.unlink(pending.synthResult.path).catch(() => {});
+        }
+      }
+      pending = null;
+
+      if (!scene) break;
+
+      const synthResult = await synthesizing;
+      if (synthResult) {
+        // A cache hit has no local path (nothing was downloaded) and already
+        // carries its captionTimestamps, so there's nothing to align.
+        const alignmentPromise = synthResult.fromCache
+          ? Promise.resolve(synthResult.captionTimestamps)
+          : alignCaptions(synthResult.path);
+        pending = { scene, synthResult, alignmentPromise };
+      }
     }
-
-    if (pending) {
-      const captionTimestamps = await pending.alignmentPromise;
-      const result = { file: pending.synthResult.file, duration: pending.synthResult.duration, captionTimestamps };
-      results.push(result);
-      if (typeof onSceneComplete === "function") {
-        await onSceneComplete(pending.scene.sceneNumber, result);
-      }
-      if (!pending.synthResult.fromCache) {
-        await CacheService.putTtsAudio(pending.synthResult.cacheHash, pending.synthResult.path, {
-          duration: pending.synthResult.duration,
-          captionTimestamps,
-        });
-        // Already durably in storage (see synthesizeSceneAudio's upload)
-        // and alignment (the only other consumer of the local path) just
-        // finished above - nothing left needs the local copy, so drop it
-        // instead of letting backend/jobs/ accumulate every scene's audio
-        // for the whole pipeline run.
-        await fs.unlink(pending.synthResult.path).catch(() => {});
-      }
-    }
-    pending = null;
-
-    if (!scene) break;
-
-    const synthResult = await synthesizing;
-    if (synthResult) {
-      // A cache hit has no local path (nothing was downloaded) and already
-      // carries its captionTimestamps, so there's nothing to align.
-      const alignmentPromise = synthResult.fromCache
-        ? Promise.resolve(synthResult.captionTimestamps)
-        : alignCaptions(synthResult.path);
-      pending = { scene, synthResult, alignmentPromise };
+  } finally {
+    if (clientHolder) {
+      clientHolder.current.close();
     }
   }
 

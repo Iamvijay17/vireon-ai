@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img } from 'remotion';
+import { AbsoluteFill, Audio, Img, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useSlideUp, useZoomIn } from '../../animations';
 import { mergeStyle, positionStyle, typography } from '../../theme';
@@ -18,6 +18,12 @@ import { styles } from './styles';
  * { title, subtitle, image (optional), backgroundColor, styleConfig }.
  */
 const Title002 = React.memo(({ scene }) => {
+  const { width, height } = useVideoConfig();
+  // No template here uses a scale/getContentScale transform - it's pure
+  // percentage/flex layout, so the only portrait/square risk is the fixed-px
+  // padding and font sizes below, tuned for a 1920-wide canvas. Scale them
+  // against the shorter canvas dimension instead of leaving them fixed.
+  const scale = Math.min(width, height) / 1080;
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const subtitle = elements.subtitle || '';
@@ -35,11 +41,11 @@ const Title002 = React.memo(({ scene }) => {
   // here with the live `typography` value instead (see theme.js's
   // applyFontPairing).
   const titleStyle = mergeStyle(
-    { ...styles.title, fontFamily: typography.title.fontFamily, ...titleSlide, ...positionStyle(overrides.title?.position) },
+    { ...styles.title, fontFamily: typography.title.fontFamily, fontSize: styles.title.fontSize * scale, ...titleSlide, ...positionStyle(overrides.title?.position) },
     overrides.title
   );
   const subtitleStyle = mergeStyle(
-    { ...styles.subtitle, fontFamily: typography.body.fontFamily, ...subtitleSlide, ...positionStyle(overrides.subtitle?.position) },
+    { ...styles.subtitle, fontFamily: typography.body.fontFamily, fontSize: styles.subtitle.fontSize * scale, ...subtitleSlide, ...positionStyle(overrides.subtitle?.position) },
     overrides.subtitle
   );
 
@@ -54,7 +60,7 @@ const Title002 = React.memo(({ scene }) => {
           <div style={{ ...styles.parallaxLayer, background: `linear-gradient(135deg, ${bgColor} 0%, #16213e 50%, #0f3460 100%)` }} />
         )}
         <div style={{ ...styles.overlay, opacity: bgFade }} />
-        <div style={styles.content}>
+        <div style={{ ...styles.content, padding: `0 ${90 * scale}px ${100 * scale}px` }}>
           {title && (
             <h1 data-style-role="title" style={titleStyle}>
               {title}

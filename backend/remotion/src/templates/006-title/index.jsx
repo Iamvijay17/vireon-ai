@@ -1,7 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getOrientation } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -20,6 +20,10 @@ import { styles } from './styles';
  */
 const Title006 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  // The hard left/right split squeezes both halves into narrow slivers on
+  // portrait/square - stack image-on-top-of-text instead.
+  const isLandscape = getOrientation(width, height) === 'landscape';
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const subtitle = elements.subtitle || '';
@@ -38,7 +42,7 @@ const Title006 = React.memo(({ scene }) => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
-      <div style={styles.container}>
+      <div style={isLandscape ? styles.container : { ...styles.container, flexDirection: 'column' }}>
         <div style={styles.imageHalf}>
           {image ? (
             <Img src={image} style={{ ...styles.image, transform: `scale(${imageScale})` }} />
@@ -47,7 +51,14 @@ const Title006 = React.memo(({ scene }) => {
           )}
         </div>
 
-        <div style={{ ...styles.textHalf, opacity: interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' }), transform: `translateX(${panelX}px)` }}>
+        <div
+          style={{
+            ...styles.textHalf,
+            ...(isLandscape ? {} : { padding: '40px 60px' }),
+            opacity: interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' }),
+            transform: isLandscape ? `translateX(${panelX}px)` : `translateY(${panelX}px)`,
+          }}
+        >
           {title && (
             <h1
               data-style-role="title"

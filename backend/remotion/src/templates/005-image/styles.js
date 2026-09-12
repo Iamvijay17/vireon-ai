@@ -18,16 +18,22 @@ export const styles = {
     bottom: 0,
   },
   card: {
+    // Percentage-of-canvas width (capped so it doesn't balloon on very wide
+    // landscape canvases) instead of a fixed 560px, so the card doesn't
+    // shrink to a small fraction of a narrower portrait/square frame.
     position: 'relative',
-    width: 560,
+    width: '70%',
+    maxWidth: 560,
     backgroundColor: '#fafafa',
     padding: '24px 24px 90px',
     boxSizing: 'border-box',
     boxShadow: '0 30px 70px rgba(0,0,0,0.45)',
   },
   photo: {
+    // Aspect-ratio-driven instead of a fixed 480px height, so the photo
+    // keeps the same shape as the card scales with `card.width` above.
     width: '100%',
-    height: 480,
+    aspectRatio: '560 / 480',
     overflow: 'hidden',
     backgroundColor: '#111',
   },

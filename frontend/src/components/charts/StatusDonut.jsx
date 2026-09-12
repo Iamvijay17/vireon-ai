@@ -40,16 +40,17 @@ export const StatusDonut = ({ rows = [], emptyLabel = "No data yet", className }
 
   return (
     <div className={cn("flex flex-col items-center gap-4 sm:flex-row", className)}>
-      <div className="relative size-40 shrink-0">
+      <div className="relative size-32 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={data}
               dataKey="count"
               nameKey="label"
-              innerRadius="68%"
+              innerRadius="70%"
               outerRadius="100%"
-              paddingAngle={2}
+              paddingAngle={3}
+              cornerRadius={5}
               stroke="var(--color-surface)"
               strokeWidth={2}
               isAnimationActive
@@ -63,23 +64,31 @@ export const StatusDonut = ({ rows = [], emptyLabel = "No data yet", className }
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-xl font-semibold tabular-nums text-text-primary">{total}</span>
+          <span className="text-lg font-semibold tabular-nums text-text-primary">{total}</span>
           <span className="text-[10px] text-text-tertiary">total</span>
         </div>
       </div>
 
-      <div className="flex-1 space-y-1.5">
+      <div className="w-full flex-1 space-y-1.5">
         {data
           .sort((a, b) => b.count - a.count)
           .map((row) => (
-            <div key={row.label} className="flex items-center justify-between gap-3 text-xs">
-              <span className="flex items-center gap-1.5 text-text-secondary">
-                <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.fill }} />
-                {formatLabel(row.label)}
-              </span>
-              <span className="shrink-0 tabular-nums text-text-tertiary">
-                {row.count} &middot; {Math.round((row.count / total) * 100)}%
-              </span>
+            <div key={row.label}>
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="flex items-center gap-1.5 font-medium text-text-secondary">
+                  <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.fill }} />
+                  {formatLabel(row.label)}
+                </span>
+                <span className="shrink-0 tabular-nums text-text-tertiary">
+                  {row.count} &middot; {Math.round((row.count / total) * 100)}%
+                </span>
+              </div>
+              <div className="mt-1 h-1 overflow-hidden rounded-full bg-surface-active">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${(row.count / total) * 100}%`, backgroundColor: row.fill }}
+                />
+              </div>
             </div>
           ))}
       </div>

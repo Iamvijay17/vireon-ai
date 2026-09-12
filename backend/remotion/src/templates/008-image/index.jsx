@@ -1,7 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getContentScale } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -20,6 +20,8 @@ import { styles } from './styles';
  */
 const Image008 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width } = useVideoConfig();
+  const scale = getContentScale(width);
   const elements = scene?.elements || {};
   const image = elements.image || '';
   const caption = elements.caption || '';
@@ -33,8 +35,8 @@ const Image008 = React.memo(({ scene }) => {
   const labelOpacity = interpolate(frame, [20, 34], [0, 1], { extrapolateRight: 'clamp' });
   const captionOpacity = interpolate(frame, [26, 42], [0, 1], { extrapolateRight: 'clamp' });
 
-  const labelStyle = mergeStyle({ ...styles.label, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
-  const captionStyle = mergeStyle({ ...styles.caption, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const labelStyle = mergeStyle({ ...styles.label, fontSize: styles.label.fontSize * scale, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
+  const captionStyle = mergeStyle({ ...styles.caption, fontSize: styles.caption.fontSize * scale, ...positionStyle(overrides.title?.position) }, overrides.title);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>

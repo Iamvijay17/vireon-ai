@@ -1,7 +1,7 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getOrientation } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -20,6 +20,10 @@ import { styles } from './styles';
  */
 const Image006 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  // The fixed-width sidebar squeezes the image on portrait/square - stack
+  // image-on-top-of-caption-bar instead.
+  const isLandscape = getOrientation(width, height) === 'landscape';
   const elements = scene?.elements || {};
   const image = elements.image || '';
   const caption = elements.caption || '';
@@ -38,7 +42,7 @@ const Image006 = React.memo(({ scene }) => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
-      <div style={styles.container}>
+      <div style={isLandscape ? styles.container : { ...styles.container, flexDirection: 'column' }}>
         <div style={styles.imageArea}>
           {image ? (
             <Img src={image} style={{ ...styles.image, transform: `scale(${imageZoom})` }} />
@@ -49,7 +53,14 @@ const Image006 = React.memo(({ scene }) => {
           )}
         </div>
 
-        <div style={{ ...styles.bar, opacity: barOpacity, transform: `translateX(${barX}px)` }}>
+        <div
+          style={{
+            ...styles.bar,
+            ...(isLandscape ? {} : { width: '100%', flexShrink: 0, padding: '30px 50px' }),
+            opacity: barOpacity,
+            transform: isLandscape ? `translateX(${barX}px)` : `translateY(${barX}px)`,
+          }}
+        >
           {label && (
             <p data-style-role="subtitle" style={{ ...labelStyle, opacity: labelOpacity }}>
               {label}

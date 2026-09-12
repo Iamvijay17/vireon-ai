@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { mergeStyle, positionStyle } from '../../theme';
 import { styles } from './styles';
@@ -19,6 +19,11 @@ import { styles } from './styles';
  */
 const Title010 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  // Already mostly percentage-based (artArea is 58%/58% of the frame) - just
+  // scale the fixed outer/frame padding and font sizes against the shorter
+  // canvas dimension for portrait/square.
+  const scale = Math.min(width, height) / 1080;
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const subtitle = elements.subtitle || '';
@@ -32,13 +37,13 @@ const Title010 = React.memo(({ scene }) => {
   const titleY = interpolate(frame, [22, 42], [18, 0], { extrapolateRight: 'clamp' });
   const subtitleOpacity = interpolate(frame, [32, 48], [0, 1], { extrapolateRight: 'clamp' });
 
-  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
-  const subtitleStyle = mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
+  const titleStyle = mergeStyle({ ...styles.title, fontSize: styles.title.fontSize * scale, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const subtitleStyle = mergeStyle({ ...styles.subtitle, fontSize: styles.subtitle.fontSize * scale, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
-      <div style={styles.outer}>
-        <div style={{ ...styles.frame, opacity: frameOpacity }}>
+      <div style={{ ...styles.outer, padding: 40 * scale }}>
+        <div style={{ ...styles.frame, padding: `${46 * scale}px ${60 * scale}px`, opacity: frameOpacity }}>
           <div style={{ ...styles.artArea, transform: `scale(${artScale})` }}>
             {image ? (
               <Img src={image} style={styles.artImage} />

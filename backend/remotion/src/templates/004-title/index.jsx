@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useSlideUp, useZoomIn } from '../../animations';
 import { mergeStyle, positionStyle } from '../../theme';
@@ -21,6 +21,11 @@ import { styles } from './styles';
  */
 const Title004 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  // Corner-thumbnail/padding/font sizing below is tuned for a 1920-wide
+  // canvas - scale it against the shorter canvas dimension for
+  // portrait/square.
+  const scale = Math.min(width, height) / 1080;
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const subtitle = elements.subtitle || '';
@@ -36,21 +41,21 @@ const Title004 = React.memo(({ scene }) => {
   const thumbZoom = useZoomIn({ startAt: 8, duration: 30, from: 0.7, to: 1 });
   const subtitleSlide = useSlideUp({ startAt: 18, distance: 24 });
 
-  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
-  const subtitleStyle = mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
+  const titleStyle = mergeStyle({ ...styles.title, fontSize: styles.title.fontSize * scale, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const subtitleStyle = mergeStyle({ ...styles.subtitle, fontSize: styles.subtitle.fontSize * scale, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
-      <div style={styles.container}>
+      <div style={{ ...styles.container, padding: `0 ${100 * scale}px` }}>
         <div style={{ ...styles.glowBlob, background: accentColor, opacity: 0.35 }} />
 
         {image && (
-          <div style={{ ...styles.thumb, ...thumbZoom }}>
+          <div style={{ ...styles.thumb, top: 70 * scale, right: 90 * scale, width: 220 * scale, height: 220 * scale, ...thumbZoom }}>
             <Img src={image} style={styles.thumbImage} />
           </div>
         )}
 
-        <div style={{ ...styles.kicker, opacity: kickerFade, background: `${accentColor}33`, borderColor: accentColor }}>
+        <div style={{ ...styles.kicker, fontSize: styles.kicker.fontSize * scale, padding: `${8 * scale}px ${20 * scale}px`, opacity: kickerFade, background: `${accentColor}33`, borderColor: accentColor }}>
           Featured
         </div>
 

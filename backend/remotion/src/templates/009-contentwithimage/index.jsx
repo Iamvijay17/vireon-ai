@@ -1,8 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { styles } from './styles';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getOrientation } from '../../theme';
 
 /**
  * 009-contentwithimage template ("Corner Accent" variant of the
@@ -20,6 +20,13 @@ import { mergeStyle, positionStyle } from '../../theme';
  */
 const ContentWithImage009 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  // The top-right diagonal corner image (52%w/62%h) and bottom-left text
+  // panel (58%w/100%h) are two overlapping fixed-fraction blocks tuned for
+  // 16:9 - on portrait/square they overlap awkwardly instead of dividing
+  // the frame cleanly, so switch to a plain stacked rectangle (image on
+  // top, text below, no diagonal) there instead.
+  const isLandscape = getOrientation(width, height) === 'landscape';
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const body = elements.body || elements.text || '';
@@ -40,14 +47,26 @@ const ContentWithImage009 = React.memo(({ scene }) => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
-      <div style={styles.container}>
-        <div style={styles.quoteGlyph}>&rdquo;</div>
+      <div style={isLandscape ? styles.container : { ...styles.container, display: 'flex', flexDirection: 'column' }}>
+        {isLandscape && <div style={styles.quoteGlyph}>&rdquo;</div>}
 
-        <div style={{ ...styles.corner, opacity: cornerOpacity, transform: `translateX(${cornerX}px)` }}>
+        <div
+          style={
+            isLandscape
+              ? { ...styles.corner, opacity: cornerOpacity, transform: `translateX(${cornerX}px)` }
+              : { position: 'relative', width: '100%', height: '45%', overflow: 'hidden', opacity: cornerOpacity, transform: `translateY(${cornerX}px)` }
+          }
+        >
           {image && <Img src={image} style={styles.image} />}
         </div>
 
-        <div style={styles.textPanel}>
+        <div
+          style={
+            isLandscape
+              ? styles.textPanel
+              : { ...styles.textPanel, width: '100%', height: 'auto', flex: 1, padding: '30px 50px' }
+          }
+        >
           {badge && <div style={{ ...styles.badge, opacity: badgeOpacity }}>{badge}</div>}
           {title && (
             <h1 data-style-role="title" style={{ ...titleStyle, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>

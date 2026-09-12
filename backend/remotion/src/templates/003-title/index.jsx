@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { typography, spacing, mergeStyle, positionStyle } from '../../theme';
 
@@ -17,6 +17,11 @@ import { typography, spacing, mergeStyle, positionStyle } from '../../theme';
  */
 const Title003 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  // Fixed-px avatar/accent-line sizing below is tuned for a 1920-wide
+  // canvas - scale it against the shorter canvas dimension so it isn't
+  // oversized/cramped on portrait/square.
+  const scale = Math.min(width, height) / 1080;
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const subtitle = elements.subtitle || '';
@@ -37,11 +42,11 @@ const Title003 = React.memo(({ scene }) => {
   const imageScale = interpolate(frame, [10, 50], [0.92, 1], { extrapolateRight: 'clamp' });
 
   const titleStyle = mergeStyle(
-    { ...typography.title, marginBottom: spacing.md, ...positionStyle(overrides.title?.position) },
+    { ...typography.title, fontSize: typography.title.fontSize * scale, marginBottom: spacing.md, ...positionStyle(overrides.title?.position) },
     overrides.title
   );
   const subtitleStyle = mergeStyle(
-    { ...typography.subtitle, maxWidth: '70%', ...positionStyle(overrides.subtitle?.position) },
+    { ...typography.subtitle, fontSize: typography.subtitle.fontSize * scale, maxWidth: '70%', ...positionStyle(overrides.subtitle?.position) },
     overrides.subtitle
   );
 
@@ -59,15 +64,15 @@ const Title003 = React.memo(({ scene }) => {
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
-          padding: `${spacing.xxl}px ${spacing.xxxl}px`,
+          padding: `${spacing.xxl * scale}px ${spacing.xxxl * scale}px`,
           boxSizing: 'border-box',
         }}
       >
         {image && (
           <div
             style={{
-              width: 220,
-              height: 220,
+              width: 220 * scale,
+              height: 220 * scale,
               borderRadius: '50%',
               overflow: 'hidden',
               marginBottom: spacing.xl,
@@ -95,7 +100,7 @@ const Title003 = React.memo(({ scene }) => {
 
         <div
           style={{
-            width: 64,
+            width: 64 * scale,
             height: 2,
             borderRadius: 1,
             backgroundColor: accentColor || '#60a5fa',

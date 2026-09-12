@@ -1,8 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { styles } from './styles';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getContentScale } from '../../theme';
 
 /**
  * 007-contentwithimage template ("Duotone Overlay" variant of the
@@ -19,6 +19,8 @@ import { mergeStyle, positionStyle } from '../../theme';
  */
 const ContentWithImage007 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width } = useVideoConfig();
+  const scale = getContentScale(width);
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const body = elements.body || elements.text || '';
@@ -35,8 +37,8 @@ const ContentWithImage007 = React.memo(({ scene }) => {
   const titleY = interpolate(frame, [18, 38], [24, 0], { extrapolateRight: 'clamp' });
   const bodyOpacity = interpolate(frame, [28, 46], [0, 1], { extrapolateRight: 'clamp' });
 
-  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
-  const bodyStyle = mergeStyle(styles.body, overrides.body);
+  const titleStyle = mergeStyle({ ...styles.title, fontSize: styles.title.fontSize * scale, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const bodyStyle = mergeStyle({ ...styles.body, fontSize: styles.body.fontSize * scale }, overrides.body);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>

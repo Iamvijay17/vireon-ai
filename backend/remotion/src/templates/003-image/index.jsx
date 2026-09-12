@@ -1,8 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeIn, useSlideUp, useZoomIn } from '../../animations';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getContentScale } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -19,6 +19,10 @@ import { styles } from './styles';
  */
 const Image003 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width } = useVideoConfig();
+  // Frame insets are already %-based (portrait-tolerant); just scale the
+  // bottom caption's fixed-px font/padding, tuned for a 1920-wide canvas.
+  const scale = getContentScale(width);
   const elements = scene?.elements || {};
   const image = elements.image || '';
   const caption = elements.caption || '';
@@ -34,8 +38,8 @@ const Image003 = React.memo(({ scene }) => {
   const labelFade = useFadeIn({ startAt: 20, duration: 15 });
   const captionSlide = useSlideUp({ startAt: 24, distance: 40 });
 
-  const labelStyle = mergeStyle({ ...styles.label, opacity: labelFade, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
-  const captionStyle = mergeStyle({ ...styles.caption, ...captionSlide, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const labelStyle = mergeStyle({ ...styles.label, fontSize: styles.label.fontSize * scale, opacity: labelFade, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
+  const captionStyle = mergeStyle({ ...styles.caption, fontSize: styles.caption.fontSize * scale, ...captionSlide, ...positionStyle(overrides.title?.position) }, overrides.title);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
@@ -61,7 +65,7 @@ const Image003 = React.memo(({ scene }) => {
 
         <div style={{ ...styles.overlay, background: overlayGradient }} />
 
-        <div style={styles.captionContainer}>
+        <div style={{ ...styles.captionContainer, padding: `${60 * scale}px ${80 * scale}px ${60 * scale}px` }}>
           {label && (
             <p data-style-role="subtitle" style={labelStyle}>
               {label}

@@ -1,8 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { styles } from './styles';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getContentScale } from '../../theme';
 
 /**
  * 008-contentwithimage template ("Circle Frame" variant of the
@@ -19,6 +19,10 @@ import { mergeStyle, positionStyle } from '../../theme';
  */
 const ContentWithImage008 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width } = useVideoConfig();
+  // Fixed-px circle/padding/font sizing is tuned for a 1920-wide canvas -
+  // scale it against the shorter canvas dimension for portrait/square.
+  const scale = getContentScale(width);
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const body = elements.body || elements.text || '';
@@ -34,13 +38,13 @@ const ContentWithImage008 = React.memo(({ scene }) => {
   const titleY = interpolate(frame, [20, 38], [16, 0], { extrapolateRight: 'clamp' });
   const bodyOpacity = interpolate(frame, [28, 44], [0, 1], { extrapolateRight: 'clamp' });
 
-  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
-  const bodyStyle = mergeStyle(styles.body, overrides.body);
+  const titleStyle = mergeStyle({ ...styles.title, fontSize: styles.title.fontSize * scale, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const bodyStyle = mergeStyle({ ...styles.body, fontSize: styles.body.fontSize * scale }, overrides.body);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
-      <div style={styles.container}>
-        <div style={{ ...styles.circleWrap, opacity: circleOpacity, transform: `scale(${circleScale})` }}>
+      <div style={{ ...styles.container, padding: `${60 * scale}px ${120 * scale}px` }}>
+        <div style={{ ...styles.circleWrap, width: 220 * scale, height: 220 * scale, opacity: circleOpacity, transform: `scale(${circleScale})` }}>
           {image ? (
             <Img src={image} style={styles.image} />
           ) : (

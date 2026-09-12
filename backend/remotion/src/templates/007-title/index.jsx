@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { mergeStyle, positionStyle } from '../../theme';
 import { styles } from './styles';
@@ -20,6 +20,10 @@ import { styles } from './styles';
  */
 const Title007 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  // Ribbon/thumb/padding/font sizing below is tuned for a 1920-wide canvas
+  // - scale it against the shorter canvas dimension for portrait/square.
+  const scale = Math.min(width, height) / 1080;
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const subtitle = elements.subtitle || '';
@@ -34,25 +38,25 @@ const Title007 = React.memo(({ scene }) => {
   const titleY = interpolate(frame, [16, 36], [30, 0], { extrapolateRight: 'clamp' });
   const subtitleOpacity = interpolate(frame, [28, 44], [0, 1], { extrapolateRight: 'clamp' });
 
-  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
-  const subtitleStyle = mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
+  const titleStyle = mergeStyle({ ...styles.title, fontSize: styles.title.fontSize * scale, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const subtitleStyle = mergeStyle({ ...styles.subtitle, fontSize: styles.subtitle.fontSize * scale, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.background, background: `linear-gradient(180deg, ${bgColor} 0%, #0d1117 100%)` }} />
 
       <div style={styles.container}>
-        <div style={{ ...styles.ribbon, background: accentColor, transform: `scaleX(${ribbonScale})`, transformOrigin: 'left center' }}>
-          <span style={styles.kicker}>Now Featured</span>
+        <div style={{ ...styles.ribbon, height: 54 * scale, padding: `0 ${60 * scale}px`, background: accentColor, transform: `scaleX(${ribbonScale})`, transformOrigin: 'left center' }}>
+          <span style={{ ...styles.kicker, fontSize: styles.kicker.fontSize * scale }}>Now Featured</span>
         </div>
 
         {image && (
-          <div style={{ ...styles.thumb, opacity: thumbOpacity }}>
+          <div style={{ ...styles.thumb, top: 90 * scale, right: 60 * scale, width: 200 * scale, height: 150 * scale, opacity: thumbOpacity }}>
             <Img src={image} style={styles.thumbImage} />
           </div>
         )}
 
-        <div style={styles.textBlock}>
+        <div style={{ ...styles.textBlock, padding: `0 ${60 * scale}px ${80 * scale}px` }}>
           {title && (
             <h1
               data-style-role="title"

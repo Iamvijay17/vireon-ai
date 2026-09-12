@@ -2,7 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useSlideUp } from '../../animations';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getContentScale } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -27,15 +27,19 @@ const Image002 = React.memo(({ scene }) => {
   const overrides = elements.styleConfig || {};
 
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+  const { durationInFrames, width } = useVideoConfig();
+  // Structurally already resolution-tolerant (full-bleed image + bottom
+  // caption panel) - just scale the caption's fixed-px font/padding, tuned
+  // for a 1920-wide canvas, against the shorter canvas dimension.
+  const scale = getContentScale(width);
   const zoomScale = interpolate(frame, [0, durationInFrames || 120], [1, 1.1], { extrapolateRight: 'clamp' });
   const bgFade = useFadeInOut({ fadeIn: 0, fadeInDuration: 15 });
   const lineFade = useFadeInOut({ fadeIn: 10, fadeInDuration: 15 });
   const labelFade = useFadeInOut({ fadeIn: 14, fadeInDuration: 15 });
   const captionSlide = useSlideUp({ startAt: 18, distance: 40 });
 
-  const labelStyle = mergeStyle({ ...styles.label, opacity: labelFade, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
-  const captionStyle = mergeStyle({ ...styles.caption, ...captionSlide, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const labelStyle = mergeStyle({ ...styles.label, fontSize: styles.label.fontSize * scale, opacity: labelFade, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
+  const captionStyle = mergeStyle({ ...styles.caption, fontSize: styles.caption.fontSize * scale, ...captionSlide, ...positionStyle(overrides.title?.position) }, overrides.title);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
@@ -50,7 +54,7 @@ const Image002 = React.memo(({ scene }) => {
         <div style={styles.darken} />
         <div style={{ ...styles.vignette, background: overlayGradient, opacity: bgFade }} />
 
-        <div style={styles.content}>
+        <div style={{ ...styles.content, padding: `0 ${90 * scale}px ${90 * scale}px` }}>
           <div style={{ ...styles.accentLine, opacity: lineFade }} />
           {label && (
             <p data-style-role="subtitle" style={labelStyle}>

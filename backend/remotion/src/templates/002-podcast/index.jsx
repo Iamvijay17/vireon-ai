@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { mergeStyle, positionStyle, typography } from '../../theme';
+import { mergeStyle, positionStyle, typography, getOrientation } from '../../theme';
 
 /**
  * 002-podcast template ("Interview" variant of the "podcast" scene type)
@@ -20,7 +20,10 @@ import { mergeStyle, positionStyle, typography } from '../../theme';
  */
 const Podcast002 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
+  // The left/right image+text split squeezes both panels on portrait/square
+  // - stack image-on-top-of-text instead.
+  const isLandscape = getOrientation(width, height) === 'landscape';
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const subtitle = elements.subtitle || '';
@@ -52,15 +55,15 @@ const Podcast002 = React.memo(({ scene }) => {
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, ...bgGradient }} />
 
-      <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'row' }}>
-        {/* Left panel: framed host image with lower-third nameplate */}
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: isLandscape ? 'row' : 'column' }}>
+        {/* Image panel: framed host image with lower-third nameplate */}
         <div
           style={{
             flex: 1,
             position: 'relative',
             overflow: 'hidden',
             opacity: panelOpacity,
-            transform: `translateX(${panelSlide}px)`,
+            transform: isLandscape ? `translateX(${panelSlide}px)` : `translateY(${panelSlide}px)`,
           }}
         >
           {hostImage ? (
@@ -106,15 +109,15 @@ const Podcast002 = React.memo(({ scene }) => {
           )}
         </div>
 
-        {/* Right panel: title/subtitle + waveform */}
+        {/* Text panel: title/subtitle + waveform */}
         <div
           style={{
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
-            alignItems: 'flex-start',
-            padding: '0 60px',
+            alignItems: isLandscape ? 'flex-start' : 'center',
+            padding: isLandscape ? '0 60px' : '30px 50px',
             boxSizing: 'border-box',
           }}
         >
@@ -127,7 +130,7 @@ const Podcast002 = React.memo(({ scene }) => {
                   fontSize: 46,
                   fontWeight: 800,
                   fontFamily: typography.body.fontFamily,
-                  textAlign: 'left',
+                  textAlign: isLandscape ? 'left' : 'center',
                   margin: 0,
                   marginBottom: 10,
                   lineHeight: 1.2,
@@ -151,7 +154,7 @@ const Podcast002 = React.memo(({ scene }) => {
                   fontSize: 22,
                   fontWeight: 400,
                   fontFamily: typography.body.fontFamily,
-                  textAlign: 'left',
+                  textAlign: isLandscape ? 'left' : 'center',
                   margin: 0,
                   marginBottom: 24,
                   opacity: subOpacity,

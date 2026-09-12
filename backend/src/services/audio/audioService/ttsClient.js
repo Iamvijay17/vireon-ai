@@ -89,24 +89,21 @@ async function generateClone(client, resolved, text, seed, fastMode = false) {
 
 /**
  * Dispatch to the right Gradio endpoint for the resolved voice mode.
- * Always closes the client connection afterward, even on failure, so a
- * run of TTS retries/scenes doesn't leak one websocket connection per
- * attempt.
+ * Does not manage the client's connection lifecycle - a job's scenes share
+ * one connection (see sceneSynthesis.js's clientHolder), so closing it here
+ * would kill it out from under the next scene. The caller that owns the
+ * connection is responsible for closing it.
  */
 async function generate(client, resolved, text, seed, instruct, fastMode) {
   const startedAt = Date.now();
-  try {
-    const result =
-      resolved.mode === "clone"
-        ? await generateClone(client, resolved, text, seed, fastMode)
-        : resolved.mode === "design"
-          ? await generateDesign(client, resolved, text, seed, instruct, fastMode)
-          : await generateCustom(client, resolved, text, seed, instruct, fastMode);
-    MetricsService.recordDuration("tts.duration", Date.now() - startedAt);
-    return result;
-  } finally {
-    client.close();
-  }
+  const result =
+    resolved.mode === "clone"
+      ? await generateClone(client, resolved, text, seed, fastMode)
+      : resolved.mode === "design"
+        ? await generateDesign(client, resolved, text, seed, instruct, fastMode)
+        : await generateCustom(client, resolved, text, seed, instruct, fastMode);
+  MetricsService.recordDuration("tts.duration", Date.now() - startedAt);
+  return result;
 }
 
 module.exports = { generate, getReferenceText };

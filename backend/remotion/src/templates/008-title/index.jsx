@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { mergeStyle, positionStyle } from '../../theme';
 import { styles } from './styles';
@@ -21,6 +21,11 @@ import { styles } from './styles';
  */
 const Title008 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  // Corner-thumb/badge/padding/font sizing below is tuned for a 1920-wide
+  // canvas - scale it against the shorter canvas dimension for
+  // portrait/square.
+  const scale = Math.min(width, height) / 1080;
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const subtitle = elements.subtitle || '';
@@ -36,8 +41,8 @@ const Title008 = React.memo(({ scene }) => {
   const subtitleOpacity = interpolate(frame, [24, 40], [0, 1], { extrapolateRight: 'clamp' });
   const thumbOpacity = interpolate(frame, [10, 26], [0, 1], { extrapolateRight: 'clamp' });
 
-  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
-  const subtitleStyle = mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
+  const titleStyle = mergeStyle({ ...styles.title, fontSize: styles.title.fontSize * scale, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const subtitleStyle = mergeStyle({ ...styles.subtitle, fontSize: styles.subtitle.fontSize * scale, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
@@ -45,13 +50,13 @@ const Title008 = React.memo(({ scene }) => {
       <div style={styles.dim} />
 
       {image && (
-        <div style={{ ...styles.thumb, opacity: thumbOpacity }}>
+        <div style={{ ...styles.thumb, top: 60 * scale, right: 70 * scale, width: 220 * scale, height: 220 * scale, opacity: thumbOpacity }}>
           <Img src={image} style={styles.thumbImage} />
         </div>
       )}
 
-      <div style={styles.container}>
-        <div style={{ ...styles.badge, background: accentColor, transform: `scale(${badgeScale})` }}>Watch Now</div>
+      <div style={{ ...styles.container, padding: `0 ${90 * scale}px` }}>
+        <div style={{ ...styles.badge, fontSize: styles.badge.fontSize * scale, padding: `${8 * scale}px ${22 * scale}px`, background: accentColor, transform: `scale(${badgeScale})` }}>Watch Now</div>
 
         {title && (
           <h1

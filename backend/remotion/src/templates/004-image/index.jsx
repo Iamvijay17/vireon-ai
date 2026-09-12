@@ -1,8 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeIn, useSlideUp } from '../../animations';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getContentScale } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -19,6 +19,10 @@ import { styles } from './styles';
  */
 const Image004 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width } = useVideoConfig();
+  // Frame is already %-based (portrait-tolerant); scale the caption's
+  // fixed-px font, tuned for a 1920-wide canvas.
+  const scale = getContentScale(width);
   const elements = scene?.elements || {};
   const image = elements.image || '';
   const caption = elements.caption || '';
@@ -31,8 +35,8 @@ const Image004 = React.memo(({ scene }) => {
   const labelFade = useFadeIn({ startAt: 20, duration: 15 });
   const captionSlide = useSlideUp({ startAt: 26, distance: 24 });
 
-  const labelStyle = mergeStyle({ ...styles.label, opacity: labelFade, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
-  const captionStyle = mergeStyle({ ...styles.caption, ...captionSlide, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const labelStyle = mergeStyle({ ...styles.label, fontSize: styles.label.fontSize * scale, opacity: labelFade, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
+  const captionStyle = mergeStyle({ ...styles.caption, fontSize: styles.caption.fontSize * scale, ...captionSlide, ...positionStyle(overrides.title?.position) }, overrides.title);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>

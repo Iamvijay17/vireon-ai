@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { mergeStyle, positionStyle } from '../../theme';
 import { styles } from './styles';
@@ -18,6 +18,13 @@ import { styles } from './styles';
  */
 const Title009 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  // Badge/padding/font sizing below is tuned for a 1920-wide canvas - scale
+  // it against the shorter canvas dimension for portrait/square. (The
+  // diagonal clip-path split itself is intentionally left as-is - it's a
+  // straight corner-to-corner line, so it just renders at a different
+  // visual angle per aspect ratio rather than breaking.)
+  const scale = Math.min(width, height) / 1080;
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const subtitle = elements.subtitle || '';
@@ -32,8 +39,8 @@ const Title009 = React.memo(({ scene }) => {
   const subtitleOpacity = interpolate(frame, [22, 38], [0, 1], { extrapolateRight: 'clamp' });
   const badgeScale = interpolate(frame, [14, 30], [0.5, 1], { extrapolateRight: 'clamp' });
 
-  const titleStyle = mergeStyle({ ...styles.title, ...positionStyle(overrides.title?.position) }, overrides.title);
-  const subtitleStyle = mergeStyle({ ...styles.subtitle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
+  const titleStyle = mergeStyle({ ...styles.title, fontSize: styles.title.fontSize * scale, ...positionStyle(overrides.title?.position) }, overrides.title);
+  const subtitleStyle = mergeStyle({ ...styles.subtitle, fontSize: styles.subtitle.fontSize * scale, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle);
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
@@ -41,12 +48,12 @@ const Title009 = React.memo(({ scene }) => {
       <div style={styles.darkBlock} />
 
       {image && (
-        <div style={{ ...styles.badge, transform: `scale(${badgeScale})` }}>
+        <div style={{ ...styles.badge, width: 110 * scale, height: 110 * scale, transform: `scale(${badgeScale})` }}>
           <Img src={image} style={styles.badgeImage} />
         </div>
       )}
 
-      <div style={styles.container}>
+      <div style={{ ...styles.container, padding: `0 ${90 * scale}px ${110 * scale}px` }}>
         {title && (
           <h1
             data-style-role="title"

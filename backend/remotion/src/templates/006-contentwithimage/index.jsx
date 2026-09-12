@@ -1,8 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { styles } from './styles';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getOrientation } from '../../theme';
 
 /**
  * 006-contentwithimage template ("Framed Inset" variant of the
@@ -20,6 +20,11 @@ import { mergeStyle, positionStyle } from '../../theme';
  */
 const ContentWithImage006 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  // The fixed 460x460 frame + side-by-side text panel squeezes on
+  // portrait/square - stack frame-on-top-of-text instead, with the frame
+  // sized as a percentage instead of a fixed px box.
+  const isLandscape = getOrientation(width, height) === 'landscape';
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const body = elements.body || elements.text || '';
@@ -40,8 +45,15 @@ const ContentWithImage006 = React.memo(({ scene }) => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
-      <div style={styles.container}>
-        <div style={{ ...styles.frameWrap, opacity: frameOpacity, transform: `scale(${frameScale})` }}>
+      <div style={isLandscape ? styles.container : { ...styles.container, flexDirection: 'column', padding: '40px 50px', gap: 30 }}>
+        <div
+          style={{
+            ...styles.frameWrap,
+            ...(isLandscape ? {} : { width: '60%', height: 'auto', aspectRatio: '1 / 1' }),
+            opacity: frameOpacity,
+            transform: `scale(${frameScale})`,
+          }}
+        >
           <div style={styles.frame}>
             {image ? (
               <Img src={image} style={styles.image} />
@@ -53,7 +65,7 @@ const ContentWithImage006 = React.memo(({ scene }) => {
           </div>
         </div>
 
-        <div style={styles.textPanel}>
+        <div style={isLandscape ? styles.textPanel : { ...styles.textPanel, alignItems: 'center', textAlign: 'center' }}>
           {badge && <div style={{ ...styles.badge, opacity: badgeOpacity }}>{badge}</div>}
           {title && (
             <h1 data-style-role="title" style={{ ...titleStyle, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
