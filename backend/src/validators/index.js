@@ -5,6 +5,7 @@ const {
   LANGUAGES,
   STANDALONE_VIDEO_DURATIONS,
   SHORTS_VIDEO_DURATIONS,
+  FONT_PAIRINGS,
   getAspectRatioForResolution,
 } = require('../constants');
 const { ID_PATTERN } = require('../utils/id');
@@ -37,6 +38,9 @@ const createVideoSchema = z
     // youtube_shorts is further restricted to vertical (9:16) resolutions
     // only - see superRefine below.
     resolution: z.enum(RESOLUTIONS).optional().default('1920x1080'),
+    // Curated title/body Google Font pairing - see backend/remotion/src/fonts.js.
+    // 'default' keeps the legacy system-font look.
+    fontPairing: z.enum(FONT_PAIRINGS).optional().default('default'),
     // true: current auto flow (audio/images/render run automatically after
     // script approval). false: manual mode - audio and render each need an
     // explicit trigger, like the course-video pipeline.
@@ -88,6 +92,7 @@ const updateVideoJobSchema = z
     hostName: z.string().max(80).trim().optional(),
     guestName: z.string().max(80).trim().optional(),
     resolution: z.enum(RESOLUTIONS).optional(),
+    fontPairing: z.enum(FONT_PAIRINGS).optional(),
     avatarEnabled: z.boolean().optional(),
     avatarPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).nullable().optional(),
   })

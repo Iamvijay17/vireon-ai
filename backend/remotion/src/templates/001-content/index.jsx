@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { typography, palette, mergeStyle, positionStyle } from '../../theme';
+import { typography, palette, mergeStyle, positionStyle, getOrientation, getContentScale, spacing } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -25,15 +25,19 @@ import { styles } from './styles';
  */
 const Content001 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
-  const { fps, width } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const elements = scene?.elements || {};
   const overrides = elements.styleConfig || {};
 
-  // Rendered at whatever resolution the job requested (portrait Shorts vs
-  // landscape) - scale the fixed-px theme values against the 1920px
-  // reference width these tokens were designed at, so the layout doesn't
-  // look cramped/oversized on other resolutions.
-  const scale = width / 1920;
+  // Landscape keeps the original approach: uniformly scale the fixed-px
+  // theme values against the 1920px reference width these tokens were
+  // designed at. Portrait/square instead render the list at its natural
+  // (unscaled) size with a wider line-wrap and taller row rhythm - shrinking
+  // the whole 1920-wide block to fit a narrow portrait canvas wastes most of
+  // the available height and letterboxes the content.
+  const orientation = getOrientation(width, height);
+  const isLandscape = orientation === 'landscape';
+  const scale = getContentScale(width);
 
   const title = elements.title || '';
   const bgColor = elements.backgroundColor || palette.clean;
@@ -60,7 +64,13 @@ const Content001 = React.memo(({ scene }) => {
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.background, background: `linear-gradient(135deg, ${bgColor} 0%, #1a1a3e 60%, #0d1117 100%)` }} />
 
-      <div style={{ ...styles.content, transform: `scale(${scale})`, transformOrigin: 'center center', width: `${100 / scale}%`, height: `${100 / scale}%` }}>
+      <div
+        style={
+          isLandscape
+            ? { ...styles.content, transform: `scale(${scale})`, transformOrigin: 'center center', width: `${100 / scale}%`, height: `${100 / scale}%` }
+            : { ...styles.content, padding: `${spacing.xxl}px ${spacing.xl}px` }
+        }
+      >
         {title && (
           <h1
             data-style-role="title"
@@ -84,7 +94,7 @@ const Content001 = React.memo(({ scene }) => {
           }}
         />
 
-        <div style={styles.list}>
+        <div style={isLandscape ? styles.list : { ...styles.list, maxWidth: '100%', gap: spacing.xl }}>
           {rows.map((row, index) => {
             const rowOpacity = interpolate(frame, [15 + index * 6, 30 + index * 6], [0, 1], { extrapolateRight: 'clamp' });
             const rowX = interpolate(frame, [15 + index * 6, 35 + index * 6], [-20, 0], { extrapolateRight: 'clamp' });

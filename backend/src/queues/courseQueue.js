@@ -10,11 +10,12 @@ const connection = {
 const courseQueue = new Queue('course-video-processing', {
   connection,
   defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 5000,
-    },
+    // BullMQ's own retry would race the app-level one now handled in
+    // courseVideoWorker.js's outer catch (retryCount/maxRetries on the
+    // CourseVideo document, scheduleRetry + a fresh delayed job) - see
+    // videoQueue.js's comment for the exact race this avoids (BullMQ
+    // silently re-queuing while Mongo already reflects a different state).
+    attempts: 1,
     removeOnComplete: {
       age: 24 * 3600, // Keep completed jobs for 24 hours
     },

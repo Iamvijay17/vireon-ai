@@ -2,7 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Audio, Img } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { useFadeInOut, useSlideUp, useZoomIn } from '../../animations';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, typography } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -30,12 +30,16 @@ const Title002 = React.memo(({ scene }) => {
   const titleSlide = useSlideUp({ startAt: 10, distance: 50 });
   const subtitleSlide = useSlideUp({ startAt: 20, distance: 35 });
 
+  // styles.js's fontFamily is a static literal frozen at module-load time,
+  // so it can't pick up a per-video font pairing applied later - override it
+  // here with the live `typography` value instead (see theme.js's
+  // applyFontPairing).
   const titleStyle = mergeStyle(
-    { ...styles.title, ...titleSlide, ...positionStyle(overrides.title?.position) },
+    { ...styles.title, fontFamily: typography.title.fontFamily, ...titleSlide, ...positionStyle(overrides.title?.position) },
     overrides.title
   );
   const subtitleStyle = mergeStyle(
-    { ...styles.subtitle, ...subtitleSlide, ...positionStyle(overrides.subtitle?.position) },
+    { ...styles.subtitle, fontFamily: typography.body.fontFamily, ...subtitleSlide, ...positionStyle(overrides.subtitle?.position) },
     overrides.subtitle
   );
 

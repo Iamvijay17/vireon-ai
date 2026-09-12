@@ -7,7 +7,7 @@ import { choreograph } from '../../engine/choreograph';
 import { computeMotionStyle } from '../../engine/motion';
 import { SlotText, SlotImage, Waveform } from '../../engine/primitives';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { mergeStyle, typography } from '../../theme';
+import { mergeStyle } from '../../theme';
 
 /**
  * GeneratedScene - the renderer layer of the generative scene engine.
@@ -51,6 +51,11 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
   const layoutPlan = useMemo(() => solveLayout(profile, seed), [profile, seed]);
   const stylePlan = useMemo(() => generateStyle(styleSeed), [styleSeed]);
   const motionPlan = useMemo(() => choreograph(layoutPlan, seed), [layoutPlan, seed]);
+
+  // generateStyle stays a pure function (see its doc comment), so the actual
+  // Google Font registration - a side effect - happens here instead, once
+  // per resolved styleSeed.
+  stylePlan.fonts.load();
 
   const bgColor = elements.backgroundColor || stylePlan.palette.bg;
   // Spoken word-timed captions only exist for "content"/"podcast" shapes
@@ -108,7 +113,7 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
         animationConfig={{ slideDistance: 15 }}
         styleConfig={{
           position: 'bottom',
-          fontFamily: typography.title.fontFamily,
+          fontFamily: stylePlan.fonts.title,
           fontWeight: 500,
           fontSize: 36,
           textColor: '#ffffff',

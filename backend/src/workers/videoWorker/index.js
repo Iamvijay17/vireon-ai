@@ -100,6 +100,37 @@ worker.on('stalled', (jobId) => {
   LoggerService.warn(`Job ${jobId} stalled - its worker likely crashed mid-processing, reclaiming for reprocessing`);
 });
 
+// Graceful shutdown: stop accepting new jobs and let in-flight ones finish
+// (worker.close() waits for active jobs) instead of hard-killing mid-render,
+// which previously left a job's Redis lock stuck until stalledInterval/
+// maxStalledCount reclaimed it. Forces exit after 30s so a stuck deploy or
+// restart doesn't hang the process manager indefinitely.
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  LoggerService.info(`Video worker received ${signal} - closing gracefully, waiting for active jobs...`);
+
+  const forceExit = setTimeout(() => {
+    LoggerService.warn('Video worker graceful shutdown timed out after 30s, forcing exit');
+    process.exit(1);
+  }, 30_000);
+
+  try {
+    await worker.close();
+    clearTimeout(forceExit);
+    await mongoose.connection.close();
+    LoggerService.info('Video worker shut down gracefully');
+    process.exit(0);
+  } catch (err) {
+    clearTimeout(forceExit);
+    LoggerService.error('Error during video worker graceful shutdown', { error: err.message });
+    process.exit(1);
+  }
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
 LoggerService.border('🎥 Video Worker Started', 'event');
 LoggerService.info('Worker listening for jobs', {
   queue: 'video-rendering',

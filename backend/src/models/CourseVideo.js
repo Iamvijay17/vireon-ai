@@ -178,6 +178,9 @@ const courseVideoSchema = new mongoose.Schema(
     },
     error: {
       message: { type: String, default: '' },
+      // Raw technical error text - `message` holds the friendly version
+      // (see errorMessages.js).
+      detail: { type: String, default: '' },
       step: { type: String, default: '' },
       retryCount: { type: Number, default: 0 },
     },
@@ -188,6 +191,12 @@ const courseVideoSchema = new mongoose.Schema(
     maxRetries: {
       type: Number,
       default: 3,
+    },
+    // Set while status is RETRY_SCHEDULED so the UI can show a countdown;
+    // cleared once the retry actually starts.
+    nextRetryAt: {
+      type: Date,
+      default: null,
     },
   },
   {

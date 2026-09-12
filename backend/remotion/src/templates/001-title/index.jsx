@@ -79,8 +79,14 @@ const Title = React.memo(({ scene }) => {
           {image && (
             <div
               style={{
-                width: 400,
-                height: 300,
+                // Percentage-of-container width (capped at 400px so it
+                // doesn't balloon on large landscape canvases) with a fixed
+                // aspect ratio instead of a literal 400x300 box, so it
+                // shrinks to fit a narrower portrait/square frame instead of
+                // overflowing it.
+                width: '60%',
+                maxWidth: 400,
+                aspectRatio: '4 / 3',
                 borderRadius: 16,
                 overflow: 'hidden',
                 marginBottom: spacing.xl,

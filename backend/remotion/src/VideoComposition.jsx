@@ -2,6 +2,7 @@ import React, { Suspense } from "react";
 import { AbsoluteFill, Sequence, Video, interpolate, useCurrentFrame } from "remotion";
 import TemplateRegistry from "./templates/TemplateRegistry";
 import DefaultTemplate from "./templates/DefaultTemplate";
+import { applyFontPairing } from "./theme";
 
 const Text = ({ children, style }) => <div style={style}>{children}</div>;
 
@@ -199,7 +200,12 @@ const AvatarOverlay = ({ avatar }) => {
 };
 
 export const VideoComposition = ({ assets, jobId }) => {
-  const { scenes, avatar } = assets || {};
+  const { scenes, avatar, fontPairing } = assets || {};
+
+  // Mutates the shared theme.js `typography` object once, before any scene
+  // below renders - see applyFontPairing's doc comment for why this is safe
+  // (one Remotion render process per video).
+  applyFontPairing(fontPairing);
 
   if (!scenes || scenes.length === 0) {
     return (

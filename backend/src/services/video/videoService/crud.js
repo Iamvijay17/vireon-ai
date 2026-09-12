@@ -39,6 +39,7 @@ async function create(data) {
     resolution: data.resolution || '1920x1080',
     // Not user-selectable - resolution alone determines it.
     aspectRatio: getAspectRatioForResolution(data.resolution || '1920x1080'),
+    fontPairing: data.fontPairing || 'default',
     fastGeneration: data.fastGeneration ?? true,
     fastAudio: data.fastAudio ?? false,
     avatarEnabled: data.avatarEnabled ?? false,

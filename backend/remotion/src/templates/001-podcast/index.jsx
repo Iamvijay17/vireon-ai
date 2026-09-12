@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, typography } from '../../theme';
 
 /**
  * Podcast template
@@ -33,7 +33,12 @@ import { mergeStyle, positionStyle } from '../../theme';
  */
 const Podcast = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
+  // This layout is a single centered column already, so unlike the
+  // row-split templates it doesn't need an orientation branch - just scale
+  // its fixed-px sizes against the shorter canvas dimension so it stays
+  // proportionate whether the frame is landscape, portrait, or square.
+  const scale = Math.min(width, height) / 1080;
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const subtitle = elements.subtitle || '';
@@ -90,7 +95,7 @@ const Podcast = React.memo(({ scene }) => {
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: '60px',
+        padding: `${60 * scale}px`,
         boxSizing: 'border-box',
       }}>
         {/* Top section: Host image + branding */}
@@ -98,20 +103,20 @@ const Podcast = React.memo(({ scene }) => {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          marginBottom: 30,
+          marginBottom: 30 * scale,
           opacity: imageScale,
         }}>
           {/* Circular host image with glow */}
           {hostImage && (
             <div style={{
-              width: 120,
-              height: 120,
+              width: 120 * scale,
+              height: 120 * scale,
               borderRadius: '50%',
               overflow: 'hidden',
               border: `3px solid ${accentColor}`,
               boxShadow: `0 0 30px ${accentColor}60, 0 0 60px ${accentColor}30`,
               transform: `scale(${imageScale})`,
-              marginBottom: 16,
+              marginBottom: 16 * scale,
             }}>
               <Img src={hostImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
@@ -121,9 +126,9 @@ const Podcast = React.memo(({ scene }) => {
           {hostName && (
             <p style={{
               color: accentColor,
-              fontSize: 20,
+              fontSize: 20 * scale,
               fontWeight: 600,
-              fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+              fontFamily: typography.body.fontFamily,
               textTransform: 'uppercase',
               letterSpacing: 3,
               margin: 0,
@@ -139,9 +144,9 @@ const Podcast = React.memo(({ scene }) => {
         {title && (
           <h1 data-style-role="title" style={mergeStyle({
             color: '#ffffff',
-            fontSize: 56,
+            fontSize: 56 * scale,
             fontWeight: 800,
-            fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+            fontFamily: typography.body.fontFamily,
             textAlign: 'center',
             margin: 0,
             marginBottom: 8,
@@ -158,9 +163,9 @@ const Podcast = React.memo(({ scene }) => {
         {subtitle && (
           <p data-style-role="subtitle" style={mergeStyle({
             color: '#d1d5db',
-            fontSize: 24,
+            fontSize: 24 * scale,
             fontWeight: 400,
-            fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+            fontFamily: typography.body.fontFamily,
             textAlign: 'center',
             margin: 0,
             marginBottom: 16,
@@ -199,7 +204,7 @@ const Podcast = React.memo(({ scene }) => {
         animationConfig={{ highlightColor: accentColor }}
         styleConfig={{
           position: 'bottom',
-          fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+          fontFamily: typography.body.fontFamily,
           fontWeight: 700,
           fontSize: 40,
           textColor: '#ffffff',

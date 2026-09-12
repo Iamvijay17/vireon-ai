@@ -5,7 +5,7 @@ const ActivityLogService = require('../../services/common/ActivityLogService');
 const RemotionService = require('../../services/video/RemotionService');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
-const { JOB_STATUS } = require('../../constants');
+const { JOB_STATUS, JOB_STEPS } = require('../../constants');
 
 /**
  * Step 6: prepare Remotion assets.json - always regenerated (not skipped
@@ -18,12 +18,13 @@ async function prepareAssets(jobId, videoJob, script, avatarVideoUrl, ctx) {
   try { await fs.unlink(oldAssetsPath); } catch {}
 
   ctx.currentStep = JOB_STATUS.PREPARING_ASSETS;
-  await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS, { progress: 70 });
-  SocketService.emitJobProgress({ _id: jobId, progress: 70, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
+  await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS);
+  SocketService.emitJobProgress({ _id: jobId, progress: JOB_STEPS[JOB_STATUS.PREPARING_ASSETS].progress, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
 
   const assets = await RemotionService.prepareAssets(jobId, script, {
     resolution: videoJob.resolution,
     aspectRatio: videoJob.aspectRatio,
+    fontPairing: videoJob.fontPairing,
     type: videoJob.type,
     avatar: avatarVideoUrl ? { videoUrl: avatarVideoUrl, position: videoJob.avatarPosition } : undefined,
   });
@@ -45,8 +46,8 @@ async function prepareAssets(jobId, videoJob, script, avatarVideoUrl, ctx) {
  */
 async function render(jobId, assets, ctx) {
   ctx.currentStep = JOB_STATUS.RENDERING;
-  await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING, { progress: 80 });
-  SocketService.emitJobProgress({ _id: jobId, progress: 80, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
+  await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING);
+  SocketService.emitJobProgress({ _id: jobId, progress: JOB_STEPS[JOB_STATUS.RENDERING].progress, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
 
   const renderIsCurrent = await RemotionService.isRenderCurrent(jobId, assets);
 

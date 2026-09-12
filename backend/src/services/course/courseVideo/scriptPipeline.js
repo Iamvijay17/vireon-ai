@@ -5,6 +5,7 @@ const ActivityLogService = require('../../common/ActivityLogService');
 const LMStudioService = require('../../common/LMStudioService');
 const ScriptParserService = require('../../video/ScriptParserService');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
+const { classifyError } = require('../../../utils/errorMessages');
 
 /**
  * Build the prompt for a course's promotional trailer video (the
@@ -189,18 +190,21 @@ async function generateScript(videoId) {
       throw err;
     }
 
+    const { friendly, detail } = classifyError(err, 'Script Generation');
+
     video.status = VIDEO_STATUS.FAILED;
     video.scriptStatus = STAGE_STATUS.FAILED;
-    video.scriptError = { message: err.message, failedAt: new Date() };
+    video.scriptError = { message: friendly, failedAt: new Date() };
     video.error = {
-      message: err.message,
+      message: friendly,
+      detail,
       step: 'Script Generation',
       retryCount: (video.error?.retryCount || 0) + 1,
     };
     await video.save();
 
-    await ActivityLogService.add(videoId, `Script generation failed: ${err.message}`);
-    SocketService.emitCourseVideoFailed(video, err.message, 'Script Generation');
+    await ActivityLogService.add(videoId, `Script generation failed: ${friendly}`);
+    SocketService.emitCourseVideoFailed(video, friendly, 'Script Generation');
 
     throw err;
   }

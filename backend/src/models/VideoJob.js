@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS, SHORTS_VIDEO_DURATIONS } = require('../constants');
+const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS, SHORTS_VIDEO_DURATIONS, FONT_PAIRINGS } = require('../constants');
 const { generateVideoJobId } = require('../utils/id');
 const sceneSchema = require('./schemas/sceneSchema');
 
@@ -83,6 +83,15 @@ const videoJobSchema = new mongoose.Schema(
       enum: ASPECT_RATIOS,
       default: '16:9',
     },
+    // Curated title/body Google Font pairing applied across the video's
+    // templates and captions - see backend/remotion/src/fonts.js for the
+    // matching pairing definitions consumed at render time. 'default' keeps
+    // the legacy system-font look (no Google Font load).
+    fontPairing: {
+      type: String,
+      enum: FONT_PAIRINGS,
+      default: 'default',
+    },
     // true (default): current auto flow - after the script-approval pause,
     // audio/images/render/upload all run automatically. false: manual mode,
     // mirroring the course-video pipeline - audio and render each require
@@ -143,11 +152,17 @@ const videoJobSchema = new mongoose.Schema(
     audioUrls: [String],
     error: {
       message: { type: String, default: '' },
+      // Raw technical error text (the original exception message) - `message`
+      // above holds the user-facing friendly version (see errorMessages.js).
+      detail: { type: String, default: '' },
       step: { type: String, default: '' },
       retryCount: { type: Number, default: 0 },
     },
     retryCount: { type: Number, default: 0 },
     maxRetries: { type: Number, default: 3 },
+    // Set while status is RETRY_SCHEDULED so the UI can show a countdown;
+    // cleared ($unset) once the retry actually starts.
+    nextRetryAt: { type: Date, default: null },
   },
   {
     timestamps: true,

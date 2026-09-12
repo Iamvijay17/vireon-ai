@@ -1,5 +1,5 @@
 const VideoJob = require('../../../models/VideoJob');
-const { JOB_STATUS } = require('../../../constants');
+const { JOB_STATUS, JOB_STEPS } = require('../../../constants');
 
 /**
  * Update job status with progress.
@@ -10,7 +10,10 @@ async function updateStatus(jobId, status, extra = {}) {
   const update = {
     $set: {
       status,
-      progress: progress ?? 0,
+      // JOB_STEPS is the single source of truth for a status's canonical
+      // progress percentage - callers only need to pass an explicit
+      // `progress` for finer-grained (e.g. per-scene) interpolation.
+      progress: progress ?? JOB_STEPS[status]?.progress ?? 0,
       currentStep: status,
       ...rest,
     },
@@ -126,17 +129,48 @@ async function complete(jobId, urls) {
 }
 
 /**
- * Mark job as failed.
+ * Mark job as failed (terminal - retries exhausted or none configured).
  */
-async function fail(jobId, errorMessage, step) {
+async function fail(jobId, errorMessage, step, { detail, retryCount } = {}) {
   return VideoJob.findByIdAndUpdate(
     jobId,
     {
-      status: JOB_STATUS.FAILED,
-      currentStep: step,
-      error: {
-        message: errorMessage,
-        step,
+      $set: {
+        status: JOB_STATUS.FAILED,
+        currentStep: step,
+        error: {
+          message: errorMessage,
+          detail: detail ?? errorMessage,
+          step,
+          retryCount: retryCount ?? 0,
+        },
+      },
+      $unset: { nextRetryAt: '' },
+    },
+    { new: true }
+  );
+}
+
+/**
+ * Mark a failed step as retry-pending: the worker will automatically
+ * re-enter the pipeline (see videoWorker/processor.js) after `nextRetryAt`
+ * instead of requiring a manual Restart click. Unlike `fail()`, this is not
+ * terminal - `retryCount` here is the attempt number just consumed.
+ */
+async function scheduleRetry(jobId, { message, detail, step, retryCount, nextRetryAt }) {
+  return VideoJob.findByIdAndUpdate(
+    jobId,
+    {
+      $set: {
+        status: JOB_STATUS.RETRY_SCHEDULED,
+        currentStep: step,
+        nextRetryAt,
+        error: {
+          message,
+          detail: detail ?? message,
+          step,
+          retryCount,
+        },
       },
     },
     { new: true }
@@ -151,4 +185,5 @@ module.exports = {
   updateAvatar,
   complete,
   fail,
+  scheduleRetry,
 };

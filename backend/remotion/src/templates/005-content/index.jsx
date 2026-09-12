@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { typography, spacing, palette, mergeStyle, positionStyle } from '../../theme';
+import { typography, spacing, palette, mergeStyle, positionStyle, getContentScale } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -20,7 +20,7 @@ const Content005 = React.memo(({ scene }) => {
   const { fps, width } = useVideoConfig();
   const elements = scene?.elements || {};
   const overrides = elements.styleConfig || {};
-  const scale = width / 1920;
+  const scale = getContentScale(width);
 
   const title = elements.title || '';
   const bgColor = elements.backgroundColor || palette.clean;

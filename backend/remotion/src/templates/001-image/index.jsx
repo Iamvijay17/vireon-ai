@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, Audio, Img } from 'remotion';
+import { AbsoluteFill, Audio, Img, useVideoConfig } from 'remotion';
 import { styles } from './styles';
 import { useImageAnimations } from './animations';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getContentScale } from '../../theme';
 
 /**
  * Image template - Image Focus
@@ -23,6 +23,12 @@ import { mergeStyle, positionStyle } from '../../theme';
  * }
  */
 const ImageTemplate = React.memo(({ scene }) => {
+  const { width } = useVideoConfig();
+  // Structurally this template is already resolution-tolerant (full-bleed
+  // image + percentage-width caption panel), but its caption text/padding
+  // are fixed px tuned for a 1920px-wide frame - scale them down so they
+  // aren't disproportionately large on a narrower portrait/square canvas.
+  const scale = getContentScale(width);
   const elements = scene?.elements || {};
   const image = elements.image || '';
   const caption = elements.caption || '';
@@ -57,14 +63,14 @@ const ImageTemplate = React.memo(({ scene }) => {
         <div style={overlayStyle} />
 
         {/* Caption Container */}
-        <div style={styles.captionContainer}>
+        <div style={{ ...styles.captionContainer, padding: `${60 * scale}px ${80 * scale}px ${80 * scale}px` }}>
           {label && (
-            <p data-style-role="subtitle" style={mergeStyle({ ...styles.label, ...anim.labelStyle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
+            <p data-style-role="subtitle" style={mergeStyle({ ...styles.label, fontSize: styles.label.fontSize * scale, ...anim.labelStyle, ...positionStyle(overrides.subtitle?.position) }, overrides.subtitle)}>
               {label}
             </p>
           )}
           {caption && (
-            <h2 data-style-role="title" style={mergeStyle({ ...styles.caption, ...anim.captionStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
+            <h2 data-style-role="title" style={mergeStyle({ ...styles.caption, fontSize: styles.caption.fontSize * scale, ...anim.captionStyle, ...positionStyle(overrides.title?.position) }, overrides.title)}>
               {caption}
             </h2>
           )}

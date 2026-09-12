@@ -6,6 +6,25 @@ const { generateAudio } = require('./audioPipeline');
 const { renderVideo } = require('./renderPipeline');
 
 /**
+ * Mark a failed step as retry-pending (RETRY_SCHEDULED) instead of leaving
+ * it terminally FAILED - the worker automatically re-enqueues the same
+ * action after a backoff delay (see courseVideoWorker.js's outer catch).
+ * `retryCount`/`error.step` are left untouched here since the pipeline
+ * module that just failed already wrote them before rethrowing.
+ */
+async function scheduleRetry(videoId, { nextRetryAt } = {}) {
+  const video = await CourseVideo.findByIdAndUpdate(
+    videoId,
+    { $set: { status: VIDEO_STATUS.RETRY_SCHEDULED, nextRetryAt } },
+    { new: true }
+  );
+  if (!video) {
+    throw { status: 404, message: 'Video not found' };
+  }
+  return video;
+}
+
+/**
  * Retry a failed video step.
  */
 async function retryStep(videoId) {
@@ -39,4 +58,4 @@ async function retryStep(videoId) {
   }
 }
 
-module.exports = { retryStep };
+module.exports = { retryStep, scheduleRetry };

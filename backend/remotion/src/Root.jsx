@@ -12,7 +12,7 @@ import { calculateVideoMetadata } from "./calculateVideoMetadata";
 /**
  * Helper to create a composition with sample scene data
  */
-const createTemplateComposition = (templateId, durationInFrames = 240) => {
+const createTemplateComposition = (templateId, durationInFrames = 240, width = 1920, height = 1080) => {
   const scene = sampleScenes[templateId];
   const sceneDuration = scene?.duration || 8;
   return {
@@ -27,12 +27,25 @@ const createTemplateComposition = (templateId, durationInFrames = 240) => {
     ),
     durationInFrames: Math.max(durationInFrames, sceneDuration * 30),
     fps: 30,
-    width: 1920,
-    height: 1080,
+    width,
+    height,
   };
 };
 
 const templateDurations = {};
+
+// Reference templates reflowed for portrait/square (see the aspect-ratio
+// plan) - previewed here at 1080x1920 and 1080x1080 alongside the default
+// 1920x1080 preview above, since Remotion Studio has no way to resize an
+// existing composition's canvas: without a dedicated composition per size,
+// there was no way to visually check portrait/square output at all.
+const ORIENTATION_PREVIEW_TEMPLATE_IDS = [
+  '001-content',
+  '001-contentwithimage',
+  '001-title',
+  '001-image',
+  '001-podcast',
+];
 
 export const RemotionRoot = () => {
   return (
@@ -72,6 +85,33 @@ export const RemotionRoot = () => {
             height={comp.height}
           />
         );
+      })}
+
+      {/* Portrait (1080x1920) and square (1080x1080) previews of the 5
+          reference templates reflowed for aspect ratio. */}
+      {ORIENTATION_PREVIEW_TEMPLATE_IDS.flatMap((templateId) => {
+        const portrait = createTemplateComposition(templateId, templateDurations[templateId] || 240, 1080, 1920);
+        const square = createTemplateComposition(templateId, templateDurations[templateId] || 240, 1080, 1080);
+        return [
+          <Composition
+            key={`${templateId}-portrait`}
+            id={`${templateId}-portrait`}
+            component={portrait.component}
+            durationInFrames={portrait.durationInFrames}
+            fps={portrait.fps}
+            width={portrait.width}
+            height={portrait.height}
+          />,
+          <Composition
+            key={`${templateId}-square`}
+            id={`${templateId}-square`}
+            component={square.component}
+            durationInFrames={square.durationInFrames}
+            fps={square.fps}
+            width={square.width}
+            height={square.height}
+          />,
+        ];
       })}
 
       {/* Generative Scene Engine preview - covers short title, long

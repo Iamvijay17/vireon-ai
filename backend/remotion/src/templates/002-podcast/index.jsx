@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, typography } from '../../theme';
 
 /**
  * 002-podcast template ("Interview" variant of the "podcast" scene type)
@@ -99,7 +99,7 @@ const Podcast002 = React.memo(({ scene }) => {
                 transform: `translateY(${nameplateY}px)`,
               }}
             >
-              <p style={{ color: '#0d1117', fontSize: 26, fontWeight: 800, fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", margin: 0 }}>
+              <p style={{ color: '#0d1117', fontSize: 26, fontWeight: 800, fontFamily: typography.body.fontFamily, margin: 0 }}>
                 {hostName}
               </p>
             </div>
@@ -126,7 +126,7 @@ const Podcast002 = React.memo(({ scene }) => {
                   color: '#ffffff',
                   fontSize: 46,
                   fontWeight: 800,
-                  fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+                  fontFamily: typography.body.fontFamily,
                   textAlign: 'left',
                   margin: 0,
                   marginBottom: 10,
@@ -150,7 +150,7 @@ const Podcast002 = React.memo(({ scene }) => {
                   color: '#d1d5db',
                   fontSize: 22,
                   fontWeight: 400,
-                  fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+                  fontFamily: typography.body.fontFamily,
                   textAlign: 'left',
                   margin: 0,
                   marginBottom: 24,
@@ -187,7 +187,7 @@ const Podcast002 = React.memo(({ scene }) => {
         animationConfig={{ slideDistance: 30 }}
         styleConfig={{
           position: 'bottom',
-          fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+          fontFamily: typography.body.fontFamily,
           fontWeight: 700,
           fontSize: 38,
           textColor: '#ffffff',

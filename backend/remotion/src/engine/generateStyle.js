@@ -1,5 +1,6 @@
 import { createSeededRng, pick, range } from './seedRandom';
 import { hslToHex } from './color';
+import { FONT_PAIRINGS } from '../fonts';
 
 /**
  * Style Generator - layer 3 of the generative scene engine.
@@ -47,23 +48,25 @@ const buildPalette = (rng) => {
 // A handful of pairings rather than a continuous "font space" - unlike
 // color, typefaces can't be interpolated, so variety here comes from
 // having enough distinct pairings that repeats are uncommon rather than
-// impossible. Sticks to system-safe stacks (no font loading dependency).
-const FONT_PAIRINGS = [
-  { title: "'Helvetica Neue', Helvetica, Arial, sans-serif", body: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
-  { title: "Georgia, 'Times New Roman', serif", body: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
-  { title: "'Trebuchet MS', 'Helvetica Neue', sans-serif", body: "Verdana, Geneva, sans-serif" },
-  { title: "Cambria, Georgia, serif", body: "Cambria, Georgia, serif" },
-  { title: "'Segoe UI', 'Helvetica Neue', sans-serif", body: "'Segoe UI', 'Helvetica Neue', sans-serif" },
-  { title: "'Courier New', Courier, monospace", body: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
-];
+// impossible. Reuses the same curated Google Font pairings as the
+// hand-authored templates (fonts.js) - a single source of truth - rather
+// than maintaining a second list here. Excludes 'default' (the legacy
+// system-font stack) so the generative engine's whole point of picking a
+// distinct look every time still holds.
+const FONT_PAIRING_IDS = Object.keys(FONT_PAIRINGS).filter((id) => id !== 'default');
 
 const TITLE_WEIGHTS = [300, 500, 600, 700, 800];
 
 export const generateStyle = (seedInput) => {
   const rng = createSeededRng(`${seedInput}-style`);
+  const fontId = pick(rng, FONT_PAIRING_IDS);
   return {
     palette: buildPalette(rng),
-    fonts: pick(rng, FONT_PAIRINGS),
+    // `id` lets the caller trigger the actual Google Font load (a side
+    // effect this function deliberately stays free of, to keep it a pure
+    // function of (content, seed) per the module doc comment) - see
+    // GeneratedScene.jsx's use of fonts.js's getFontPairing(...).load().
+    fonts: { id: fontId, ...FONT_PAIRINGS[fontId] },
     // Continuous radius/shadow intensity, same reasoning as the palette -
     // a handful of fixed shape presets repeats far more often than a
     // sampled range does.

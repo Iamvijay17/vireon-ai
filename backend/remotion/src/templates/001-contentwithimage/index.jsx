@@ -1,9 +1,9 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img } from 'remotion';
+import { AbsoluteFill, Audio, Img, useVideoConfig } from 'remotion';
 import { styles } from './styles';
 import { useContentWithImageAnimations } from './animations';
 import { backgroundColors } from '../../styles';
-import { mergeStyle, positionStyle } from '../../theme';
+import { mergeStyle, positionStyle, getOrientation } from '../../theme';
 
 /**
  * ContentWithImage template (Image + Text split)
@@ -26,6 +26,11 @@ import { mergeStyle, positionStyle } from '../../theme';
  * }
  */
 const ContentWithImage = React.memo(({ scene }) => {
+  const { width, height } = useVideoConfig();
+  // The image/text 50/50 row-split reads fine in landscape, but squeezes
+  // both panels into narrow columns in portrait/square - stack the image
+  // above the text there instead.
+  const isLandscape = getOrientation(width, height) === 'landscape';
   const elements = scene?.elements || {};
   const title = elements.title || '';
   const body = elements.body || elements.text || '';
@@ -40,12 +45,12 @@ const ContentWithImage = React.memo(({ scene }) => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
-      <div style={styles.container}>
-        <div style={styles.imagePanel}>
+      <div style={isLandscape ? styles.container : { ...styles.container, flexDirection: 'column' }}>
+        <div style={isLandscape ? styles.imagePanel : { ...styles.imagePanel, flex: 1 }}>
           <div style={{ ...styles.imageOverlay }} />
           {image && <Img src={image} style={{ ...styles.storyImage, ...anim.imageStyle }} />}
         </div>
-        <div style={{ ...styles.textPanel, ...anim.bgStyle }}>
+        <div style={isLandscape ? { ...styles.textPanel, ...anim.bgStyle } : { ...styles.textPanel, ...anim.bgStyle, flex: 1, padding: '40px 50px' }}>
           {badge && <div style={{ ...styles.stepBadge, ...anim.badgeStyle }}>{badge}</div>}
           {title && <h1 data-style-role="title" style={{ ...titleStyle, ...anim.titleStyle }}>{title}</h1>}
           {body && <p style={{ ...bodyStyle, ...anim.bodyStyle }}>{body}</p>}

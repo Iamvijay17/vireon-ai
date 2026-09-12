@@ -12,6 +12,7 @@
  * for the pattern this generalizes.
  */
 import { backgroundColors } from './styles';
+import { getFontPairing } from './fonts';
 
 const FONT_FAMILY = "'Helvetica Neue', Helvetica, Arial, sans-serif";
 
@@ -112,7 +113,52 @@ export const mergeStyle = (themeDefault, override) => {
 };
 
 /**
- * Turns a normalized `{ xPct, yPct }` (0-1 fractions of the 1920x1080 frame,
+ * Shared "shrink the 1920px-reference layout to fit" scale, previously
+ * duplicated as `const scale = width / 1920` independently in every
+ * `NNN-content` template. Landscape renders (the common case) still use
+ * this; portrait/square renders should generally branch on
+ * `getOrientation` instead of shrinking a landscape-authored block (see
+ * 001-content/index.jsx for the reference pattern).
+ */
+export const getContentScale = (width) => width / 1920;
+
+/**
+ * Classifies a render's canvas so templates/captions can branch layout
+ * (e.g. stack a row-split panel vertically) instead of just uniformly
+ * scaling a landscape-authored design. `width`/`height` come from
+ * `useVideoConfig()`.
+ */
+export const getOrientation = (width, height) => {
+  if (width === height) return 'square';
+  return width > height ? 'landscape' : 'portrait';
+};
+
+/**
+ * Mutates the shared `typography` object's `fontFamily` fields in place to
+ * apply a curated font pairing (see fonts.js). Templates already read
+ * `typography.title.fontFamily` etc. live at render time rather than
+ * destructuring on import, so this reaches every template without needing
+ * to change ~80 import sites - call it once, before the composition tree
+ * renders, with the pairing id from `assets.fontPairing`.
+ *
+ * This module-level mutation is a deliberate exception to normal React
+ * immutability, safe only because each Remotion render runs in its own
+ * isolated CLI process (one video per process - see RemotionService.
+ * renderVideo) rather than serving concurrent renders from shared state.
+ * Don't copy this pattern for anything that could run multiple renders in
+ * one process.
+ */
+export const applyFontPairing = (pairingId) => {
+  const pairing = getFontPairing(pairingId);
+  pairing.load();
+  typography.title.fontFamily = pairing.title;
+  typography.subtitle.fontFamily = pairing.body;
+  typography.body.fontFamily = pairing.body;
+  typography.label.fontFamily = pairing.body;
+};
+
+/**
+ * Turns a normalized `{ xPct, yPct }` (0-1 fractions of the video frame,
  * written by the Studio editor's drag-to-position pad) into absolute CSS that
  * overrides a text element's default (usually flex-centered) layout. Spread
  * this into a text element's style *before* the theme default/override merge
@@ -136,6 +182,6 @@ export const positionStyle = (pos) =>
       }
     : {};
 
-const theme = { spacing, typography, palette, slideLayout, mergeStyle, positionStyle };
+const theme = { spacing, typography, palette, slideLayout, mergeStyle, positionStyle, getOrientation, getContentScale, applyFontPairing };
 
 export default theme;

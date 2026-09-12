@@ -6,6 +6,7 @@ const AudioService = require('../../audio/audioService');
 const ScriptParserService = require('../../video/ScriptParserService');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
+const { classifyError } = require('../../../utils/errorMessages');
 const { bailIfCancelled } = require('./shared');
 
 /**
@@ -143,18 +144,21 @@ async function generateAudio(videoId) {
       throw err;
     }
 
+    const { friendly, detail } = classifyError(err, 'Audio Generation');
+
     video.status = VIDEO_STATUS.FAILED;
     video.audioStatus = STAGE_STATUS.FAILED;
-    video.audioError = { message: err.message, failedAt: new Date() };
+    video.audioError = { message: friendly, failedAt: new Date() };
     video.error = {
-      message: err.message,
+      message: friendly,
+      detail,
       step: 'Audio Generation',
       retryCount: (video.error?.retryCount || 0) + 1,
     };
     await video.save();
 
-    await ActivityLogService.add(videoId, `Audio generation failed: ${err.message}`);
-    SocketService.emitCourseVideoFailed(video, err.message, 'Audio Generation');
+    await ActivityLogService.add(videoId, `Audio generation failed: ${friendly}`);
+    SocketService.emitCourseVideoFailed(video, friendly, 'Audio Generation');
 
     throw err;
   }

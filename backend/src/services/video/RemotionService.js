@@ -43,6 +43,10 @@ class RemotionService {
       description: script.description,
       resolution: jobConfig.resolution || '1920x1080',
       aspectRatio: jobConfig.aspectRatio || '16:9',
+      // Curated Google Font pairing id (see backend/remotion/src/fonts.js) -
+      // 'default' keeps the legacy system-font look. Applied once for the
+      // whole video via theme.js's applyFontPairing, not per-scene.
+      fontPairing: jobConfig.fontPairing || 'default',
       // Optional talking-head overlay (see AvatarService + videoWorker.js's
       // GENERATING_AVATAR step) - undefined when the job has no avatar, so
       // VideoComposition's AvatarOverlay renders nothing and reserves no
@@ -89,10 +93,6 @@ class RemotionService {
              // video's own id (see the storage plan's bucket table).
              file: getStorageProvider().getPublicUrl(jobId, 'audio', `scene${scene.sceneNumber}.mp3`),
              duration: scene.audio?.duration || 0,
-           },
-           fonts: {
-             primary: 'Inter',
-             secondary: 'Roboto',
            },
            theme: {
              type: jobConfig.type || 'educational',

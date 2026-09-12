@@ -3,8 +3,12 @@ const LoggerService = require('../../services/common/LoggerService');
 const ActivityLogService = require('../../services/common/ActivityLogService');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
+const videoQueue = require('../../queues/videoQueue');
 const { JOB_STATUS } = require('../../constants');
+const { computeBackoffMs } = require('../../utils/backoff');
+const { classifyError } = require('../../utils/errorMessages');
 const { bailIfCancelled } = require('./shared');
+const { getResumeStep } = require('../../services/video/videoService/resumeLogic');
 const scriptStep = require('./scriptStep');
 const audioStep = require('./audioStep');
 const avatarStep = require('./avatarStep');
@@ -35,8 +39,21 @@ async function processVideoJob(job) {
   LoggerService.border(`🎬 Processing Job: ${jobId}`, 'event');
 
   // Get job details to check current state
-  const videoJob = await VideoService.getById(jobId);
-  const currentStatus = videoJob.status;
+  let videoJob = await VideoService.getById(jobId);
+  let currentStatus = videoJob.status;
+
+  // This job's previous attempt failed but had retries left - it was
+  // re-enqueued (with a backoff delay) still sitting at RETRY_SCHEDULED
+  // rather than at an actual pipeline step. Resolve the real resume point
+  // now, the same way a manual Restart click would (see
+  // videoService/lifecycle.js's restart()), then continue as a normal
+  // resume from there.
+  if (currentStatus === JOB_STATUS.RETRY_SCHEDULED) {
+    const resumeInfo = getResumeStep(videoJob);
+    videoJob = await VideoService.updateStatus(jobId, resumeInfo.status, { progress: resumeInfo.progress });
+    currentStatus = videoJob.status;
+    LoggerService.info(`Job ${jobId} resuming automatic retry`, { resumeStatus: currentStatus });
+  }
 
   // Tracks the current step for error reporting - shared by reference
   // with every step module so each can record where it was right before
@@ -115,22 +132,57 @@ async function processVideoJob(job) {
       return { success: false, jobId, cancelled: true };
     }
 
+    const step = ctx.currentStep || 'PROCESSING';
     LoggerService.error(`Job ${jobId} failed`, {
       error: err.message,
-      step: ctx.currentStep,
+      step,
       stack: config.isDev ? err.stack : undefined,
     });
 
-    // Mark job as failed in database with the actual step
+    const { friendly, detail } = classifyError(err, step);
+    const attempt = (videoJob.error?.retryCount || 0) + 1;
+    const maxRetries = videoJob.maxRetries || 3;
+
+    if (attempt <= maxRetries) {
+      // Retries remain - schedule an automatic resume instead of leaving
+      // this FAILED for a human to click Restart. A distinct BullMQ job id
+      // (not the video job's own id) avoids colliding with this attempt's
+      // still-finishing record, and returning normally (not throwing) below
+      // means BullMQ marks *this* attempt 'completed' rather than 'failed' -
+      // see videoQueue.js's comment for why that race matters.
+      try {
+        const delay = computeBackoffMs(attempt);
+        const nextRetryAt = new Date(Date.now() + delay);
+        const scheduledJob = await VideoService.scheduleRetry(jobId, {
+          message: friendly,
+          detail,
+          step,
+          retryCount: attempt,
+          nextRetryAt,
+        });
+        SocketService.emitJobProgress(scheduledJob);
+        await ActivityLogService.add(
+          jobId,
+          `${step} failed (attempt ${attempt}/${maxRetries}): ${friendly} - retrying in ${Math.round(delay / 1000)}s`
+        );
+        await videoQueue.add('render-video', { jobId }, { jobId: `${jobId}:retry:${attempt}`, delay });
+      } catch (dbErr) {
+        LoggerService.error('Failed to schedule automatic retry', { error: dbErr.message });
+      }
+      return { success: false, jobId, retryScheduled: true, attempt };
+    }
+
+    // Retries exhausted - mark job as terminally failed.
     try {
-      const failedJob = await VideoService.fail(jobId, err.message, ctx.currentStep || 'PROCESSING');
-      SocketService.emitJobFailed(failedJob, err.message);
-      await ActivityLogService.add(jobId, `${ctx.currentStep || 'Processing'} failed: ${err.message}`);
+      const failedJob = await VideoService.fail(jobId, friendly, step, { detail, retryCount: attempt });
+      SocketService.emitJobFailed(failedJob, friendly);
+      await ActivityLogService.add(jobId, `${step} failed after ${attempt} attempts: ${friendly}`);
     } catch (dbErr) {
       LoggerService.error('Failed to update job status in DB', { error: dbErr.message });
     }
 
-    // Re-throw so BullMQ can handle retries
+    // Re-throw for logging parity with BullMQ's 'failed' listener. attempts:
+    // 1 on the queue means BullMQ itself won't retry this.
     throw err;
   }
 }

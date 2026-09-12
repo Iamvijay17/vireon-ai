@@ -3,7 +3,7 @@ const crud = require('./crud');
 const scriptPipeline = require('./scriptPipeline');
 const audioPipeline = require('./audioPipeline');
 const renderPipeline = require('./renderPipeline');
-const { retryStep } = require('./retry');
+const { retryStep, scheduleRetry } = require('./retry');
 
 /**
  * Service for managing course videos.
@@ -21,6 +21,7 @@ module.exports = {
   ...audioPipeline,
   ...renderPipeline,
   retryStep,
+  scheduleRetry,
   CourseVideoCancelledError,
   bailIfCancelled,
 };

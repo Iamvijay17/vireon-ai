@@ -14,6 +14,10 @@ const JOB_STATUS = Object.freeze({
   COMPLETED: 'COMPLETED',
   FAILED: 'FAILED',
   CANCELLED: 'CANCELLED',
+  // A step failed but retries remain (< maxRetries) - the job will
+  // automatically re-enter the pipeline after a backoff delay instead of
+  // requiring a manual Restart click. See videoWorker/processor.js.
+  RETRY_SCHEDULED: 'RETRY_SCHEDULED',
 });
 
 const COURSE_STATUS = Object.freeze({
@@ -40,6 +44,9 @@ const VIDEO_STATUS = Object.freeze({
   COMPLETED: 'Completed',
   FAILED: 'Failed',
   CANCELLED: 'Cancelled',
+  // See JOB_STATUS.RETRY_SCHEDULED - same meaning, course video's
+  // human-readable status scale.
+  RETRY_SCHEDULED: 'Retry Scheduled',
 });
 
 // Independent per-stage status for the Script/Audio/Video pipeline, tracked
@@ -67,6 +74,7 @@ const JOB_STEPS = Object.freeze({
   [JOB_STATUS.RENDERING]: { progress: 85, order: 9 },
   [JOB_STATUS.UPLOADING]: { progress: 95, order: 10 },
   [JOB_STATUS.COMPLETED]: { progress: 100, order: 11 },
+  [JOB_STATUS.RETRY_SCHEDULED]: { progress: 0, order: 98 },
   [JOB_STATUS.FAILED]: { progress: 0, order: 99 },
   [JOB_STATUS.CANCELLED]: { progress: 0, order: 99 },
 });
@@ -94,28 +102,45 @@ const VIDEO_TYPES_LABEL = Object.freeze({
 const RESOLUTIONS = Object.freeze([
   '1920x1080',
   '1080x1920',
+  '1080x1080',
   '1280x720',
   '720x1280',
   '3840x2160',
   '2160x3840',
 ]);
 
-// RESOLUTIONS only ever pairs a landscape/portrait 16:9-or-9:16 size (no
-// square/ultrawide presets), so aspect ratio is fully implied by resolution
-// - it's never independently chosen. See getAspectRatioForResolution below.
+// Aspect ratio is derived from resolution (see getAspectRatioForResolution)
+// rather than chosen independently - this list documents the values that
+// function can return.
 const ASPECT_RATIOS = Object.freeze([
   '16:9',
   '9:16',
+  '1:1',
 ]);
 
 // Derives aspect ratio from a "WIDTHxHEIGHT" resolution string - the single
-// source of truth for a job's actual output dimensions. Landscape (width >=
-// height) is 16:9, portrait is 9:16, matching every entry in RESOLUTIONS.
+// source of truth for a job's actual output dimensions. Equal width/height is
+// 1:1, otherwise landscape (width > height) is 16:9 and portrait is 9:16.
 const getAspectRatioForResolution = (resolution) => {
   const [width, height] = String(resolution || '').split('x').map(Number);
   if (!width || !height) return '16:9';
-  return width >= height ? '16:9' : '9:16';
+  if (width === height) return '1:1';
+  return width > height ? '16:9' : '9:16';
 };
+
+// Curated title/body Google Font pairing ids - mirrored in
+// backend/remotion/src/fonts.js (a separate app/package, so the pairing
+// definitions themselves live there; this is just the id enum for job
+// validation/storage). 'default' keeps the legacy system-font look.
+const FONT_PAIRINGS = Object.freeze([
+  'default',
+  'modern-sans',
+  'elegant-serif',
+  'friendly-rounded',
+  'clean-mono',
+  'bold-impact',
+  'editorial',
+]);
 
 const VOICES = Object.freeze([
   'male-1',
@@ -238,6 +263,7 @@ module.exports = {
   RESOLUTIONS,
   ASPECT_RATIOS,
   getAspectRatioForResolution,
+  FONT_PAIRINGS,
   VOICES,
   LANGUAGES,
   TRANSITIONS,
