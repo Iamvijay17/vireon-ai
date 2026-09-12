@@ -71,12 +71,14 @@ cd backend && npm install
 cp .env.example .env
 # Edit .env with your settings
 
-# Start the server
+# Start the server (also starts local MinIO automatically - see below)
 npm start          # or: npm run dev
 
-# Start the worker (separate terminal)
+# Start the worker (separate terminal - also starts MinIO if not already up)
 npm run worker     # or: npm run worker:dev
 ```
+
+`npm start`/`npm run dev`/`npm run worker`/`npm run worker:dev`/`npm run course-worker`/`npm run course-worker:dev` all run MinIO alongside the actual process via `concurrently` (see the `minio` script in `package.json`), so you no longer need to start it by hand first. If MinIO is already running (e.g. started by another one of these scripts, or manually), the redundant start attempt just fails to bind the port and exits - harmless, the main process keeps running. The `minio` script currently points at a fixed local path (`D:\Programs\minio\start-minio.ps1`); update that path in `package.json` if MinIO lives somewhere else on your machine. To run a process without MinIO (e.g. MinIO already managed separately), use the `:only` variants directly - e.g. `npm run server:only:dev`, `npm run worker:only`.
 
 ## API Endpoints
 

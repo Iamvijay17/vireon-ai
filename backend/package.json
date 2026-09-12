@@ -4,12 +4,19 @@
   "description": "Vireon AI - AI-powered video generation platform backend",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "worker": "node src/workers/videoWorker.js",
-    "worker:dev": "node --watch src/workers/videoWorker.js",
-    "course-worker": "node src/workers/courseVideoWorker.js",
-    "course-worker:dev": "node --watch src/workers/courseVideoWorker.js",
+    "minio": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Programs\\minio\\start-minio.ps1\"",
+    "server:only": "node src/server.js",
+    "server:only:dev": "node --watch src/server.js",
+    "worker:only": "node src/workers/videoWorker.js",
+    "worker:only:dev": "node --watch src/workers/videoWorker.js",
+    "course-worker:only": "node src/workers/courseVideoWorker.js",
+    "course-worker:only:dev": "node --watch src/workers/courseVideoWorker.js",
+    "start": "concurrently -n MINIO,SERVER -c yellow,cyan --kill-others-on-fail=false \"npm:minio\" \"npm:server:only\"",
+    "dev": "concurrently -n MINIO,SERVER -c yellow,cyan --kill-others-on-fail=false \"npm:minio\" \"npm:server:only:dev\"",
+    "worker": "concurrently -n MINIO,WORKER -c yellow,green --kill-others-on-fail=false \"npm:minio\" \"npm:worker:only\"",
+    "worker:dev": "concurrently -n MINIO,WORKER -c yellow,green --kill-others-on-fail=false \"npm:minio\" \"npm:worker:only:dev\"",
+    "course-worker": "concurrently -n MINIO,COURSE-WORKER -c yellow,green --kill-others-on-fail=false \"npm:minio\" \"npm:course-worker:only\"",
+    "course-worker:dev": "concurrently -n MINIO,COURSE-WORKER -c yellow,green --kill-others-on-fail=false \"npm:minio\" \"npm:course-worker:only:dev\"",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "lint": "eslint src/"
   },
@@ -47,6 +54,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "concurrently": "^10.0.5",
     "eslint": "^9.18.0"
   }
 }

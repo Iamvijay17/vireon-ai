@@ -7,13 +7,32 @@ const BAR_COUNT = 46;
 // Deterministic pseudo-random bar heights seeded by the src URL, so the same
 // file always renders the same waveform shape. This is a visual stand-in,
 // not real decoded audio data.
+//
+// Uses Math.imul for the 32-bit multiplications (mulberry32, seeded via a
+// simple string hash) rather than plain `*` - a bare `h * <32-bit multiplier>`
+// exceeds Number.MAX_SAFE_INTEGER for most `h` values, silently losing
+// precision before the `>>> 0` truncation, which degrades the sequence's
+// randomness (some seeds produced runs of visually flat/near-empty bars).
 const seededBars = (seed, count) => {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const str = seed || 'audio';
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  let a = (() => {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return (h ^= h >>> 16) >>> 0;
+  })();
+
   const bars = [];
   for (let i = 0; i < count; i++) {
-    h = (h * 1103515245 + 12345) >>> 0;
-    bars.push(0.3 + ((h >>> 8) % 1000) / 1000 * 0.7);
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    const rand = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    bars.push(0.3 + rand * 0.7);
   }
   return bars;
 };
@@ -108,7 +127,7 @@ export const AudioPlayer = ({ src, className }) => {
         {bars.map((h, i) => (
           <span
             key={i}
-            className={cn("w-[3px] shrink-0 rounded-full transition-colors", i <= activeBarIndex ? "bg-success-500" : "bg-success-500/30")}
+            className={cn("w-[3px] shrink-0 rounded-full transition-colors", i <= activeBarIndex ? "bg-success-500" : "bg-success-500/55")}
             style={{ height: `${Math.round(h * 100)}%` }}
           />
         ))}
