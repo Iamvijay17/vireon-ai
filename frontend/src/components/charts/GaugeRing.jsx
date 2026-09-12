@@ -1,38 +1,43 @@
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { Doughnut } from "react-chartjs-2";
+import "../../lib/chartjsSetup";
+import { resolveColor, cssVar } from "../../lib/chartjsSetup";
 import { cn } from "../ui/cn";
 
 /**
  * Circular progress ring for a single rate/target metric (cache hit rate,
  * completion rate, ...) - the "how am I tracking against 100%" gauge you'd
- * see on a KPI dashboard. Built on the same Pie primitive as StatusDonut
- * (two segments: value + remainder) rather than hand-rolled arc math, so it
- * inherits the same theme-safe rendering.
+ * see on a KPI dashboard. Two-segment doughnut (value + remainder) with the
+ * percentage drawn in the center via a small DOM overlay (simpler and
+ * theme-safer than a canvas text plugin for this one static label).
  */
 export const GaugeRing = ({ value, color = "var(--color-accent-500)", size = 128, label, className }) => {
   const pct = value === null || value === undefined ? 0 : Math.max(0, Math.min(100, value));
-  const data = [{ v: pct }, { v: 100 - pct }];
+  const trackColor = cssVar("--color-surface-active", "#f1f1f1");
+
+  const chartData = {
+    datasets: [
+      {
+        data: [pct, 100 - pct],
+        backgroundColor: [resolveColor(color), trackColor],
+        borderWidth: 0,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: "76%",
+    animation: { duration: 600 },
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: false },
+    },
+  };
 
   return (
     <div className={cn("relative shrink-0", className)} style={{ width: size, height: size }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data}
-            dataKey="v"
-            startAngle={90}
-            endAngle={-270}
-            innerRadius="74%"
-            outerRadius="100%"
-            stroke="none"
-            cornerRadius={8}
-            isAnimationActive
-            animationDuration={600}
-          >
-            <Cell fill={color} />
-            <Cell fill="var(--color-surface-active)" />
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
+      <Doughnut data={chartData} options={options} />
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-xl font-bold tabular-nums text-text-primary">
           {value === null || value === undefined ? "—" : `${Math.round(pct)}%`}

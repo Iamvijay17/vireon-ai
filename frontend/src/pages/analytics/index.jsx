@@ -25,7 +25,6 @@ import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Select } from "../../components/ui/Select";
 import { Badge } from "../../components/ui/Badge";
-import { Tabs } from "../../components/ui/Tabs";
 import { TrendChart } from "../../components/charts/TrendChart";
 import { RankedBarChart } from "../../components/charts/RankedBarChart";
 import { CATEGORICAL_PALETTE } from "../../lib/chartPalette";
@@ -119,20 +118,10 @@ const toneCls = {
   info: "bg-info-500/15 text-info-600 dark:text-info-500",
 };
 
-const BREAKDOWN_TABS = [
-  { key: "jobStatus", label: "Job Status", icon: <Layers className="size-3.5" /> },
-  { key: "courseStatus", label: "Course Status", icon: <BookOpen className="size-3.5" /> },
-  { key: "templates", label: "Templates", icon: <MonitorPlay className="size-3.5" /> },
-  { key: "resolution", label: "Resolution", icon: <Video className="size-3.5" /> },
-  { key: "categories", label: "Categories", icon: <Tag className="size-3.5" /> },
-  { key: "storage", label: "Storage", icon: <HardDrive className="size-3.5" /> },
-];
-
 const Analytics = () => {
   const [days, setDays] = useState("30");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [breakdownTab, setBreakdownTab] = useState("jobStatus");
 
   const fetchData = async (range = days) => {
     try {
@@ -229,41 +218,6 @@ const Analytics = () => {
     { key: "courseVideosRendered", label: "Course videos rendered", color: "var(--color-info-500)" },
   ];
 
-  const activeTabMeta = BREAKDOWN_TABS.find((t) => t.key === breakdownTab);
-
-  const renderBreakdown = () => {
-    switch (breakdownTab) {
-      case "jobStatus":
-        return <StatusDonut rows={data?.jobsByStatus || []} emptyLabel="No video jobs yet." />;
-      case "courseStatus":
-        return <StatusDonut rows={data?.coursesByStatus || []} emptyLabel="No courses yet." />;
-      case "templates":
-        return (
-          <RankedBarChart rows={data?.topTemplates || []} palette={CATEGORICAL_PALETTE} emptyLabel="No video jobs yet." />
-        );
-      case "resolution":
-        return (
-          <RankedBarChart rows={data?.jobsByResolution || []} palette={CATEGORICAL_PALETTE} emptyLabel="No video jobs yet." />
-        );
-      case "categories":
-        return (
-          <RankedBarChart rows={data?.coursesByCategory || []} palette={CATEGORICAL_PALETTE} emptyLabel="No courses yet." />
-        );
-      case "storage":
-        return (data?.storageByCategory || []).length === 0 ? (
-          <EmptyState description="No assets uploaded yet." />
-        ) : (
-          <RankedBarChart
-            rows={(data.storageByCategory || []).map((r) => ({ label: r.label, count: r.bytes }))}
-            palette={CATEGORICAL_PALETTE}
-            formatValue={formatBytes}
-          />
-        );
-      default:
-        return null;
-    }
-  };
-
   return (
     <div>
       <PageHeader
@@ -359,19 +313,99 @@ const Analytics = () => {
         </div>
       </div>
 
-      {/* Breakdown - tabbed to keep six related views in one focused card */}
-      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 7 }}>
-        <Tabs items={BREAKDOWN_TABS} active={breakdownTab} onChange={setBreakdownTab} className="px-3" />
-        <div className="p-3" key={breakdownTab}>
-          <p className="mb-2 text-xs text-text-tertiary">
-            {activeTabMeta?.label} breakdown across {breakdownTab.startsWith("course") || breakdownTab === "categories" ? "all courses" : "all video jobs"}
-          </p>
-          {renderBreakdown()}
-        </div>
-      </Card>
+      {/* Breakdowns - each its own card, like the rest of the dashboard */}
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 7 }}>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Layers className="size-4 text-text-tertiary" /> Job Status
+              </span>
+            }
+          />
+          <div className="p-3">
+            <StatusDonut rows={data?.jobsByStatus || []} emptyLabel="No video jobs yet." />
+          </div>
+        </Card>
+
+        <Card className="animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 8 }}>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <BookOpen className="size-4 text-text-tertiary" /> Course Status
+              </span>
+            }
+          />
+          <div className="p-3">
+            <StatusDonut rows={data?.coursesByStatus || []} emptyLabel="No courses yet." />
+          </div>
+        </Card>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 9 }}>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <MonitorPlay className="size-4 text-text-tertiary" /> Templates
+              </span>
+            }
+          />
+          <div className="p-3">
+            <RankedBarChart rows={data?.topTemplates || []} palette={CATEGORICAL_PALETTE} emptyLabel="No video jobs yet." />
+          </div>
+        </Card>
+
+        <Card className="animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 10 }}>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Video className="size-4 text-text-tertiary" /> Resolution
+              </span>
+            }
+          />
+          <div className="p-3">
+            <RankedBarChart rows={data?.jobsByResolution || []} palette={CATEGORICAL_PALETTE} emptyLabel="No video jobs yet." />
+          </div>
+        </Card>
+
+        <Card className="animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 11 }}>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Tag className="size-4 text-text-tertiary" /> Categories
+              </span>
+            }
+          />
+          <div className="p-3">
+            <RankedBarChart rows={data?.coursesByCategory || []} palette={CATEGORICAL_PALETTE} emptyLabel="No courses yet." />
+          </div>
+        </Card>
+
+        <Card className="animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 12 }}>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <HardDrive className="size-4 text-text-tertiary" /> Storage
+              </span>
+            }
+          />
+          <div className="p-3">
+            {(data?.storageByCategory || []).length === 0 ? (
+              <EmptyState description="No assets uploaded yet." />
+            ) : (
+              <RankedBarChart
+                rows={(data.storageByCategory || []).map((r) => ({ label: r.label, count: r.bytes }))}
+                palette={CATEGORICAL_PALETTE}
+                formatValue={formatBytes}
+              />
+            )}
+          </div>
+        </Card>
+      </div>
 
       {/* Course pipeline health */}
-      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 8 }}>
+      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 13 }}>
         <CardHeader title="Course Video Pipeline" subtitle="Script, audio and render stage status across all lessons" />
         <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-3">
           <StatusStackedBar label="Script" rows={data?.courseVideoStages?.script || []} />
@@ -381,7 +415,7 @@ const Analytics = () => {
       </Card>
 
       {/* Recent failures */}
-      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 9 }}>
+      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 14 }}>
         <CardHeader
           title={
             <span className="flex items-center gap-2">

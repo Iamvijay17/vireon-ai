@@ -1,23 +1,32 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell, LabelList, ResponsiveContainer } from "recharts";
+import { Bar } from "react-chartjs-2";
+import "../../lib/chartjsSetup";
+import { resolveColor, cssVar } from "../../lib/chartjsSetup";
 import { cn } from "../ui/cn";
 
 const formatLabel = (label) =>
   (label || "Unknown").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-const BarTooltip = ({ active, payload, total, formatValue }) => {
-  if (!active || !payload?.length) return null;
-  const row = payload[0].payload;
-  return (
-    <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg shadow-black/5">
-      <p className="flex items-center gap-1.5 font-medium text-text-primary">
-        <span className="size-1.5 rounded-full" style={{ backgroundColor: row.fill }} />
-        {formatLabel(row.label)}
-      </p>
-      <p className="mt-0.5 tabular-nums text-text-tertiary">
-        {formatValue(row.count)} &middot; {total ? Math.round((row.count / total) * 100) : 0}%
-      </p>
-    </div>
-  );
+// Draws each bar's value at its end - Chart.js has no built-in data-label
+// support, so this is a small local plugin instead of pulling in
+// chartjs-plugin-datalabels for one line of text per bar.
+const barValuePlugin = {
+  id: "barValue",
+  afterDatasetsDraw(chart) {
+    const { formatValue, color } = chart.config.options.plugins?.barValue || {};
+    if (!formatValue) return;
+    const { ctx } = chart;
+    const meta = chart.getDatasetMeta(0);
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = "600 11.5px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    meta.data.forEach((bar, i) => {
+      const value = chart.data.datasets[0].data[i];
+      ctx.fillText(formatValue(value), bar.x + 6, bar.y);
+    });
+    ctx.restore();
+  },
 };
 
 /**
@@ -42,47 +51,70 @@ export const RankedBarChart = ({
     return <p className={cn("py-10 text-center text-sm text-text-tertiary", className)}>{emptyLabel}</p>;
   }
 
-  const sorted = [...rows].sort((a, b) => b.count - a.count).map((row, i) => ({
-    ...row,
-    fill: palette ? palette[i % palette.length] : color,
-  }));
+  const sorted = [...rows].sort((a, b) => b.count - a.count);
   const total = sorted.reduce((sum, r) => sum + r.count, 0);
-  const height = Math.max(sorted.length * 24, 44);
+  const height = Math.max(sorted.length * 30, 48);
+
+  const colors = sorted.map((_, i) => resolveColor(palette ? palette[i % palette.length] : color));
+  const tickColor = cssVar("--color-text-secondary", "#555555");
+  const labelColor = cssVar("--color-text-secondary", "#555555");
+  const surfaceColor = cssVar("--color-surface", "#ffffff");
+  const textPrimary = cssVar("--color-text-primary", "#111111");
+  const textTertiary = cssVar("--color-text-tertiary", "#888888");
+
+  const chartData = {
+    labels: sorted.map((r) => r.label),
+    datasets: [
+      {
+        data: sorted.map((r) => r.count),
+        backgroundColor: colors,
+        borderRadius: 5,
+        barThickness: 12,
+        maxBarThickness: 14,
+      },
+    ],
+  };
+
+  const options = {
+    indexAxis: "y",
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: { padding: { right: 44 } },
+    animation: { duration: 500 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: surfaceColor,
+        titleColor: textPrimary,
+        bodyColor: textTertiary,
+        borderColor: cssVar("--color-border", "#e5e5e5"),
+        borderWidth: 1,
+        padding: 10,
+        cornerRadius: 8,
+        callbacks: {
+          title: (items) => formatLabel(items[0].label),
+          label: (ctx) => `${formatValue(ctx.raw)} · ${total ? Math.round((ctx.raw / total) * 100) : 0}%`,
+        },
+      },
+      barValue: { formatValue, color: labelColor },
+    },
+    scales: {
+      x: { display: false, grid: { display: false } },
+      y: {
+        grid: { display: false },
+        border: { display: false },
+        ticks: {
+          color: tickColor,
+          font: { size: 11.5, weight: "500" },
+          callback: (value, index) => formatLabel(sorted[index]?.label),
+        },
+      },
+    },
+  };
 
   return (
     <div className={className} style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={sorted}
-          layout="vertical"
-          margin={{ top: 0, right: 36, bottom: 0, left: 0 }}
-          barCategoryGap={6}
-        >
-          <XAxis type="number" hide domain={[0, "dataMax"]} />
-          <YAxis
-            type="category"
-            dataKey="label"
-            tickFormatter={formatLabel}
-            width={92}
-            tick={{ fill: "var(--color-text-secondary)", fontSize: 11.5, fontWeight: 500 }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <Tooltip cursor={{ fill: "var(--color-surface-hover)" }} content={<BarTooltip total={total} formatValue={formatValue} />} />
-          <Bar dataKey="count" radius={[5, 5, 5, 5]} maxBarSize={11} isAnimationActive animationDuration={500} background={{ fill: "var(--color-surface-active)", radius: 5 }}>
-            {sorted.map((row) => (
-              <Cell key={row.label} fill={row.fill} />
-            ))}
-            <LabelList
-              dataKey="count"
-              position="right"
-              formatter={formatValue}
-              className="tabular-nums"
-              style={{ fill: "var(--color-text-secondary)", fontSize: 12, fontWeight: 600 }}
-            />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+      <Bar data={chartData} options={options} plugins={[barValuePlugin]} />
     </div>
   );
 };
