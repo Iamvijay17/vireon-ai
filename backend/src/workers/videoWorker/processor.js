@@ -62,6 +62,12 @@ async function processVideoJob(job) {
   const ctx = { currentStep: null };
 
   try {
+    // A delayed automatic-retry job can fire after the user already hit
+    // Stop while it was waiting - bail before touching the pipeline instead
+    // of letting scriptStep re-run against a CANCELLED job (bailIfCancelled
+    // below only guards the boundaries *between* steps, not this first one).
+    await bailIfCancelled(jobId);
+
     // ── Step 1-3: Script Generation (only if starting fresh or restarting from QUEUED)
     const scriptPauseResult = await scriptStep.run(jobId, videoJob, currentStatus, ctx);
     if (scriptPauseResult) return scriptPauseResult;

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { typography, spacing, palette, mergeStyle, positionStyle, getContentScale } from '../../theme';
+import { typography, spacing, palette, mergeStyle, positionStyle, getContentScale, getOrientation } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -18,10 +18,15 @@ import { styles } from './styles';
  */
 const Content008 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
-  const { fps, width } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const elements = scene?.elements || {};
   const overrides = elements.styleConfig || {};
   const scale = getContentScale(width);
+  // The horizontal node row (with a left/right-anchored connector line)
+  // assumes a wide canvas - on portrait/square, stack the nodes in a
+  // vertical column instead, with the connector rotated to run top-to-bottom
+  // along the left edge.
+  const isLandscape = getOrientation(width, height) === 'landscape';
 
   const title = elements.title || '';
   const bgColor = elements.backgroundColor || palette.clean;
@@ -42,7 +47,13 @@ const Content008 = React.memo(({ scene }) => {
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.background, background: `linear-gradient(135deg, ${bgColor} 0%, #1a1a3e 60%, #0d1117 100%)` }} />
 
-      <div style={{ ...styles.content, transform: `scale(${scale})`, transformOrigin: 'center center', width: `${100 / scale}%`, height: `${100 / scale}%` }}>
+      <div
+        style={
+          isLandscape
+            ? { ...styles.content, transform: `scale(${scale})`, transformOrigin: 'center center', width: `${100 / scale}%`, height: `${100 / scale}%` }
+            : { ...styles.content, padding: `${spacing.xxl}px ${spacing.xl}px` }
+        }
+      >
         {title && (
           <h1
             data-style-role="title"
@@ -56,25 +67,40 @@ const Content008 = React.memo(({ scene }) => {
           </h1>
         )}
 
-        <div style={styles.pathRow}>
+        <div style={isLandscape ? styles.pathRow : { ...styles.pathRow, flexDirection: 'column', alignItems: 'flex-start', gap: spacing.xl }}>
           <div
-            style={{
-              ...styles.connector,
-              ...(accentColor ? { background: accentColor } : {}),
-              transform: `scaleX(${lineScaleX})`,
-              transformOrigin: 'left center',
-            }}
+            style={
+              isLandscape
+                ? {
+                    ...styles.connector,
+                    ...(accentColor ? { background: accentColor } : {}),
+                    transform: `scaleX(${lineScaleX})`,
+                    transformOrigin: 'left center',
+                  }
+                : {
+                    ...styles.connector,
+                    ...(accentColor ? { background: accentColor } : {}),
+                    top: 30,
+                    bottom: 30,
+                    left: 30,
+                    right: 'auto',
+                    width: 3,
+                    height: 'auto',
+                    transform: `scaleY(${lineScaleX})`,
+                    transformOrigin: 'top center',
+                  }
+            }
           />
           {items.map((item, index) => {
             const nodeScale = interpolate(frame, [16 + index * 10, 32 + index * 10], [0.3, 1], { extrapolateRight: 'clamp' });
             const nodeOpacity = interpolate(frame, [16 + index * 10, 30 + index * 10], [0, 1], { extrapolateRight: 'clamp' });
             const textOpacity = interpolate(frame, [26 + index * 10, 42 + index * 10], [0, 1], { extrapolateRight: 'clamp' });
             return (
-              <div key={index} style={styles.node}>
-                <div style={{ ...styles.nodeCircle, ...(accentColor ? { background: accentColor } : {}), transform: `scale(${nodeScale})`, opacity: nodeOpacity }}>
+              <div key={index} style={isLandscape ? styles.node : { ...styles.node, flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+                <div style={{ ...styles.nodeCircle, ...(accentColor ? { background: accentColor } : {}), transform: `scale(${nodeScale})`, opacity: nodeOpacity, flexShrink: 0 }}>
                   {index + 1}
                 </div>
-                <div style={{ ...styles.nodeText, opacity: textOpacity }}>
+                <div style={isLandscape ? { ...styles.nodeText, opacity: textOpacity } : { ...styles.nodeText, opacity: textOpacity, textAlign: 'left', marginTop: 0, marginLeft: spacing.md }}>
                   {item.heading && <p style={styles.nodeHeading}>{item.heading}</p>}
                   {item.text && <p style={styles.nodeBody}>{item.text}</p>}
                 </div>

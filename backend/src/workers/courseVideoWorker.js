@@ -79,6 +79,11 @@ const courseVideoWorker = new Worker(
     });
 
     try {
+      // A delayed automatic-retry job (see the outer catch below) can fire
+      // after the user already hit Stop while it was waiting - bail before
+      // touching the pipeline instead of re-running against a CANCELLED video.
+      await CourseVideoService.bailIfCancelled(videoId);
+
       switch (action) {
         case 'generate-script':
           await CourseVideoService.generateScript(videoId);

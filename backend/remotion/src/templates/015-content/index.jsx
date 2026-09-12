@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { typography, spacing, palette, mergeStyle, positionStyle, getContentScale } from '../../theme';
+import { typography, spacing, palette, mergeStyle, positionStyle, getContentScale, getOrientation } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -20,10 +20,11 @@ import { styles } from './styles';
  */
 const Content015 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
-  const { fps, width } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const elements = scene?.elements || {};
   const overrides = elements.styleConfig || {};
   const scale = getContentScale(width);
+  const isLandscape = getOrientation(width, height) === 'landscape';
 
   const title = elements.title || '';
   const bgColor = elements.backgroundColor || palette.clean;
@@ -43,7 +44,13 @@ const Content015 = React.memo(({ scene }) => {
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.background, background: `linear-gradient(135deg, ${bgColor} 0%, #1a1a3e 60%, #0d1117 100%)` }} />
 
-      <div style={{ ...styles.content, transform: `scale(${scale})`, transformOrigin: 'center center', width: `${100 / scale}%`, height: `${100 / scale}%` }}>
+      <div
+        style={
+          isLandscape
+            ? { ...styles.content, transform: `scale(${scale})`, transformOrigin: 'center center', width: `${100 / scale}%`, height: `${100 / scale}%` }
+            : { ...styles.content, padding: `${spacing.xxl}px ${spacing.xl}px` }
+        }
+      >
         {title && (
           <h1
             data-style-role="title"
@@ -57,7 +64,7 @@ const Content015 = React.memo(({ scene }) => {
           </h1>
         )}
 
-        <div style={styles.stack}>
+        <div style={isLandscape ? styles.stack : { ...styles.stack, maxWidth: '100%' }}>
           {items.map((item, index) => {
             const rowOpacity = interpolate(frame, [15 + index * 10, 35 + index * 10], [0, 1], { extrapolateRight: 'clamp' });
             const rowY = interpolate(frame, [15 + index * 10, 40 + index * 10], [16, 0], { extrapolateRight: 'clamp' });

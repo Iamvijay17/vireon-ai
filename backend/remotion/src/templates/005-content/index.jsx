@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
-import { typography, spacing, palette, mergeStyle, positionStyle, getContentScale } from '../../theme';
+import { typography, spacing, palette, mergeStyle, positionStyle, getContentScale, getOrientation } from '../../theme';
 import { styles } from './styles';
 
 /**
@@ -17,10 +17,13 @@ import { styles } from './styles';
  */
 const Content005 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
-  const { fps, width } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const elements = scene?.elements || {};
   const overrides = elements.styleConfig || {};
   const scale = getContentScale(width);
+  // The two-column split squeezes hard on a narrow portrait/square canvas -
+  // stack the columns instead of shrinking the whole 1920-wide row to fit.
+  const isLandscape = getOrientation(width, height) === 'landscape';
 
   const title = elements.title || '';
   const bgColor = elements.backgroundColor || palette.clean;
@@ -46,7 +49,13 @@ const Content005 = React.memo(({ scene }) => {
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <div style={{ ...styles.background, background: `linear-gradient(135deg, ${bgColor} 0%, #1a1a3e 60%, #0d1117 100%)` }} />
 
-      <div style={{ ...styles.content, transform: `scale(${scale})`, transformOrigin: 'center center', width: `${100 / scale}%`, height: `${100 / scale}%` }}>
+      <div
+        style={
+          isLandscape
+            ? { ...styles.content, transform: `scale(${scale})`, transformOrigin: 'center center', width: `${100 / scale}%`, height: `${100 / scale}%` }
+            : { ...styles.content, padding: `${spacing.xxl}px ${spacing.xl}px` }
+        }
+      >
         {title && (
           <h1
             data-style-role="title"
@@ -70,7 +79,7 @@ const Content005 = React.memo(({ scene }) => {
           }}
         />
 
-        <div style={styles.columns}>
+        <div style={isLandscape ? styles.columns : { ...styles.columns, flexDirection: 'column', gap: spacing.lg }}>
           {columns.map((col, colIndex) => (
             <div key={colIndex} style={styles.column}>
               {col.map((item, itemIndex) => {
