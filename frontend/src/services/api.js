@@ -260,6 +260,13 @@ export const retryJob = (type, id) => api.post(`/api/jobs/${type}/${id}/retry`);
 
 export const bulkJobAction = (jobs, action) => api.post('/api/jobs/bulk', { jobs, action });
 
+// ─── Assets (unified registry across video/course-video/audio-studio uploads) ────
+
+export const getAssets = (page = 1, limit = 20, filters = {}) =>
+  api.get('/api/assets', { params: { page, limit, ...filters } });
+
+export const deleteAsset = (id) => api.delete(`/api/assets/${id}`);
+
 // ─── Analytics ──────────────────────────────────────────────────────────────────
 
 export const getAnalyticsOverview = (days = 30) =>

@@ -185,7 +185,9 @@ async function regenerateSceneAudio(videoId, sceneNumber) {
   };
 
   try {
-    const [result] = await AudioService.generateAllAudio(jobId, [audioScene], video.voice, undefined, undefined, video.fastAudio);
+    // skipCache: true - an explicit regenerate must always produce a fresh
+    // take, never a cached one. See scenePipeline.regenerateSceneAudio.
+    const [result] = await AudioService.generateAllAudio(jobId, [audioScene], video.voice, undefined, undefined, video.fastAudio, true);
     if (!result) {
       throw new Error('Audio generation returned no result');
     }

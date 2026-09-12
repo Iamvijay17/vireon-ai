@@ -24,6 +24,7 @@ const Analytics = lazy(() => import("../pages/analytics"));
 const CompletedVideos = lazy(() => import("../pages/complete"));
 const Projects = lazy(() => import("../pages/projects"));
 const Jobs = lazy(() => import("../pages/jobs"));
+const Assets = lazy(() => import("../pages/assets"));
 const LiveLogs = lazy(() => import("../pages/logs"));
 
 const LARGE_BREAKPOINT = 992;
@@ -72,6 +73,7 @@ const AppLayout = () => {
                 <Route path="/audio" element={<AudioPage />} />
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/jobs" element={<Jobs />} />
+                <Route path="/assets" element={<Assets />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/logs" element={<LiveLogs />} />
                 <Route path="/settings" element={<SettingsPage />} />

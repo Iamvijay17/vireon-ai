@@ -3,6 +3,8 @@ const Minio = require('minio');
 const config = require('../../../config');
 const LoggerService = require('../../common/LoggerService');
 const StorageProvider = require('./StorageProvider');
+const Asset = require('../../../models/Asset');
+const AssetService = require('../../asset/AssetService');
 
 // Which bucket a category lives in, and what subfolder (if any) its files
 // sit under within a video's own prefix. script.json/assets.json are local
@@ -60,7 +62,11 @@ class MinioStorageProvider extends StorageProvider {
   #ready;
 
   async #ensureBuckets() {
-    const buckets = [...new Set([config.minio.scenesBucket, config.minio.videoBucket])];
+    // Cache bucket gets the same anonymous-read policy as the other two -
+    // CacheService.getAvatarClip hands its URL straight to callers as
+    // avatarVideoUrl, which needs to be fetchable the same way a
+    // scenesBucket URL is.
+    const buckets = [...new Set([config.minio.scenesBucket, config.minio.videoBucket, config.minio.cacheBucket])];
     for (const bucket of buckets) {
       const exists = await this.client.bucketExists(bucket).catch(() => false);
       if (!exists) {
@@ -69,6 +75,19 @@ class MinioStorageProvider extends StorageProvider {
       }
       await this.client.setBucketPolicy(bucket, publicReadPolicy(bucket));
     }
+  }
+
+  /**
+   * Server-side copy of one object to another bucket/key, used by
+   * CacheService to materialize a cached TTS clip at a job's own
+   * `{jobId}/audio/{fileName}` path on a cache hit - existing consumers only
+   * know the job-scoped filename (see StorageService/CATEGORY_MAP), not the
+   * cache bucket, so the bytes have to actually live there too. Avoids a
+   * download+re-upload round trip through this process.
+   */
+  async copyObject(destBucket, destKey, srcBucket, srcKey) {
+    await this.#ready;
+    await this.client.copyObject(destBucket, destKey, `/${srcBucket}/${srcKey}`);
   }
 
   /**
@@ -148,6 +167,7 @@ class MinioStorageProvider extends StorageProvider {
         await this.client.fPutObject(bucket, key, filePath);
         const url = this.getPublicUrl(id, category, fileName);
         LoggerService.upload(`Uploaded ${category}/${fileName}`, { url });
+        AssetService.recordUpload({ id, category, bucket, key, url, filePath });
         return url;
       } catch (err) {
         lastError = err;
@@ -200,6 +220,18 @@ class MinioStorageProvider extends StorageProvider {
         LoggerService.warn('Failed to delete objects from MinIO', { bucket, jobId, videoId, error: err.message });
       }
     }
+
+    await Asset.deleteMany({ ownerId: videoId }).catch(() => {});
+  }
+
+  /**
+   * Delete a single object by its bucket + key, as returned by parsePublicUrl.
+   * Used for one-off asset cleanup (e.g. orphaned assets) where a full
+   * deleteJob prefix wipe would be too broad.
+   */
+  async deleteObject(bucket, key) {
+    await this.#ready;
+    await this.client.removeObject(bucket, key);
   }
 }
 

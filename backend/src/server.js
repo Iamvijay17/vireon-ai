@@ -23,6 +23,7 @@ const courseVideoRoutes = require('./routes/courseVideos');
 const voiceRoutes = require('./routes/voices');
 const audioRoutes = require('./routes/audio');
 const jobRoutes = require('./routes/jobs');
+const assetRoutes = require('./routes/assets');
 const analyticsRoutes = require('./routes/analytics');
 const logsRoutes = require('./routes/logs');
 
@@ -132,6 +133,7 @@ app.use('/api/course-videos', courseVideoRoutes);
 app.use('/api/voices', voiceRoutes);
 app.use('/api/audio', audioRoutes);
 app.use('/api/jobs', jobRoutes);
+app.use('/api/assets', assetRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/logs', logsRoutes);
 

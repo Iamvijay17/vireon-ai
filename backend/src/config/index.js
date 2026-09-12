@@ -79,12 +79,24 @@ const config = Object.freeze({
     // script content lives in MongoDB. See MinioStorageProvider.
     scenesBucket: process.env.MINIO_SCENES_BUCKET || 'vireon-scenes',
     videoBucket: process.env.MINIO_VIDEO_BUCKET || 'vireon-video',
+    // Content-addressed Smart Cache storage (avatar clips, TTS audio) - kept
+    // separate from scenesBucket/videoBucket so a job's delete/cleanup never
+    // touches cached entries shared across jobs. See CacheService.
+    cacheBucket: process.env.MINIO_CACHE_BUCKET || 'vireon-cache',
     // Base URL used to build public download links returned to callers
     // (e.g. http://127.0.0.1:9000). Override for LAN access or a reverse proxy.
     publicUrl:
       process.env.MINIO_PUBLIC_URL ||
       `http${process.env.MINIO_USE_SSL === 'true' ? 's' : ''}://${process.env.MINIO_ENDPOINT || '127.0.0.1'}:${process.env.MINIO_PORT || 9000}`,
     uploadRetries: parseInt(process.env.MINIO_UPLOAD_RETRIES, 10) || 3,
+  },
+
+  // Smart Cache: content-addressed reuse of avatar clips and TTS audio
+  // across jobs, so identical inputs skip the GPU/TTS call entirely. Set
+  // SMART_CACHE_ENABLED=false to fall back to always-regenerate for
+  // debugging. See CacheService.
+  cache: {
+    enabled: process.env.SMART_CACHE_ENABLED !== 'false',
   },
 
   cors: {

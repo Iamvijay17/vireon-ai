@@ -58,6 +58,19 @@ class StorageProvider {
   async objectExists(id, category, fileName) {
     throw new Error('Method "objectExists" must be implemented by subclass');
   }
+
+  /**
+   * Delete a single object by its bucket + key (as returned by
+   * parsePublicUrl), for one-off asset cleanup that shouldn't wipe a whole
+   * job's prefix.
+   * @param {string} bucket
+   * @param {string} key
+   * @returns {Promise<void>}
+   * @abstract
+   */
+  async deleteObject(bucket, key) {
+    throw new Error('Method "deleteObject" must be implemented by subclass');
+  }
 }
 
 module.exports = StorageProvider;

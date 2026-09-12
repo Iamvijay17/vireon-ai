@@ -1,10 +1,10 @@
 /**
- * Derive a stable positive 32-bit seed from a jobId so every scene in the
- * same video gets identical TTS prosody instead of a random seed per call.
+ * Derive a stable positive 32-bit seed from an arbitrary string (djb2-style)
+ * so the same input always reproduces the same seed.
  */
-function seedFromJobId(jobId) {
+function seedFromJobId(str) {
   let hash = 5381;
-  const str = String(jobId);
+  str = String(str);
   for (let i = 0; i < str.length; i++) {
     hash = (hash * 33) ^ str.charCodeAt(i);
   }
@@ -30,25 +30,25 @@ function seedForVoice(id, voice, variantKey) {
 }
 
 /**
- * Podcast voice-clone turns have no `instruct` param to hint delivery (see
- * sceneSynthesis.instructFor) - the Qwen3 clone endpoint just doesn't
- * expose one - so a shared per-job seed is the one place left that can
- * vary. Reusing the exact same seed for all ~30 alternating turns (host and
- * guest alike) makes every line land with byte-identical prosodic rhythm,
- * which reads as robotic repetition rather than two people talking. Derive
- * a seed per scene instead, still fully deterministic (jobId+sceneNumber)
- * so resumed/retried scenes reproduce the same output. Non-podcast scenes
- * (scene.speaker unset) keep the original one-seed-per-job behavior, which
- * exists so a single narrator's pace/tone doesn't jump scene to scene.
+ * Content-based seed for a scene's TTS call: derived from (voice, narration
+ * text) alone, no jobId. This is what makes Smart Cache's TTS reuse work -
+ * two different jobs (or two lessons in the same course) speaking the exact
+ * same line with the exact same voice get the exact same seed, and
+ * therefore the exact same audio, so the second occurrence can be served
+ * from the cache instead of re-synthesized. The tradeoff (accepted
+ * deliberately): a recurring line - a welcome/congrats message, a
+ * disclaimer, a repeated podcast reaction like "Right, right" - now sounds
+ * identical every time it recurs, instead of getting fresh per-job
+ * delivery. A designed voice ("design:<description>") still pins its seed
+ * to the voice description alone (not the text), so its identity stays
+ * put across every line it speaks - see seedForVoice's reasoning.
  */
-function seedForScene(jobId, scene, voice) {
+function seedForScene(scene, voice) {
   if (typeof voice === "string" && voice.startsWith("design:")) {
-    return seedFromJobId(`${jobId}:${voice}`);
+    return seedFromJobId(`design:${voice}`);
   }
-  if (scene?.speaker === "host" || scene?.speaker === "guest") {
-    return seedFromJobId(`${jobId}:${scene.sceneNumber}`);
-  }
-  return seedFromJobId(jobId);
+  const text = scene?.audio?.text || "";
+  return seedFromJobId(`${voice || ""}:${text}`);
 }
 
 /**

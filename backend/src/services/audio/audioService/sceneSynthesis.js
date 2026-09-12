@@ -9,6 +9,7 @@ const { resolveVoice } = require("./voiceCatalog");
 const { seedForScene } = require("./seeding");
 const ttsClient = require("./ttsClient");
 const { alignCaptions } = require("./captionAlignment");
+const CacheService = require("../../common/CacheService");
 
 const execFileAsync = promisify(execFile);
 
@@ -60,7 +61,7 @@ function instructFor(scene) {
  * below (the public single-scene entry point) still does both together for
  * standalone callers like "regenerate this one scene's audio".
  */
-async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false) {
+async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipCache = false) {
   const { Client } = require("@gradio/client");
   const { text } = scene.audio;
   if (!text) {
@@ -73,17 +74,48 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false) {
   const audioDir = path.resolve(__dirname, "../../../../jobs", jobId, "audio");
   await fs.mkdir(audioDir, { recursive: true });
 
-  const outputFile = path.join(audioDir, `scene${scene.sceneNumber}.mp3`);
+  const fileName = `scene${scene.sceneNumber}.mp3`;
+  const outputFile = path.join(audioDir, fileName);
   let lastError = null;
 
   // Resolve the voice once up front - an invalid/missing clone file is a
   // configuration error, not a transient failure, so don't retry on it.
   const resolved = await resolveVoice(voice);
 
-  // Fixed per-job (or per-podcast-turn) seed so every scene, including
-  // later resumed ones, deterministically reproduces the same prosody
-  // instead of a random seed per call.
-  const seed = seedForScene(jobId, scene, voice);
+  // Content-based seed (text + voice, no jobId) - see seeding.seedForScene.
+  // This is also what makes the cache key below stable across jobs: the
+  // same (text, voice) pair always synthesizes to the same audio.
+  const seed = seedForScene(scene, voice);
+  const instruct = instructFor(scene);
+  const modelSize = fastMode ? config.tts.fastModelSize : config.tts.modelSize;
+
+  const cacheHash = CacheService.hashTtsInputs({
+    text,
+    mode: resolved.mode,
+    speaker: resolved.speaker || null,
+    cloneFile: resolved.file || null,
+    description: resolved.description || null,
+    instruct,
+    seed,
+    modelSize,
+  });
+
+  if (!skipCache) {
+    const cached = await CacheService.getTtsAudio(cacheHash, jobId, fileName);
+    if (cached) {
+      LoggerService.tts(`Scene ${scene.sceneNumber} audio served from Smart Cache`, {
+        sceneNumber: scene.sceneNumber,
+      });
+      return {
+        file: fileName,
+        path: null,
+        duration: cached.duration,
+        captionTimestamps: cached.captionTimestamps,
+        fromCache: true,
+        cacheHash,
+      };
+    }
+  }
 
   for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
     try {
@@ -105,7 +137,6 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false) {
         config.tts.url.replace(/\/generate$/, "").replace(/\/$/, ""),
       );
 
-      const instruct = instructFor(scene);
       const result = await ttsClient.generate(client, resolved, text, seed, instruct, fastMode);
 
       const audio = result.data[0];
@@ -161,6 +192,8 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false) {
           file: `scene${scene.sceneNumber}.mp3`,
           path: outputFile,
           duration: spokenDuration + turnGap,
+          fromCache: false,
+          cacheHash,
         };
       }
 
@@ -190,11 +223,23 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false) {
  * Public single-scene entry point: synthesize + align in one call. Used
  * by standalone "regenerate this one scene" callers that have no next
  * scene to pipeline alignment against (see synthesizeSceneAudio).
+ *
+ * `skipCache` forces a fresh TTS call even if this exact (text, voice) was
+ * already cached - used by explicit "regenerate this scene's audio"
+ * actions, which must always produce a new take. The fresh result still
+ * gets written back into the cache afterward, becoming the new cached
+ * version for that content hash.
  */
-async function generateSceneAudio(jobId, scene, voice, fastMode = false) {
-  const result = await synthesizeSceneAudio(jobId, scene, voice, fastMode);
+async function generateSceneAudio(jobId, scene, voice, fastMode = false, skipCache = false) {
+  const result = await synthesizeSceneAudio(jobId, scene, voice, fastMode, skipCache);
   if (!result) return null;
+
+  if (result.fromCache) {
+    return { file: result.file, duration: result.duration, captionTimestamps: result.captionTimestamps };
+  }
+
   const captionTimestamps = await alignCaptions(result.path);
+  await CacheService.putTtsAudio(result.cacheHash, result.path, { duration: result.duration, captionTimestamps });
   // Already uploaded to storage inside synthesizeSceneAudio - see the
   // matching cleanup in generateAllAudio for why the local copy isn't
   // needed once alignment (the last local-path consumer) is done.
@@ -218,7 +263,7 @@ async function generateSceneAudio(jobId, scene, voice, fastMode = false) {
  * in flight at once, so it doesn't depend on the TTS server supporting
  * concurrent generation.
  */
-async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled, fastMode = false) {
+async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled, fastMode = false, skipCache = false) {
   LoggerService.tts("Starting batch audio generation", {
     jobId,
     scenes: scenes.length,
@@ -240,22 +285,28 @@ async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCanc
       if (typeof checkCancelled === "function") {
         await checkCancelled();
       }
-      synthesizing = synthesizeSceneAudio(jobId, scene, voice || scene.audio?.voice, fastMode);
+      synthesizing = synthesizeSceneAudio(jobId, scene, voice || scene.audio?.voice, fastMode, skipCache);
     }
 
     if (pending) {
       const captionTimestamps = await pending.alignmentPromise;
-      const result = { ...pending.synthResult, captionTimestamps };
+      const result = { file: pending.synthResult.file, duration: pending.synthResult.duration, captionTimestamps };
       results.push(result);
       if (typeof onSceneComplete === "function") {
         await onSceneComplete(pending.scene.sceneNumber, result);
       }
-      // Already durably in storage (see synthesizeSceneAudio's upload)
-      // and alignment (the only other consumer of the local path) just
-      // finished above - nothing left needs the local copy, so drop it
-      // instead of letting backend/jobs/ accumulate every scene's audio
-      // for the whole pipeline run.
-      await fs.unlink(pending.synthResult.path).catch(() => {});
+      if (!pending.synthResult.fromCache) {
+        await CacheService.putTtsAudio(pending.synthResult.cacheHash, pending.synthResult.path, {
+          duration: pending.synthResult.duration,
+          captionTimestamps,
+        });
+        // Already durably in storage (see synthesizeSceneAudio's upload)
+        // and alignment (the only other consumer of the local path) just
+        // finished above - nothing left needs the local copy, so drop it
+        // instead of letting backend/jobs/ accumulate every scene's audio
+        // for the whole pipeline run.
+        await fs.unlink(pending.synthResult.path).catch(() => {});
+      }
     }
     pending = null;
 
@@ -263,7 +314,12 @@ async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCanc
 
     const synthResult = await synthesizing;
     if (synthResult) {
-      pending = { scene, synthResult, alignmentPromise: alignCaptions(synthResult.path) };
+      // A cache hit has no local path (nothing was downloaded) and already
+      // carries its captionTimestamps, so there's nothing to align.
+      const alignmentPromise = synthResult.fromCache
+        ? Promise.resolve(synthResult.captionTimestamps)
+        : alignCaptions(synthResult.path);
+      pending = { scene, synthResult, alignmentPromise };
     }
   }
 

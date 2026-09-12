@@ -5,6 +5,7 @@ const config = require("../../config");
 const LoggerService = require("../common/LoggerService");
 const { getStorageProvider } = require("../storage/providers");
 const AudioService = require("../audio/audioService");
+const CacheService = require("../common/CacheService");
 
 /**
  * Service for animating a source portrait photo into a small talking-head
@@ -56,12 +57,39 @@ class AvatarService {
   }
 
   /**
+   * Since `sourceImagePath` is always one of the two bundled default
+   * portraits (never a user upload - see the class doc comment), the
+   * driving clip is fixed, and every LivePortrait param is a hardcoded
+   * literal, the entire output space for this method is exactly 2 possible
+   * videos. Returns the cache key ('male'/'female') for those 2, or null
+   * for anything else (not cacheable).
+   */
+  static _cacheKeyForSourceImage(sourceImagePath) {
+    if (sourceImagePath === config.avatar.defaultMaleImagePath) return "male";
+    if (sourceImagePath === config.avatar.defaultFemaleImagePath) return "female";
+    return null;
+  }
+
+  /**
    * Animate `sourceImagePath` (a local file on disk) with the stock driving
    * clip, download the result, and save it to
    * jobs/{jobId}/avatar/avatar.mp4 - same jobs/{jobId}/<kind>/ convention
-   * AudioService uses for jobs/{jobId}/audio/.
+   * AudioService uses for jobs/{jobId}/audio/. Since the output only ever
+   * takes one of 2 possible forms (see _cacheKeyForSourceImage), the result
+   * is cached permanently in Smart Cache and reused across every job,
+   * skipping the GPU call entirely after the first male and first female
+   * job.
    */
   static async animatePortrait(jobId, sourceImagePath) {
+    const cacheKey = this._cacheKeyForSourceImage(sourceImagePath);
+    if (cacheKey) {
+      const cachedUrl = await CacheService.getAvatarClip(cacheKey);
+      if (cachedUrl) {
+        LoggerService.success("Avatar overlay served from Smart Cache", { jobId, cacheKey });
+        return { file: "avatar.mp4", path: null, url: cachedUrl };
+      }
+    }
+
     const baseUrl = config.avatar.url.replace(/\/$/, "");
     const avatarDir = path.resolve(__dirname, "../../../jobs", jobId, "avatar");
     await fs.mkdir(avatarDir, { recursive: true });
@@ -126,6 +154,10 @@ class AvatarService {
         // Upload immediately - backend/jobs/ is scratch space, MinIO is the
         // durable copy. `jobId` here is the video's own id.
         const url = await getStorageProvider().uploadFile(jobId, outputFile, "avatar");
+
+        if (cacheKey) {
+          await CacheService.putAvatarClip(cacheKey, outputFile);
+        }
 
         LoggerService.success("Avatar overlay generated", { jobId, file: "avatar/avatar.mp4" });
 

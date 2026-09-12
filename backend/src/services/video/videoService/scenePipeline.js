@@ -24,11 +24,16 @@ async function regenerateSceneAudio(jobId, sceneNumber) {
   const SocketService = require('../../common/SocketService');
 
   try {
+    // skipCache: true - an explicit regenerate must always produce a fresh
+    // take, never a cached one, even if this exact (text, voice) was
+    // already cached from another job. The fresh result still gets written
+    // back into the cache afterward. See AudioService.generateSceneAudio.
     const result = await AudioService.generateSceneAudio(
       jobId,
       scene,
       job.voice || scene.audio?.voice,
       job.fastAudio,
+      true,
     );
     if (!result) {
       throw new Error('Audio generation returned no result');
