@@ -1,6 +1,7 @@
 const Course = require('../../models/Course');
 const CourseVideo = require('../../models/CourseVideo');
 const LoggerService = require('../common/LoggerService');
+const { getStorageProvider } = require('../storage/providers');
 const { COURSE_STATUS, VIDEO_STATUS } = require('../../constants');
 
 /**
@@ -160,8 +161,12 @@ class CourseService {
       throw { status: 404, message: 'Course not found' };
     }
 
-    // Delete all videos in this course
+    // Delete all videos in this course, along with their MinIO assets
+    const videos = await CourseVideo.find({ courseId }).select('_id');
     await CourseVideo.deleteMany({ courseId });
+
+    const storage = getStorageProvider();
+    await Promise.all(videos.map((v) => storage.deleteJob(v._id.toString()).catch(() => {})));
 
     LoggerService.info('Course deleted', { courseId });
 

@@ -4,6 +4,7 @@ const LoggerService = require('../../common/LoggerService');
 const SocketService = require('../../common/SocketService');
 const LMStudioService = require('../../common/LMStudioService');
 const courseQueue = require('../../../queues/courseQueue');
+const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../../../constants');
 
 /**
@@ -318,6 +319,8 @@ async function deleteVideo(videoId) {
     throw { status: 404, message: 'Video not found' };
   }
 
+  await getStorageProvider().deleteJob(videoId).catch(() => {});
+
   // Update course status
   await CourseService.recalculateStatus(video.courseId);
 
@@ -348,6 +351,9 @@ async function bulkDelete(videoIds) {
 
   const deletedIds = videos.map((v) => v._id.toString());
   await CourseVideo.deleteMany({ _id: { $in: deletedIds } });
+
+  const storage = getStorageProvider();
+  await Promise.all(deletedIds.map((id) => storage.deleteJob(id).catch(() => {})));
 
   // Recalculate status once per affected course (all rows in a bulk
   // delete from the course detail page will share one course, but handle
