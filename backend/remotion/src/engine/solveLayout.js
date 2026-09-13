@@ -60,6 +60,17 @@ const titleSlot = (title, boxWidth, yPct, maxFontSize = 68) => {
 const TITLE_GAP = 40;
 const contentTopAfterTitle = (title, fallbackTop) => (title ? PAD.top + title.hPct * CANVAS.height + TITLE_GAP : fallbackTop);
 
+// The fixed-offset strategies below (split-image, podcast-*) place the slot
+// after the title at a constant yPct sized around a typical short title,
+// rather than deriving it from the title (like contentTopAfterTitle does for
+// the stack-based strategies). Only push that slot past its usual position
+// when the title actually measures taller than the gap already allows -
+// normal short titles keep the original, unperturbed layout.
+const yPctAfterTitle = (title, gapPx, fallbackYPct) => {
+  if (!title) return fallbackYPct;
+  return Math.max(fallbackYPct, title.yPct + title.hPct + gapPx / CANVAS.height);
+};
+
 const buildTitleOnly = (profile) => {
   const boxWidth = CANVAS.width - PAD.x * 2;
   const slot = titleSlot(profile.title, boxWidth, 0.42, 76);
@@ -179,7 +190,7 @@ const buildSplitImage = (profile, rng) => {
     const { fontSize } = fitTextToBox(bodyText, { boxWidth: textBoxWidth, boxHeight: 320, maxFontSize: 30, minFontSize: 20 });
     slots.push({
       id: 'body', role: 'body', text: bodyText,
-      xPct: textX / CANVAS.width, yPct: 0.54,
+      xPct: textX / CANVAS.width, yPct: yPctAfterTitle(title, TITLE_GAP, 0.54),
       wPct: textBoxWidth / CANVAS.width, hPct: 0.32,
       fontSize, textAlign: 'left',
     });
@@ -242,7 +253,7 @@ const buildPodcastSplit = (profile, rng) => {
     const { fontSize } = fitTextToBox(profile.subtitle, { boxWidth: textBoxWidth, boxHeight: 140, maxFontSize: 26, minFontSize: 18 });
     slots.push({
       id: 'subtitle', role: 'body', text: profile.subtitle,
-      xPct: textX / CANVAS.width, yPct: 0.56,
+      xPct: textX / CANVAS.width, yPct: yPctAfterTitle(title, TITLE_GAP, 0.56),
       wPct: textBoxWidth / CANVAS.width, hPct: 0.14, fontSize, textAlign: 'left',
     });
   }
@@ -287,7 +298,7 @@ const buildPodcastCentered = (profile) => {
     const { fontSize } = fitTextToBox(profile.subtitle, { boxWidth: centerWidth, boxHeight: 100, maxFontSize: 26, minFontSize: 18 });
     slots.push({
       id: 'subtitle', role: 'body', text: profile.subtitle,
-      xPct: centerX / CANVAS.width, yPct: 0.62,
+      xPct: centerX / CANVAS.width, yPct: yPctAfterTitle(title, TITLE_GAP, 0.62),
       wPct: centerWidth / CANVAS.width, hPct: 0.1, fontSize, textAlign: 'center',
     });
   }
