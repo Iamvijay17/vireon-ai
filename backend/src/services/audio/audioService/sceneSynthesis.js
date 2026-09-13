@@ -10,6 +10,7 @@ const { seedForScene } = require("./seeding");
 const ttsClient = require("./ttsClient");
 const { alignCaptions } = require("./captionAlignment");
 const CacheService = require("../../common/CacheService");
+const withTimeout = require("../../../utils/withTimeout");
 
 const execFileAsync = promisify(execFile);
 
@@ -60,7 +61,15 @@ async function connectTtsClient() {
   const LocalAIService = require("../../localAI");
   await LocalAIService.tts.ensureRunning();
   const { Client } = require("@gradio/client");
-  return Client.connect(config.tts.url.replace(/\/generate$/, "").replace(/\/$/, ""));
+  // A health check passing only proves the web server is up - Gradio's own
+  // queue/session setup inside Client.connect() can still hang indefinitely
+  // if that subsystem is wedged, with no error and no way to recover short
+  // of killing the whole process. See withTimeout's doc comment.
+  return withTimeout(
+    Client.connect(config.tts.url.replace(/\/generate$/, "").replace(/\/$/, "")),
+    config.tts.timeout,
+    "Connecting to TTS server timed out"
+  );
 }
 
 /**
@@ -155,7 +164,11 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
           },
         );
 
-        const result = await ttsClient.generate(clientHolder.current, resolved, text, seed, instruct, fastMode);
+        const result = await withTimeout(
+          ttsClient.generate(clientHolder.current, resolved, text, seed, instruct, fastMode),
+          config.tts.timeout,
+          "TTS generation timed out"
+        );
 
         const audio = result.data[0];
 

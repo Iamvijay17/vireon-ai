@@ -7,6 +7,7 @@ const { getStorageProvider } = require("../storage/providers");
 const AudioService = require("../audio/audioService");
 const CacheService = require("../common/CacheService");
 const LocalAIService = require("../localAI");
+const withTimeout = require("../../utils/withTimeout");
 
 /**
  * Service for animating a source portrait photo into a small talking-head
@@ -116,11 +117,14 @@ class AvatarService {
           this._uploadFile(baseUrl, config.avatar.drivingVideoPath, "driving.mp4", "video/mp4"),
         ]);
 
-        const client = await Client.connect(baseUrl);
+        // Timeouts guard against a wedged Gradio server (queue subsystem
+        // stuck even though its health check still passes) hanging this
+        // call forever - see withTimeout's doc comment.
+        const client = await withTimeout(Client.connect(baseUrl), config.avatar.timeout, "Connecting to LivePortrait server timed out");
 
         let result;
         try {
-          result = await client.predict("/gpu_wrapped_execute_video", [
+          result = await withTimeout(client.predict("/gpu_wrapped_execute_video", [
             this._fileData(srcServerPath, `source.${srcExt}`), // source image
             null, // source video
             { video: this._fileData(drvServerPath, "driving.mp4"), subtitles: null }, // driving video
@@ -143,7 +147,7 @@ class AvatarService {
             3e-7, // motion smooth strength (v2v)
             "", // internal textbox
             "", // internal textbox
-          ]);
+          ]), config.avatar.timeout, "LivePortrait generation timed out");
         } finally {
           client.close();
         }

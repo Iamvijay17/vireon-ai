@@ -58,7 +58,7 @@ class ManagedProcess extends EventEmitter {
    * so the service keeps running - and keeps its GPU/model state warm -
    * across backend restarts instead of dying with the Node process.
    */
-  spawn({ command, args = [], cwd, env } = {}) {
+  spawn({ command, args = [], cwd, env, windowsHide = true } = {}) {
     if (!command) {
       throw new Error(`No start command configured for ${this.name}`);
     }
@@ -78,7 +78,13 @@ class ManagedProcess extends EventEmitter {
       env: env ? { ...process.env, ...env } : undefined,
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
+      // Confirmed live: Qwen3-TTS's process crashed mid-generation with
+      // "forrtl: error (200): program aborting due to window-CLOSE event" -
+      // an Intel Fortran/MKL runtime (pulled in by torch/numpy) treating its
+      // hidden console window as closed. ttsManager passes windowsHide:
+      // false to avoid this; other services keep the default hidden window
+      // since none of them showed this failure mode.
+      windowsHide,
     });
 
     this.child = child;
@@ -122,43 +128,45 @@ class ManagedProcess extends EventEmitter {
   }
 
   /**
-   * Graceful shutdown of this instance's own tracked process only: SIGTERM
-   * first, then (Windows doesn't deliver SIGTERM to arbitrary processes) a
-   * `taskkill` scoped to this exact PID if it hasn't exited within
-   * `timeout`ms.
+   * Shutdown of this instance's tracked process AND everything it spawned.
+   *
+   * Originally tried a graceful `child.kill('SIGTERM')` first, only falling
+   * back to `taskkill /T` after a timeout. That's wrong on Windows for
+   * these specific services: LM Studio/Qwen3-TTS/LivePortrait's venv
+   * python.exe re-execs itself as a CHILD process under a different
+   * interpreter (e.g. Qwen3-TTS's venv python.exe launches
+   * `...\miniforge\python.exe app.py` as a child, which is the one that
+   * actually binds the Gradio port) - killing only the tracked parent PID
+   * leaves that real server child running and orphaned. `isAlive()` then
+   * reports "stopped" (the parent is gone) while the actual service is
+   * still up, wedged, and still holding its port - `restart()` would spawn
+   * a second instance that can't even bind, while every request kept
+   * hitting the original orphan. Confirmed live: this exact scenario left
+   * a wedged Qwen3-TTS process running for nearly an hour through multiple
+   * "successful" restarts. `taskkill /PID <pid> /T /F` kills the whole
+   * process tree unconditionally - no soft attempt first, since none of
+   * these services expose a clean shutdown hook worth waiting for anyway.
    */
-  async stop({ timeout = 5000 } = {}) {
+  async stop() {
     if (!this.isAlive()) return true;
     const pid = this.pid;
 
     LoggerService.info(`[AI SERVICE] Stopping ${this.name}`, { pid });
     this._expectedExit = true;
-    try {
-      this.child?.kill('SIGTERM');
-    } catch (err) {
-      LoggerService.warn(`[AI SERVICE] SIGTERM failed for ${this.name}`, { pid, error: err.message });
-    }
-
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      if (!this.isAlive()) return true;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-
-    if (!this.isAlive()) return true;
 
     try {
-      // /T also kills the child's own child processes (e.g. python.exe
-      // spawned from a cmd wrapper) - scoped strictly to this PID's tree.
       execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
-      LoggerService.warn(`[AI SERVICE] Force-stopped ${this.name} via taskkill`, { pid });
-      this.child = null;
-      this.pid = null;
-      return true;
     } catch (err) {
-      LoggerService.error(`[AI SERVICE] Failed to force-stop ${this.name}`, { pid, error: err.message });
-      return false;
+      // ERROR: The process "X" not found - already dead, not a real failure.
+      if (!/not found/i.test(err.message)) {
+        LoggerService.error(`[AI SERVICE] Failed to stop ${this.name}`, { pid, error: err.message });
+        return false;
+      }
     }
+
+    this.child = null;
+    this.pid = null;
+    return true;
   }
 }
 

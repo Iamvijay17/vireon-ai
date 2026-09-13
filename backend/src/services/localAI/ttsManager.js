@@ -1,3 +1,4 @@
+const path = require('path');
 const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
 const { ManagedProcess, parseCommand } = require('./processManager');
@@ -18,7 +19,7 @@ async function isRunning() {
 }
 
 async function start() {
-  const { startCommand, workdir } = cfg();
+  const { startCommand, workdir, ffmpegPath } = cfg();
   if (!startCommand) {
     // Pinokio may only be the launcher, but this repo has no way to know
     // *which* Pinokio app folder/venv holds Qwen3-TTS on an arbitrary
@@ -31,7 +32,16 @@ async function start() {
 
   const { command, args } = parseCommand(startCommand);
   LoggerService.tts('[AI SERVICE] Starting Qwen3-TTS', { command: startCommand, cwd: workdir });
-  managed.spawn({ command, args, cwd: workdir || undefined });
+  managed.spawn({
+    command,
+    args,
+    cwd: workdir || undefined,
+    env: ffmpegPath ? { PATH: `${ffmpegPath}${path.delimiter}${process.env.PATH || ''}` } : undefined,
+    // See processManager.js's ManagedProcess.spawn doc comment - a hidden
+    // console window crashed this specific process's native runtime
+    // mid-generation. Confirmed live via the "forrtl: error (200)" crash.
+    windowsHide: false,
+  });
 }
 
 async function stop() {

@@ -86,6 +86,13 @@ const config = Object.freeze({
       // "start it manually") rather than guessing a path that doesn't exist.
       startCommand: process.env.TTS_START_COMMAND || '',
       workdir: process.env.TTS_WORKDIR || '',
+      // Voice-cloning reads a reference .mp3 via pydub, which shells out to
+      // ffprobe/ffmpeg - not on PATH for a bare spawn() of the venv's
+      // python.exe (confirmed live: every clone-mode request failed with
+      // "ffprobe not found" even though the server itself was healthy).
+      // Directory containing ffmpeg.exe/ffprobe.exe to prepend to PATH;
+      // leave unset if they're already globally on PATH.
+      ffmpegPath: process.env.TTS_FFMPEG_PATH || '',
       healthUrl: process.env.TTS_HEALTH_URL || `${(process.env.TTS_API_URL || 'http://localhost:7860').replace(/\/$/, '')}/`,
       // Loading the TTS model onto the GPU is slower than LM Studio's model
       // load, hence the longer default startup budget.
@@ -159,6 +166,7 @@ const config = Object.freeze({
     defaultMaleImagePath: path.resolve(__dirname, '../../assets/avatar/default-male.jpg'),
     defaultFemaleImagePath: path.resolve(__dirname, '../../assets/avatar/default-female.jpg'),
     maxRetries: parseInt(process.env.AVATAR_MAX_RETRIES, 10) || 3,
+    timeout: parseInt(process.env.AVATAR_TIMEOUT, 10) || 120000,
   },
 
   remotion: {

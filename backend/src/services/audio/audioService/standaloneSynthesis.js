@@ -7,6 +7,7 @@ const LoggerService = require("../../common/LoggerService");
 const { resolveVoice } = require("./voiceCatalog");
 const { seedFromJobId, seedForVoice } = require("./seeding");
 const ttsClient = require("./ttsClient");
+const withTimeout = require("../../../utils/withTimeout");
 
 const execFileAsync = promisify(execFile);
 
@@ -34,11 +35,20 @@ async function synthesizeToFile(outputFile, text, voice, seed, instruct, logCtx,
         textLength: text.length,
       });
 
-      const client = await Client.connect(
-        config.tts.url.replace(/\/generate$/, "").replace(/\/$/, ""),
+      // Timeouts guard against a wedged Gradio server (queue subsystem
+      // stuck even though its health check still passes) hanging this
+      // call forever - see withTimeout's doc comment.
+      const client = await withTimeout(
+        Client.connect(config.tts.url.replace(/\/generate$/, "").replace(/\/$/, "")),
+        config.tts.timeout,
+        "Connecting to TTS server timed out"
       );
 
-      const result = await ttsClient.generate(client, resolved, text, seed, instruct, fastMode);
+      const result = await withTimeout(
+        ttsClient.generate(client, resolved, text, seed, instruct, fastMode),
+        config.tts.timeout,
+        "TTS generation timed out"
+      );
 
       const audio = result.data[0];
       if (!audio || !audio.url) {

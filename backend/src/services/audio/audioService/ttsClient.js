@@ -2,6 +2,7 @@ const config = require("../../../config");
 const LoggerService = require("../../common/LoggerService");
 const MetricsService = require("../../common/MetricsService");
 const CacheService = require("../../common/CacheService");
+const withTimeout = require("../../../utils/withTimeout");
 
 // Fast path for repeat calls within this process only - the persistent
 // Smart Cache lookup below is what survives across worker restarts/processes.
@@ -32,9 +33,11 @@ async function getReferenceText(client, filePath, cacheKey) {
     const audioBuffer = await fs.readFile(filePath);
     const mimeType = filePath.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : "audio/wav";
     const audioBlob = new Blob([audioBuffer], { type: mimeType });
-    const result = await client.predict("/transcribe_audio", {
-      audio: audioBlob,
-    });
+    const result = await withTimeout(
+      client.predict("/transcribe_audio", { audio: audioBlob }),
+      config.tts.timeout,
+      "TTS reference-audio transcription timed out"
+    );
     const transcript = (result.data?.[0] || "").toString().trim();
     transcriptCache.set(cacheKey, transcript);
     await CacheService.putReferenceTranscript(cacheKey, transcript);
