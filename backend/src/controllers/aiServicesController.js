@@ -6,6 +6,7 @@ const MANAGERS = {
   llm: LocalAIService.lmStudio,
   tts: LocalAIService.tts,
   comfyui: LocalAIService.comfyUI,
+  avatar: LocalAIService.avatar,
 };
 
 function assertValidService(service) {

@@ -1,3 +1,4 @@
+const path = require('path');
 const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
 const { ManagedProcess, parseCommand } = require('./processManager');
@@ -20,6 +21,28 @@ async function isRunning() {
   return checkHealth(cfg().healthUrl, { timeout: cfg().healthCheckTimeoutMs });
 }
 
+/**
+ * LivePortrait's env (see the comment above ManagedProcess) is a conda
+ * environment, not a plain venv - its `_ssl`/etc. native modules load DLLs
+ * (e.g. libssl-1_1-x64.dll) out of <env>\Library\bin, which is only on
+ * PATH after a real `conda activate`. Pinokio's own launcher does that
+ * activation; a bare spawn() of python.exe does not, and fails with
+ * "DLL load failed while importing _ssl". Reproduce the same PATH
+ * prepend `conda activate` would do, derived from the python.exe path in
+ * AVATAR_START_COMMAND so this isn't hardcoded to one machine's exact env.
+ */
+function condaEnvPathAdditions(pythonExePath) {
+  const envRoot = path.dirname(pythonExePath);
+  const additions = [
+    envRoot,
+    path.join(envRoot, 'Library', 'mingw-w64', 'bin'),
+    path.join(envRoot, 'Library', 'usr', 'bin'),
+    path.join(envRoot, 'Library', 'bin'),
+    path.join(envRoot, 'Scripts'),
+  ];
+  return `${additions.join(path.delimiter)}${path.delimiter}${process.env.PATH || ''}`;
+}
+
 async function start() {
   const { startCommand, workdir } = cfg();
   if (!startCommand) {
@@ -30,7 +53,7 @@ async function start() {
 
   const { command, args } = parseCommand(startCommand);
   LoggerService.info('[AI SERVICE] Starting LivePortrait', { command: startCommand, cwd: workdir });
-  managed.spawn({ command, args, cwd: workdir || undefined });
+  managed.spawn({ command, args, cwd: workdir || undefined, env: { PATH: condaEnvPathAdditions(command) } });
 }
 
 async function stop() {

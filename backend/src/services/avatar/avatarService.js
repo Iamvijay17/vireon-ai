@@ -6,6 +6,7 @@ const LoggerService = require("../common/LoggerService");
 const { getStorageProvider } = require("../storage/providers");
 const AudioService = require("../audio/audioService");
 const CacheService = require("../common/CacheService");
+const LocalAIService = require("../localAI");
 
 /**
  * Service for animating a source portrait photo into a small talking-head
@@ -90,6 +91,13 @@ class AvatarService {
       }
     }
 
+    // GPU-sequential: only claim the GPU once a cache hit has been ruled
+    // out - a cached clip must never trigger a LivePortrait cold start,
+    // that would defeat the whole point of the Smart Cache above.
+    return LocalAIService.gpu.withGPU("avatar", () => this._generateViaLivePortrait(jobId, sourceImagePath, cacheKey));
+  }
+
+  static async _generateViaLivePortrait(jobId, sourceImagePath, cacheKey) {
     const baseUrl = config.avatar.url.replace(/\/$/, "");
     const avatarDir = path.resolve(__dirname, "../../../jobs", jobId, "avatar");
     await fs.mkdir(avatarDir, { recursive: true });

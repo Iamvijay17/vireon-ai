@@ -23,7 +23,7 @@ router.get('/', authenticate, AIServicesController.getAll);
  *     summary: Start a local AI service if it isn't already running
  *     tags: [System]
  *     parameters:
- *       - { name: service, in: path, required: true, schema: { type: string, enum: [llm, tts, comfyui] } }
+ *       - { name: service, in: path, required: true, schema: { type: string, enum: [llm, tts, comfyui, avatar] } }
  *     responses:
  *       200: { description: Updated status }
  */
@@ -36,7 +36,7 @@ router.post('/:service/start', authenticate, AIServicesController.start);
  *     summary: Stop a local AI service this process started
  *     tags: [System]
  *     parameters:
- *       - { name: service, in: path, required: true, schema: { type: string, enum: [llm, tts, comfyui] } }
+ *       - { name: service, in: path, required: true, schema: { type: string, enum: [llm, tts, comfyui, avatar] } }
  *     responses:
  *       200: { description: Updated status }
  */
@@ -49,7 +49,7 @@ router.post('/:service/stop', authenticate, AIServicesController.stop);
  *     summary: Restart a local AI service
  *     tags: [System]
  *     parameters:
- *       - { name: service, in: path, required: true, schema: { type: string, enum: [llm, tts, comfyui] } }
+ *       - { name: service, in: path, required: true, schema: { type: string, enum: [llm, tts, comfyui, avatar] } }
  *     responses:
  *       200: { description: Updated status }
  */

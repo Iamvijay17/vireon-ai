@@ -58,7 +58,7 @@ class ManagedProcess extends EventEmitter {
    * so the service keeps running - and keeps its GPU/model state warm -
    * across backend restarts instead of dying with the Node process.
    */
-  spawn({ command, args = [], cwd } = {}) {
+  spawn({ command, args = [], cwd, env } = {}) {
     if (!command) {
       throw new Error(`No start command configured for ${this.name}`);
     }
@@ -71,6 +71,11 @@ class ManagedProcess extends EventEmitter {
     this.lastError = null;
     const child = spawn(command, args, {
       cwd,
+      // Merged over the inherited environment (not replacing it) - callers
+      // pass this for things like a conda env's DLL search path additions
+      // (see avatarManager.js) that a normal shell activation would set up
+      // but a direct spawn() doesn't.
+      env: env ? { ...process.env, ...env } : undefined,
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
