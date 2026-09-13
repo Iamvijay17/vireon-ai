@@ -106,6 +106,22 @@ async function ensureRunning() {
 
   LoggerService.tts('[AI SERVICE] Checking TTS');
 
+  // Trust our own tracked child before hitting the network. Qwen3-TTS's
+  // Gradio server answers "/" fine while idle, but its single Python
+  // process can go unresponsive to ANY request - including this health
+  // check - while it's synchronously busy loading the model onto the GPU
+  // or running an inference (confirmed live: healthCheckTimeoutMs=5s health
+  // checks timed out mid-generation on 2026-09-13, making ensureRunning()
+  // believe the service was down and spawn a SECOND process that fought the
+  // first over the same 6GB GPU - both then crashed together, see
+  // "[GPU] tts process crashed" at 14:01:48 and 15:08:59 in tts logs). A
+  // live tracked PID means the process we started is still up no matter how
+  // slow it is to answer right now, so skip the HTTP round trip entirely.
+  if (managed.isAlive()) {
+    LoggerService.tts('[AI SERVICE] TTS already running', { pid: managed.pid });
+    return true;
+  }
+
   if (await isRunning()) {
     LoggerService.tts('[AI SERVICE] TTS already running');
     return true;

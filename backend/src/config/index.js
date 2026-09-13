@@ -2,7 +2,15 @@ const dotenv = require('dotenv');
 const path = require('path');
 const os = require('os');
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// override: true - .env is this project's single source of truth (every
+// value here is documented/tuned for this machine's specific hardware and
+// Pinokio install paths). Without it, dotenv silently keeps whatever a
+// terminal session happens to already have exported (e.g. a stray
+// TTS_TIMEOUT from an earlier `set`), so editing .env and restarting the
+// dev server can look like it did nothing - confirmed live: a shell-level
+// TTS_TIMEOUT kept overriding a freshly-raised .env value across multiple
+// node --watch restarts on 2026-09-13.
+dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: true });
 
 const config = Object.freeze({
   port: parseInt(process.env.PORT, 10) || 3000,

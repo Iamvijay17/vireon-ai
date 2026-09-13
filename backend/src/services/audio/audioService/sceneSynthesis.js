@@ -241,6 +241,21 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
         if (!isLastAttempt) {
           const delay = Math.min(2000 * Math.pow(2, attempt - 1), 16000);
           await new Promise((resolve) => setTimeout(resolve, delay));
+
+          // A "timed out" failure means Gradio's job queue is silently
+          // wedged, not just slow - confirmed live 2026-09-13: the TTS
+          // process sat completely silent (no stderr, no progress) for the
+          // full timeout window on every attempt against the same server
+          // instance, and only recovered once that process was killed and
+          // respawned. The queue lives in the server process, so a fresh
+          // client connection to the SAME wedged process doesn't clear it -
+          // force a full process restart first.
+          if (/timed out/i.test(err.message)) {
+            LoggerService.warn(`Restarting Qwen3-TTS after a timeout - its job queue may be wedged`);
+            const LocalAIService = require("../../localAI");
+            await LocalAIService.tts.restart();
+          }
+
           // The failure may have been the connection itself going stale -
           // reconnect before the next attempt. When this client is shared
           // across scenes (clientHolder), the fresh connection replaces it
