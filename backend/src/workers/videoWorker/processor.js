@@ -1,6 +1,7 @@
 const config = require('../../config');
 const LoggerService = require('../../services/common/LoggerService');
 const ActivityLogService = require('../../services/common/ActivityLogService');
+const MetricsService = require('../../services/common/MetricsService');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const videoQueue = require('../../queues/videoQueue');
@@ -41,6 +42,14 @@ async function processVideoJob(job) {
   // Get job details to check current state
   let videoJob = await VideoService.getById(jobId);
   let currentStatus = videoJob.status;
+
+  // Queue wait = time between job creation and a worker actually picking
+  // it up - only meaningful the very first time a job is processed (a
+  // resumed/retried job's createdAt no longer reflects "time spent
+  // waiting", so this deliberately doesn't fire for those paths).
+  if (currentStatus === JOB_STATUS.QUEUED) {
+    MetricsService.recordDuration('queue.wait', Date.now() - videoJob.createdAt.getTime());
+  }
 
   // This job's previous attempt failed but had retries left - it was
   // re-enqueued (with a backoff delay) still sitting at RETRY_SCHEDULED
@@ -116,7 +125,7 @@ async function processVideoJob(job) {
     await bailIfCancelled(jobId);
 
     // ── Step 7: Render Video
-    await renderStep.render(jobId, assets, ctx);
+    await renderStep.render(jobId, assets, ctx, script);
 
     await bailIfCancelled(jobId);
 
@@ -172,6 +181,7 @@ async function processVideoJob(job) {
           `${step} failed (attempt ${attempt}/${maxRetries}): ${friendly} - retrying in ${Math.round(delay / 1000)}s`
         );
         await videoQueue.add('render-video', { jobId }, { jobId: `${jobId}:retry:${attempt}`, delay });
+        MetricsService.increment('job.retries');
       } catch (dbErr) {
         LoggerService.error('Failed to schedule automatic retry', { error: dbErr.message });
       }

@@ -3,6 +3,8 @@ const Course = require('../../models/Course');
 const CourseVideo = require('../../models/CourseVideo');
 const Asset = require('../../models/Asset');
 const MetricsService = require('./MetricsService');
+const config = require('../../config');
+const videoQueue = require('../../queues/videoQueue');
 const { JOB_STATUS, STAGE_STATUS } = require('../../constants');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -37,7 +39,9 @@ class AnalyticsService {
       jobStatusRows,
       jobTypeRows,
       jobResolutionRows,
-      avgRenderRows,
+      jobVoiceRows,
+      jobLayoutRows,
+      avgGenerationRows,
       jobTrendRows,
       totalCourses,
       courseStatusRows,
@@ -52,11 +56,21 @@ class AnalyticsService {
       storageByCategory,
       avgTtsTimeMs,
       cacheHitRate,
+      avgRenderTimeMs,
+      avgQueueWaitMs,
+      jobRetryCount,
+      workerJobCounts,
     ] = await Promise.all([
       VideoJob.countDocuments(),
       VideoJob.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
       VideoJob.aggregate([{ $group: { _id: '$type', count: { $sum: 1 } } }]),
       VideoJob.aggregate([{ $group: { _id: '$resolution', count: { $sum: 1 } } }]),
+      VideoJob.aggregate([{ $group: { _id: '$voice', count: { $sum: 1 } } }]),
+      VideoJob.aggregate([{ $group: { _id: '$aspectRatio', count: { $sum: 1 } } }]),
+      // Whole-pipeline duration (script -> upload), distinct from
+      // avgRenderTimeMs below which times only the Remotion render step
+      // itself (see MetricsService's 'render.duration', recorded in
+      // RemotionService.renderVideo).
       VideoJob.aggregate([
         { $match: { status: JOB_STATUS.COMPLETED } },
         { $project: { durationMs: { $subtract: ['$updatedAt', '$createdAt'] } } },
@@ -96,6 +110,10 @@ class AnalyticsService {
       Asset.aggregate([{ $group: { _id: '$category', bytes: { $sum: '$size' } } }]),
       MetricsService.getAverage('tts.duration'),
       MetricsService.getRate('cache.hits', 'cache.misses'),
+      MetricsService.getAverage('render.duration'),
+      MetricsService.getAverage('queue.wait'),
+      MetricsService.getCount('job.retries'),
+      videoQueue.getJobCounts('active', 'waiting', 'delayed').catch(() => ({})),
     ]);
 
     const jobStatusCounts = countsByKey(jobStatusRows);
@@ -174,9 +192,12 @@ class AnalyticsService {
         failedVideoJobs: failedJobs,
         activeVideoJobs: activeJobs,
         jobSuccessRate: resolvedJobs ? Math.round((completedJobs / resolvedJobs) * 1000) / 10 : null,
-        avgRenderTimeMs: avgRenderRows[0]?.avgMs ?? null,
+        jobFailureRate: resolvedJobs ? Math.round((failedJobs / resolvedJobs) * 1000) / 10 : null,
+        avgGenerationTimeMs: avgGenerationRows[0]?.avgMs ?? null,
+        avgRenderTimeMs,
         avgTtsTimeMs,
         cacheHitRate,
+        avgQueueWaitMs,
         totalStorageBytes,
         totalCourses,
         totalCourseVideos,
@@ -185,10 +206,20 @@ class AnalyticsService {
         inProgressCourses: courseStatusCounts['In Progress'] || 0,
         completedCourses: courseStatusCounts['Completed'] || 0,
       },
+      worker: {
+        concurrency: config.videoWorker.concurrency,
+        activeJobs: workerJobCounts.active || 0,
+        waitingJobs: workerJobCounts.waiting || 0,
+        delayedJobs: workerJobCounts.delayed || 0,
+        totalRetries: jobRetryCount,
+        retryRate: totalVideoJobs ? Math.round((jobRetryCount / totalVideoJobs) * 1000) / 10 : null,
+      },
       trend,
       jobsByStatus: toChartRows(jobStatusRows),
       jobsByType: toChartRows(jobTypeRows),
       topTemplates: toChartRows(jobTypeRows),
+      topVoices: toChartRows(jobVoiceRows),
+      topLayouts: toChartRows(jobLayoutRows),
       jobsByResolution: toChartRows(jobResolutionRows),
       coursesByStatus: toChartRows(courseStatusRows),
       coursesByCategory: toChartRows(courseCategoryRows),

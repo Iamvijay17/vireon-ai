@@ -30,6 +30,11 @@ class MetricsService {
     return doc.sum / doc.count;
   }
 
+  static async getCount(key) {
+    const doc = await Metric.findById(key).lean();
+    return doc?.count || 0;
+  }
+
   static async getRate(hitKey, missKey) {
     const [hits, misses] = await Promise.all([
       Metric.findById(hitKey).lean(),

@@ -6,6 +6,7 @@ const path = require('path');
 const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
 const { getStorageProvider } = require('../storage/providers');
+const MetricsService = require('../common/MetricsService');
 
 const execFileAsync = promisify(execFile);
 
@@ -144,6 +145,77 @@ class RemotionService {
   }
 
   /**
+   * Pre-render validation: catches the cheap, structural failure modes
+   * that would otherwise only surface as a wasted multi-minute Remotion
+   * render (or a broken-looking output video) - missing/duplicate scene
+   * numbers, a scene with no duration, narration text whose TTS pass
+   * produced a 0-duration clip, an image prompt whose image never got
+   * generated, or scene audio that was recorded but never made it to
+   * storage. Collects every issue instead of failing on the first, so a
+   * job with several broken scenes reports all of them in one pass.
+   *
+   * `scenes` should be the source script's scene array (job.script.scenes
+   * or CourseVideo's equivalent) - not the transformed assets.json shape,
+   * since prepareAssets strips scene.audio.text, which this needs to tell
+   * "no narration expected" apart from "TTS produced an empty clip".
+   */
+  static async validateAssets(jobId, scenes) {
+    const issues = [];
+
+    if (!Array.isArray(scenes) || scenes.length === 0) {
+      throw new Error('Pre-render validation failed: script has no scenes');
+    }
+
+    const provider = getStorageProvider();
+    const seenSceneNumbers = new Set();
+
+    for (const scene of scenes) {
+      const sceneNum = scene.sceneNumber;
+      const label = `Scene ${sceneNum ?? '?'}`;
+
+      if (sceneNum == null) {
+        issues.push(`${label}: missing sceneNumber`);
+      } else if (seenSceneNumbers.has(sceneNum)) {
+        issues.push(`${label}: duplicate sceneNumber`);
+      } else {
+        seenSceneNumbers.add(sceneNum);
+      }
+
+      if (!scene.templateId && !scene.sceneType) {
+        issues.push(`${label}: missing templateId/sceneType`);
+      }
+
+      const duration = scene.audio?.duration || scene.duration;
+      if (!(duration > 0)) {
+        issues.push(`${label}: duration must be greater than 0`);
+      }
+
+      const narrationText = scene.audio?.text?.trim();
+      if (narrationText) {
+        if (!(scene.audio?.duration > 0)) {
+          issues.push(`${label}: has narration text but audio duration is 0 - TTS likely produced an empty clip`);
+        }
+        if (sceneNum != null) {
+          const exists = await provider.objectExists(jobId, 'audio', `scene${sceneNum}.mp3`);
+          if (!exists) issues.push(`${label}: audio file is missing from storage`);
+        }
+      }
+
+      // scene.imagePrompt is only ever set when the script generator chose
+      // an image-bearing template for this scene (see TemplateCategories.js's
+      // 'image'/'contentwithimage' categories) - a scene with no image
+      // prompt legitimately has no image and isn't checked here.
+      if (scene.imagePrompt && !scene.imageUrl) {
+        issues.push(`${label}: image prompt set but no image was generated`);
+      }
+    }
+
+    if (issues.length > 0) {
+      throw new Error(`Pre-render validation failed:\n- ${issues.join('\n- ')}`);
+    }
+  }
+
+  /**
    * Deterministic fingerprint of an assets.json payload - used to tell
    * whether an existing render/video.mp4 still reflects the scenes that
    * would be rendered right now, or was produced from an older version
@@ -220,6 +292,7 @@ class RemotionService {
      await this._verifySceneAudioFiles(jobId, assetsFile.scenes);
 
      let lastError = null;
+     const renderStartedAt = Date.now();
 
      for (let attempt = 1; attempt <= config.remotion.maxRetries; attempt++) {
        try {
@@ -313,6 +386,12 @@ class RemotionService {
           this._fingerprintAssets(assetsFile),
           'utf-8'
         );
+
+        // Timed from the first attempt, not just the successful one - a
+        // render that needed a retry genuinely took longer end-to-end, and
+        // that's the number the Analytics "Avg. Render Time" card should
+        // reflect. Best-effort: never let metrics recording fail a render.
+        MetricsService.recordDuration('render.duration', Date.now() - renderStartedAt);
 
         return {
           video: 'render/video.mp4',

@@ -18,6 +18,9 @@ import {
   XCircle,
   Clock,
   Video,
+  Cpu,
+  LayoutGrid,
+  Hourglass,
 } from "lucide-react";
 import { getAnalyticsOverview } from "../../services/api";
 import { PageHeader, LoadingState, EmptyState } from "../../components";
@@ -197,6 +200,13 @@ const Analytics = () => {
       caption: "vs last period",
     },
     {
+      title: "Failure Rate",
+      value: formatPercent(summary.jobFailureRate),
+      icon: AlertTriangle,
+      tone: "danger",
+      caption: "of resolved jobs",
+    },
+    {
       title: "Course Completion",
       value: formatPercent(summary.courseCompletionRate),
       icon: GraduationCap,
@@ -207,8 +217,10 @@ const Analytics = () => {
   ];
 
   const timeStats = [
+    { title: "Avg. Generation Time", value: formatDuration(summary.avgGenerationTimeMs), icon: Hourglass, tone: "info" },
     { title: "Avg. Render Time", value: formatDuration(summary.avgRenderTimeMs), icon: Timer, tone: "warning" },
     { title: "Avg. TTS Time", value: formatDuration(summary.avgTtsTimeMs), icon: Mic2, tone: "accent" },
+    { title: "Queue Wait Time", value: formatDuration(summary.avgQueueWaitMs), icon: Clock, tone: "success" },
   ];
 
   const trendSeries = [
@@ -404,8 +416,61 @@ const Analytics = () => {
         </Card>
       </div>
 
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <Card className="animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 13 }}>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Mic2 className="size-4 text-text-tertiary" /> Voices
+              </span>
+            }
+          />
+          <div className="p-3">
+            <RankedBarChart rows={data?.topVoices || []} palette={CATEGORICAL_PALETTE} emptyLabel="No video jobs yet." />
+          </div>
+        </Card>
+
+        <Card className="animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 14 }}>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <LayoutGrid className="size-4 text-text-tertiary" /> Layouts
+              </span>
+            }
+            subtitle="By orientation (aspect ratio)"
+          />
+          <div className="p-3">
+            <RankedBarChart rows={data?.topLayouts || []} palette={CATEGORICAL_PALETTE} emptyLabel="No video jobs yet." />
+          </div>
+        </Card>
+
+        <Card className="animate-slide-up rounded-2xl p-4 shadow-sm" style={{ "--stagger-index": 15 }}>
+          <p className="flex items-center gap-2 text-xs font-medium text-text-secondary">
+            <Cpu className="size-4 text-text-tertiary" /> Worker Performance
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] text-text-tertiary">Concurrency</p>
+              <p className="text-base font-semibold tracking-tight text-text-primary">{data?.worker?.concurrency ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-text-tertiary">Active Jobs</p>
+              <p className="text-base font-semibold tracking-tight text-text-primary">{data?.worker?.activeJobs ?? 0}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-text-tertiary">Waiting Jobs</p>
+              <p className="text-base font-semibold tracking-tight text-text-primary">{data?.worker?.waitingJobs ?? 0}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-text-tertiary">Retry Rate</p>
+              <p className="text-base font-semibold tracking-tight text-text-primary">{formatPercent(data?.worker?.retryRate)}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
       {/* Course pipeline health */}
-      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 13 }}>
+      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 16 }}>
         <CardHeader title="Course Video Pipeline" subtitle="Script, audio and render stage status across all lessons" />
         <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-3">
           <StatusStackedBar label="Script" rows={data?.courseVideoStages?.script || []} />
@@ -415,7 +480,7 @@ const Analytics = () => {
       </Card>
 
       {/* Recent failures */}
-      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 14 }}>
+      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 17 }}>
         <CardHeader
           title={
             <span className="flex items-center gap-2">
