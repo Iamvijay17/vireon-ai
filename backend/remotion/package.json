@@ -25,6 +25,7 @@
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
     "lint": "eslint src",
+    "test": "node scripts/test.mjs",
     "render": "remotion render VideoComposition out/video.mp4"
   },
   "sideEffects": [

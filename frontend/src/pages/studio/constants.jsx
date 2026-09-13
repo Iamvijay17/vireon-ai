@@ -29,7 +29,9 @@ export const FONT_FAMILY_OPTIONS = [
 export const TRANSITION_OPTIONS = [
   { value: "fade", label: "Fade" },
   { value: "slide", label: "Slide" },
+  { value: "slideUp", label: "Slide Up" },
   { value: "wipe", label: "Wipe" },
+  { value: "irisWipe", label: "Iris Wipe" },
   { value: "zoom", label: "Zoom" },
   { value: "dissolve", label: "Dissolve" },
   { value: "none", label: "Cut" },

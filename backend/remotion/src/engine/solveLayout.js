@@ -1,323 +1,21 @@
 import { createSeededRng, pick } from './seedRandom';
-import { fitTextToBox } from './textFit';
+import { SCENE_REGISTRY, STAT_PATTERN } from './scenes';
 
 /**
  * Layout Solver - layer 2 of the generative scene engine.
  *
  * Computes a flat list of resolved slots `{ id, role, xPct, yPct, wPct,
- * hPct, fontSize, ... }` from a ContentProfile, instead of picking one of
- * N pre-authored template files. All geometry is solved against a fixed
- * 1920x1080 reference canvas (GeneratedScene.jsx scales the whole content
- * layer against the actual render width, same pattern every hand-coded
- * template already uses).
+ * hPct, fontSize, ... }` from a ContentProfile by routing to one of the 12
+ * Scene Components in `engine/scenes/` (see its index.js doc comment) -
+ * instead of picking one of N pre-authored template files. All geometry is
+ * solved against a fixed 1920x1080 reference canvas (GeneratedScene.jsx
+ * scales the whole content layer against the actual render width, same
+ * pattern every hand-coded template already uses).
  *
  * `solveLayout(profile, seed)` is a pure function: same inputs always
  * produce the same LayoutPlan, so it's safe to recompute on every render
  * (preview or final) rather than needing to be precomputed and persisted.
  */
-const CANVAS = { width: 1920, height: 1080 };
-const PAD = { x: 120, top: 90, bottom: 90 };
-
-// Must mirror SlotText's title `lineHeight` (roleBaseStyle's 'title' case) -
-// otherwise the height reserved here for the title diverges from what it
-// actually renders at, and either overlaps the next slot or leaves a gap.
-const TITLE_LINE_HEIGHT = 1.15;
-const TITLE_BOX_HEIGHT_BUDGET = 200;
-// Hard ceiling on how much vertical space a title may ever claim, even if
-// fitTextToBox bottoms out at minFontSize and still needs more lines than
-// the budget above - without this, an unusually long title could push
-// stack-based content (buildStackList etc., via contentTopAfterTitle) down
-// far enough to squeeze list items into zero/negative height. SlotText clips
-// render to this same figure (slot.hPct), so past this point the title
-// truncates cleanly instead of overflowing.
-const MAX_TITLE_RESERVED_HEIGHT = 400;
-
-// Returns the slot with its actual measured height (lines * fontSize *
-// lineHeight, capped at MAX_TITLE_RESERVED_HEIGHT) so callers can reserve
-// real space for what follows instead of assuming every title fits the same
-// fixed box - a long title that only shrinks down to minFontSize still needs
-// more lines than the budget assumes, and previously that overflow silently
-// bled into the next slot (see SlotText - non-card text slots had no
-// height/overflow clipping).
-const titleSlot = (title, boxWidth, yPct, maxFontSize = 68) => {
-  if (!title) return null;
-  const { fontSize, lines } = fitTextToBox(title, {
-    boxWidth, boxHeight: TITLE_BOX_HEIGHT_BUDGET, maxFontSize, minFontSize: 38, lineHeight: TITLE_LINE_HEIGHT,
-  });
-  const height = Math.min(lines * fontSize * TITLE_LINE_HEIGHT, MAX_TITLE_RESERVED_HEIGHT);
-  return {
-    id: 'title', role: 'title', text: title,
-    xPct: PAD.x / CANVAS.width, yPct,
-    wPct: boxWidth / CANVAS.width, hPct: height / CANVAS.height,
-    fontSize, textAlign: 'left',
-  };
-};
-
-// The vertical offset stack-based strategies reserve for content that
-// follows the title - the title's own measured height (see titleSlot) plus
-// a fixed gap, instead of a magic constant that assumed every title fits in
-// ~200px regardless of how much text it actually holds.
-const TITLE_GAP = 40;
-const contentTopAfterTitle = (title, fallbackTop) => (title ? PAD.top + title.hPct * CANVAS.height + TITLE_GAP : fallbackTop);
-
-// The fixed-offset strategies below (split-image, podcast-*) place the slot
-// after the title at a constant yPct sized around a typical short title,
-// rather than deriving it from the title (like contentTopAfterTitle does for
-// the stack-based strategies). Only push that slot past its usual position
-// when the title actually measures taller than the gap already allows -
-// normal short titles keep the original, unperturbed layout.
-const yPctAfterTitle = (title, gapPx, fallbackYPct) => {
-  if (!title) return fallbackYPct;
-  return Math.max(fallbackYPct, title.yPct + title.hPct + gapPx / CANVAS.height);
-};
-
-const buildTitleOnly = (profile) => {
-  const boxWidth = CANVAS.width - PAD.x * 2;
-  const slot = titleSlot(profile.title, boxWidth, 0.42, 76);
-  return slot ? [slot] : [];
-};
-
-const buildStackList = (profile) => {
-  const boxWidth = CANVAS.width - PAD.x * 2;
-  const rowWidth = boxWidth * 0.88;
-  const slots = [];
-  const title = titleSlot(profile.title, boxWidth, PAD.top / CANVAS.height);
-  if (title) slots.push(title);
-
-  const listTop = contentTopAfterTitle(title, PAD.top);
-  const rowHeight = Math.min(110, (CANVAS.height - listTop - PAD.bottom) / Math.max(profile.itemCount, 1));
-  profile.items.forEach((item, index) => {
-    const { fontSize } = fitTextToBox(item.text || '', { boxWidth: rowWidth, boxHeight: rowHeight - 16, maxFontSize: 32, minFontSize: 20 });
-    slots.push({
-      id: `item-${index}`, role: 'listItem', text: item.text || '', heading: item.heading || '',
-      xPct: PAD.x / CANVAS.width, yPct: (listTop + index * rowHeight) / CANVAS.height,
-      wPct: rowWidth / CANVAS.width, hPct: (rowHeight - 16) / CANVAS.height,
-      fontSize, textAlign: 'left', bullet: true,
-    });
-  });
-  return slots;
-};
-
-const buildGrid = (profile) => {
-  const boxWidth = CANVAS.width - PAD.x * 2;
-  const slots = [];
-  const title = titleSlot(profile.title, boxWidth, PAD.top / CANVAS.height, 56);
-  if (title) slots.push(title);
-
-  const cols = 2;
-  const gap = 32;
-  const gridTop = contentTopAfterTitle(title, PAD.top);
-  const gridHeight = CANVAS.height - gridTop - PAD.bottom;
-  const rows = Math.ceil(profile.itemCount / cols);
-  const cardWidth = (boxWidth - gap * (cols - 1)) / cols;
-  const cardHeight = Math.min(190, (gridHeight - gap * Math.max(rows - 1, 0)) / Math.max(rows, 1));
-
-  profile.items.forEach((item, index) => {
-    const col = index % cols;
-    const row = Math.floor(index / cols);
-    const { fontSize } = fitTextToBox(item.text || '', { boxWidth: cardWidth - 56, boxHeight: cardHeight - 70, maxFontSize: 26, minFontSize: 17 });
-    slots.push({
-      id: `item-${index}`, role: 'listItem', text: item.text || '', heading: item.heading || '',
-      xPct: (PAD.x + col * (cardWidth + gap)) / CANVAS.width,
-      yPct: (gridTop + row * (cardHeight + gap)) / CANVAS.height,
-      wPct: cardWidth / CANVAS.width, hPct: cardHeight / CANVAS.height,
-      fontSize, textAlign: 'left', card: true,
-    });
-  });
-  return slots;
-};
-
-const buildTimeline = (profile) => {
-  const boxWidth = CANVAS.width - PAD.x * 2 - 70;
-  const slots = [];
-  const title = titleSlot(profile.title, CANVAS.width - PAD.x * 2, PAD.top / CANVAS.height);
-  if (title) slots.push(title);
-
-  const listTop = contentTopAfterTitle(title, PAD.top);
-  const rowHeight = Math.min(140, (CANVAS.height - listTop - PAD.bottom) / Math.max(profile.itemCount, 1));
-  profile.items.forEach((item, index) => {
-    const { fontSize } = fitTextToBox(item.text || '', { boxWidth, boxHeight: rowHeight - 24, maxFontSize: 28, minFontSize: 18 });
-    slots.push({
-      id: `item-${index}`, role: 'listItem', text: item.text || '', heading: item.heading || '',
-      xPct: (PAD.x + 70) / CANVAS.width, yPct: (listTop + index * rowHeight) / CANVAS.height,
-      wPct: boxWidth / CANVAS.width, hPct: (rowHeight - 24) / CANVAS.height,
-      fontSize, textAlign: 'left', numbered: true, index,
-    });
-  });
-  return slots;
-};
-
-const buildParagraphStack = (profile) => {
-  const boxWidth = CANVAS.width - PAD.x * 2;
-  const slots = [];
-  const title = titleSlot(profile.title, boxWidth, PAD.top / CANVAS.height);
-  if (title) slots.push(title);
-
-  const stackTop = contentTopAfterTitle(title, PAD.top);
-  const available = CANVAS.height - stackTop - PAD.bottom;
-  const rowHeight = available / Math.max(profile.itemCount, 1);
-  profile.items.forEach((item, index) => {
-    const { fontSize } = fitTextToBox(item.text || '', { boxWidth, boxHeight: rowHeight - 28, maxFontSize: 34, minFontSize: 22 });
-    slots.push({
-      id: `item-${index}`, role: 'body', text: item.text || '',
-      xPct: PAD.x / CANVAS.width, yPct: (stackTop + index * rowHeight) / CANVAS.height,
-      wPct: boxWidth / CANVAS.width, hPct: (rowHeight - 28) / CANVAS.height,
-      fontSize, textAlign: 'left',
-    });
-  });
-  return slots;
-};
-
-const buildSplitImage = (profile, rng) => {
-  const imageLeft = pick(rng, [true, false]);
-  const halfWidth = CANVAS.width / 2;
-  const textPad = 90;
-  const textBoxWidth = halfWidth - textPad * 2;
-  const textX = imageLeft ? halfWidth + textPad : textPad;
-  const slots = [];
-
-  slots.push({
-    id: 'image', role: 'image',
-    xPct: (imageLeft ? 0 : halfWidth) / CANVAS.width, yPct: 0,
-    wPct: halfWidth / CANVAS.width, hPct: 1,
-  });
-
-  const title = titleSlot(profile.title, textBoxWidth, 0.36, 54);
-  if (title) slots.push({ ...title, xPct: textX / CANVAS.width, yPct: 0.36, wPct: textBoxWidth / CANVAS.width });
-
-  const bodyText = profile.body || profile.items[0]?.text || '';
-  if (bodyText) {
-    const { fontSize } = fitTextToBox(bodyText, { boxWidth: textBoxWidth, boxHeight: 320, maxFontSize: 30, minFontSize: 20 });
-    slots.push({
-      id: 'body', role: 'body', text: bodyText,
-      xPct: textX / CANVAS.width, yPct: yPctAfterTitle(title, TITLE_GAP, 0.54),
-      wPct: textBoxWidth / CANVAS.width, hPct: 0.32,
-      fontSize, textAlign: 'left',
-    });
-  }
-  return slots;
-};
-
-// "image" scenes: full-bleed background image with a bottom-anchored
-// headline/kicker (normalized into title/subtitle by analyzeContent - see
-// its "image" branch), rather than the split image/text panel used for
-// content-with-image. Marked `scrim: true` so GeneratedScene renders a
-// bottom gradient behind the text for legibility over arbitrary imagery,
-// same purpose as templates/001-image's gradient overlay.
-const buildImageFullbleed = (profile) => {
-  const boxWidth = CANVAS.width - PAD.x * 2;
-  const slots = [{ id: 'image', role: 'image', xPct: 0, yPct: 0, wPct: 1, hPct: 1 }];
-
-  if (profile.subtitle) {
-    slots.push({
-      id: 'label', role: 'label', text: profile.subtitle,
-      xPct: PAD.x / CANVAS.width, yPct: 0.72,
-      wPct: boxWidth / CANVAS.width, hPct: 0.05, fontSize: 22, textAlign: 'left',
-    });
-  }
-  if (profile.title) {
-    const { fontSize } = fitTextToBox(profile.title, { boxWidth, boxHeight: 220, maxFontSize: 64, minFontSize: 36 });
-    slots.push({
-      id: 'title', role: 'title', text: profile.title,
-      xPct: PAD.x / CANVAS.width, yPct: 0.79,
-      wPct: boxWidth / CANVAS.width, hPct: 0.19, fontSize, textAlign: 'left',
-    });
-  }
-  return slots;
-};
-
-// "podcast" scenes, split-screen variant (mirrors templates/002-podcast):
-// host image fills one half (side picked by seed, same as buildSplitImage),
-// with hostName rendered as a nameplate overlay on the image itself (not in
-// the text panel - `nameplateText` on the image slot, rendered by
-// SlotImage), while the other half carries show title, episode subtitle,
-// and a decorative waveform. Normalized field names from analyzeContent's
-// "podcast" branch (title/subtitle/hostName/imageSrc).
-const buildPodcastSplit = (profile, rng) => {
-  const imageLeft = pick(rng, [true, false]);
-  const halfWidth = CANVAS.width / 2;
-  const textPad = 90;
-  const textBoxWidth = halfWidth - textPad * 2;
-  const textX = imageLeft ? halfWidth + textPad : textPad;
-  const slots = [{
-    id: 'image', role: 'image',
-    xPct: (imageLeft ? 0 : halfWidth) / CANVAS.width, yPct: 0,
-    wPct: halfWidth / CANVAS.width, hPct: 1,
-    nameplateText: profile.hostName || '',
-  }];
-
-  const title = titleSlot(profile.title, textBoxWidth, 0.38, 50);
-  if (title) slots.push({ ...title, xPct: textX / CANVAS.width, wPct: textBoxWidth / CANVAS.width });
-
-  if (profile.subtitle) {
-    const { fontSize } = fitTextToBox(profile.subtitle, { boxWidth: textBoxWidth, boxHeight: 140, maxFontSize: 26, minFontSize: 18 });
-    slots.push({
-      id: 'subtitle', role: 'body', text: profile.subtitle,
-      xPct: textX / CANVAS.width, yPct: yPctAfterTitle(title, TITLE_GAP, 0.56),
-      wPct: textBoxWidth / CANVAS.width, hPct: 0.14, fontSize, textAlign: 'left',
-    });
-  }
-
-  return { slots, waveform: { xPct: textX / CANVAS.width, yPct: 0.74, wPct: 0.16 } };
-};
-
-// "podcast" scenes, centered variant (mirrors templates/001-podcast): a
-// single panel with a circular host avatar, hostName below it as a small
-// label, centered title/subtitle, and a centered waveform - the seed-picked
-// alternative to buildPodcastSplit's two-panel composition (see
-// chooseStrategy), giving podcast content the same kind of structural
-// variety "content" scenes already get from grid/timeline.
-const buildPodcastCentered = (profile) => {
-  const avatarSize = 220;
-  const avatarWPct = avatarSize / CANVAS.width;
-  const avatarHPct = avatarSize / CANVAS.height;
-  const centerWidth = CANVAS.width * 0.7;
-  const centerX = (CANVAS.width - centerWidth) / 2;
-  const slots = [];
-
-  if (profile.imageSrc) {
-    slots.push({
-      id: 'image', role: 'image', circle: true,
-      xPct: 0.5 - avatarWPct / 2, yPct: 0.13,
-      wPct: avatarWPct, hPct: avatarHPct,
-    });
-  }
-
-  if (profile.hostName) {
-    slots.push({
-      id: 'label', role: 'label', text: profile.hostName,
-      xPct: centerX / CANVAS.width, yPct: 0.40,
-      wPct: centerWidth / CANVAS.width, hPct: 0.05, fontSize: 22, textAlign: 'center',
-    });
-  }
-
-  const title = titleSlot(profile.title, centerWidth, 0.46, 56);
-  if (title) slots.push({ ...title, xPct: centerX / CANVAS.width, wPct: centerWidth / CANVAS.width, textAlign: 'center' });
-
-  if (profile.subtitle) {
-    const { fontSize } = fitTextToBox(profile.subtitle, { boxWidth: centerWidth, boxHeight: 100, maxFontSize: 26, minFontSize: 18 });
-    slots.push({
-      id: 'subtitle', role: 'body', text: profile.subtitle,
-      xPct: centerX / CANVAS.width, yPct: yPctAfterTitle(title, TITLE_GAP, 0.62),
-      wPct: centerWidth / CANVAS.width, hPct: 0.1, fontSize, textAlign: 'center',
-    });
-  }
-
-  return { slots, waveform: { xPct: 0.5 - 0.08, yPct: 0.76, wPct: 0.16 } };
-};
-
-const STRATEGY_BUILDERS = {
-  'title-only': buildTitleOnly,
-  'stack-list': buildStackList,
-  grid: buildGrid,
-  timeline: buildTimeline,
-  'paragraph-stack': buildParagraphStack,
-  'split-image': buildSplitImage,
-  'image-fullbleed': buildImageFullbleed,
-  'podcast-split': buildPodcastSplit,
-  'podcast-centered': buildPodcastCentered,
-};
-
 const SCRIM_STRATEGIES = new Set(['image-fullbleed']);
 
 /**
@@ -334,21 +32,26 @@ const chooseStrategy = (profile, rng) => {
   if (profile.sceneType === 'image') return 'image-fullbleed';
   if (profile.sceneType === 'podcast') return pick(rng, ['podcast-split', 'podcast-centered']);
 
-  const { itemCount, density, hasImage, hasHeadings } = profile;
+  const { itemCount, density, hasImage, hasHeadings, items, body } = profile;
   if (hasImage) return 'split-image';
-  if (itemCount === 0) return 'title-only';
+  // A body paragraph with no items used to fall through to title-only,
+  // which never reads `profile.body` - silently dropping the text. Routing
+  // a substantial body to quote-feature instead actually uses it.
+  if (itemCount === 0) return body && body.length >= 60 ? 'quote-feature' : 'title-only';
   if (density === 'paragraph' && itemCount <= 3) return 'paragraph-stack';
+  if (itemCount === 1 && STAT_PATTERN.test((items[0]?.text || '').trim())) return 'stat-highlight';
+  if (itemCount === 2) return 'comparison-split';
   if (itemCount >= 4 && density !== 'paragraph') return pick(rng, ['grid', 'timeline']);
   return hasHeadings ? 'timeline' : 'stack-list';
 };
 
-// Builders return either a plain slot array (most strategies) or
+// Scene Components return either a plain slot array (most) or
 // `{ slots, waveform }` when they also place the decorative podcast
 // waveform (see GeneratedScene.jsx's Waveform primitive) - normalized here
 // so solveLayout always returns a consistent LayoutPlan shape either way.
 const runBuilder = (strategy, profile, rng) => {
-  const builder = STRATEGY_BUILDERS[strategy] || STRATEGY_BUILDERS['stack-list'];
-  const result = builder(profile, rng);
+  const component = SCENE_REGISTRY[strategy] || SCENE_REGISTRY['stack-list'];
+  const result = component.build(profile, rng);
   return Array.isArray(result) ? { slots: result, waveform: null } : result;
 };
 
@@ -356,5 +59,5 @@ export const solveLayout = (profile, seedInput) => {
   const rng = createSeededRng(`${seedInput}-layout`);
   const strategy = chooseStrategy(profile, rng);
   const { slots, waveform } = runBuilder(strategy, profile, rng);
-  return { strategy, canvas: CANVAS, slots: slots.filter(Boolean), scrim: SCRIM_STRATEGIES.has(strategy), waveform: waveform || null };
+  return { strategy, canvas: { width: 1920, height: 1080 }, slots: slots.filter(Boolean), scrim: SCRIM_STRATEGIES.has(strategy), waveform: waveform || null };
 };

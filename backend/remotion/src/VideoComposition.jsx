@@ -3,6 +3,7 @@ import { AbsoluteFill, Sequence, Video, interpolate, useCurrentFrame } from "rem
 import TemplateRegistry from "./templates/TemplateRegistry";
 import DefaultTemplate from "./templates/DefaultTemplate";
 import { applyFontPairing } from "./theme";
+import { isHardCut, getTransitionStyle, resolveTransitionId } from "./transitions";
 
 const Text = ({ children, style }) => <div style={style}>{children}</div>;
 
@@ -13,10 +14,6 @@ const Text = ({ children, style }) => <div style={style}>{children}</div>;
 const BackgroundLayer = ({ backgroundColor }) => (
   <AbsoluteFill style={{ backgroundColor: backgroundColor || "#1a1a2e" }} />
 );
-
-// Transition types that skip the crossfade overlap entirely - the incoming
-// scene's Sequence starts exactly where the previous one ends, no blending.
-const HARD_CUT_TRANSITIONS = new Set(["cut", "none"]);
 
 /**
  * Eases the incoming scene in over `frames` (0 -> 1), matching the interpolate
@@ -40,32 +37,7 @@ const useEntranceProgress = (frames) => {
  */
 const SceneTransition = ({ children, backgroundColor, fadeInFrames = 0, transitionType = "fade" }) => {
   const progress = useEntranceProgress(fadeInFrames);
-
-  let style = { opacity: 1 };
-  switch (transitionType) {
-    case "cut":
-    case "none":
-      // No overlap is computed for these (see boundary transition lookup
-      // below), so progress is always 1 - style is a no-op safety net.
-      style = { opacity: 1 };
-      break;
-    case "slide":
-      // Slides in from the right over a static, fully-opaque background.
-      style = { opacity: 1, transform: `translateX(${(1 - progress) * 100}%)` };
-      break;
-    case "wipe":
-      // Reveals left-to-right via a growing clip window instead of fading.
-      style = { opacity: 1, clipPath: `inset(0 ${(1 - progress) * 100}% 0 0)` };
-      break;
-    case "zoom":
-      style = { opacity: progress, transform: `scale(${0.85 + progress * 0.15})` };
-      break;
-    case "dissolve":
-    case "fade":
-    default:
-      style = { opacity: progress };
-      break;
-  }
+  const style = getTransitionStyle(transitionType, progress);
 
   return (
     <AbsoluteFill style={style}>
@@ -271,8 +243,8 @@ export const VideoComposition = ({ assets, jobId }) => {
   // overlap so they land as a true hard cut instead of a hidden crossfade.
   const boundaryOverlap = (index) => {
     const incoming = layout[index]?.scene;
-    const transitionType = incoming?.transition || "fade";
-    if (HARD_CUT_TRANSITIONS.has(transitionType)) return 0;
+    const transitionType = resolveTransitionId(incoming, index);
+    if (isHardCut(transitionType)) return 0;
     return Math.min(
       MAX_TRANSITION_FRAMES,
       Math.floor(layout[index - 1].sceneFrames / 3),
@@ -285,7 +257,7 @@ export const VideoComposition = ({ assets, jobId }) => {
       {layout.map(({ scene, index, sceneStart, sceneFrames }) => {
         const overlapWithNext = index < layout.length - 1 ? boundaryOverlap(index + 1) : 0;
         const overlapWithPrev = index > 0 ? boundaryOverlap(index) : 0;
-        const transitionType = scene.transition || "fade";
+        const transitionType = resolveTransitionId(scene, index);
 
         const bgColor = scene.backgroundColor || "#1a1a2e";
 

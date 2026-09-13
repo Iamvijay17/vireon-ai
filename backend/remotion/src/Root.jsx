@@ -234,6 +234,64 @@ export const RemotionRoot = () => {
         height={1080}
       />
 
+      {/* New-transition check: the 2 transitions added alongside the ported
+          6 (see transitions/index.js) - kept separate from
+          transition-variety-check above so that existing regression fixture
+          stays untouched. */}
+      <Composition
+        id="new-transitions-check"
+        component={() => (
+          <VideoComposition
+            assets={{
+              title: "new-transitions-check",
+              scenes: [
+                { sceneNumber: 1, templateId: "001-title", elements: { title: "Slide Up" }, duration: 3, transition: "slideUp", backgroundColor: "#1a1a2e" },
+                { sceneNumber: 2, templateId: "001-title", elements: { title: "Iris Wipe" }, duration: 3, transition: "irisWipe", backgroundColor: "#2e1a1a" },
+              ],
+            }}
+            jobId="new-transitions-check"
+          />
+        )}
+        durationInFrames={180}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      {/* Phase 12 demo render: 6 scenes spanning title/paragraph/split-image/
+          grid/comparison/stat strategies, mixing explicit transitions with
+          the deterministic engine-chosen default (no `transition` field -
+          see transitions/index.js's resolveTransitionId), plus a spoken
+          caption exercising a named Caption Style. One render is enough to
+          eyeball scene variety, motion, transitions and captions together. */}
+      <Composition
+        id="demo-phase12"
+        component={() => (
+          <VideoComposition
+            assets={{
+              title: 'demo-phase12',
+              scenes: [
+                { ...sampleGenerativeScenes['gen-short-title'], sceneNumber: 1, duration: 4, transition: 'fade' },
+                { ...sampleGenerativeScenes['gen-long-paragraph'], sceneNumber: 2, duration: 5 },
+                { ...sampleGenerativeScenes['gen-list-with-image'], sceneNumber: 3, duration: 5, transition: 'wipe' },
+                { ...sampleGenerativeScenes['gen-six-item-list'], sceneNumber: 4, duration: 5 },
+                { ...sampleGenerativeScenes['gen-comparison-split'], sceneNumber: 5, duration: 5, transition: 'zoom' },
+                {
+                  ...sampleGenerativeScenes['gen-caption-style-popPunch'],
+                  sceneNumber: 6,
+                  duration: 5,
+                },
+              ],
+            }}
+            jobId="demo-phase12-job"
+          />
+        )}
+        durationInFrames={870}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
       {/* Video Composition for Vireon AI (used for rendering) */}
       <Composition
         id="VideoComposition"

@@ -92,4 +92,46 @@ export const sampleGenerativeScenes = {
       ],
     },
   },
+
+  // The 3 new Scene Components (see engine/scenes/) - routed to by
+  // solveLayout.js's chooseStrategy for the content shapes below.
+  'gen-quote-feature': {
+    sceneId: 'gen-quote-feature',
+    templateId: 'generative',
+    elements: {
+      body: 'The best time to plant a tree was twenty years ago. The second best time is now, and that is exactly why we ship today instead of waiting for a perfect plan.',
+      title: 'Anonymous, probably',
+    },
+  },
+  'gen-stat-highlight': {
+    sceneId: 'gen-stat-highlight',
+    templateId: 'generative',
+    elements: {
+      title: 'Customer retention',
+      items: [{ text: '87% of teams renew within the first year' }],
+    },
+  },
+  'gen-comparison-split': {
+    sceneId: 'gen-comparison-split',
+    templateId: 'generative',
+    elements: {
+      title: 'Old Way vs New Way',
+      items: [
+        { heading: 'Before', text: 'Manual reviews, weekly releases, and a lot of guessing about what actually shipped.' },
+        { heading: 'After', text: 'Automated checks, daily releases, and a dashboard everyone trusts.' },
+      ],
+    },
+  },
+
+  // Exercises a named Caption Style (see captions/captionStyles.js) via
+  // scene.theme.captionStyle, on a content scene with a spoken caption.
+  'gen-caption-style-popPunch': {
+    sceneId: 'gen-caption-style-popPunch',
+    templateId: 'generative',
+    theme: { captionStyle: 'popPunch' },
+    elements: {
+      title: 'Say It With Energy',
+      caption: 'This caption should pop with a bold accent colored background and a punchy scale-in animation.',
+    },
+  },
 };

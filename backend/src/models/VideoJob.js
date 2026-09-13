@@ -179,6 +179,31 @@ const videoJobSchema = new mongoose.Schema(
     // Set while status is RETRY_SCHEDULED so the UI can show a countdown;
     // cleared ($unset) once the retry actually starts.
     nextRetryAt: { type: Date, default: null },
+    // Append-only log of every status transition, auto-populated by the
+    // pre-hooks below - covers both findByIdAndUpdate (most call sites) and
+    // job.save() (e.g. lifecycle.js's approve()). `durationMs` is how long
+    // the job spent in the *previous* status, for per-stage timing
+    // analytics (avg TTS time, avg render time, etc).
+    statusHistory: {
+      type: [
+        {
+          _id: false,
+          from: { type: String, default: null },
+          to: { type: String, required: true },
+          timestamp: { type: Date, default: Date.now },
+          durationMs: { type: Number, default: null },
+        },
+      ],
+      default: [],
+    },
+    // Milestone timestamps, set once and never overwritten - cheap to query
+    // for analytics without scanning statusHistory. lastTransitionAt backs
+    // durationMs above (also mirrors updatedAt, but survives being renamed
+    // if timestamps config ever changes).
+    startedAt: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
+    failedAt: { type: Date, default: null },
+    lastTransitionAt: { type: Date, default: null },
   },
   {
     timestamps: true,
@@ -192,5 +217,93 @@ const videoJobSchema = new mongoose.Schema(
 );
 
 videoJobSchema.index({ status: 1, createdAt: -1 });
+
+/**
+ * Build the $set/$push additions for a status transition - shared by both
+ * hooks below so findByIdAndUpdate and job.save() record history the same
+ * way.
+ */
+function buildTransitionUpdate(current, nextStatus) {
+  if (!nextStatus || current.status === nextStatus) return null;
+
+  const now = new Date();
+  const lastTimestamp = current.lastTransitionAt || current.createdAt;
+  const durationMs = lastTimestamp ? now.getTime() - new Date(lastTimestamp).getTime() : null;
+
+  const set = { lastTransitionAt: now };
+  if (nextStatus === JOB_STATUS.FAILED) set.failedAt = now;
+  if (nextStatus === JOB_STATUS.COMPLETED) set.completedAt = now;
+  if (!current.startedAt && nextStatus !== JOB_STATUS.QUEUED) set.startedAt = now;
+
+  return {
+    set,
+    push: { from: current.status, to: nextStatus, timestamp: now, durationMs },
+  };
+}
+
+// Covers VideoJob.findByIdAndUpdate/findOneAndUpdate - the vast majority of
+// status changes (statusUpdates.js, lifecycle.js).
+videoJobSchema.pre('findOneAndUpdate', async function (next) {
+  const update = this.getUpdate() || {};
+  // Some call sites (e.g. lifecycle.js's stop()) pass top-level fields with
+  // no $ operators - Mongoose's timestamps plugin then adds its own $set
+  // (for updatedAt) alongside them, so the update ends up as a *mix* of
+  // plain keys and $ operators. Fold any plain keys into $set so we can
+  // read/merge reliably regardless of shape.
+  const plainKeys = Object.keys(update).filter((key) => !key.startsWith('$'));
+  const plainFields = {};
+  for (const key of plainKeys) {
+    plainFields[key] = update[key];
+    delete update[key];
+  }
+  const normalized = { ...update, $set: { ...plainFields, ...update.$set } };
+
+  const nextStatus = normalized.$set.status;
+  if (!nextStatus) return next();
+
+  const current = await this.model
+    .findOne(this.getQuery())
+    .select('status startedAt createdAt lastTransitionAt')
+    .lean();
+  if (!current) return next();
+
+  const transition = buildTransitionUpdate(current, nextStatus);
+  if (!transition) return next();
+
+  this.setUpdate({
+    ...normalized,
+    $set: { ...normalized.$set, ...transition.set },
+    $push: { ...(normalized.$push || {}), statusHistory: transition.push },
+  });
+  next();
+});
+
+// Covers the one call site that mutates and calls job.save() directly
+// (lifecycle.js's approve()) instead of findByIdAndUpdate.
+videoJobSchema.pre('save', function (next) {
+  if (this.isNew || !this.isModified('status')) return next();
+
+  const previousStatus = this.$__.wasNew ? null : this.$locals.__previousStatus;
+  if (!previousStatus) return next();
+
+  const transition = buildTransitionUpdate(
+    { status: previousStatus, startedAt: this.startedAt, createdAt: this.createdAt, lastTransitionAt: this.lastTransitionAt },
+    this.status
+  );
+  if (!transition) return next();
+
+  Object.assign(this, transition.set);
+  this.statusHistory.push(transition.push);
+  next();
+});
+
+// Mongoose replaces `this.status` in place on assignment, so pre('save')
+// alone can't see the old value - capture it eagerly via a setter.
+videoJobSchema.path('status').set(function (newStatus) {
+  if (!this.isNew && this.status && this.status !== newStatus && !this.$locals.__previousStatus) {
+    this.$locals.__previousStatus = this.status;
+  }
+  return newStatus;
+});
 
 module.exports = mongoose.model('VideoJob', videoJobSchema);

@@ -1,4 +1,5 @@
 import React from 'react';
+import { cardStyle, NumberBadge, BulletDot } from '../ui';
 
 /**
  * Renders one text-role layout slot (title / body / listItem), styled from
@@ -59,36 +60,15 @@ export const SlotText = ({ slot, stylePlan, motionStyle, overrideStyle }) => {
     ? { height: `${slot.hPct * 100}%`, overflow: 'hidden' }
     : {};
 
-  const chromeStyle = slot.card
-    ? {
-        background: 'rgba(255,255,255,0.06)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: stylePlan.shape.radius,
-        boxShadow: stylePlan.shape.shadow,
-        padding: 28,
-        boxSizing: 'border-box',
-        height: `${slot.hPct * 100}%`,
-      }
-    : {};
+  const chromeStyle = slot.card ? cardStyle(slot, stylePlan) : {};
 
   return (
     <div
       data-slot-role={slot.role}
       style={{ ...positionStyle, ...clampStyle, ...chromeStyle, ...motionStyle }}
     >
-      {slot.numbered && (
-        <span style={{ display: 'inline-block', color: stylePlan.palette.accent, fontFamily: stylePlan.fonts.body, fontWeight: 700, fontSize: 22, marginRight: 12 }}>
-          {String((slot.index ?? 0) + 1).padStart(2, '0')}
-        </span>
-      )}
-      {slot.bullet && (
-        <span
-          style={{
-            display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-            background: stylePlan.palette.accent, marginRight: 12, verticalAlign: 'middle',
-          }}
-        />
-      )}
+      {slot.numbered && <NumberBadge index={slot.index} stylePlan={stylePlan} />}
+      {slot.bullet && <BulletDot stylePlan={stylePlan} />}
       {slot.heading && (
         <span style={{ fontWeight: 600, marginRight: 8, color: stylePlan.palette.text, fontFamily: stylePlan.fonts.body }}>
           {slot.heading}

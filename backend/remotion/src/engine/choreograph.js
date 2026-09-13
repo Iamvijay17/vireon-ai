@@ -9,11 +9,11 @@ import { createSeededRng, pick } from './seedRandom';
  * (motion.js) already knows how to render.
  */
 const ROLE_MOTION_POOL = {
-  title: ['fadeSlideUp', 'fadeIn'],
-  listItem: ['fadeSlideUp', 'fadeSlideLeft'],
-  body: ['fadeIn', 'fadeSlideUp'],
-  image: ['scaleIn', 'fadeIn'],
-  label: ['fadeIn', 'fadeSlideUp'],
+  title: ['fadeSlideUp', 'fadeIn', 'bounceIn', 'typewriterReveal'],
+  listItem: ['fadeSlideUp', 'fadeSlideLeft', 'blurIn'],
+  body: ['fadeIn', 'fadeSlideUp', 'blurIn'],
+  image: ['scaleIn', 'fadeIn', 'popIn', 'blurIn', 'maskWipe'],
+  label: ['fadeIn', 'fadeSlideUp', 'rotateIn'],
 };
 
 export const choreograph = (layoutPlan, seedInput) => {

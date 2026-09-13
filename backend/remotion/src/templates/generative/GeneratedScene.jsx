@@ -7,6 +7,7 @@ import { choreograph } from '../../engine/choreograph';
 import { computeMotionStyle } from '../../engine/motion';
 import { SlotText, SlotImage, Waveform } from '../../engine/primitives';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
+import { getCaptionStyle } from '../../captions/captionStyles';
 import { mergeStyle } from '../../theme';
 
 /**
@@ -64,6 +65,14 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
   // into layoutPlan's title/label slots, not the bottom CaptionRenderer.
   const caption = profile.spokenCaption;
   const captionTimestamps = profile.captionTimestamps;
+  // Only resolved when a scene actually opts into one of the 4 named
+  // Caption Styles (`elements.styleConfig.captionStyle` or
+  // `scene.theme.captionStyle`) - otherwise this stays null and the
+  // CaptionRenderer props below fall back to their pre-existing inline
+  // defaults unchanged, so a scene with no caption config keeps looking
+  // exactly as it did before caption styles existed.
+  const captionStyleId = overrides.captionStyle || scene?.theme?.captionStyle;
+  const captionStylePreset = captionStyleId ? getCaptionStyle(captionStyleId) : null;
 
   const renderSlot = (slot) => {
     const motionStyle = computeMotionStyle(frame, motionPlan[slot.id]);
@@ -109,8 +118,8 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
 
       <CaptionRenderer
         text={caption}
-        animation={scene?.theme?.captionAnimation || 'fadeInUp'}
-        animationConfig={{ slideDistance: 15 }}
+        animation={scene?.theme?.captionAnimation || captionStylePreset?.animation || 'fadeInUp'}
+        animationConfig={{ slideDistance: 15, ...captionStylePreset?.animationConfig }}
         styleConfig={{
           position: 'bottom',
           fontFamily: stylePlan.fonts.title,
@@ -122,6 +131,7 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
           borderRadius: 8,
           framesPerWord: 3,
           maxWidth: '75%',
+          ...captionStylePreset?.styleConfig,
           ...overrides.captions,
         }}
         timestamps={captionTimestamps}
