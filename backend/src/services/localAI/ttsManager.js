@@ -36,7 +36,17 @@ async function start() {
     command,
     args,
     cwd: workdir || undefined,
-    env: ffmpegPath ? { PATH: `${ffmpegPath}${path.delimiter}${process.env.PATH || ''}` } : undefined,
+    env: {
+      ...(ffmpegPath ? { PATH: `${ffmpegPath}${path.delimiter}${process.env.PATH || ''}` } : {}),
+      // Model weights auto-download through HF's Xet transfer backend on
+      // first use - confirmed live (~/.cache/huggingface/hub has only a
+      // stub refs/main for every Qwen3-TTS model, no snapshots/blobs) that
+      // Xet's adaptive-concurrency logs show a struggling connection on
+      // this machine, and every generation call silently hangs forever
+      // inside that auto-download instead of erroring. Force the plain
+      // HTTP downloader instead.
+      HF_HUB_DISABLE_XET: '1',
+    },
     // See processManager.js's ManagedProcess.spawn doc comment - a hidden
     // console window crashed this specific process's native runtime
     // mid-generation. Confirmed live via the "forrtl: error (200)" crash.
