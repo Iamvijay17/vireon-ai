@@ -44,6 +44,9 @@ class RemotionService {
       description: script.description,
       resolution: jobConfig.resolution || '1920x1080',
       aspectRatio: jobConfig.aspectRatio || '16:9',
+      // Render quality preset (see constants.QUALITY_PRESETS) - resolved to
+      // an actual CRF value at render time via config.remotion.qualityCrf.
+      quality: jobConfig.quality || 'standard',
       // Curated Google Font pairing id (see backend/remotion/src/fonts.js) -
       // 'default' keeps the legacy system-font look. Applied once for the
       // whole video via theme.js's applyFontPairing, not per-scene.
@@ -348,6 +351,7 @@ class RemotionService {
 
         // Calculate dimensions from resolution
         const [width, height] = (assetsFile.resolution || '1920x1080').split('x').map(Number);
+        const crf = config.remotion.qualityCrf[assetsFile.quality] ?? config.remotion.qualityCrf.standard;
 
         // Write props to a temp file to avoid escaping issues
         const propsPath = path.join(jobDir, 'render-props.json');
@@ -383,6 +387,12 @@ class RemotionService {
           String(height),
           '--fps',
           '30',
+          '--codec',
+          config.remotion.codec,
+          '--crf',
+          String(crf),
+          '--pixel-format',
+          config.remotion.pixelFormat,
         ];
 
         LoggerService.render('Remotion command args', { args });

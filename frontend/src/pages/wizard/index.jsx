@@ -47,6 +47,14 @@ const RESOLUTIONS = [
   { value: "2160x3840", label: "4K Vertical (2160x3840)" },
 ];
 
+// Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js)
+// - resolved to an actual encode CRF at render time (config.remotion.qualityCrf).
+const QUALITY_PRESETS = [
+  { value: "draft", label: "Draft (fast, lower quality)" },
+  { value: "standard", label: "Standard" },
+  { value: "hd", label: "HD (best quality, slower render)" },
+];
+
 // Mirrors the backend's CAPTION_STYLES enum (backend/src/constants/index.js) -
 // keys into backend/remotion/src/captions/captionAnimations.js's registry.
 const CAPTION_STYLES = [
@@ -185,6 +193,7 @@ const DEFAULT_VALUES = {
   hostName: "",
   guestName: "",
   resolution: "1920x1080",
+  quality: "standard",
   captionAnimation: "fadeInUp",
   fastGeneration: false,
   fastAudio: false,
@@ -214,6 +223,7 @@ const buildInitialValues = () => {
     // default rather than starting the wizard in an invalid state.
     duration: isShorts ? SHORTS_DURATIONS[0].value : DEFAULT_VALUES.duration,
     resolution: isShorts && !isVerticalResolution(resolution) ? VERTICAL_RESOLUTIONS[0].value : resolution,
+    quality: QUALITY_PRESETS.some((q) => q.value === prefs.defaultQuality) ? prefs.defaultQuality : DEFAULT_VALUES.quality,
     captionAnimation: CAPTION_STYLES.some((c) => c.value === prefs.defaultCaptionStyle) ? prefs.defaultCaptionStyle : DEFAULT_VALUES.captionAnimation,
   };
 };
@@ -669,6 +679,16 @@ const Wizard = () => {
                 ? "YouTube Shorts are vertical-only."
                 : "Aspect ratio is determined automatically by the resolution you pick."}
             </FieldHint>
+          </div>
+
+          <div className="mb-6">
+            <Label>Render Quality</Label>
+            <Select
+              options={QUALITY_PRESETS}
+              value={values.quality}
+              onChange={(v) => setField("quality", v)}
+            />
+            <FieldHint>Draft renders faster for quick previews; HD takes longer but produces the cleanest result.</FieldHint>
           </div>
 
           <div className="mb-6">

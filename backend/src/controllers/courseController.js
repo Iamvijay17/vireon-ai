@@ -226,8 +226,8 @@ class CourseController {
    */
   static async createCurriculumVideos(req, res, next) {
     try {
-      const { lessons, promo, voice, style, duration, additionalInstructions, fastAudio, resolution } = req.body;
-      const options = { voice, style, duration, additionalInstructions, fastAudio, resolution };
+      const { lessons, promo, voice, style, duration, additionalInstructions, fastAudio, resolution, quality } = req.body;
+      const options = { voice, style, duration, additionalInstructions, fastAudio, resolution, quality };
 
       const videos = await CourseVideoService.createFromLessons(req.params.id, lessons, options);
 

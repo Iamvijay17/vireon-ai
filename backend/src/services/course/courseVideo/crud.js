@@ -27,6 +27,7 @@ async function create(courseId, data) {
     voice: data.voice || 'female-1',
     style: data.style || 'educational',
     resolution: data.resolution || '1920x1080',
+    quality: data.quality || 'standard',
     additionalInstructions: data.additionalInstructions || '',
     fastAudio: data.fastAudio ?? false,
     avatarEnabled: data.avatarEnabled ?? false,
@@ -70,7 +71,7 @@ async function previewCurriculum(title, topic) {
  * appends after existing lessons, never replaces them.
  */
 async function createFromLessons(courseId, lessons, options) {
-  const { voice, style, duration, additionalInstructions, fastAudio, resolution } = options;
+  const { voice, style, duration, additionalInstructions, fastAudio, resolution, quality } = options;
 
   if (!Array.isArray(lessons) || lessons.length === 0) {
     throw { status: 400, message: 'lessons must be a non-empty array' };
@@ -90,6 +91,7 @@ async function createFromLessons(courseId, lessons, options) {
       voice: voice || 'female-1',
       style: style || 'educational',
       resolution: resolution || '1920x1080',
+      quality: quality || 'standard',
       additionalInstructions: additionalInstructions || '',
       fastAudio: fastAudio ?? false,
       status: VIDEO_STATUS.DRAFT,
@@ -126,7 +128,7 @@ async function createFromLessons(courseId, lessons, options) {
  * title/topic rather than creating a duplicate.
  */
 async function createPromoVideo(courseId, promo, options = {}) {
-  const { voice, style, duration, additionalInstructions, fastAudio, resolution } = options;
+  const { voice, style, duration, additionalInstructions, fastAudio, resolution, quality } = options;
 
   if (!promo || !promo.topic) {
     throw { status: 400, message: 'promo.topic is required' };
@@ -155,6 +157,7 @@ async function createPromoVideo(courseId, promo, options = {}) {
     voice: voice || 'female-1',
     style: style || 'educational',
     resolution: resolution || '1920x1080',
+    quality: quality || 'standard',
     additionalInstructions: additionalInstructions || '',
     fastAudio: fastAudio ?? false,
     status: VIDEO_STATUS.DRAFT,
@@ -262,7 +265,7 @@ async function claimStage(videoId, action) {
 // Fields the client is allowed to edit via update(). Everything else
 // (status, approved, courseId, script, error, retryCount, ...) is
 // pipeline-managed state and must not be settable through this endpoint.
-const UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'resolution', 'additionalInstructions', 'fastAudio', 'avatarEnabled', 'avatarPosition'];
+const UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'resolution', 'quality', 'additionalInstructions', 'fastAudio', 'avatarEnabled', 'avatarPosition'];
 
 /**
  * Update a video.

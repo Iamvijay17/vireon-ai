@@ -110,6 +110,7 @@ async function renderVideo(videoId) {
     // Job config
     const jobConfig = {
       resolution: video.resolution || '1920x1080',
+      quality: video.quality || 'standard',
       aspectRatio: '16:9',
       type: video.style || 'educational',
       avatar: video.avatarVideoUrl ? { videoUrl: video.avatarVideoUrl, position: video.avatarPosition } : undefined,

@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS = {
   defaultLanguage: "english",
   defaultVideoType: "educational",
   defaultResolution: "1920x1080",
+  defaultQuality: "standard",
   defaultCaptionStyle: "fadeInUp",
   defaultCourseStyle: "educational",
   defaultCourseDuration: 5,

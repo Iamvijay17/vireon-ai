@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS, SHORTS_VIDEO_DURATIONS, FONT_PAIRINGS, CAPTION_STYLES } = require('../constants');
+const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, QUALITY_PRESETS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS, SHORTS_VIDEO_DURATIONS, FONT_PAIRINGS, CAPTION_STYLES } = require('../constants');
 const { generateVideoJobId } = require('../utils/id');
 const sceneSchema = require('./schemas/sceneSchema');
 
@@ -75,6 +75,13 @@ const videoJobSchema = new mongoose.Schema(
       type: String,
       enum: RESOLUTIONS,
       default: '1920x1080',
+    },
+    // Render quality preset - resolved to an encode CRF at render time (see
+    // config.remotion.qualityCrf / RemotionService.renderVideo).
+    quality: {
+      type: String,
+      enum: QUALITY_PRESETS,
+      default: 'standard',
     },
     // Not user-selectable - always derived from `resolution` server-side
     // (VideoService.create -> getAspectRatioForResolution).

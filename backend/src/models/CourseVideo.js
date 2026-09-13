@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { VIDEO_STATUS, STAGE_STATUS, LANGUAGES, VIDEO_DURATIONS } = require('../constants');
+const { VIDEO_STATUS, STAGE_STATUS, LANGUAGES, VIDEO_DURATIONS, QUALITY_PRESETS } = require('../constants');
 const { generateCourseVideoId } = require('../utils/id');
 const sceneSchema = require('./schemas/sceneSchema');
 
@@ -62,6 +62,13 @@ const courseVideoSchema = new mongoose.Schema(
       type: String,
       enum: ['1920x1080', '3840x2160'],
       default: '1920x1080',
+    },
+    // Render quality preset - resolved to an encode CRF at render time (see
+    // config.remotion.qualityCrf / RemotionService.renderVideo).
+    quality: {
+      type: String,
+      enum: QUALITY_PRESETS,
+      default: 'standard',
     },
     additionalInstructions: {
       type: String,

@@ -49,6 +49,13 @@ const RESOLUTION_OPTIONS = [
   { value: "3840x2160", label: "4K (3840x2160)" },
 ];
 
+// Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js).
+const QUALITY_OPTIONS = [
+  { value: "draft", label: "Draft (fast, lower quality)" },
+  { value: "standard", label: "Standard" },
+  { value: "hd", label: "HD (best quality, slower render)" },
+];
+
 const CAPTION_STYLE_OPTIONS = [
   { value: "fadeInUp", label: "Fade Up" },
   { value: "popScale", label: "Pop" },
@@ -230,6 +237,9 @@ const SettingsPage = () => {
             </SettingsRow>
             <SettingsRow label="Default Resolution" hint="Used by the Wizard's resolution step - aspect ratio follows automatically">
               <Select options={RESOLUTION_OPTIONS} value={settings.defaultResolution} onChange={(v) => updateSetting("defaultResolution", v)} />
+            </SettingsRow>
+            <SettingsRow label="Default Render Quality" hint="Preselected in the Wizard's output step - controls the render's encode CRF">
+              <Select options={QUALITY_OPTIONS} value={settings.defaultQuality} onChange={(v) => updateSetting("defaultQuality", v)} />
             </SettingsRow>
             <SettingsRow label="Default Caption Style" hint="Preselected in the Wizard's output step - podcast dialogue always uses its own highlight style">
               <Select options={CAPTION_STYLE_OPTIONS} value={settings.defaultCaptionStyle} onChange={(v) => updateSetting("defaultCaptionStyle", v)} />

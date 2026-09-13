@@ -181,6 +181,23 @@ const config = Object.freeze({
     binary: process.env.REMOTION_BINARY || 'npx remotion',
     timeout: parseInt(process.env.REMOTION_TIMEOUT, 10) || 300000,
     maxRetries: parseInt(process.env.REMOTION_MAX_RETRIES, 10) || 2,
+    // Encode settings passed to the Remotion CLI's `render` command - before
+    // this, no codec/crf/pixel-format flags were passed at all, so every
+    // render used Remotion's own built-in defaults with no way to tune
+    // quality vs. file size.
+    codec: process.env.REMOTION_CODEC || 'h264',
+    pixelFormat: process.env.REMOTION_PIXEL_FORMAT || 'yuv420p',
+    // CRF per VideoJob.quality preset (lower = higher quality/larger file).
+    // 'standard' (18) matches Remotion's own h264 default, so existing jobs
+    // that don't set a quality preset keep today's behavior unchanged.
+    // 'draft' is a fast, cheap preview-quality encode; 'hd' is the
+    // highest-quality encode. Falls back to 'standard' for an unrecognized
+    // or missing preset - see RemotionService.renderVideo.
+    qualityCrf: {
+      draft: parseInt(process.env.REMOTION_CRF_DRAFT, 10) || 28,
+      standard: parseInt(process.env.REMOTION_CRF_STANDARD, 10) || 18,
+      hd: parseInt(process.env.REMOTION_CRF_HD, 10) || 12,
+    },
   },
 
   // Generative Scene Engine (remotion/src/engine/*.js): computes layout,

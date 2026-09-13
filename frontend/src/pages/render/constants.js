@@ -61,6 +61,13 @@ export const VERTICAL_RESOLUTIONS = RESOLUTIONS.filter((r) => {
   return height > width;
 });
 
+// Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js).
+export const QUALITY_PRESETS = [
+  { value: "draft", label: "Draft (fast, lower quality)" },
+  { value: "standard", label: "Standard" },
+  { value: "hd", label: "HD (best quality, slower render)" },
+];
+
 export const LANGUAGES = [{ value: "english", label: "English" }];
 
 export const FALLBACK_VOICES = [

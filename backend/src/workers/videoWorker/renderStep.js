@@ -24,6 +24,7 @@ async function prepareAssets(jobId, videoJob, script, avatarVideoUrl, ctx) {
 
   const assets = await RemotionService.prepareAssets(jobId, script, {
     resolution: videoJob.resolution,
+    quality: videoJob.quality,
     aspectRatio: videoJob.aspectRatio,
     fontPairing: videoJob.fontPairing,
     type: videoJob.type,

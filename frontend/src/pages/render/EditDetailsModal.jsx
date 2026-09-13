@@ -3,7 +3,7 @@ import { Button } from "../../components/ui/Button";
 import { Select } from "../../components/ui/Select";
 import { VoiceSelect } from "../../components/ui/VoiceSelect";
 import { Textarea, Label, FieldHint } from "../../components/ui/Input";
-import { DURATIONS, SHORTS_DURATIONS, RESOLUTIONS, VERTICAL_RESOLUTIONS, LANGUAGES } from "./constants";
+import { DURATIONS, SHORTS_DURATIONS, RESOLUTIONS, VERTICAL_RESOLUTIONS, QUALITY_PRESETS, LANGUAGES } from "./constants";
 
 export const EditDetailsModal = ({
   open,
@@ -68,6 +68,15 @@ export const EditDetailsModal = ({
               onChange={(v) => setEditForm((prev) => ({ ...prev, resolution: v }))}
             />
           </div>
+        </div>
+
+        <div>
+          <Label>Render Quality</Label>
+          <Select
+            options={QUALITY_PRESETS}
+            value={editForm.quality}
+            onChange={(v) => setEditForm((prev) => ({ ...prev, quality: v }))}
+          />
         </div>
 
         <div>

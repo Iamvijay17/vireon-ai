@@ -38,6 +38,7 @@ async function create(data) {
     guestName: data.guestName || '',
     duration: data.duration || 5,
     resolution: data.resolution || '1920x1080',
+    quality: data.quality || 'standard',
     // Not user-selectable - resolution alone determines it.
     aspectRatio: getAspectRatioForResolution(data.resolution || '1920x1080'),
     fontPairing: data.fontPairing || 'default',

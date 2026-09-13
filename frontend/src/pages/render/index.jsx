@@ -212,6 +212,7 @@ const RenderPage = () => {
       duration: job.duration,
       language: job.language || "english",
       resolution: job.resolution || "1920x1080",
+      quality: job.quality || "standard",
       voice: job.voice || "",
       hostVoice: job.hostVoice || "",
       guestVoice: job.guestVoice || "",
@@ -241,6 +242,7 @@ const RenderPage = () => {
               duration: editForm.duration,
               language: editForm.language,
               resolution: editForm.resolution,
+              quality: editForm.quality,
               hostVoice: editForm.hostVoice,
               guestVoice: editForm.guestVoice,
               hostName: editForm.hostName,
@@ -251,6 +253,7 @@ const RenderPage = () => {
               duration: editForm.duration,
               language: editForm.language,
               resolution: editForm.resolution,
+              quality: editForm.quality,
               voice: editForm.voice,
             };
       await updateVideoJob(jobId, payload);

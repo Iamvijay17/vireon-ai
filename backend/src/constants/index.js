@@ -110,6 +110,12 @@ const RESOLUTIONS = Object.freeze([
   '2160x3840',
 ]);
 
+// Render quality preset - maps to a CRF value at render time (see
+// config.remotion.qualityCrf / RemotionService.renderVideo). 'draft' trades
+// quality for a fast, cheap preview render; 'hd' is the highest-quality,
+// slowest/largest encode.
+const QUALITY_PRESETS = Object.freeze(['draft', 'standard', 'hd']);
+
 // Aspect ratio is derived from resolution (see getAspectRatioForResolution)
 // rather than chosen independently - this list documents the values that
 // function can return.
@@ -291,6 +297,7 @@ module.exports = {
   VIDEO_TYPES,
   VIDEO_TYPES_LABEL,
   RESOLUTIONS,
+  QUALITY_PRESETS,
   ASPECT_RATIOS,
   getAspectRatioForResolution,
   FONT_PAIRINGS,

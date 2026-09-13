@@ -2,6 +2,7 @@ const { z } = require('zod');
 const {
   VIDEO_TYPES,
   RESOLUTIONS,
+  QUALITY_PRESETS,
   LANGUAGES,
   STANDALONE_VIDEO_DURATIONS,
   SHORTS_VIDEO_DURATIONS,
@@ -39,6 +40,10 @@ const createVideoSchema = z
     // youtube_shorts is further restricted to vertical (9:16) resolutions
     // only - see superRefine below.
     resolution: z.enum(RESOLUTIONS).optional().default('1920x1080'),
+    // Render quality preset - see constants.QUALITY_PRESETS /
+    // config.remotion.qualityCrf. 'standard' matches the encode quality
+    // every job used before this setting existed.
+    quality: z.enum(QUALITY_PRESETS).optional().default('standard'),
     // Curated title/body Google Font pairing - see backend/remotion/src/fonts.js.
     // 'default' keeps the legacy system-font look.
     fontPairing: z.enum(FONT_PAIRINGS).optional().default('default'),
@@ -96,6 +101,7 @@ const updateVideoJobSchema = z
     hostName: z.string().max(80).trim().optional(),
     guestName: z.string().max(80).trim().optional(),
     resolution: z.enum(RESOLUTIONS).optional(),
+    quality: z.enum(QUALITY_PRESETS).optional(),
     fontPairing: z.enum(FONT_PAIRINGS).optional(),
     captionAnimation: z.enum(CAPTION_STYLES).optional(),
     avatarEnabled: z.boolean().optional(),
