@@ -74,7 +74,26 @@ async function render(jobId, assets, ctx, script) {
     RemotionStatus.begin();
     let renderResult;
     try {
-      renderResult = await RemotionService.renderVideo(jobId, assets);
+      // RENDERING spans 85-94% (95 is reserved for UPLOADING) - Remotion's
+      // own progress fraction (bundling+render+encode, see RemotionService's
+      // parseRemotionProgressLine) is mapped into that band and throttled so
+      // a multi-minute render doesn't sit frozen at 85% the whole time.
+      let lastEmittedProgress = -1;
+      let lastEmitTime = 0;
+      const onRenderProgress = (fraction) => {
+        const mapped = 85 + Math.round(Math.min(1, Math.max(0, fraction)) * 9);
+        if (mapped === lastEmittedProgress) return;
+        const now = Date.now();
+        if (mapped < 94 && now - lastEmitTime < 1500) return;
+        lastEmittedProgress = mapped;
+        lastEmitTime = now;
+        SocketService.emitJobProgress({ _id: jobId, progress: mapped, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
+        VideoService.updateStatus(jobId, JOB_STATUS.RENDERING, { progress: mapped }).catch((err) => {
+          LoggerService.warn('Failed to persist render progress', { jobId, error: err.message });
+        });
+      };
+
+      renderResult = await RemotionService.renderVideo(jobId, assets, onRenderProgress);
     } finally {
       RemotionStatus.end();
     }

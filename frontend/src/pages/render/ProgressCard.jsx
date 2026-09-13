@@ -10,7 +10,7 @@ export const ProgressCard = ({ job, currentStepIndex, isComplete, isFailed, isCa
   <Card className="animate-slide-up p-6">
     <div className="flex flex-col items-center gap-3 border-b border-border-light pb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
       <div className="flex items-center gap-4">
-        <CircularProgress percent={job?.progress || 0} error={isFailed} />
+        <CircularProgress percent={job?.progress || 0} error={isFailed} trickle={isActive} />
         <div>
           <Badge
             variant={isComplete ? "success" : isFailed ? "danger" : isCancelled ? "neutral" : "accent"}

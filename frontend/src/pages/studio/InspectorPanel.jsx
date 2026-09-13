@@ -7,7 +7,23 @@ import { ContentTab } from "./ContentTab";
 import { StyleTab } from "./StyleTab";
 import { AnimationTab, ImageTab, AudioTab } from "./MiscTabs";
 
-export const InspectorPanel = ({ scene, selectedSceneIndex, setSelectedSceneIndex, sceneCount, canEdit, editor, inspectorTab, setInspectorTab }) => (
+export const InspectorPanel = ({
+  scene,
+  selectedSceneIndex,
+  setSelectedSceneIndex,
+  sceneCount,
+  canEdit,
+  editor,
+  inspectorTab,
+  setInspectorTab,
+  job,
+  voiceOptions,
+  isFavorite,
+  toggleFavorite,
+  onVoiceChange,
+  regeneratingScene,
+  onRegenerateScene,
+}) => (
   <Card className="flex min-h-0 flex-col">
     <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
       <button
@@ -47,7 +63,19 @@ export const InspectorPanel = ({ scene, selectedSceneIndex, setSelectedSceneInde
         <ImageTab scene={scene} selectedSceneIndex={selectedSceneIndex} canEdit={canEdit} editor={editor} />
       )}
       {inspectorTab === "audio" && (
-        <AudioTab scene={scene} selectedSceneIndex={selectedSceneIndex} canEdit={canEdit} editor={editor} />
+        <AudioTab
+          scene={scene}
+          selectedSceneIndex={selectedSceneIndex}
+          canEdit={canEdit}
+          editor={editor}
+          job={job}
+          voiceOptions={voiceOptions}
+          isFavorite={isFavorite}
+          toggleFavorite={toggleFavorite}
+          onVoiceChange={onVoiceChange}
+          regeneratingScene={regeneratingScene}
+          onRegenerateScene={onRegenerateScene}
+        />
       )}
 
       <div className="flex gap-2 border-t border-border-light pt-4">

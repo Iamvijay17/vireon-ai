@@ -14,7 +14,6 @@ export const VideoPlayerCard = ({ job, videoRef }) => (
         ref={videoRef}
         src={job.videoUrl}
         controls
-        autoPlay
         poster={job.thumbnailUrl || undefined}
         className="block w-full object-contain"
         style={{ aspectRatio: isPortraitResolution(job?.resolution) ? "9/16" : "16/9" }}

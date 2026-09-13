@@ -133,10 +133,29 @@ async function renderVideo(videoId) {
 
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 80, 'Rendering video...');
 
+    // Rendering spans 80-89% (90 is reserved for the upload step that
+    // follows) - mirrors videoWorker/renderStep.js's mapping of Remotion's
+    // own progress fraction into a band, throttled so this doesn't spam
+    // socket events or DB writes on every frame.
+    let lastEmittedProgress = -1;
+    let lastEmitTime = 0;
+    const onRenderProgress = (fraction) => {
+      const mapped = 80 + Math.round(Math.min(1, Math.max(0, fraction)) * 9);
+      if (mapped === lastEmittedProgress) return;
+      const now = Date.now();
+      if (mapped < 89 && now - lastEmitTime < 1500) return;
+      lastEmittedProgress = mapped;
+      lastEmitTime = now;
+      SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, mapped, 'Rendering video...');
+      CourseVideo.findByIdAndUpdate(videoId, { renderProgress: mapped }).catch((err) => {
+        LoggerService.warn('Failed to persist course video render progress', { videoId, error: err.message });
+      });
+    };
+
     // Try Remotion render - throw error if it fails
     RemotionStatus.begin();
     try {
-      await RemotionService.renderVideo(jobId);
+      await RemotionService.renderVideo(jobId, null, onRenderProgress);
     } finally {
       RemotionStatus.end();
     }

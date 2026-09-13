@@ -57,14 +57,14 @@ export const RenderStepCard = ({
       <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
         <Spinner size="lg" />
         <p className="text-sm text-text-secondary">Rendering video...</p>
-        {video.renderProgress > 0 && <Progress percent={video.renderProgress} className="mt-1 w-full max-w-sm" />}
+        {video.renderProgress > 0 && <Progress percent={video.renderProgress} className="mt-1 w-full max-w-sm" trickle />}
       </div>
     )}
     {isUploading && (
       <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
         <Spinner size="lg" />
         <p className="text-sm text-text-secondary">Uploading assets to cloud storage...</p>
-        {video.renderProgress > 0 && <Progress percent={video.renderProgress} className="mt-1 w-full max-w-sm" />}
+        {video.renderProgress > 0 && <Progress percent={video.renderProgress} className="mt-1 w-full max-w-sm" trickle />}
       </div>
     )}
     {isCompleted && (

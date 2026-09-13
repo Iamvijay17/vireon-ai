@@ -1,10 +1,20 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Save, Redo2, CheckCircle2, Pencil, AudioLines, Video } from "lucide-react";
-import { updateVideoScenes, rerenderVideoJob, approveVideoJob, generateVideoAudio, generateVideoRender } from "../../services/api";
+import {
+  updateVideoScenes,
+  rerenderVideoJob,
+  approveVideoJob,
+  generateVideoAudio,
+  generateVideoRender,
+  updateVideoJob,
+  regenerateVideoSceneAudio,
+  getVoices,
+} from "../../services/api";
 import { LoadingState, EmptyState } from "../../components";
 import { ScenePreview } from "../../components/video/ScenePreview";
 import { useForceSidebarCollapsed } from "../../shared/sidebarContextValue";
+import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -14,6 +24,7 @@ import { useStudioJob } from "./useStudioJob";
 import { useSceneEditor } from "./useSceneEditor";
 import { SceneTimeline } from "./SceneTimeline";
 import { InspectorPanel } from "./InspectorPanel";
+import { FALLBACK_VOICES } from "./constants";
 
 const StudioPage = () => {
   const [searchParams] = useSearchParams();
@@ -33,8 +44,61 @@ const StudioPage = () => {
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [generatingRender, setGeneratingRender] = useState(false);
   const [inspectorTab, setInspectorTab] = useState("content");
+  const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
+  const [regeneratingScene, setRegeneratingScene] = useState(null);
+  const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
   const { editedScenes, hasChanges, setHasChanges, selectedSceneIndex, setSelectedSceneIndex } = editor;
+
+  useEffect(() => {
+    let cancelled = false;
+    getVoices()
+      .then((res) => {
+        if (!cancelled) setVoiceCatalog(res.data || { custom: [], clone: [] });
+      })
+      .catch(() => {
+        // Keep FALLBACK_VOICES if the catalog can't be loaded.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const voiceOptions = [
+    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom", previewUrl: v.previewUrl })),
+    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
+  ];
+  if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
+
+  const handleVoiceChange = async (field, value) => {
+    if (!jobId) return;
+    try {
+      await updateVideoJob(jobId, { [field]: value });
+      setJob((prev) => (prev ? { ...prev, [field]: value } : prev));
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to update voice");
+    }
+  };
+
+  const handleRegenerateScene = async (sceneNumber) => {
+    if (!jobId) return;
+    setRegeneratingScene(sceneNumber);
+    try {
+      const res = await regenerateVideoSceneAudio(jobId, sceneNumber);
+      setJob((prev) => {
+        if (!prev?.script?.scenes) return prev;
+        const scenes = prev.script.scenes.map((s) =>
+          s.sceneNumber === sceneNumber ? { ...s, audio: { ...s.audio, ...res.data.audio } } : s,
+        );
+        return { ...prev, script: { ...prev.script, scenes } };
+      });
+      toast.success(`Scene ${sceneNumber} audio regenerated`);
+    } catch (err) {
+      toast.error(err.friendlyMessage || `Failed to regenerate scene ${sceneNumber}`);
+    } finally {
+      setRegeneratingScene(null);
+    }
+  };
 
   const handleSave = async () => {
     if (!jobId) return;
@@ -243,6 +307,13 @@ const StudioPage = () => {
             editor={editor}
             inspectorTab={inspectorTab}
             setInspectorTab={setInspectorTab}
+            job={job}
+            voiceOptions={voiceOptions}
+            isFavorite={isFavorite}
+            toggleFavorite={toggleFavorite}
+            onVoiceChange={handleVoiceChange}
+            regeneratingScene={regeneratingScene}
+            onRegenerateScene={handleRegenerateScene}
           />
         </div>
       )}

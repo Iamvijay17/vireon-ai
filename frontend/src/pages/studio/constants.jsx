@@ -44,6 +44,12 @@ export const CAMERA_OPTIONS = [
   { value: "slide", label: "Slide" },
 ];
 
+// Shown only if the voice catalog fails to load - mirrors render/constants.js.
+export const FALLBACK_VOICES = [
+  { value: "female-1", label: "Female Voice 1" },
+  { value: "male-1", label: "Male Voice 1" },
+];
+
 // Groups the Inspector's fields under tabs instead of one long stacked
 // scroll - each `key` maps to a section (or several) rendered conditionally
 // in InspectorPanel, so switching tabs swaps content rather than scrolling to it.

@@ -242,7 +242,7 @@ const RenderQueue = () => {
                       </div>
                       <div className="flex items-center gap-3 sm:w-64">
                         <StatusTag status={job.status} />
-                        <Progress percent={job.progress || 0} size="sm" className="flex-1" />
+                        <Progress percent={job.progress || 0} size="sm" className="flex-1" trickle />
                       </div>
                     </button>
                     <div className="flex items-center gap-1.5 self-end sm:self-auto">

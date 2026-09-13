@@ -43,6 +43,13 @@ async function run(jobId, videoJob, script, ctx) {
   // (`voice || scene.audio?.voice`) picks up the per-turn voice.
   const jobVoice = videoJob.type === 'podcast' ? undefined : videoJob.voice;
 
+  // GENERATING_AUDIO spans 40-49% (50 is reserved for AUDIO_COMPLETED) -
+  // scaled by scenes already done (scenesWithAudio) plus this batch's
+  // completions, so resuming a partially-audio'd job doesn't restart the
+  // band from scratch.
+  let completedScenes = scenesWithAudio.length;
+  const totalScenes = script.scenes.length;
+
   // GPU-sequential: claim the GPU for TTS across the whole batch of scenes
   // (not per-scene) - releasing between scenes would just thrash
   // start/stop against LM Studio/ComfyUI for no benefit, since this stage
@@ -57,6 +64,14 @@ async function run(jobId, videoJob, script, ctx) {
         // instead of waiting for the whole batch to finish.
         await VideoService.updateSceneAudio(jobId, sceneNumber, result);
         SocketService.emitSceneAudioReady(jobId, sceneNumber, result);
+
+        completedScenes += 1;
+        const mapped = 40 + Math.round((completedScenes / totalScenes) * 9);
+        SocketService.emitJobProgress({ _id: jobId, progress: mapped, status: JOB_STATUS.GENERATING_AUDIO, currentStep: JOB_STATUS.GENERATING_AUDIO, currentScene: sceneNumber });
+        VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_AUDIO, { progress: mapped }).catch((err) => {
+          LoggerService.warn('Failed to persist audio progress', { jobId, error: err.message });
+        });
+
         LoggerService.info(`Scene ${sceneNumber} audio ready`, {
           file: result.file,
           duration: result.duration,

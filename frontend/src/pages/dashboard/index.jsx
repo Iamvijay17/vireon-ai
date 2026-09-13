@@ -312,7 +312,7 @@ const Dashboard = () => {
 
                     {isActive && (
                       <div className="hidden w-32 shrink-0 sm:block">
-                        <Progress percent={job.progress || 0} size="sm" status="active" />
+                        <Progress percent={job.progress || 0} size="sm" status="active" trickle />
                       </div>
                     )}
 
