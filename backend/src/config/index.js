@@ -111,6 +111,22 @@ const config = Object.freeze({
       healthCheckIntervalMs: parseInt(process.env.COMFYUI_HEALTH_CHECK_INTERVAL_MS, 10) || 3000,
       healthCheckTimeoutMs: parseInt(process.env.COMFYUI_HEALTH_CHECK_TIMEOUT_MS, 10) || 5000,
     },
+    // LivePortrait (talking-head avatar overlay - AvatarService) is the
+    // same shape as TTS: a Gradio app, launched via its own Pinokio app
+    // (C:\pinokio\api\liveportrait.git\{start.js,app\app.py}, conda env at
+    // app\LivePortrait_env\python.exe on Windows - no Scripts\ subfolder,
+    // unlike a normal venv). Values below are this machine's actual paths.
+    avatar: {
+      enabled: process.env.AVATAR_SERVICE_ENABLED !== 'false',
+      autoStart: process.env.AVATAR_AUTO_START !== 'false',
+      autoStop: process.env.AVATAR_AUTO_STOP !== 'false',
+      startCommand: process.env.AVATAR_START_COMMAND || '',
+      workdir: process.env.AVATAR_WORKDIR || '',
+      healthUrl: process.env.AVATAR_HEALTH_URL || `${(process.env.LIVEPORTRAIT_URL || 'http://127.0.0.1:8890').replace(/\/$/, '')}/`,
+      startupTimeoutMs: parseInt(process.env.AVATAR_STARTUP_TIMEOUT_MS, 10) || 180000,
+      healthCheckIntervalMs: parseInt(process.env.AVATAR_HEALTH_CHECK_INTERVAL_MS, 10) || 3000,
+      healthCheckTimeoutMs: parseInt(process.env.AVATAR_HEALTH_CHECK_TIMEOUT_MS, 10) || 5000,
+    },
   },
 
   // GPU Resource Manager (backend/src/services/localAI/gpuResourceManager):

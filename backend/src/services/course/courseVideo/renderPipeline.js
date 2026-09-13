@@ -116,7 +116,7 @@ async function renderVideo(videoId) {
     };
 
     // Prepare assets for Remotion
-    SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.PREPARING_ASSETS, 65, 'Preparing assets...');
+    SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 65, 'Preparing assets...');
 
     await RemotionService.prepareAssets(jobId, remotionScript, jobConfig);
 
