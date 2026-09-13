@@ -14,25 +14,61 @@ const BackgroundLayer = ({ backgroundColor }) => (
   <AbsoluteFill style={{ backgroundColor: backgroundColor || "#1a1a2e" }} />
 );
 
+// Transition types that skip the crossfade overlap entirely - the incoming
+// scene's Sequence starts exactly where the previous one ends, no blending.
+const HARD_CUT_TRANSITIONS = new Set(["cut", "none"]);
+
 /**
- * Crossfades a scene (background + content together) in from the previous
- * scene over `fadeInFrames`, instead of popping in at full opacity.
- * The outgoing scene's Sequence is extended to overlap this window (see
- * VideoComposition below), so both scenes are visible and blend smoothly
- * instead of hard-cutting - which is what previously read as a "flicker".
+ * Eases the incoming scene in over `frames` (0 -> 1), matching the interpolate
+ * clamp behavior every transition variant below shares.
  */
-const SceneTransition = ({ children, backgroundColor, fadeInFrames = 0 }) => {
+const useEntranceProgress = (frames) => {
   const frame = useCurrentFrame();
-  const opacity =
-    fadeInFrames > 0
-      ? interpolate(frame, [0, fadeInFrames], [0, 1], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        })
-      : 1;
+  return frames > 0
+    ? interpolate(frame, [0, frames], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      })
+    : 1;
+};
+
+/**
+ * Renders one scene's entrance effect. The outgoing scene's Sequence is
+ * extended to overlap this window (see VideoComposition below), so both
+ * scenes are mounted simultaneously and this only has to style the incoming
+ * one - the previous scene sits underneath, unstyled, at full opacity.
+ */
+const SceneTransition = ({ children, backgroundColor, fadeInFrames = 0, transitionType = "fade" }) => {
+  const progress = useEntranceProgress(fadeInFrames);
+
+  let style = { opacity: 1 };
+  switch (transitionType) {
+    case "cut":
+    case "none":
+      // No overlap is computed for these (see boundary transition lookup
+      // below), so progress is always 1 - style is a no-op safety net.
+      style = { opacity: 1 };
+      break;
+    case "slide":
+      // Slides in from the right over a static, fully-opaque background.
+      style = { opacity: 1, transform: `translateX(${(1 - progress) * 100}%)` };
+      break;
+    case "wipe":
+      // Reveals left-to-right via a growing clip window instead of fading.
+      style = { opacity: 1, clipPath: `inset(0 ${(1 - progress) * 100}% 0 0)` };
+      break;
+    case "zoom":
+      style = { opacity: progress, transform: `scale(${0.85 + progress * 0.15})` };
+      break;
+    case "dissolve":
+    case "fade":
+    default:
+      style = { opacity: progress };
+      break;
+  }
 
   return (
-    <AbsoluteFill style={{ opacity }}>
+    <AbsoluteFill style={style}>
       <BackgroundLayer backgroundColor={backgroundColor} />
       <AbsoluteFill>{children}</AbsoluteFill>
     </AbsoluteFill>
@@ -220,7 +256,7 @@ export const VideoComposition = ({ assets, jobId }) => {
   const MAX_TRANSITION_FRAMES = 15; // ~0.5s crossfade between consecutive scenes
   let currentFrame = 0;
 
-  // Precompute each scene's frame span first, so the crossfade overlap at
+  // Precompute each scene's frame span first, so the transition overlap at
   // each boundary can be sized against both neighbors' actual lengths.
   const layout = scenes.map((scene, index) => {
     const sceneDuration = scene.duration || 8; // seconds per scene, default 8
@@ -230,30 +266,26 @@ export const VideoComposition = ({ assets, jobId }) => {
     return { scene, index, sceneStart, sceneFrames };
   });
 
+  // A boundary's transition (fade/slide/wipe/zoom/cut...) is a property of
+  // the incoming scene - "how does this scene arrive". Cut/none get zero
+  // overlap so they land as a true hard cut instead of a hidden crossfade.
+  const boundaryOverlap = (index) => {
+    const incoming = layout[index]?.scene;
+    const transitionType = incoming?.transition || "fade";
+    if (HARD_CUT_TRANSITIONS.has(transitionType)) return 0;
+    return Math.min(
+      MAX_TRANSITION_FRAMES,
+      Math.floor(layout[index - 1].sceneFrames / 3),
+      Math.floor(layout[index].sceneFrames / 3),
+    );
+  };
+
   return (
     <>
       {layout.map(({ scene, index, sceneStart, sceneFrames }) => {
-        const prevFrames = layout[index - 1]?.sceneFrames;
-        const nextFrames = layout[index + 1]?.sceneFrames;
-
-        // Cap the overlap so a transition never eats more than a third of
-        // either adjacent scene's own length (keeps very short scenes sane).
-        const overlapWithNext =
-          index < layout.length - 1
-            ? Math.min(
-                MAX_TRANSITION_FRAMES,
-                Math.floor(sceneFrames / 3),
-                Math.floor(nextFrames / 3),
-              )
-            : 0;
-        const overlapWithPrev =
-          index > 0
-            ? Math.min(
-                MAX_TRANSITION_FRAMES,
-                Math.floor(sceneFrames / 3),
-                Math.floor(prevFrames / 3),
-              )
-            : 0;
+        const overlapWithNext = index < layout.length - 1 ? boundaryOverlap(index + 1) : 0;
+        const overlapWithPrev = index > 0 ? boundaryOverlap(index) : 0;
+        const transitionType = scene.transition || "fade";
 
         const bgColor = scene.backgroundColor || "#1a1a2e";
 
@@ -262,12 +294,13 @@ export const VideoComposition = ({ assets, jobId }) => {
             key={scene.sceneNumber || index}
             from={sceneStart}
             // Extended past its natural end (except the last scene) so it
-            // stays mounted underneath the next scene's fade-in.
+            // stays mounted underneath the next scene's entrance effect.
             durationInFrames={sceneFrames + overlapWithNext}
           >
             <SceneTransition
               backgroundColor={bgColor}
               fadeInFrames={overlapWithPrev}
+              transitionType={transitionType}
             >
               <Scene scene={scene} jobId={jobId} />
             </SceneTransition>

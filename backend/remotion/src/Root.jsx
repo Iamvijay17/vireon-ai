@@ -206,6 +206,34 @@ export const RemotionRoot = () => {
         height={1080}
       />
 
+      {/* Transition variety check: one boundary per named transition, so
+          each of fade/slide/wipe/zoom/dissolve/cut can be eyeballed without
+          rendering a full job (see the Phase 4 "real transition variety"
+          work in VideoComposition's SceneTransition). */}
+      <Composition
+        id="transition-variety-check"
+        component={() => (
+          <VideoComposition
+            assets={{
+              title: "transition-variety-check",
+              scenes: [
+                { sceneNumber: 1, templateId: "001-title", elements: { title: "Fade" }, duration: 3, transition: "fade", backgroundColor: "#1a1a2e" },
+                { sceneNumber: 2, templateId: "001-title", elements: { title: "Slide" }, duration: 3, transition: "slide", backgroundColor: "#2e1a1a" },
+                { sceneNumber: 3, templateId: "001-title", elements: { title: "Wipe" }, duration: 3, transition: "wipe", backgroundColor: "#1a2e1a" },
+                { sceneNumber: 4, templateId: "001-title", elements: { title: "Zoom" }, duration: 3, transition: "zoom", backgroundColor: "#2e2a1a" },
+                { sceneNumber: 5, templateId: "001-title", elements: { title: "Dissolve" }, duration: 3, transition: "dissolve", backgroundColor: "#1a1a2e" },
+                { sceneNumber: 6, templateId: "001-title", elements: { title: "Cut" }, duration: 3, transition: "none", backgroundColor: "#2e1a2e" },
+              ],
+            }}
+            jobId="transition-variety-check"
+          />
+        )}
+        durationInFrames={540}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
       {/* Video Composition for Vireon AI (used for rendering) */}
       <Composition
         id="VideoComposition"

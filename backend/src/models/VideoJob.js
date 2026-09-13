@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS, SHORTS_VIDEO_DURATIONS, FONT_PAIRINGS } = require('../constants');
+const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS, SHORTS_VIDEO_DURATIONS, FONT_PAIRINGS, CAPTION_STYLES } = require('../constants');
 const { generateVideoJobId } = require('../utils/id');
 const sceneSchema = require('./schemas/sceneSchema');
 
@@ -91,6 +91,15 @@ const videoJobSchema = new mongoose.Schema(
       type: String,
       enum: FONT_PAIRINGS,
       default: 'default',
+    },
+    // Word-by-word caption animation applied across the video's content
+    // scenes (see backend/remotion/src/captions/captionAnimations.js's
+    // registry) - podcast/dialogue scenes ignore this and always use
+    // 'highlightCurrent', which is tuned specifically for them.
+    captionAnimation: {
+      type: String,
+      enum: CAPTION_STYLES,
+      default: 'fadeInUp',
     },
     // true (default): current auto flow - after the script-approval pause,
     // audio/images/render/upload all run automatically. false: manual mode,

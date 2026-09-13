@@ -44,7 +44,16 @@ async function prepareAssets(jobId, videoJob, script, avatarVideoUrl, ctx) {
  * content) still triggers a real re-render - see
  * RemotionService.isRenderCurrent.
  */
-async function render(jobId, assets, ctx) {
+async function render(jobId, assets, ctx, script) {
+  // Cheap structural/asset checks before committing to a render - see
+  // RemotionService.validateAssets. Runs before the status flips to
+  // RENDERING so a validation failure doesn't even show the job as having
+  // started rendering. Validated against the source script's scenes, not
+  // assets.scenes - prepareAssets strips scene.audio.text, which the
+  // "narration text but 0-duration audio" check needs.
+  ctx.currentStep = 'Validation';
+  await RemotionService.validateAssets(jobId, script.scenes);
+
   ctx.currentStep = JOB_STATUS.RENDERING;
   await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING);
   SocketService.emitJobProgress({ _id: jobId, progress: JOB_STEPS[JOB_STATUS.RENDERING].progress, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });

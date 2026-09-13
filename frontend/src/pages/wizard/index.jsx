@@ -40,17 +40,34 @@ const VIDEO_TYPES = [
 const RESOLUTIONS = [
   { value: "1920x1080", label: "1080p (1920x1080)" },
   { value: "1080x1920", label: "1080p Vertical (1080x1920)" },
+  { value: "1080x1350", label: "Instagram 4:5 (1080x1350)" },
   { value: "1280x720", label: "720p (1280x720)" },
   { value: "720x1280", label: "720p Vertical (720x1280)" },
   { value: "3840x2160", label: "4K (3840x2160)" },
   { value: "2160x3840", label: "4K Vertical (2160x3840)" },
 ];
 
-// YouTube Shorts must be vertical - backend rejects anything else for this
-// type (see createVideoSchema's superRefine).
+// Mirrors the backend's CAPTION_STYLES enum (backend/src/constants/index.js) -
+// keys into backend/remotion/src/captions/captionAnimations.js's registry.
+const CAPTION_STYLES = [
+  { value: "fadeInUp", label: "Fade Up" },
+  { value: "popScale", label: "Pop" },
+  { value: "slideLeft", label: "Slide Left" },
+  { value: "slideRight", label: "Slide Right" },
+  { value: "bounce", label: "Bounce" },
+  { value: "typewriter", label: "Typewriter" },
+  { value: "glowActive", label: "Glow" },
+  { value: "zoom", label: "Zoom" },
+  { value: "blurToSharp", label: "Blur to Sharp" },
+];
+
+// YouTube Shorts must be exactly 9:16 - backend rejects anything else for
+// this type (see createVideoSchema's superRefine), so this can't just be
+// "any portrait resolution" now that 4:5 (also taller than wide) is an
+// option too.
 const VERTICAL_RESOLUTIONS = RESOLUTIONS.filter((r) => {
   const [width, height] = r.value.split("x").map(Number);
-  return height > width;
+  return height > width && height / width === 16 / 9;
 });
 
 const AVATAR_POSITIONS = [
@@ -168,6 +185,7 @@ const DEFAULT_VALUES = {
   hostName: "",
   guestName: "",
   resolution: "1920x1080",
+  captionAnimation: "fadeInUp",
   fastGeneration: false,
   fastAudio: false,
   // Optional talking-head overlay - no photo upload, the backend picks a
@@ -196,6 +214,7 @@ const buildInitialValues = () => {
     // default rather than starting the wizard in an invalid state.
     duration: isShorts ? SHORTS_DURATIONS[0].value : DEFAULT_VALUES.duration,
     resolution: isShorts && !isVerticalResolution(resolution) ? VERTICAL_RESOLUTIONS[0].value : resolution,
+    captionAnimation: CAPTION_STYLES.some((c) => c.value === prefs.defaultCaptionStyle) ? prefs.defaultCaptionStyle : DEFAULT_VALUES.captionAnimation,
   };
 };
 
@@ -650,6 +669,16 @@ const Wizard = () => {
                 ? "YouTube Shorts are vertical-only."
                 : "Aspect ratio is determined automatically by the resolution you pick."}
             </FieldHint>
+          </div>
+
+          <div className="mb-6">
+            <Label>Caption Style</Label>
+            <Select
+              options={CAPTION_STYLES}
+              value={values.captionAnimation}
+              onChange={(v) => setField("captionAnimation", v)}
+            />
+            <FieldHint>How narration captions animate word-by-word. Podcast dialogue always uses its own highlight style regardless of this setting.</FieldHint>
           </div>
 
           <div className="mb-6">

@@ -49,6 +49,7 @@ export const SHORTS_DURATIONS = [
 export const RESOLUTIONS = [
   { value: "1920x1080", label: "1080p (1920x1080)" },
   { value: "1080x1920", label: "1080p Vertical (1080x1920)" },
+  { value: "1080x1350", label: "Instagram 4:5 (1080x1350)" },
   { value: "1280x720", label: "720p (1280x720)" },
   { value: "720x1280", label: "720p Vertical (720x1280)" },
   { value: "3840x2160", label: "4K (3840x2160)" },

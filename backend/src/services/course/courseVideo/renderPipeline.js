@@ -119,6 +119,12 @@ async function renderVideo(videoId) {
 
     await RemotionService.prepareAssets(jobId, remotionScript, jobConfig);
 
+    // Cheap structural/asset checks before committing to a render - see
+    // RemotionService.validateAssets. Checked against scenesWithAudio (has
+    // scene.audio.text and imagePrompt) rather than the assets.json shape,
+    // which strips audio.text.
+    await RemotionService.validateAssets(jobId, scenesWithAudio);
+
     // Update progress
     video.renderProgress = 70;
     await video.save();

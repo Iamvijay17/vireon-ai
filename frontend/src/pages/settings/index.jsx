@@ -43,9 +43,22 @@ const VIDEO_TYPE_OPTIONS = [
 const RESOLUTION_OPTIONS = [
   { value: "1920x1080", label: "1080p (1920x1080)" },
   { value: "1080x1920", label: "1080p Vertical (1080x1920)" },
+  { value: "1080x1350", label: "Instagram 4:5 (1080x1350)" },
   { value: "1280x720", label: "720p (1280x720)" },
   { value: "720x1280", label: "720p Vertical (720x1280)" },
   { value: "3840x2160", label: "4K (3840x2160)" },
+];
+
+const CAPTION_STYLE_OPTIONS = [
+  { value: "fadeInUp", label: "Fade Up" },
+  { value: "popScale", label: "Pop" },
+  { value: "slideLeft", label: "Slide Left" },
+  { value: "slideRight", label: "Slide Right" },
+  { value: "bounce", label: "Bounce" },
+  { value: "typewriter", label: "Typewriter" },
+  { value: "glowActive", label: "Glow" },
+  { value: "zoom", label: "Zoom" },
+  { value: "blurToSharp", label: "Blur to Sharp" },
 ];
 
 const COURSE_STYLE_OPTIONS = [
@@ -217,6 +230,9 @@ const SettingsPage = () => {
             </SettingsRow>
             <SettingsRow label="Default Resolution" hint="Used by the Wizard's resolution step - aspect ratio follows automatically">
               <Select options={RESOLUTION_OPTIONS} value={settings.defaultResolution} onChange={(v) => updateSetting("defaultResolution", v)} />
+            </SettingsRow>
+            <SettingsRow label="Default Caption Style" hint="Preselected in the Wizard's output step - podcast dialogue always uses its own highlight style">
+              <Select options={CAPTION_STYLE_OPTIONS} value={settings.defaultCaptionStyle} onChange={(v) => updateSetting("defaultCaptionStyle", v)} />
             </SettingsRow>
             <SettingsRow label="Default Course Style" hint="Preselected when creating a course video">
               <Select options={COURSE_STYLE_OPTIONS} value={settings.defaultCourseStyle} onChange={(v) => updateSetting("defaultCourseStyle", v)} />

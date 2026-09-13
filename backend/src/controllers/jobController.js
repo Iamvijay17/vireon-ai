@@ -8,6 +8,7 @@ const videoQueue = require('../queues/videoQueue');
 const LoggerService = require('../services/common/LoggerService');
 const SocketService = require('../services/common/SocketService');
 const { getStorageProvider } = require('../services/storage/providers');
+const { ValidationError, NotFoundError } = require('../utils/errors');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -15,7 +16,7 @@ const VALID_TYPES = ['video', 'course', 'audio'];
 
 function assertValidType(type) {
   if (!VALID_TYPES.includes(type)) {
-    throw { status: 400, message: `Invalid job type "${type}" - must be one of: ${VALID_TYPES.join(', ')}` };
+    throw new ValidationError(`Invalid job type "${type}" - must be one of: ${VALID_TYPES.join(', ')}`);
   }
 }
 
@@ -100,7 +101,7 @@ async function deleteOne(type, id) {
 
   const record = await AudioGeneration.findByIdAndDelete(id);
   if (!record) {
-    throw { status: 404, message: 'Audio generation not found' };
+    throw new NotFoundError('Audio generation not found');
   }
   const audioDir = path.resolve(__dirname, '../../jobs/audio-studio', id);
   await fs.rm(audioDir, { recursive: true, force: true }).catch(() => {});
@@ -155,7 +156,7 @@ class JobController {
 
       const record = await AudioGeneration.findById(id).lean();
       if (!record) {
-        throw { status: 404, message: 'Audio generation not found' };
+        throw new NotFoundError('Audio generation not found');
       }
       return res.json({ job: JobAggregatorService.normalizeAudio(record), logs: [] });
     } catch (err) {

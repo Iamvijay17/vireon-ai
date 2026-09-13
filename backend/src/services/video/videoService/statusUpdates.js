@@ -1,5 +1,6 @@
 const VideoJob = require('../../../models/VideoJob');
 const { JOB_STATUS, JOB_STEPS } = require('../../../constants');
+const { NotFoundError } = require('../../../utils/errors');
 
 /**
  * Update job status with progress.
@@ -59,7 +60,7 @@ async function updateScript(jobId, script) {
  */
 async function updateSceneImage(jobId, sceneNumber, imageData) {
   const job = await VideoJob.findById(jobId);
-  if (!job) throw { status: 404, message: 'Job not found' };
+  if (!job) throw new NotFoundError('Job not found');
 
   const scene = job.script.scenes.find((s) => s.sceneNumber === sceneNumber);
   if (scene) {
@@ -75,7 +76,7 @@ async function updateSceneImage(jobId, sceneNumber, imageData) {
  */
 async function updateSceneAudio(jobId, sceneNumber, audioData) {
   const job = await VideoJob.findById(jobId);
-  if (!job) throw { status: 404, message: 'Job not found' };
+  if (!job) throw new NotFoundError('Job not found');
 
   const scene = job.script.scenes.find((s) => s.sceneNumber === sceneNumber);
   if (scene) {

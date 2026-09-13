@@ -6,6 +6,7 @@ const {
   STANDALONE_VIDEO_DURATIONS,
   SHORTS_VIDEO_DURATIONS,
 } = require('../../../constants');
+const { NotFoundError } = require('../../../utils/errors');
 
 // A job actively being worked on by the worker can't have its details
 // edited underneath it - the same "actively processing" concern as
@@ -40,6 +41,7 @@ async function create(data) {
     // Not user-selectable - resolution alone determines it.
     aspectRatio: getAspectRatioForResolution(data.resolution || '1920x1080'),
     fontPairing: data.fontPairing || 'default',
+    captionAnimation: data.captionAnimation || 'fadeInUp',
     fastGeneration: data.fastGeneration ?? true,
     fastAudio: data.fastAudio ?? false,
     avatarEnabled: data.avatarEnabled ?? false,
@@ -101,7 +103,7 @@ async function getAllJobs(page = 1, limit = 20, filters = {}) {
 async function getById(jobId) {
   const job = await VideoJob.findById(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found' };
+    throw new NotFoundError('Job not found');
   }
   return job;
 }
@@ -146,7 +148,7 @@ async function bulkDelete(jobIds) {
 async function update(jobId, updates) {
   const job = await VideoJob.findById(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found' };
+    throw new NotFoundError('Job not found');
   }
 
   if (BUSY_STATUSES.includes(job.status)) {

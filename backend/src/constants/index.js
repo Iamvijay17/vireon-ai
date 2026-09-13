@@ -103,6 +103,7 @@ const RESOLUTIONS = Object.freeze([
   '1920x1080',
   '1080x1920',
   '1080x1080',
+  '1080x1350',
   '1280x720',
   '720x1280',
   '3840x2160',
@@ -116,14 +117,25 @@ const ASPECT_RATIOS = Object.freeze([
   '16:9',
   '9:16',
   '1:1',
+  '4:5',
 ]);
 
 // Derives aspect ratio from a "WIDTHxHEIGHT" resolution string - the single
-// source of truth for a job's actual output dimensions. Equal width/height is
-// 1:1, otherwise landscape (width > height) is 16:9 and portrait is 9:16.
+// source of truth for a job's actual output dimensions. Reduces the
+// resolution to its simplest ratio (e.g. 1080x1350 -> 4:5) and matches it
+// against the named presets above; a resolution whose reduced ratio isn't
+// one of those presets still falls back to the old landscape/portrait/square
+// bucketing so it never returns something the rest of the app doesn't expect.
+const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+
 const getAspectRatioForResolution = (resolution) => {
   const [width, height] = String(resolution || '').split('x').map(Number);
   if (!width || !height) return '16:9';
+
+  const divisor = gcd(width, height);
+  const reduced = `${width / divisor}:${height / divisor}`;
+  if (ASPECT_RATIOS.includes(reduced)) return reduced;
+
   if (width === height) return '1:1';
   return width > height ? '16:9' : '9:16';
 };
@@ -132,6 +144,24 @@ const getAspectRatioForResolution = (resolution) => {
 // backend/remotion/src/fonts.js (a separate app/package, so the pairing
 // definitions themselves live there; this is just the id enum for job
 // validation/storage). 'default' keeps the legacy system-font look.
+// Caption animation style ids - mirrored in
+// backend/remotion/src/captions/captionAnimations.js's captionAnimationRegistry
+// (a separate app/package, so the animation hooks themselves live there;
+// this is just the id enum for job validation/storage). Dialogue/podcast
+// scenes keep their own hardcoded 'highlightCurrent' style regardless of
+// this setting - it's tuned specifically for multi-speaker captions.
+const CAPTION_STYLES = Object.freeze([
+  'fadeInUp',
+  'popScale',
+  'slideLeft',
+  'slideRight',
+  'bounce',
+  'typewriter',
+  'glowActive',
+  'zoom',
+  'blurToSharp',
+]);
+
 const FONT_PAIRINGS = Object.freeze([
   'default',
   'modern-sans',
@@ -264,6 +294,7 @@ module.exports = {
   ASPECT_RATIOS,
   getAspectRatioForResolution,
   FONT_PAIRINGS,
+  CAPTION_STYLES,
   VOICES,
   LANGUAGES,
   TRANSITIONS,

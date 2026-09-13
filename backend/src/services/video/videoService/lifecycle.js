@@ -3,6 +3,8 @@ const path = require('path');
 const VideoJob = require('../../../models/VideoJob');
 const LoggerService = require('../../common/LoggerService');
 const { JOB_STATUS } = require('../../../constants');
+const { assertTransitionAllowed } = require('../../../constants/jobTransitions');
+const { NotFoundError } = require('../../../utils/errors');
 const { getStepForResume, getResumeStep } = require('./resumeLogic');
 
 /**
@@ -13,14 +15,11 @@ const { getStepForResume, getResumeStep } = require('./resumeLogic');
 async function rerender(jobId) {
   const job = await VideoJob.findById(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found' };
+    throw new NotFoundError('Job not found');
   }
 
   // Only allow re-render from COMPLETED or FAILED states
-  const rerenderableStates = [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED];
-  if (!rerenderableStates.includes(job.status)) {
-    throw { status: 400, message: `Job is in ${job.status} state and cannot be re-rendered. Only COMPLETED or FAILED jobs can be re-rendered.` };
-  }
+  assertTransitionAllowed(job, 'rerender', (status) => `Job is in ${status} state and cannot be re-rendered. Only COMPLETED or FAILED jobs can be re-rendered.`);
 
   // Delete assets/props so the worker regenerates them with the latest
   // scene data (prepareAssets always does this anyway - see renderStep.js).
@@ -83,13 +82,10 @@ async function rerender(jobId) {
 async function regenerateScript(jobId) {
   const job = await VideoJob.findById(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found' };
+    throw new NotFoundError('Job not found');
   }
 
-  const terminalOrRunning = [JOB_STATUS.CANCELLED];
-  if (terminalOrRunning.includes(job.status)) {
-    throw { status: 400, message: `Job is in ${job.status} state and cannot regenerate its script.` };
-  }
+  assertTransitionAllowed(job, 'regenerateScript', (status) => `Job is in ${status} state and cannot regenerate its script.`);
 
   const jobDir = path.resolve(__dirname, '../../../../jobs', jobId);
   // Delete generated audio/render output on disk (keep nothing to resume
@@ -134,13 +130,10 @@ async function regenerateScript(jobId) {
 async function stop(jobId) {
   const job = await VideoJob.findById(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found' };
+    throw new NotFoundError('Job not found');
   }
 
-  const terminalStates = [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED];
-  if (terminalStates.includes(job.status)) {
-    throw { status: 400, message: `Job is in ${job.status} state and cannot be stopped - it isn't running.` };
-  }
+  assertTransitionAllowed(job, 'stop', (status) => `Job is in ${status} state and cannot be stopped - it isn't running.`);
 
   const updatedJob = await VideoJob.findByIdAndUpdate(
     jobId,
@@ -176,12 +169,10 @@ async function stop(jobId) {
 async function approve(jobId) {
   const job = await VideoJob.findById(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found' };
+    throw new NotFoundError('Job not found');
   }
 
-  if (job.status !== JOB_STATUS.AWAITING_APPROVAL) {
-    throw { status: 400, message: `Job is in ${job.status} state and cannot be approved. Only jobs awaiting approval can be approved.` };
-  }
+  assertTransitionAllowed(job, 'approve', (status) => `Job is in ${status} state and cannot be approved. Only jobs awaiting approval can be approved.`);
 
   if (!job.fastGeneration) {
     job.status = JOB_STATUS.SCRIPT_COMPLETED;
@@ -203,16 +194,14 @@ async function approve(jobId) {
 async function generateAudio(jobId) {
   const job = await VideoJob.findById(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found' };
+    throw new NotFoundError('Job not found');
   }
 
   if (job.fastGeneration) {
     throw { status: 400, message: 'This job uses fast generation - audio runs automatically after approval.' };
   }
 
-  if (job.status !== JOB_STATUS.SCRIPT_COMPLETED) {
-    throw { status: 400, message: `Job is in ${job.status} state. Approve the script before generating audio.` };
-  }
+  assertTransitionAllowed(job, 'generateAudio', (status) => `Job is in ${status} state. Approve the script before generating audio.`);
 
   LoggerService.info('Video job manual audio generation triggered', { jobId });
   return job;
@@ -225,16 +214,14 @@ async function generateAudio(jobId) {
 async function generateRender(jobId) {
   const job = await VideoJob.findById(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found' };
+    throw new NotFoundError('Job not found');
   }
 
   if (job.fastGeneration) {
     throw { status: 400, message: 'This job uses fast generation - rendering runs automatically after approval.' };
   }
 
-  if (job.status !== JOB_STATUS.AUDIO_COMPLETED) {
-    throw { status: 400, message: `Job is in ${job.status} state. Generate audio before rendering.` };
-  }
+  assertTransitionAllowed(job, 'generateRender', (status) => `Job is in ${status} state. Generate audio before rendering.`);
 
   LoggerService.info('Video job manual render triggered', { jobId });
   return job;
@@ -246,14 +233,11 @@ async function generateRender(jobId) {
 async function restart(jobId) {
   const job = await VideoJob.findById(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found' };
+    throw new NotFoundError('Job not found');
   }
 
   // Only allow restart from FAILED or stuck processing states
-  const nonRestartableStates = [JOB_STATUS.COMPLETED];
-  if (nonRestartableStates.includes(job.status)) {
-    throw { status: 400, message: `Job is in ${job.status} state and cannot be restarted` };
-  }
+  assertTransitionAllowed(job, 'restart', (status) => `Job is in ${status} state and cannot be restarted`);
 
   // If job is in FAILED state, use error step to determine resume point
   // If job is stuck in a processing state, use current status to determine resume point

@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs/promises');
 const Minio = require('minio');
 const config = require('../../../config');
 const LoggerService = require('../../common/LoggerService');
@@ -164,10 +165,15 @@ class MinioStorageProvider extends StorageProvider {
           bucket,
           key,
         });
+        // Stat before uploading, while the local scratch file is certainly
+        // still there - job cleanup can delete it moments after this
+        // function returns, so a stat done any later (e.g. inside
+        // AssetService.recordUpload, un-awaited) reliably loses that race.
+        const size = await fs.stat(filePath).then((s) => s.size).catch(() => null);
         await this.client.fPutObject(bucket, key, filePath);
         const url = this.getPublicUrl(id, category, fileName);
         LoggerService.upload(`Uploaded ${category}/${fileName}`, { url });
-        AssetService.recordUpload({ id, category, bucket, key, url, filePath });
+        await AssetService.recordUpload({ id, category, bucket, key, url, filePath, size });
         return url;
       } catch (err) {
         lastError = err;
@@ -232,6 +238,19 @@ class MinioStorageProvider extends StorageProvider {
   async deleteObject(bucket, key) {
     await this.#ready;
     await this.client.removeObject(bucket, key);
+  }
+
+  /**
+   * Byte size of an already-uploaded object, or null if it doesn't exist.
+   */
+  async statObjectSize(bucket, key) {
+    await this.#ready;
+    try {
+      const stat = await this.client.statObject(bucket, key);
+      return stat.size;
+    } catch {
+      return null;
+    }
   }
 }
 

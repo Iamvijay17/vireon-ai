@@ -1,4 +1,3 @@
-const fs = require('fs/promises');
 const path = require('path');
 const Asset = require('../../models/Asset');
 const VideoJob = require('../../models/VideoJob');
@@ -43,12 +42,18 @@ class AssetService {
   /**
    * Record a newly-uploaded asset. Called from MinioStorageProvider right
    * after a successful upload - never allowed to fail the upload itself.
+   *
+   * `size` is passed in by the caller (stat'd before the upload started)
+   * rather than re-stat'd here: this function isn't awaited by
+   * MinioStorageProvider.uploadFile in every caller's chain, and the local
+   * scratch file it would stat is often deleted by job cleanup moments
+   * later - stat'ing here lost that race 100% of the time in practice,
+   * silently leaving every asset's size null.
    */
-  static async recordUpload({ id, category, bucket, key, url, filePath }) {
+  static async recordUpload({ id, category, bucket, key, url, filePath, size = null }) {
     try {
       const fileName = path.basename(filePath);
       const ownerType = await resolveOwnerType(id, category);
-      const stat = await fs.stat(filePath).catch(() => null);
 
       await Asset.findOneAndUpdate(
         { ownerId: id, key },
@@ -60,7 +65,7 @@ class AssetService {
           key,
           url,
           fileName,
-          size: stat ? stat.size : null,
+          size,
           mimeType: mimeTypeFor(fileName),
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }

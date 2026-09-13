@@ -71,6 +71,19 @@ class StorageProvider {
   async deleteObject(bucket, key) {
     throw new Error('Method "deleteObject" must be implemented by subclass');
   }
+
+  /**
+   * Byte size of an already-uploaded object, or null if it doesn't exist.
+   * Used to backfill Asset.size for rows recorded before the size was
+   * available at upload time.
+   * @param {string} bucket
+   * @param {string} key
+   * @returns {Promise<number|null>}
+   * @abstract
+   */
+  async statObjectSize(bucket, key) {
+    throw new Error('Method "statObjectSize" must be implemented by subclass');
+  }
 }
 
 module.exports = StorageProvider;

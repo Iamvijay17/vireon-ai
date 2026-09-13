@@ -1,11 +1,20 @@
 const LoggerService = require('../services/common/LoggerService');
 const config = require('../config');
+const { AppError } = require('../utils/errors');
 
 /**
  * Global error handling middleware.
  * Catches all errors and returns structured JSON responses.
  */
 const errorHandler = (err, req, res, _next) => {
+  // A typed AppError (NotFoundError, ValidationError, ...) is an expected,
+  // already-classified failure - not the "something we didn't anticipate"
+  // case the final fallback's "Unhandled error" log/stack trace is for.
+  if (err instanceof AppError) {
+    return res.status(err.status).json({ error: err.message });
+  }
+
+
   // Zod validation errors thrown from validators
   if (err.status && err.errors) {
     return res.status(err.status).json({

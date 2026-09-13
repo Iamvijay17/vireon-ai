@@ -29,8 +29,10 @@ export const FONT_FAMILY_OPTIONS = [
 export const TRANSITION_OPTIONS = [
   { value: "fade", label: "Fade" },
   { value: "slide", label: "Slide" },
+  { value: "wipe", label: "Wipe" },
   { value: "zoom", label: "Zoom" },
   { value: "dissolve", label: "Dissolve" },
+  { value: "none", label: "Cut" },
 ];
 
 export const CAMERA_OPTIONS = [

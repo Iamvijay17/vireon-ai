@@ -99,6 +99,10 @@ class RemotionService {
              type: jobConfig.type || 'educational',
              textColor: '#ffffff',
              accentColor: '#6c63ff',
+             // Content-scene caption animation (see captionAnimations.js's
+             // registry) - podcast/dialogue templates ignore this and keep
+             // their own hardcoded 'highlightCurrent' style.
+             captionAnimation: jobConfig.captionAnimation || 'fadeInUp',
            },
          };
        }),
@@ -223,6 +227,45 @@ class RemotionService {
    */
   static _fingerprintAssets(assetsFile) {
     return crypto.createHash('sha256').update(JSON.stringify(assetsFile)).digest('hex');
+  }
+
+  /**
+   * Renders render/thumbnail.png via Remotion's `still` command (a single
+   * frame, not the full video encode `render` already did). Picks a frame
+   * partway into the second scene rather than frame 0 - the first scene is
+   * usually a title card still fading/animating in at its very first frame,
+   * which makes a poor thumbnail. Falls back to the middle of the only
+   * scene for a single-scene video.
+   */
+  static async _captureThumbnail({ binaryPath, remotionRoot, propsPath, renderDir, width, height, assetsFile }) {
+    const fps = 30;
+    const scenes = assetsFile.scenes || [];
+    let thumbnailFrame = 0;
+
+    if (scenes.length > 1) {
+      const firstSceneFrames = Math.round((scenes[0].duration || 0) * fps);
+      const secondSceneFrames = Math.round((scenes[1].duration || 0) * fps);
+      thumbnailFrame = firstSceneFrames + Math.round(secondSceneFrames * 0.3);
+    } else if (scenes.length === 1) {
+      thumbnailFrame = Math.round((scenes[0].duration || 0) * fps * 0.5);
+    }
+
+    const thumbnailPath = path.join(renderDir, 'thumbnail.png');
+    await execFileAsync(process.execPath, [
+      binaryPath,
+      'still',
+      'VideoComposition',
+      thumbnailPath,
+      `--props=${propsPath}`,
+      '--frame', String(thumbnailFrame),
+      '--width', String(width),
+      '--height', String(height),
+    ], {
+      cwd: remotionRoot,
+      timeout: config.remotion.timeout,
+      encoding: 'utf8',
+      maxBuffer: 50 * 1024 * 1024,
+    });
   }
 
   /**
@@ -386,6 +429,19 @@ class RemotionService {
           this._fingerprintAssets(assetsFile),
           'utf-8'
         );
+
+        // Capture a thumbnail still. assets.json's `output.thumbnail` field
+        // has always declared this path, but nothing ever actually rendered
+        // it - the `render` CLI command above only produces video.mp4, so
+        // uploadStep's "grab whichever .png/.jpg landed in renderDir" logic
+        // silently had nothing to find and every job's thumbnailUrl stayed
+        // empty. Best-effort and non-fatal: a missing thumbnail shouldn't
+        // fail an otherwise-successful render.
+        try {
+          await this._captureThumbnail({ binaryPath, remotionRoot, propsPath, renderDir, width, height, assetsFile });
+        } catch (thumbErr) {
+          LoggerService.warn('Thumbnail capture failed - continuing without one', { jobId, error: thumbErr.message });
+        }
 
         // Timed from the first attempt, not just the successful one - a
         // render that needed a retry genuinely took longer end-to-end, and

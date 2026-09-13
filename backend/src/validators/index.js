@@ -6,6 +6,7 @@ const {
   STANDALONE_VIDEO_DURATIONS,
   SHORTS_VIDEO_DURATIONS,
   FONT_PAIRINGS,
+  CAPTION_STYLES,
   getAspectRatioForResolution,
 } = require('../constants');
 const { ID_PATTERN } = require('../utils/id');
@@ -41,6 +42,9 @@ const createVideoSchema = z
     // Curated title/body Google Font pairing - see backend/remotion/src/fonts.js.
     // 'default' keeps the legacy system-font look.
     fontPairing: z.enum(FONT_PAIRINGS).optional().default('default'),
+    // Word-by-word caption animation for content scenes - see
+    // backend/remotion/src/captions/captionAnimations.js's registry.
+    captionAnimation: z.enum(CAPTION_STYLES).optional().default('fadeInUp'),
     // true: current auto flow (audio/images/render run automatically after
     // script approval). false: manual mode - audio and render each need an
     // explicit trigger, like the course-video pipeline.
@@ -93,6 +97,7 @@ const updateVideoJobSchema = z
     guestName: z.string().max(80).trim().optional(),
     resolution: z.enum(RESOLUTIONS).optional(),
     fontPairing: z.enum(FONT_PAIRINGS).optional(),
+    captionAnimation: z.enum(CAPTION_STYLES).optional(),
     avatarEnabled: z.boolean().optional(),
     avatarPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).nullable().optional(),
   })

@@ -113,7 +113,7 @@ const Content001 = React.memo(({ scene }) => {
 
       <CaptionRenderer
         text={caption}
-        animation="fadeInUp"
+        animation={scene?.theme?.captionAnimation || 'fadeInUp'}
         animationConfig={{ slideDistance: 15 }}
         styleConfig={{
           position: 'bottom',
