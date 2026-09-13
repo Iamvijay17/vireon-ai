@@ -40,6 +40,12 @@ mongoose.connect(config.mongodb.uri, {
 });
 
 const { processVideoJob } = require('./processor');
+const cancellationBus = require('../../services/common/cancellationBus');
+
+// Lets a Stop request published from the API server process (see
+// videoService/lifecycle.js's stop()) reach this process's in-flight
+// AbortControllers immediately - see processor.js's ctx.signal.
+cancellationBus.listenForCancellation();
 
 const connection = {
   host: config.redis.host,

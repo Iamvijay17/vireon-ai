@@ -11,6 +11,7 @@ const ttsClient = require("./ttsClient");
 const { alignCaptions } = require("./captionAlignment");
 const CacheService = require("../../common/CacheService");
 const withTimeout = require("../../../utils/withTimeout");
+const { abortableDelay, makeAbortError } = require("../../../utils/abortableDelay");
 
 const execFileAsync = promisify(execFile);
 
@@ -57,7 +58,7 @@ function instructFor(scene) {
  * share one connection (see clientHolder below) instead of paying Gradio's
  * websocket handshake cost per scene.
  */
-async function connectTtsClient() {
+async function connectTtsClient(signal = null) {
   const LocalAIService = require("../../localAI");
   await LocalAIService.tts.ensureRunning();
   const { Client } = require("@gradio/client");
@@ -68,7 +69,8 @@ async function connectTtsClient() {
   return withTimeout(
     Client.connect(config.tts.url.replace(/\/generate$/, "").replace(/\/$/, "")),
     config.tts.timeout,
-    "Connecting to TTS server timed out"
+    "Connecting to TTS server timed out",
+    signal
   );
 }
 
@@ -88,7 +90,9 @@ async function connectTtsClient() {
  * single-scene callers), this function connects and closes its own client
  * so concurrent unrelated calls never share - or fight over - one socket.
  */
-async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipCache = false, clientHolder = null) {
+async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipCache = false, clientHolder = null, signal = null) {
+  if (signal?.aborted) throw makeAbortError();
+
   const { text } = scene.audio;
   if (!text) {
     LoggerService.warn("Scene has no audio text, skipping", {
@@ -152,6 +156,8 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
 
   try {
     for (let attempt = 1; attempt <= config.tts.maxRetries; attempt++) {
+      if (signal?.aborted) throw makeAbortError();
+
       try {
         LoggerService.tts(
           `Generating audio scene ${scene.sceneNumber} (attempt ${attempt})`,
@@ -167,14 +173,15 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
         const result = await withTimeout(
           ttsClient.generate(clientHolder.current, resolved, text, seed, instruct, fastMode),
           config.tts.timeout,
-          "TTS generation timed out"
+          "TTS generation timed out",
+          signal
         );
 
         const audio = result.data[0];
 
         if (audio && audio.url) {
           // Download the generated audio
-          const outputResponse = await fetch(audio.url);
+          const outputResponse = await fetch(audio.url, { signal: signal || undefined });
           if (!outputResponse.ok) {
             throw new Error(
               `Failed to download generated audio: ${outputResponse.status} ${outputResponse.statusText}`,
@@ -188,7 +195,7 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
           const { stdout: durationStr } = await execFileAsync(
             "node",
             [helperScript, outputFile],
-            { encoding: "utf8", timeout: 30000 },
+            { encoding: "utf8", timeout: 30000, signal: signal || undefined },
           );
           const duration = parseFloat(durationStr);
 
@@ -230,6 +237,11 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
 
         throw new Error("No audio URL returned from TTS API");
       } catch (err) {
+        // A cancelled job should bail out of the retry loop immediately,
+        // not spend the backoff delay + a whole extra timeout window on an
+        // attempt nobody wants anymore.
+        if (err.name === "AbortError") throw err;
+
         lastError = err;
         const isLastAttempt = attempt === config.tts.maxRetries;
 
@@ -240,7 +252,7 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
 
         if (!isLastAttempt) {
           const delay = Math.min(2000 * Math.pow(2, attempt - 1), 16000);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await abortableDelay(delay, signal);
 
           // A "timed out" failure means Gradio's job queue is silently
           // wedged, not just slow - confirmed live 2026-09-13: the TTS
@@ -260,7 +272,7 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
           // reconnect before the next attempt. When this client is shared
           // across scenes (clientHolder), the fresh connection replaces it
           // for every scene still to come, not just this retry.
-          clientHolder.current = await connectTtsClient();
+          clientHolder.current = await connectTtsClient(signal);
         }
       }
     }
@@ -322,8 +334,13 @@ async function generateSceneAudio(jobId, scene, voice, fastMode = false, skipCac
  * All scenes share one Gradio connection (clientHolder) instead of each
  * paying the websocket-connect cost, since they're already serialized onto
  * a single TTS call at a time anyway.
+ *
+ * `signal`, if provided, is threaded into each scene's TTS/download/decode
+ * calls (see synthesizeSceneAudio) so a cancellation interrupts whichever
+ * one is currently in flight immediately, instead of only being noticed by
+ * `checkCancelled` at the next scene boundary.
  */
-async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled, fastMode = false, skipCache = false) {
+async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled, fastMode = false, skipCache = false, signal = null) {
   LoggerService.tts("Starting batch audio generation", {
     jobId,
     scenes: scenes.length,
@@ -336,7 +353,7 @@ async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCanc
   // onSceneComplete) once the *next* scene's synthesis has already been
   // kicked off - not before.
   let pending = null;
-  const clientHolder = scenes.length > 0 ? { current: await connectTtsClient() } : null;
+  const clientHolder = scenes.length > 0 ? { current: await connectTtsClient(signal) } : null;
 
   try {
     for (let i = 0; i <= scenes.length; i++) {
@@ -347,7 +364,7 @@ async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCanc
         if (typeof checkCancelled === "function") {
           await checkCancelled();
         }
-        synthesizing = synthesizeSceneAudio(jobId, scene, voice || scene.audio?.voice, fastMode, skipCache, clientHolder);
+        synthesizing = synthesizeSceneAudio(jobId, scene, voice || scene.audio?.voice, fastMode, skipCache, clientHolder, signal);
       }
 
       if (pending) {

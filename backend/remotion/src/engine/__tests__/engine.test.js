@@ -14,6 +14,10 @@ import {
   resolveTransitionId,
 } from '../../transitions';
 import { CAPTION_STYLE_IDS, CAPTION_STYLES, getCaptionStyle } from '../../captions/captionStyles';
+import { BACKGROUND_IDS, BACKGROUND_REGISTRY, renderBackground } from '../backgrounds';
+import { DECORATION_IDS, DECORATION_REGISTRY, renderDecoration } from '../decorations';
+import { VISUAL_STYLE_IDS, VISUAL_STYLES, resolveVisualStyle } from '../visualStyle';
+import { chooseBackground, chooseDecoration } from '../chooseVisuals';
 
 // ---------------------------------------------------------------------------
 // Scene routing - representative ContentProfiles should route through
@@ -91,6 +95,134 @@ test('motion: choreograph only ever assigns ids that exist in MOTION_REGISTRY', 
   for (const slotId of Object.keys(motionPlan)) {
     assert.ok(MOTION_IDS.includes(motionPlan[slotId].type), `${motionPlan[slotId].type} must be a real MOTION_ID`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Backgrounds
+// ---------------------------------------------------------------------------
+
+test('backgrounds: every BACKGROUND_ID renders without throwing', () => {
+  for (const id of BACKGROUND_IDS) {
+    assert.equal(typeof BACKGROUND_REGISTRY[id].render, 'function', `${id} must export render()`);
+    assert.doesNotThrow(() => renderBackground(id, { frame: 10, palette: {}, intensity: 0.3, seed: 'bg-seed' }));
+  }
+});
+
+test('backgrounds: unknown id falls back to solid instead of throwing', () => {
+  assert.doesNotThrow(() => renderBackground('not-a-real-background', { frame: 0, seed: 's' }));
+});
+
+test('backgrounds: renders safely with no props at all', () => {
+  for (const id of BACKGROUND_IDS) {
+    assert.doesNotThrow(() => BACKGROUND_REGISTRY[id].render());
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Decorations
+// ---------------------------------------------------------------------------
+
+test('decorations: every DECORATION_ID renders without throwing', () => {
+  for (const id of DECORATION_IDS) {
+    assert.equal(typeof DECORATION_REGISTRY[id].render, 'function', `${id} must export render()`);
+    assert.doesNotThrow(() => renderDecoration(id, { frame: 10, palette: {}, intensity: 0.2, seed: 'dec-seed' }));
+  }
+});
+
+test('decorations: unknown id falls back to dots instead of throwing', () => {
+  assert.doesNotThrow(() => renderDecoration('not-a-real-decoration', { frame: 0, seed: 's' }));
+});
+
+test('decorations: renders safely with no props at all', () => {
+  for (const id of DECORATION_IDS) {
+    assert.doesNotThrow(() => DECORATION_REGISTRY[id].render());
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Visual style + visual selection (background/decoration choice)
+// ---------------------------------------------------------------------------
+
+test('visualStyle: every VISUAL_STYLE_ID resolves to a preset with background/decoration config', () => {
+  for (const id of VISUAL_STYLE_IDS) {
+    const style = resolveVisualStyle(id);
+    assert.equal(style, VISUAL_STYLES[id]);
+    assert.ok(Array.isArray(style.background.preferred) && style.background.preferred.length > 0);
+    assert.ok(Array.isArray(style.decoration.preferred) && style.decoration.preferred.length > 0);
+  }
+});
+
+test('visualStyle: unknown/missing style id falls back to a deterministic seeded pick, never throws', () => {
+  assert.doesNotThrow(() => resolveVisualStyle('not-a-real-style', 'job-1'));
+  const a = resolveVisualStyle(undefined, 'job-1');
+  const b = resolveVisualStyle(undefined, 'job-1');
+  assert.equal(a, b, 'same seed must resolve to the same visual style');
+  assert.ok(VISUAL_STYLE_IDS.includes(a.id));
+});
+
+test('visual selection: chooseBackground/chooseDecoration only ever pick real registry ids', () => {
+  const profile = analyzeContent({
+    elements: { title: 'T', items: [{ heading: '1', text: 'one' }, { heading: '2', text: 'two' }] },
+  });
+  const layoutPlan = solveLayout(profile, 'visual-seed');
+  const style = resolveVisualStyle('technology');
+
+  const background = chooseBackground({ layoutPlan, style, seed: 'visual-seed' });
+  const decoration = chooseDecoration({ layoutPlan, style, seed: 'visual-seed' });
+
+  assert.ok(BACKGROUND_IDS.includes(background.id));
+  assert.ok(DECORATION_IDS.includes(decoration.id));
+  assert.ok(background.intensity > 0 && background.intensity <= 1);
+  assert.ok(decoration.intensity > 0 && decoration.intensity <= 1);
+});
+
+test('visual selection: same layoutPlan/style/seed always chooses the same background and decoration', () => {
+  const profile = analyzeContent({ elements: { title: 'T', body: 'x'.repeat(80) } });
+  const layoutPlan = solveLayout(profile, 'det-visual-seed');
+  const style = resolveVisualStyle('futuristic');
+
+  const run = () => ({
+    background: chooseBackground({ layoutPlan, style, seed: 'det-visual-seed' }),
+    decoration: chooseDecoration({ layoutPlan, style, seed: 'det-visual-seed' }),
+  });
+
+  assert.deepEqual(run(), run());
+});
+
+test('visual selection: more content coverage never increases decoration intensity (same strategy tag)', () => {
+  const style = resolveVisualStyle('modern');
+
+  // Both resolve to the default 'content' tag (see chooseVisuals.js's
+  // STRATEGY_TAG map - neither 'stack-list' nor 'paragraph-stack' has an
+  // entry there), isolating the coverage effect from the per-tag intensity
+  // multiplier so this only exercises Phase 8's content-awareness.
+  const sparseProfile = analyzeContent({
+    elements: { title: 'T', items: [{ text: 'one' }, { text: 'two' }, { text: 'three' }] },
+  });
+  const sparsePlan = solveLayout(sparseProfile, 'coverage-seed');
+  assert.equal(sparsePlan.strategy, 'stack-list');
+  const sparseDecoration = chooseDecoration({ layoutPlan: sparsePlan, style, seed: 'coverage-seed' });
+
+  const denseProfile = analyzeContent({
+    elements: { title: 'T', items: [{ text: 'x'.repeat(150) }, { text: 'y'.repeat(150) }] },
+  });
+  const densePlan = solveLayout(denseProfile, 'coverage-seed');
+  assert.equal(densePlan.strategy, 'paragraph-stack');
+  const denseDecoration = chooseDecoration({ layoutPlan: densePlan, style, seed: 'coverage-seed' });
+
+  assert.ok(
+    denseDecoration.intensity <= sparseDecoration.intensity,
+    'a content-dense scene must not get stronger decoration than a sparser one',
+  );
+});
+
+test('visual selection: gracefully handles a missing/empty layoutPlan and style', () => {
+  assert.doesNotThrow(() => chooseBackground({ seed: 'x' }));
+  assert.doesNotThrow(() => chooseDecoration({ seed: 'x' }));
+  const background = chooseBackground({ layoutPlan: { slots: [] }, seed: 'x' });
+  const decoration = chooseDecoration({ layoutPlan: { slots: [] }, seed: 'x' });
+  assert.ok(BACKGROUND_IDS.includes(background.id));
+  assert.ok(DECORATION_IDS.includes(decoration.id));
 });
 
 // ---------------------------------------------------------------------------

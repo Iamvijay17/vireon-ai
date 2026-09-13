@@ -6,6 +6,7 @@ const { JOB_STATUS } = require('../../../constants');
 const { assertTransitionAllowed } = require('../../../constants/jobTransitions');
 const { NotFoundError } = require('../../../utils/errors');
 const { getStepForResume, getResumeStep } = require('./resumeLogic');
+const cancellationBus = require('../../common/cancellationBus');
 
 /**
  * Re-render a completed job - resets to PREPARING_ASSETS state
@@ -122,10 +123,14 @@ async function regenerateScript(jobId) {
  * Stop a running job. Marks it CANCELLED immediately - if the job hasn't
  * started processing yet, the caller (VideoController.stop) also removes
  * it from the BullMQ queue so it never starts. If it's already mid-flight,
- * there's no way to kill the in-progress external call (LM Studio/TTS/
- * Remotion/upload) directly, so the worker itself checks for
- * CANCELLED at each step boundary and between per-scene iterations, and
- * bails out as soon as it notices - see videoWorker.js's `bailIfCancelled`.
+ * there's no general way to kill an in-progress external call (LM Studio/
+ * upload) directly, so the worker itself checks for CANCELLED at each step
+ * boundary and between per-scene iterations, and bails out as soon as it
+ * notices - see videoWorker/shared.js's `bailIfCancelled`. The TTS and
+ * Remotion calls specifically also get an immediate abort signal via
+ * cancellationBus below (see workers/videoWorker/processor.js's ctx.signal),
+ * since those are the steps long enough for a user to notice Stop "not
+ * working" while it waits out a checkpoint.
  */
 async function stop(jobId) {
   const job = await VideoJob.findById(jobId);
@@ -150,6 +155,8 @@ async function stop(jobId) {
   );
 
   LoggerService.info('Video job stopped', { jobId, previousStatus: job.status });
+
+  cancellationBus.requestCancel(jobId);
 
   return updatedJob;
 }

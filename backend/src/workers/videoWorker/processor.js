@@ -9,6 +9,7 @@ const { JOB_STATUS } = require('../../constants');
 const { computeBackoffMs } = require('../../utils/backoff');
 const { classifyError } = require('../../utils/errorMessages');
 const { bailIfCancelled } = require('./shared');
+const cancellationBus = require('../../services/common/cancellationBus');
 const { getResumeStep } = require('../../services/video/videoService/resumeLogic');
 const scriptStep = require('./scriptStep');
 const audioStep = require('./audioStep');
@@ -67,8 +68,14 @@ async function processVideoJob(job) {
   // Tracks the current step for error reporting - shared by reference
   // with every step module so each can record where it was right before
   // doing its actual work, matching where the original inline pipeline
-  // set this same variable.
-  const ctx = { currentStep: null };
+  // set this same variable. ctx.signal aborts the moment a Stop request
+  // reaches this process (see cancellationBus) - audioStep/renderStep
+  // thread it into their TTS/Remotion calls so cancellation interrupts
+  // whatever's actually in flight instead of only being noticed at the
+  // next bailIfCancelled checkpoint between steps.
+  const abortController = new AbortController();
+  const unregisterAbort = cancellationBus.register(jobId, abortController);
+  const ctx = { currentStep: null, signal: abortController.signal };
 
   try {
     // A delayed automatic-retry job can fire after the user already hit
@@ -200,6 +207,8 @@ async function processVideoJob(job) {
     // Re-throw for logging parity with BullMQ's 'failed' listener. attempts:
     // 1 on the queue means BullMQ itself won't retry this.
     throw err;
+  } finally {
+    unregisterAbort();
   }
 }
 

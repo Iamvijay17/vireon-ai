@@ -5,7 +5,7 @@ const LocalAIService = require('../../services/localAI');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS } = require('../../constants');
-const { bailIfCancelled } = require('./shared');
+const { bailIfCancelled, JobCancelledError } = require('./shared');
 
 /**
  * Step 4: audio generation, skipped if every scene already has an audio
@@ -54,33 +54,45 @@ async function run(jobId, videoJob, script, ctx) {
   // (not per-scene) - releasing between scenes would just thrash
   // start/stop against LM Studio/ComfyUI for no benefit, since this stage
   // owns TTS work start-to-finish anyway.
-  await LocalAIService.gpu.withGPU('tts', () =>
-    AudioService.generateAllAudio(
-      jobId,
-      scenesToProcess,
-      jobVoice,
-      async (sceneNumber, result) => {
-        // Persist and broadcast as soon as this individual scene's audio is ready,
-        // instead of waiting for the whole batch to finish.
-        await VideoService.updateSceneAudio(jobId, sceneNumber, result);
-        SocketService.emitSceneAudioReady(jobId, sceneNumber, result);
+  try {
+    await LocalAIService.gpu.withGPU('tts', () =>
+      AudioService.generateAllAudio(
+        jobId,
+        scenesToProcess,
+        jobVoice,
+        async (sceneNumber, result) => {
+          // Persist and broadcast as soon as this individual scene's audio is ready,
+          // instead of waiting for the whole batch to finish.
+          await VideoService.updateSceneAudio(jobId, sceneNumber, result);
+          SocketService.emitSceneAudioReady(jobId, sceneNumber, result);
 
-        completedScenes += 1;
-        const mapped = 40 + Math.round((completedScenes / totalScenes) * 9);
-        SocketService.emitJobProgress({ _id: jobId, progress: mapped, status: JOB_STATUS.GENERATING_AUDIO, currentStep: JOB_STATUS.GENERATING_AUDIO, currentScene: sceneNumber });
-        VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_AUDIO, { progress: mapped }).catch((err) => {
-          LoggerService.warn('Failed to persist audio progress', { jobId, error: err.message });
-        });
+          completedScenes += 1;
+          const mapped = 40 + Math.round((completedScenes / totalScenes) * 9);
+          SocketService.emitJobProgress({ _id: jobId, progress: mapped, status: JOB_STATUS.GENERATING_AUDIO, currentStep: JOB_STATUS.GENERATING_AUDIO, currentScene: sceneNumber });
+          VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_AUDIO, { progress: mapped }).catch((err) => {
+            LoggerService.warn('Failed to persist audio progress', { jobId, error: err.message });
+          });
 
-        LoggerService.info(`Scene ${sceneNumber} audio ready`, {
-          file: result.file,
-          duration: result.duration,
-        });
-      },
-      () => bailIfCancelled(jobId),
-      videoJob.fastAudio
-    )
-  );
+          LoggerService.info(`Scene ${sceneNumber} audio ready`, {
+            file: result.file,
+            duration: result.duration,
+          });
+        },
+        () => bailIfCancelled(jobId),
+        videoJob.fastAudio,
+        false,
+        ctx.signal
+      )
+    );
+  } catch (err) {
+    // ctx.signal (see processor.js) is aborted the moment a Stop request
+    // reaches this process - see cancellationBus - which interrupts
+    // whichever TTS call is currently in flight instead of waiting for it
+    // to time out. Surface that the same way bailIfCancelled's checkpoints
+    // do, so the outer pipeline treats it as a cancellation, not a failure.
+    if (err.name === 'AbortError') throw new JobCancelledError(jobId);
+    throw err;
+  }
 }
 
 module.exports = { run };

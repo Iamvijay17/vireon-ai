@@ -7,6 +7,7 @@ const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
 const { getStorageProvider } = require('../storage/providers');
 const MetricsService = require('../common/MetricsService');
+const { abortableDelay, makeAbortError } = require('../../utils/abortableDelay');
 
 const execFileAsync = promisify(execFile);
 
@@ -66,9 +67,18 @@ function remotionProgressFraction(state) {
  * contract otherwise: resolves {stdout, stderr} on exit code 0, rejects
  * with stdout/stderr/code attached on failure or timeout.
  */
-function runRemotionCommandStreaming(binaryPath, args, { cwd, timeout, onLine }) {
+function runRemotionCommandStreaming(binaryPath, args, { cwd, timeout, onLine, signal }) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [binaryPath, ...args], { cwd, windowsHide: true });
+    if (signal?.aborted) {
+      reject(makeAbortError());
+      return;
+    }
+
+    // Passing `signal` lets Node kill the child itself the moment the job
+    // is cancelled (SIGTERM, then rejects with a standard AbortError below)
+    // instead of only noticing between whole render attempts - a single
+    // attempt can run for the full config.remotion.timeout (minutes).
+    const child = spawn(process.execPath, [binaryPath, ...args], { cwd, windowsHide: true, signal });
 
     let stdout = '';
     let stderr = '';
@@ -413,7 +423,7 @@ class RemotionService {
   /**
    * Execute Remotion render process.
    */
-  static async renderVideo(jobId, assets = null, onProgress = null) {
+  static async renderVideo(jobId, assets = null, onProgress = null, signal = null) {
     const jobDir = path.resolve(__dirname, '../../../jobs', jobId);
     const assetsPath = path.join(jobDir, 'assets.json');
     const renderDir = path.join(jobDir, 'render');
@@ -456,6 +466,8 @@ class RemotionService {
      const renderStartedAt = Date.now();
 
      for (let attempt = 1; attempt <= config.remotion.maxRetries; attempt++) {
+       if (signal?.aborted) throw makeAbortError();
+
        try {
          LoggerService.render(`Rendering video (attempt ${attempt}/${config.remotion.maxRetries})`, {
            jobId,
@@ -531,6 +543,7 @@ class RemotionService {
         const { stdout } = await runRemotionCommandStreaming(binaryPath, args, {
           cwd: remotionRoot,
           timeout: config.remotion.timeout,
+          signal,
           onLine: (line) => {
             if (parseRemotionProgressLine(line, progressState) && onProgress) {
               try {
@@ -591,6 +604,10 @@ class RemotionService {
           path: renderDir,
         };
       } catch (err) {
+        // A cancelled job should bail out immediately rather than spending
+        // the backoff delay plus another full render attempt.
+        if (err.name === 'AbortError') throw err;
+
         lastError = err;
         const isLastAttempt = attempt === config.remotion.maxRetries;
 
@@ -610,7 +627,7 @@ class RemotionService {
 
         if (!isLastAttempt) {
           const delay = Math.min(5000 * Math.pow(2, attempt - 1), 30000);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await abortableDelay(delay, signal);
         }
       }
     }

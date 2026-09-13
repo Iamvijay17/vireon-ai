@@ -5,6 +5,10 @@ import { solveLayout } from '../../engine/solveLayout';
 import { generateStyle } from '../../engine/generateStyle';
 import { choreograph } from '../../engine/choreograph';
 import { computeMotionStyle } from '../../engine/motion';
+import { renderBackground } from '../../engine/backgrounds';
+import { renderDecoration } from '../../engine/decorations';
+import { resolveVisualStyle } from '../../engine/visualStyle';
+import { chooseBackground, chooseDecoration } from '../../engine/chooseVisuals';
 import { SlotText, SlotImage, Waveform } from '../../engine/primitives';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
 import { getCaptionStyle } from '../../captions/captionStyles';
@@ -52,6 +56,27 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
   const layoutPlan = useMemo(() => solveLayout(profile, seed), [profile, seed]);
   const stylePlan = useMemo(() => generateStyle(styleSeed), [styleSeed]);
   const motionPlan = useMemo(() => choreograph(layoutPlan, seed), [layoutPlan, seed]);
+
+  // Visual style (Phase 5): a small curated mood enum, not part of
+  // generateStyle.js's continuous palette/font system - see visualStyle.js's
+  // doc comment. Never LLM-generated: either an explicit override or a
+  // deterministic per-job pick, so a whole video keeps one consistent mood.
+  const visualStyleOverride = overrides.visualStyle || scene?.theme?.visualStyle;
+  const visualStyle = useMemo(
+    () => resolveVisualStyle(visualStyleOverride, styleSeed),
+    [visualStyleOverride, styleSeed],
+  );
+  // Background/Decoration selection (Phase 6) - pure functions of the
+  // layout strategy, visual style and per-scene seed, so the same scene
+  // always resolves to the same environment/accents.
+  const backgroundPick = useMemo(
+    () => chooseBackground({ layoutPlan, style: visualStyle, seed }),
+    [layoutPlan, visualStyle, seed],
+  );
+  const decorationPick = useMemo(
+    () => chooseDecoration({ layoutPlan, style: visualStyle, seed }),
+    [layoutPlan, visualStyle, seed],
+  );
 
   // generateStyle stays a pure function (see its doc comment), so the actual
   // Google Font registration - a side effect - happens here instead, once
@@ -101,6 +126,12 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <AbsoluteFill style={{ background: stylePlan.palette.bgGradient }} />
+      {renderBackground(backgroundPick.id, {
+        frame, palette: stylePlan.palette, intensity: backgroundPick.intensity, seed,
+      })}
+      {renderDecoration(decorationPick.id, {
+        frame, palette: stylePlan.palette, intensity: decorationPick.intensity, seed,
+      })}
 
       <div
         style={{

@@ -7,6 +7,7 @@ const RemotionStatus = require('../../services/localAI/remotionStatus');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS, JOB_STEPS } = require('../../constants');
+const { JobCancelledError } = require('./shared');
 
 /**
  * Step 6: prepare Remotion assets.json - always regenerated (not skipped
@@ -93,7 +94,16 @@ async function render(jobId, assets, ctx, script) {
         });
       };
 
-      renderResult = await RemotionService.renderVideo(jobId, assets, onRenderProgress);
+      try {
+        renderResult = await RemotionService.renderVideo(jobId, assets, onRenderProgress, ctx.signal);
+      } catch (err) {
+        // ctx.signal (see processor.js) is aborted the moment a Stop
+        // request reaches this process - see cancellationBus - which kills
+        // the in-progress Remotion child process immediately instead of
+        // only being noticed after the current render attempt finishes.
+        if (err.name === 'AbortError') throw new JobCancelledError(jobId);
+        throw err;
+      }
     } finally {
       RemotionStatus.end();
     }
