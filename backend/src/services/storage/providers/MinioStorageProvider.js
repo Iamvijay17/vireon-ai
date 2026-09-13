@@ -113,13 +113,19 @@ class MinioStorageProvider extends StorageProvider {
    * into its bucket + in-bucket key, so a caller holding only the stored
    * URL (e.g. CourseVideo.renderUrl) can stream the object's bytes directly
    * instead of proxying an extra HTTP request to MinIO's public endpoint.
+   * Only the path is inspected on purpose - stored URLs may carry whatever
+   * origin MINIO_PUBLIC_URL pointed at when they were written (127.0.0.1, a
+   * previous LAN IP, the current LAN IP), so requiring an exact prefix would
+   * break every historical record whenever that setting changes.
    */
   parsePublicUrl(url) {
-    const prefix = `${config.minio.publicUrl}/`;
-    if (!url || !url.startsWith(prefix)) {
+    if (!url || !/^https?:\/\//i.test(String(url))) {
       throw new Error(`Not a recognized MinIO public URL: ${url}`);
     }
-    const [bucket, ...keyParts] = url.slice(prefix.length).split('/');
+    const [bucket, ...keyParts] = new URL(String(url)).pathname.replace(/^\//, '').split('/');
+    if (!bucket || keyParts.length === 0) {
+      throw new Error(`Not a recognized MinIO public URL: ${url}`);
+    }
     return { bucket, key: keyParts.join('/') };
   }
 

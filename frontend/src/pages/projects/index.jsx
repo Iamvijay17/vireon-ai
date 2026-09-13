@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Plus, FolderKanban, Film, BookOpen, PlayCircle, CheckCircle2 } from "lucide-react";
-import { getVideoJobs, getCourses } from "../../services/api";
+import { getVideoJobs, getCourses, resolveMediaUrl } from "../../services/api";
 import { PageHeader, LoadingState, EmptyState, StatusTag } from "../../components";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -59,7 +59,7 @@ const Projects = () => {
       kind: "video",
       title: j.topic,
       status: j.status,
-      thumbnail: j.thumbnailUrl,
+      thumbnail: resolveMediaUrl(j.thumbnailUrl),
       meta: [j.type, j.resolution].filter(Boolean).join(" · "),
       updatedAt: j.updatedAt || j.createdAt,
       route: `/render?id=${j._id}`,
@@ -69,7 +69,7 @@ const Projects = () => {
       kind: "course",
       title: c.title,
       status: c.status,
-      thumbnail: c.thumbnail,
+      thumbnail: resolveMediaUrl(c.thumbnail),
       meta: `${c.completedVideoCount || 0} / ${c.videoCount || 0} lessons`,
       updatedAt: c.updatedAt || c.createdAt,
       route: `/courses/${c._id}`,

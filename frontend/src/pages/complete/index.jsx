@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, PlayCircle, Download, Eye, ChevronLeft, ChevronRight, Film } from "lucide-react";
-import { getVideoJobs } from "../../services/api";
+import { getVideoJobs, resolveMediaUrl } from "../../services/api";
 import { isPortraitResolution } from "../../shared/resolution";
 import { PageHeader, LoadingState, EmptyState } from "../../components";
 import { Card } from "../../components/ui/Card";
@@ -106,7 +106,7 @@ const CompletedVideos = () => {
                   >
                     {job.thumbnailUrl ? (
                       <img
-                        src={job.thumbnailUrl}
+                        src={resolveMediaUrl(job.thumbnailUrl)}
                         alt={job.topic}
                         className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
@@ -145,7 +145,7 @@ const CompletedVideos = () => {
                             size="sm"
                             iconOnly
                             aria-label={`Download ${job.topic}`}
-                            href={job.videoUrl}
+                            href={resolveMediaUrl(job.videoUrl)}
                             target="_blank"
                             rel="noopener noreferrer"
                             download

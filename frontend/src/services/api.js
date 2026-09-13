@@ -37,15 +37,6 @@ api.interceptors.response.use(
   }
 );
 
-// Backend-generated media (course audio/render output) comes back as paths
-// relative to the API origin (e.g. "/public/<id>/audio/scene1.mp3"), not the
-// frontend's own origin, so they need the API base prefixed to load.
-export const resolveMediaUrl = (path) => {
-  if (!path) return path;
-  if (/^https?:\/\//i.test(path)) return path;
-  return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
-};
-
 // MinIO serves scene audio directly (anonymous-read bucket) rather than
 // through the backend, so it needs its own origin, not API_BASE. Mirrors
 // getApiBase()'s "derive from the current hostname, allow an env override"
@@ -59,14 +50,67 @@ const getMinioBase = () => {
 const MINIO_BASE = getMinioBase();
 const MINIO_SCENES_BUCKET = import.meta.env.VITE_MINIO_SCENES_BUCKET || 'vireon-scenes';
 
+// Port the backend's MinIO instance serves object URLs on (backend/.env
+// MINIO_PUBLIC_URL, default 9000). Used to recognize MinIO object links so
+// their host can be re-homed for LAN access.
+const MINIO_PORT = (() => {
+  try {
+    return new URL(MINIO_BASE).port || '9000';
+  } catch {
+    return '9000';
+  }
+})();
+
+// The backend builds every asset URL it stores/returns (videoUrl,
+// thumbnailUrl, avatarVideoUrl, audioUrl, renderUrl, scene.audio.file) from
+// MINIO_PUBLIC_URL in backend/.env - by default http://127.0.0.1:9000. That
+// origin only works on the backend machine itself: a browser on any other LAN
+// device resolves 127.0.0.1 to its own loopback, so every <video>/<audio>/<img>
+// fails to load while the API and socket (both derived from window.location)
+// keep working. Re-home such URLs to the host the page was served from so they
+// follow the device that loaded the page, mirroring the getApiBase/getMinioBase
+// trick.
+const resolveAssetUrl = (url) => {
+  if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return url;
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const isLoopback =
+      hostname === 'localhost' || hostname === '::1' || /^127(\.\d{1,3}){3}$/.test(hostname);
+    // Loopback links (and any stale URL still pointed at the MinIO port, e.g.
+    // an old LAN IP baked in before this machine's address changed) are MinIO
+    // object links - swap in the host this page was served from. A port must
+    // be explicitly present: stored MinIO URLs always carry one (publicUrl is
+    // built as http(s)://host:port), and URLs without one must pass through.
+    const isMinioPort = parsed.port !== '' && String(parsed.port) === String(MINIO_PORT || '9000');
+    if ((isLoopback || hostname !== window.location.hostname) && isMinioPort) {
+      parsed.hostname = window.location.hostname;
+      return parsed.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+};
+
+// Backend-generated media (course audio/render output) comes back either as
+// absolute MinIO URLs (audioUrl/renderUrl - host may be a loopback address) or
+// as paths relative to the API origin (e.g. "/public/<id>/audio/scene1.mp3").
+// Relative paths get the API base prefixed; absolute ones get LAN re-homed.
+export const resolveMediaUrl = (path) => {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) return resolveAssetUrl(path);
+  return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
+};
+
 // Resolves a scene's audio field (`scene.audio.file`) to a browser-fetchable
 // URL. The backend stores it as a bare filename (e.g. "scene1.mp3") and
-// uploads the actual bytes to MinIO the moment it's generated - already-
-// absolute values (a leftover from an older job, or a future provider
-// change) pass through unchanged, matching resolveMediaUrl's convention.
+// uploads the actual bytes to MinIO the moment it's generated. Already-
+// absolute values (a leftover from an older job, or a future provider change)
+// get the same LAN re-homing as other media URLs instead of passing through.
 export const resolveSceneAudioUrl = (videoId, audioFile) => {
   if (!audioFile) return null;
-  if (/^https?:\/\//i.test(audioFile)) return audioFile;
+  if (/^https?:\/\//i.test(audioFile)) return resolveAssetUrl(audioFile);
   return `${MINIO_BASE}/${MINIO_SCENES_BUCKET}/${videoId}/audio/${audioFile}`;
 };
 
