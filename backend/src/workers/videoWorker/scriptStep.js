@@ -1,6 +1,7 @@
 const LoggerService = require('../../services/common/LoggerService');
 const ActivityLogService = require('../../services/common/ActivityLogService');
 const ChunkedScriptService = require('../../services/video/ChunkedScriptService');
+const LocalAIService = require('../../services/localAI');
 const ScriptParserService = require('../../services/video/ScriptParserService');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
@@ -90,24 +91,31 @@ async function run(jobId, videoJob, currentStatus, ctx) {
   // before it stops mid-JSON. Generate in bounded chunks instead (see
   // ChunkedScriptService) - each a small independent call the model can
   // actually complete; short scripts still resolve in one call.
-  const rawScript = await ChunkedScriptService.generate({
-    videoType: videoJob.type,
-    topic: videoJob.topic,
-    language: videoJob.language,
-    sceneCount,
-    wordCount,
-    wordsPerScene,
-    hostName: videoJob.hostName,
-    guestName: videoJob.guestName,
-    jobId,
-    checkCancelled: () => bailIfCancelled(jobId),
-    onProgress: async (chunkIndex, chunkCount, scenesGenerated) => {
-      if (chunkCount <= 1) return;
-      const progress = 10 + Math.round((chunkIndex / chunkCount) * 9); // 10-19%
-      await ActivityLogService.add(jobId, `Script generation: ${scenesGenerated} scenes written (chunk ${chunkIndex}/${chunkCount})`);
-      SocketService.emitJobProgress({ _id: jobId, progress, status: JOB_STATUS.SCRIPT_GENERATION, currentStep: JOB_STATUS.SCRIPT_GENERATION, currentScene: scenesGenerated });
-    },
-  });
+  // GPU-sequential: this dev machine's 6GB card can't hold LM Studio and
+  // Qwen3-TTS/ComfyUI loaded at once, so claim the GPU for LM Studio here
+  // and hold it across every chunk (ChunkedScriptService may make several
+  // calls), releasing only once the whole script is generated - the audio
+  // step right after this one will then need to wait/evict to get its turn.
+  const rawScript = await LocalAIService.gpu.withGPU('llm', () =>
+    ChunkedScriptService.generate({
+      videoType: videoJob.type,
+      topic: videoJob.topic,
+      language: videoJob.language,
+      sceneCount,
+      wordCount,
+      wordsPerScene,
+      hostName: videoJob.hostName,
+      guestName: videoJob.guestName,
+      jobId,
+      checkCancelled: () => bailIfCancelled(jobId),
+      onProgress: async (chunkIndex, chunkCount, scenesGenerated) => {
+        if (chunkCount <= 1) return;
+        const progress = 10 + Math.round((chunkIndex / chunkCount) * 9); // 10-19%
+        await ActivityLogService.add(jobId, `Script generation: ${scenesGenerated} scenes written (chunk ${chunkIndex}/${chunkCount})`);
+        SocketService.emitJobProgress({ _id: jobId, progress, status: JOB_STATUS.SCRIPT_GENERATION, currentStep: JOB_STATUS.SCRIPT_GENERATION, currentScene: scenesGenerated });
+      },
+    })
+  );
 
   const validatedScript = ScriptParserService.validate(rawScript, videoJob.type, {
     hostVoice: videoJob.hostVoice,

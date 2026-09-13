@@ -1,6 +1,7 @@
 const LoggerService = require('../../services/common/LoggerService');
 const ActivityLogService = require('../../services/common/ActivityLogService');
 const AudioService = require('../../services/audio/audioService');
+const LocalAIService = require('../../services/localAI');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS } = require('../../constants');
@@ -42,22 +43,28 @@ async function run(jobId, videoJob, script, ctx) {
   // (`voice || scene.audio?.voice`) picks up the per-turn voice.
   const jobVoice = videoJob.type === 'podcast' ? undefined : videoJob.voice;
 
-  await AudioService.generateAllAudio(
-    jobId,
-    scenesToProcess,
-    jobVoice,
-    async (sceneNumber, result) => {
-      // Persist and broadcast as soon as this individual scene's audio is ready,
-      // instead of waiting for the whole batch to finish.
-      await VideoService.updateSceneAudio(jobId, sceneNumber, result);
-      SocketService.emitSceneAudioReady(jobId, sceneNumber, result);
-      LoggerService.info(`Scene ${sceneNumber} audio ready`, {
-        file: result.file,
-        duration: result.duration,
-      });
-    },
-    () => bailIfCancelled(jobId),
-    videoJob.fastAudio
+  // GPU-sequential: claim the GPU for TTS across the whole batch of scenes
+  // (not per-scene) - releasing between scenes would just thrash
+  // start/stop against LM Studio/ComfyUI for no benefit, since this stage
+  // owns TTS work start-to-finish anyway.
+  await LocalAIService.gpu.withGPU('tts', () =>
+    AudioService.generateAllAudio(
+      jobId,
+      scenesToProcess,
+      jobVoice,
+      async (sceneNumber, result) => {
+        // Persist and broadcast as soon as this individual scene's audio is ready,
+        // instead of waiting for the whole batch to finish.
+        await VideoService.updateSceneAudio(jobId, sceneNumber, result);
+        SocketService.emitSceneAudioReady(jobId, sceneNumber, result);
+        LoggerService.info(`Scene ${sceneNumber} audio ready`, {
+          file: result.file,
+          duration: result.duration,
+        });
+      },
+      () => bailIfCancelled(jobId),
+      videoJob.fastAudio
+    )
   );
 }
 

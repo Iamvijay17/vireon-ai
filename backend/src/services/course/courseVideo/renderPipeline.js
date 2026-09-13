@@ -7,6 +7,7 @@ const SocketService = require('../../common/SocketService');
 const ActivityLogService = require('../../common/ActivityLogService');
 const AvatarService = require('../../avatar/avatarService');
 const RemotionService = require('../../video/RemotionService');
+const RemotionStatus = require('../../localAI/remotionStatus');
 const StorageService = require('../../storage/StorageService');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
@@ -132,7 +133,12 @@ async function renderVideo(videoId) {
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 80, 'Rendering video...');
 
     // Try Remotion render - throw error if it fails
-    await RemotionService.renderVideo(jobId);
+    RemotionStatus.begin();
+    try {
+      await RemotionService.renderVideo(jobId);
+    } finally {
+      RemotionStatus.end();
+    }
 
     video.renderedAt = new Date();
     video.renderProgress = 90;

@@ -2,6 +2,7 @@ const axios = require('axios');
 const config = require('../../config');
 const LoggerService = require('./LoggerService');
 const JsonRepairService = require('./JsonRepairService');
+const LocalAIService = require('../localAI');
 
 /**
  * Service for interacting with LM Studio (Gemma) API.
@@ -14,6 +15,11 @@ class LMStudioService {
    * generateScript and generateCurriculum.
    */
   static async _callLLM(prompt, { maxTokens = 10000, timeout = config.lmStudio.timeout } = {}) {
+    // Auto-start LM Studio (and JIT-load the configured model) instead of
+    // requiring the user to have opened it by hand first. Cheap to call on
+    // every request - it's just a health check once LM Studio is already up.
+    await LocalAIService.lmStudio.ensureRunning();
+
     let lastError = null;
 
     for (let attempt = 1; attempt <= config.lmStudio.maxRetries; attempt++) {

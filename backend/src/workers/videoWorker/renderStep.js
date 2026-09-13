@@ -3,6 +3,7 @@ const path = require('path');
 const LoggerService = require('../../services/common/LoggerService');
 const ActivityLogService = require('../../services/common/ActivityLogService');
 const RemotionService = require('../../services/video/RemotionService');
+const RemotionStatus = require('../../services/localAI/remotionStatus');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS, JOB_STEPS } = require('../../constants');
@@ -69,7 +70,13 @@ async function render(jobId, assets, ctx, script) {
 
     await ActivityLogService.add(jobId, 'Rendering started');
 
-    const renderResult = await RemotionService.renderVideo(jobId, assets);
+    RemotionStatus.begin();
+    let renderResult;
+    try {
+      renderResult = await RemotionService.renderVideo(jobId, assets);
+    } finally {
+      RemotionStatus.end();
+    }
 
     LoggerService.success('Video rendered', renderResult);
   }

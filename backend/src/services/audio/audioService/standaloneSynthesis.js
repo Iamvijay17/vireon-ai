@@ -18,6 +18,8 @@ const execFileAsync = promisify(execFile);
  */
 async function synthesizeToFile(outputFile, text, voice, seed, instruct, logCtx, fastMode = false) {
   const { Client } = require("@gradio/client");
+  const LocalAIService = require("../../localAI");
+  await LocalAIService.tts.ensureRunning();
   const resolved = await resolveVoice(voice);
   let lastError = null;
 

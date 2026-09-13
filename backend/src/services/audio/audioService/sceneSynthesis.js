@@ -57,6 +57,8 @@ function instructFor(scene) {
  * websocket handshake cost per scene.
  */
 async function connectTtsClient() {
+  const LocalAIService = require("../../localAI");
+  await LocalAIService.tts.ensureRunning();
   const { Client } = require("@gradio/client");
   return Client.connect(config.tts.url.replace(/\/generate$/, "").replace(/\/$/, ""));
 }

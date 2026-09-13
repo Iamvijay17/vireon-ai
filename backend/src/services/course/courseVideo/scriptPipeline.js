@@ -3,6 +3,7 @@ const LoggerService = require('../../common/LoggerService');
 const SocketService = require('../../common/SocketService');
 const ActivityLogService = require('../../common/ActivityLogService');
 const LMStudioService = require('../../common/LMStudioService');
+const LocalAIService = require('../../localAI');
 const ScriptParserService = require('../../video/ScriptParserService');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
 const { classifyError } = require('../../../utils/errorMessages');
@@ -150,8 +151,8 @@ async function generateScript(videoId) {
     // Build prompt for LM Studio
     const prompt = buildScriptPrompt(video);
 
-    // Call LM Studio
-    const rawScriptData = await LMStudioService.generateScript(prompt);
+    // Call LM Studio - GPU-sequential, same as the standalone video pipeline's scriptStep.js
+    const rawScriptData = await LocalAIService.gpu.withGPU('llm', () => LMStudioService.generateScript(prompt));
 
     // Parse and validate script to ensure scene_meta is generated and scene types are normalized.
     // Seed the template rotation with the video id so different lessons

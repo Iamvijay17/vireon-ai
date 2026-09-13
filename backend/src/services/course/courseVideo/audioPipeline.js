@@ -3,6 +3,7 @@ const LoggerService = require('../../common/LoggerService');
 const SocketService = require('../../common/SocketService');
 const ActivityLogService = require('../../common/ActivityLogService');
 const AudioService = require('../../audio/audioService');
+const LocalAIService = require('../../localAI');
 const ScriptParserService = require('../../video/ScriptParserService');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
@@ -62,30 +63,32 @@ async function generateAudio(videoId) {
     // incrementally instead of waiting for the whole batch to finish.
     const jobId = video._id.toString();
     let sceneAudioDoneCount = 0;
-    const audioResults = await AudioService.generateAllAudio(
-      jobId,
-      audioScenes,
-      video.voice,
-      async (sceneNumber, result) => {
-        await CourseVideo.updateOne(
-          { _id: videoId, 'script.scenes.sceneNumber': sceneNumber },
-          {
-            $set: {
-              'script.scenes.$.audio.file': result.file,
-              'script.scenes.$.audio.duration': result.duration,
-              'script.scenes.$.duration': result.duration,
-            },
-          }
-        );
-        sceneAudioDoneCount += 1;
-        await ActivityLogService.add(
-          videoId,
-          `Scene ${sceneNumber} audio generated (${sceneAudioDoneCount}/${audioScenes.length})`
-        );
-        SocketService.emitCourseVideoSceneAudioReady(video, sceneNumber, result);
-      },
-      () => bailIfCancelled(videoId),
-      video.fastAudio
+    const audioResults = await LocalAIService.gpu.withGPU('tts', () =>
+      AudioService.generateAllAudio(
+        jobId,
+        audioScenes,
+        video.voice,
+        async (sceneNumber, result) => {
+          await CourseVideo.updateOne(
+            { _id: videoId, 'script.scenes.sceneNumber': sceneNumber },
+            {
+              $set: {
+                'script.scenes.$.audio.file': result.file,
+                'script.scenes.$.audio.duration': result.duration,
+                'script.scenes.$.duration': result.duration,
+              },
+            }
+          );
+          sceneAudioDoneCount += 1;
+          await ActivityLogService.add(
+            videoId,
+            `Scene ${sceneNumber} audio generated (${sceneAudioDoneCount}/${audioScenes.length})`
+          );
+          SocketService.emitCourseVideoSceneAudioReady(video, sceneNumber, result);
+        },
+        () => bailIfCancelled(videoId),
+        video.fastAudio
+      )
     );
 
     // Update each scene with actual audio duration
@@ -191,7 +194,9 @@ async function regenerateSceneAudio(videoId, sceneNumber) {
   try {
     // skipCache: true - an explicit regenerate must always produce a fresh
     // take, never a cached one. See scenePipeline.regenerateSceneAudio.
-    const [result] = await AudioService.generateAllAudio(jobId, [audioScene], video.voice, undefined, undefined, video.fastAudio, true);
+    const [result] = await LocalAIService.gpu.withGPU('tts', () =>
+      AudioService.generateAllAudio(jobId, [audioScene], video.voice, undefined, undefined, video.fastAudio, true)
+    );
     if (!result) {
       throw new Error('Audio generation returned no result');
     }

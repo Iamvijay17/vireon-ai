@@ -38,6 +38,99 @@ const config = Object.freeze({
     maxRetries: parseInt(process.env.TTS_MAX_RETRIES, 10) || 3,
   },
 
+  // Local AI Service Manager (backend/src/services/localAI): auto-starts
+  // LM Studio and the Qwen3-TTS Gradio server (normally launched by hand via
+  // the LM Studio app / Pinokio) so a job never fails just because the user
+  // forgot to open them first. Health-check URLs default to derivations of
+  // the existing lmStudio.url/tts.url above rather than separate hardcoded
+  // host/port literals, so the two stay in sync.
+  localAI: {
+    lmStudio: {
+      enabled: process.env.LM_STUDIO_ENABLED !== 'false',
+      // ENABLED is the master on/off switch for the whole integration;
+      // AUTO_START/AUTO_STOP separately govern the GPU-sequential lifecycle
+      // (GPUResourceManager) - AUTO_START gates whether ensureRunning() may
+      // spawn it at all (false = health-check only, error if not already
+      // up), AUTO_STOP gates whether releasing the GPU actively
+      // unloads/stops it or leaves it warm indefinitely.
+      autoStart: process.env.LM_STUDIO_AUTO_START !== 'false',
+      autoStop: process.env.LM_STUDIO_AUTO_STOP !== 'false',
+      // Where LM Studio's CLI (`lms`, ships on PATH with LM Studio's
+      // desktop app - see https://lmstudio.ai/docs/cli) lives. Used both to
+      // start the server and to JIT-load the configured model afterward.
+      cliPath: process.env.LM_STUDIO_CLI_PATH || 'lms',
+      // "lms server start" reuses whatever port the server last ran on if
+      // none is given - pass the configured one explicitly so a first-ever
+      // start also lands on the port lmStudio.url above expects.
+      startCommand:
+        process.env.LM_STUDIO_START_COMMAND ||
+        `lms server start --port ${new URL(process.env.LM_STUDIO_URL || 'http://localhost:1234').port || 1234}`,
+      healthUrl:
+        process.env.LM_STUDIO_HEALTH_URL ||
+        (process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/chat/completions').replace(
+          /\/v1\/chat\/completions\/?$/,
+          '/v1/models'
+        ),
+      startupTimeoutMs: parseInt(process.env.LM_STUDIO_STARTUP_TIMEOUT_MS, 10) || 60000,
+      healthCheckIntervalMs: parseInt(process.env.LM_STUDIO_HEALTH_CHECK_INTERVAL_MS, 10) || 2000,
+      healthCheckTimeoutMs: parseInt(process.env.LM_STUDIO_HEALTH_CHECK_TIMEOUT_MS, 10) || 3000,
+    },
+    tts: {
+      enabled: process.env.TTS_ENABLED !== 'false',
+      autoStart: process.env.TTS_AUTO_START !== 'false',
+      autoStop: process.env.TTS_AUTO_STOP !== 'false',
+      // No safe cross-machine default exists for these two - they point at
+      // this machine's actual Pinokio install (see install.json/pinokio.js
+      // in the Qwen3-TTS Pinokio app folder, which run `python app.py` from
+      // its own venv). Leave unset (auto-start disabled, falls back to
+      // "start it manually") rather than guessing a path that doesn't exist.
+      startCommand: process.env.TTS_START_COMMAND || '',
+      workdir: process.env.TTS_WORKDIR || '',
+      healthUrl: process.env.TTS_HEALTH_URL || `${(process.env.TTS_API_URL || 'http://localhost:7860').replace(/\/$/, '')}/`,
+      // Loading the TTS model onto the GPU is slower than LM Studio's model
+      // load, hence the longer default startup budget.
+      startupTimeoutMs: parseInt(process.env.TTS_STARTUP_TIMEOUT_MS, 10) || 180000,
+      healthCheckIntervalMs: parseInt(process.env.TTS_HEALTH_CHECK_INTERVAL_MS, 10) || 3000,
+      healthCheckTimeoutMs: parseInt(process.env.TTS_HEALTH_CHECK_TIMEOUT_MS, 10) || 5000,
+    },
+    // NOT wired to any real process on this machine - no ComfyUI install
+    // was found here (checked C:\pinokio\api and C:\, D:\ top-level) and
+    // nothing in this codebase currently generates images via ComfyUI (no
+    // ComfyUI references exist anywhere in the repo). This block exists so
+    // GPUResourceManager has a slot to sequence against once you do install
+    // it and point COMFYUI_START_COMMAND/COMFYUI_WORKDIR at it - until then
+    // `enabled` defaults to false and nothing will try to start it.
+    comfyUI: {
+      enabled: process.env.COMFYUI_ENABLED === 'true',
+      autoStart: process.env.COMFYUI_AUTO_START !== 'false',
+      autoStop: process.env.COMFYUI_AUTO_STOP !== 'false',
+      startCommand: process.env.COMFYUI_START_COMMAND || '',
+      workdir: process.env.COMFYUI_WORKDIR || '',
+      healthUrl: process.env.COMFYUI_HEALTH_URL || `${(process.env.COMFYUI_API_URL || 'http://127.0.0.1:8188').replace(/\/$/, '')}/system_stats`,
+      startupTimeoutMs: parseInt(process.env.COMFYUI_STARTUP_TIMEOUT_MS, 10) || 180000,
+      healthCheckIntervalMs: parseInt(process.env.COMFYUI_HEALTH_CHECK_INTERVAL_MS, 10) || 3000,
+      healthCheckTimeoutMs: parseInt(process.env.COMFYUI_HEALTH_CHECK_TIMEOUT_MS, 10) || 5000,
+    },
+  },
+
+  // GPU Resource Manager (backend/src/services/localAI/gpuResourceManager):
+  // this dev machine has a single 6GB RTX 2060, so LM Studio + Qwen3-TTS +
+  // ComfyUI running their models at the same time reliably freezes/OOMs it.
+  // maxConcurrent defaults to 1 - only one GPU-heavy local AI service is
+  // allowed to hold its model loaded at a time; everything else either
+  // reuses its own already-warm slot or queues until the current owner
+  // finishes its stage and releases (see scriptStep.js/audioStep.js).
+  gpu: {
+    mode: process.env.AI_SERVICE_MODE || 'sequential',
+    maxConcurrent: parseInt(process.env.GPU_MAX_CONCURRENT_AI_SERVICES, 10) || 1,
+    // How long a released-but-not-yet-evicted service is left warm (model
+    // still loaded) before an idle service with autoStop enabled is
+    // unloaded/stopped to free VRAM/RAM. A service with autoStop=false
+    // instead stays warm indefinitely until another service's acquire()
+    // forces it out (GPU capacity is a hard limit either way).
+    idleTimeoutMs: (parseInt(process.env.AI_SERVICE_IDLE_TIMEOUT, 10) || 60) * 1000,
+  },
+
   avatar: {
     url: process.env.LIVEPORTRAIT_URL || 'http://127.0.0.1:8890',
     // Stock talking-head reference clip (bundled with the app) - drives the
