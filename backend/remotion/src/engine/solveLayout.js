@@ -18,16 +18,47 @@ import { fitTextToBox } from './textFit';
 const CANVAS = { width: 1920, height: 1080 };
 const PAD = { x: 120, top: 90, bottom: 90 };
 
+// Must mirror SlotText's title `lineHeight` (roleBaseStyle's 'title' case) -
+// otherwise the height reserved here for the title diverges from what it
+// actually renders at, and either overlaps the next slot or leaves a gap.
+const TITLE_LINE_HEIGHT = 1.15;
+const TITLE_BOX_HEIGHT_BUDGET = 200;
+// Hard ceiling on how much vertical space a title may ever claim, even if
+// fitTextToBox bottoms out at minFontSize and still needs more lines than
+// the budget above - without this, an unusually long title could push
+// stack-based content (buildStackList etc., via contentTopAfterTitle) down
+// far enough to squeeze list items into zero/negative height. SlotText clips
+// render to this same figure (slot.hPct), so past this point the title
+// truncates cleanly instead of overflowing.
+const MAX_TITLE_RESERVED_HEIGHT = 400;
+
+// Returns the slot with its actual measured height (lines * fontSize *
+// lineHeight, capped at MAX_TITLE_RESERVED_HEIGHT) so callers can reserve
+// real space for what follows instead of assuming every title fits the same
+// fixed box - a long title that only shrinks down to minFontSize still needs
+// more lines than the budget assumes, and previously that overflow silently
+// bled into the next slot (see SlotText - non-card text slots had no
+// height/overflow clipping).
 const titleSlot = (title, boxWidth, yPct, maxFontSize = 68) => {
   if (!title) return null;
-  const { fontSize } = fitTextToBox(title, { boxWidth, boxHeight: 200, maxFontSize, minFontSize: 38 });
+  const { fontSize, lines } = fitTextToBox(title, {
+    boxWidth, boxHeight: TITLE_BOX_HEIGHT_BUDGET, maxFontSize, minFontSize: 38, lineHeight: TITLE_LINE_HEIGHT,
+  });
+  const height = Math.min(lines * fontSize * TITLE_LINE_HEIGHT, MAX_TITLE_RESERVED_HEIGHT);
   return {
     id: 'title', role: 'title', text: title,
     xPct: PAD.x / CANVAS.width, yPct,
-    wPct: boxWidth / CANVAS.width, hPct: 0.2,
+    wPct: boxWidth / CANVAS.width, hPct: height / CANVAS.height,
     fontSize, textAlign: 'left',
   };
 };
+
+// The vertical offset stack-based strategies reserve for content that
+// follows the title - the title's own measured height (see titleSlot) plus
+// a fixed gap, instead of a magic constant that assumed every title fits in
+// ~200px regardless of how much text it actually holds.
+const TITLE_GAP = 40;
+const contentTopAfterTitle = (title, fallbackTop) => (title ? PAD.top + title.hPct * CANVAS.height + TITLE_GAP : fallbackTop);
 
 const buildTitleOnly = (profile) => {
   const boxWidth = CANVAS.width - PAD.x * 2;
@@ -42,7 +73,7 @@ const buildStackList = (profile) => {
   const title = titleSlot(profile.title, boxWidth, PAD.top / CANVAS.height);
   if (title) slots.push(title);
 
-  const listTop = title ? PAD.top + 200 : PAD.top;
+  const listTop = contentTopAfterTitle(title, PAD.top);
   const rowHeight = Math.min(110, (CANVAS.height - listTop - PAD.bottom) / Math.max(profile.itemCount, 1));
   profile.items.forEach((item, index) => {
     const { fontSize } = fitTextToBox(item.text || '', { boxWidth: rowWidth, boxHeight: rowHeight - 16, maxFontSize: 32, minFontSize: 20 });
@@ -64,7 +95,7 @@ const buildGrid = (profile) => {
 
   const cols = 2;
   const gap = 32;
-  const gridTop = title ? PAD.top + 200 : PAD.top;
+  const gridTop = contentTopAfterTitle(title, PAD.top);
   const gridHeight = CANVAS.height - gridTop - PAD.bottom;
   const rows = Math.ceil(profile.itemCount / cols);
   const cardWidth = (boxWidth - gap * (cols - 1)) / cols;
@@ -91,7 +122,7 @@ const buildTimeline = (profile) => {
   const title = titleSlot(profile.title, CANVAS.width - PAD.x * 2, PAD.top / CANVAS.height);
   if (title) slots.push(title);
 
-  const listTop = title ? PAD.top + 200 : PAD.top;
+  const listTop = contentTopAfterTitle(title, PAD.top);
   const rowHeight = Math.min(140, (CANVAS.height - listTop - PAD.bottom) / Math.max(profile.itemCount, 1));
   profile.items.forEach((item, index) => {
     const { fontSize } = fitTextToBox(item.text || '', { boxWidth, boxHeight: rowHeight - 24, maxFontSize: 28, minFontSize: 18 });
@@ -111,7 +142,7 @@ const buildParagraphStack = (profile) => {
   const title = titleSlot(profile.title, boxWidth, PAD.top / CANVAS.height);
   if (title) slots.push(title);
 
-  const stackTop = title ? PAD.top + 220 : PAD.top;
+  const stackTop = contentTopAfterTitle(title, PAD.top);
   const available = CANVAS.height - stackTop - PAD.bottom;
   const rowHeight = available / Math.max(profile.itemCount, 1);
   profile.items.forEach((item, index) => {

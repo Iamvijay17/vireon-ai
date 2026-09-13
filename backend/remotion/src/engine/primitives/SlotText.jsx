@@ -36,6 +36,15 @@ const roleBaseStyle = (slot, stylePlan) => {
   }
 };
 
+// title/body slots carry an hPct sized to their actual measured text height
+// (solveLayout's titleSlot/fitTextToBox), capped at a sane ceiling for
+// pathologically long text. Clamping the rendered box to that same height
+// means an edge case that still needs more room than its geometry accounted
+// for (e.g. split-image/podcast-* place the next slot at a fixed yPct gap
+// rather than deriving it from the title's real height) truncates cleanly
+// instead of visibly overlapping the slot below it.
+const CLAMPABLE_ROLES = new Set(['title', 'body']);
+
 export const SlotText = ({ slot, stylePlan, motionStyle, overrideStyle }) => {
   if (!slot.text) return null;
 
@@ -45,6 +54,10 @@ export const SlotText = ({ slot, stylePlan, motionStyle, overrideStyle }) => {
     top: `${slot.yPct * 100}%`,
     width: `${slot.wPct * 100}%`,
   };
+
+  const clampStyle = CLAMPABLE_ROLES.has(slot.role) && !slot.card && slot.hPct
+    ? { height: `${slot.hPct * 100}%`, overflow: 'hidden' }
+    : {};
 
   const chromeStyle = slot.card
     ? {
@@ -61,7 +74,7 @@ export const SlotText = ({ slot, stylePlan, motionStyle, overrideStyle }) => {
   return (
     <div
       data-slot-role={slot.role}
-      style={{ ...positionStyle, ...chromeStyle, ...motionStyle }}
+      style={{ ...positionStyle, ...clampStyle, ...chromeStyle, ...motionStyle }}
     >
       {slot.numbered && (
         <span style={{ display: 'inline-block', color: stylePlan.palette.accent, fontFamily: stylePlan.fonts.body, fontWeight: 700, fontSize: 22, marginRight: 12 }}>
