@@ -201,6 +201,7 @@ const CourseDetail = () => {
       voice: video.voice || EMPTY_FORM.voice,
       style: video.style || EMPTY_FORM.style,
       resolution: video.resolution || EMPTY_FORM.resolution,
+      quality: video.quality || EMPTY_FORM.quality,
       additionalInstructions: video.additionalInstructions || "",
       fastAudio: video.fastAudio ?? EMPTY_FORM.fastAudio,
       avatarEnabled: video.avatarEnabled ?? false,

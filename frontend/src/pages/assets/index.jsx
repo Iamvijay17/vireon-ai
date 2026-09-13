@@ -198,7 +198,7 @@ const AssetsPage = () => {
           <button
             type="button"
             onClick={() => setOrphanedOnly((v) => !v)}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
               orphanedOnly
                 ? "border-warning-500/40 bg-warning-500/10 text-warning-600 dark:text-warning-500"
                 : "border-border bg-surface-hover/50 text-text-tertiary hover:text-text-secondary"

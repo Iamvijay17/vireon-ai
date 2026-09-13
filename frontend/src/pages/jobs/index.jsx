@@ -391,7 +391,7 @@ const JobsPage = () => {
                 key={f.value}
                 type="button"
                 onClick={() => setStatusFilter(f.value)}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
                   statusFilter === f.value
                     ? "bg-surface text-text-primary shadow-sm"
                     : "text-text-tertiary hover:text-text-secondary"

@@ -260,7 +260,7 @@ const scrollable = useMemo(
                 type="button"
                 onClick={() => navigate("/logs")}
                 title="Open full logs page"
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+                className="cursor-pointer flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
               >
                 <Expand className="size-3.5" />
                 Full view
@@ -273,7 +273,7 @@ const scrollable = useMemo(
                 }}
                 title={pinned ? "Unpin (collapse on mouse-out)" : "Pin open until closed"}
                 className={cn(
-                  "flex size-7 items-center justify-center rounded-md transition-colors hover:bg-surface-hover",
+                  "cursor-pointer flex size-7 items-center justify-center rounded-md transition-colors hover:bg-surface-hover",
                   pinned ? "text-accent" : "text-text-secondary hover:text-text-primary"
                 )}
               >
@@ -283,7 +283,7 @@ const scrollable = useMemo(
                 type="button"
                 onClick={close}
                 title="Close"
-                className="flex size-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+                className="cursor-pointer flex size-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
               >
                 <X className="size-4" />
               </button>
@@ -297,7 +297,7 @@ const scrollable = useMemo(
             <button
               type="button"
               onClick={jumpToLatest}
-              className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-lg shadow-black/20 hover:bg-accent-hover"
+              className="cursor-pointer absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-lg shadow-black/20 hover:bg-accent-hover"
             >
               <ArrowDownToLine className="size-3.5" />
               New logs

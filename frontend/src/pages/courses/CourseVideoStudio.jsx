@@ -227,7 +227,7 @@ const CourseVideoStudio = () => {
                     onDragEnd={() => setDragOverIndex(null)}
                     onClick={() => setSelectedSceneIndex(i)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-lg border p-1.5 text-left transition-colors",
+                      "flex w-full cursor-pointer items-center gap-2 rounded-lg border p-1.5 text-left transition-colors",
                       isActive ? "border-accent bg-accent-subtle" : "border-border-light bg-surface hover:bg-surface-hover",
                       isDragOver && "ring-2 ring-accent",
                     )}
@@ -268,7 +268,7 @@ const CourseVideoStudio = () => {
                 type="button"
                 onClick={() => setSelectedSceneIndex((i) => Math.max(0, i - 1))}
                 disabled={selectedSceneIndex === 0}
-                className="rounded-md p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
+                className="rounded-md p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ChevronLeft className="size-4" />
               </button>
@@ -279,7 +279,7 @@ const CourseVideoStudio = () => {
                 type="button"
                 onClick={() => setSelectedSceneIndex((i) => Math.min(editedScenes.length - 1, i + 1))}
                 disabled={selectedSceneIndex === editedScenes.length - 1}
-                className="rounded-md p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
+                className="rounded-md p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ChevronRight className="size-4" />
               </button>
@@ -291,7 +291,7 @@ const CourseVideoStudio = () => {
                 <button
                   type="button"
                   onClick={() => setTemplatePickerOpen(true)}
-                  className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-surface p-1.5 text-left transition-colors hover:border-accent"
+                  className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-border bg-surface p-1.5 text-left transition-colors hover:border-accent"
                 >
                   <div className="aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-black">
                     <SceneThumbnail scene={scene} />

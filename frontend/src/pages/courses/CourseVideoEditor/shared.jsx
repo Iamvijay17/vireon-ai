@@ -31,7 +31,7 @@ export const StepSection = ({ number, title, state, badges, summary, actions, is
       <button
         type="button"
         onClick={onToggle}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
       >
         <ChevronDown className={`size-4 shrink-0 text-text-tertiary transition-transform ${isOpen ? "" : "-rotate-90"}`} />
         <span className={`flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold ${STEP_CIRCLE_CLASSES[state]}`}>

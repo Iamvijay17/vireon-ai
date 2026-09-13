@@ -54,6 +54,13 @@ export const RESOLUTION_OPTIONS = [
   { value: "3840x2160", label: "4K (slower to render)" },
 ];
 
+// Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js).
+export const QUALITY_OPTIONS = [
+  { value: "draft", label: "Draft (fast, lower quality)" },
+  { value: "standard", label: "Standard" },
+  { value: "hd", label: "HD (best quality, slower render)" },
+];
+
 export const AVATAR_POSITION_OPTIONS = [
   { value: "top-left", label: "Top left" },
   { value: "top-right", label: "Top right" },
@@ -68,6 +75,7 @@ export const EMPTY_FORM = {
   voice: "female-1",
   style: "educational",
   resolution: "1920x1080",
+  quality: "standard",
   additionalInstructions: "",
   fastAudio: false,
   // Optional talking-head overlay - no photo upload, the backend picks a

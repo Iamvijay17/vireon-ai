@@ -107,7 +107,7 @@ export const VoiceLibrary = ({ open, onClose, options = [], value, onSelect, isF
             <button
               type="button"
               onClick={clearFilters}
-              className="rounded-full border border-transparent px-2.5 py-1 text-xs font-medium text-text-tertiary hover:text-danger-500"
+              className="cursor-pointer rounded-full border border-transparent px-2.5 py-1 text-xs font-medium text-text-tertiary hover:text-danger-500"
             >
               Clear
             </button>
@@ -118,7 +118,7 @@ export const VoiceLibrary = ({ open, onClose, options = [], value, onSelect, isF
               type="button"
               onClick={() => setActiveGender((prev) => (prev === g ? null : g))}
               className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-semibold capitalize transition-all",
+                "cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold capitalize transition-all",
                 activeGender === g
                   ? "border-accent bg-accent text-white shadow-sm shadow-accent/25"
                   : "border-border bg-surface text-text-secondary hover:border-accent/40 hover:text-text-primary"
@@ -133,7 +133,7 @@ export const VoiceLibrary = ({ open, onClose, options = [], value, onSelect, isF
               type="button"
               onClick={() => setActiveTag((prev) => (prev === t ? null : t))}
               className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition-all",
+                "cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition-all",
                 activeTag === t
                   ? "border-accent bg-accent-subtle text-accent"
                   : "border-border bg-surface text-text-secondary hover:border-accent/40 hover:text-text-primary"
@@ -149,7 +149,7 @@ export const VoiceLibrary = ({ open, onClose, options = [], value, onSelect, isF
         {filtered.length === 0 && (
           <div className="col-span-full flex flex-col items-center gap-1 py-14 text-center">
             <p className="text-sm font-medium text-text-secondary">No voices match your filters</p>
-            <button type="button" onClick={clearFilters} className="text-xs font-medium text-accent hover:underline">
+            <button type="button" onClick={clearFilters} className="cursor-pointer text-xs font-medium text-accent hover:underline">
               Clear filters
             </button>
           </div>
@@ -195,7 +195,7 @@ export const VoiceLibrary = ({ open, onClose, options = [], value, onSelect, isF
                       toggle(opt.value, resolveMediaUrl(opt.previewUrl));
                     }}
                     className={cn(
-                      "absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full border-2 border-surface shadow-sm transition-all",
+                      "cursor-pointer absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full border-2 border-surface shadow-sm transition-all",
                       isPlaying
                         ? "bg-accent text-white"
                         : "bg-white text-text-secondary opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-white"
@@ -235,7 +235,7 @@ export const VoiceLibrary = ({ open, onClose, options = [], value, onSelect, isF
                       onToggleFavorite(opt.value);
                     }}
                     className={cn(
-                      "flex size-6 items-center justify-center rounded-full transition-colors",
+                      "cursor-pointer flex size-6 items-center justify-center rounded-full transition-colors",
                       favorite ? "text-amber-400 hover:text-amber-500" : "text-text-tertiary/60 hover:text-amber-400"
                     )}
                   >

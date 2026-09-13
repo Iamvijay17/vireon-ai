@@ -14,7 +14,7 @@ export const InspectorPanel = ({ scene, selectedSceneIndex, setSelectedSceneInde
         type="button"
         onClick={() => setSelectedSceneIndex((i) => Math.max(0, i - 1))}
         disabled={selectedSceneIndex === 0}
-        className="rounded-md p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
+        className="rounded-md p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronLeft className="size-4" />
       </button>
@@ -25,7 +25,7 @@ export const InspectorPanel = ({ scene, selectedSceneIndex, setSelectedSceneInde
         type="button"
         onClick={() => setSelectedSceneIndex((i) => Math.min(sceneCount - 1, i + 1))}
         disabled={selectedSceneIndex === sceneCount - 1}
-        className="rounded-md p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
+        className="rounded-md p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronRight className="size-4" />
       </button>

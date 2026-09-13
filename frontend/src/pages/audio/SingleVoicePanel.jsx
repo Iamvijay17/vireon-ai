@@ -50,7 +50,7 @@ export const SingleVoicePanel = ({
             <button
               type="button"
               onClick={() => setVoice(isDesignVoice ? "" : "design:")}
-              className="flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+              className="flex cursor-pointer items-center gap-1 text-xs font-medium text-accent hover:underline"
             >
               <Sparkles className="size-3" />
               {isDesignVoice ? "Pick from voice library" : "Design a voice"}
@@ -59,7 +59,7 @@ export const SingleVoicePanel = ({
               <button
                 type="button"
                 onClick={onBrowseVoices}
-                className="flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+                className="flex cursor-pointer items-center gap-1 text-xs font-medium text-accent hover:underline"
               >
                 <Library className="size-3" />
                 Browse voices

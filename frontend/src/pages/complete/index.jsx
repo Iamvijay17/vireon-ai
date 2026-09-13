@@ -101,7 +101,7 @@ const CompletedVideos = () => {
                   <button
                     type="button"
                     onClick={() => navigate(`/render?id=${job._id}`)}
-                    className="group relative block w-full overflow-hidden bg-neutral-950"
+                    className="group relative block w-full cursor-pointer overflow-hidden bg-neutral-950"
                     style={{ aspectRatio: vertical ? "9/16" : "16/9" }}
                   >
                     {job.thumbnailUrl ? (

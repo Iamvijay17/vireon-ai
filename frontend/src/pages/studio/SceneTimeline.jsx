@@ -40,7 +40,7 @@ export const SceneTimeline = ({
             onDragEnd={() => setDragOverIndex(null)}
             onClick={() => setSelectedSceneIndex(i)}
             className={cn(
-              "flex w-full items-center gap-2 rounded-lg border p-1.5 text-left transition-colors",
+              "flex w-full cursor-pointer items-center gap-2 rounded-lg border p-1.5 text-left transition-colors",
               isActive ? "border-accent bg-accent-subtle" : "border-border-light bg-surface hover:bg-surface-hover",
               isDragOver && "ring-2 ring-accent",
             )}

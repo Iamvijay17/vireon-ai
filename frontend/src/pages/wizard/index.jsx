@@ -252,7 +252,7 @@ const NameSelect = ({ value, onChange, placeholder = "Select or add a name", opt
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3",
-          "text-left text-sm text-text-primary transition-colors outline-none",
+          "text-left text-sm text-text-primary transition-colors outline-none cursor-pointer",
           "focus:border-accent focus:ring-4 focus:ring-accent/10"
         )}
       >
@@ -272,7 +272,7 @@ const NameSelect = ({ value, onChange, placeholder = "Select or add a name", opt
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                  "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer",
                   name === value
                     ? "bg-accent-subtle text-accent"
                     : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
@@ -301,7 +301,7 @@ const NameSelect = ({ value, onChange, placeholder = "Select or add a name", opt
               type="button"
               onClick={commitDraft}
               disabled={!draft.trim()}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-opacity disabled:opacity-40"
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Plus className="size-4" />
             </button>
@@ -460,7 +460,7 @@ const Wizard = () => {
                 <span className="text-xs font-medium text-text-tertiary">Job ID</span>
                 <button
                   onClick={copyJobId}
-                  className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-accent"
+                  className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-accent cursor-pointer"
                 >
                   {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                   {copied ? "Copied" : "Copy"}
@@ -577,7 +577,7 @@ const Wizard = () => {
                             }));
                           }}
                           className={cn(
-                            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
                             active
                               ? "border-accent bg-accent-subtle text-accent"
                               : "border-border bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"

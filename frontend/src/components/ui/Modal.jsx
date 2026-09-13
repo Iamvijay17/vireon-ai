@@ -60,7 +60,7 @@ export const Modal = ({
               <button
                 onClick={onClose}
                 aria-label="Close"
-                className="shrink-0 rounded-lg p-1.5 text-text-tertiary transition-colors hover:bg-surface-hover hover:text-text-primary"
+                className="shrink-0 cursor-pointer rounded-lg p-1.5 text-text-tertiary transition-colors hover:bg-surface-hover hover:text-text-primary"
               >
                 <X className="size-4" />
               </button>

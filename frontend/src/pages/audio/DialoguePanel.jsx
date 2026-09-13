@@ -80,7 +80,7 @@ export const DialoguePanel = ({
                   onClick={() => updateSpeaker(i, { voice: isDesign ? "" : "design:" })}
                   aria-label={isDesign ? `Use a library voice for speaker ${i + 1}` : `Design a voice for speaker ${i + 1}`}
                   title={isDesign ? "Use a library voice" : "Design a new voice"}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-hover hover:text-accent"
+                  className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-hover hover:text-accent"
                 >
                   <Sparkles className="size-3.5" />
                 </button>
@@ -89,7 +89,7 @@ export const DialoguePanel = ({
                     type="button"
                     onClick={() => onBrowseVoices(i)}
                     aria-label={`Browse voices for speaker ${i + 1}`}
-                    className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-hover hover:text-accent"
+                    className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-hover hover:text-accent"
                   >
                     <Library className="size-3.5" />
                   </button>

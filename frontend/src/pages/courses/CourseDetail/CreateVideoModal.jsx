@@ -4,7 +4,7 @@ import { Select } from "../../../components/ui/Select";
 import { Switch } from "../../../components/ui/Switch";
 import { VoiceSelect } from "../../../components/ui/VoiceSelect";
 import { Input, Textarea, Label, FieldHint } from "../../../components/ui/Input";
-import { DURATION_OPTIONS, STYLE_OPTIONS, RESOLUTION_OPTIONS, AVATAR_POSITION_OPTIONS } from "./constants";
+import { DURATION_OPTIONS, STYLE_OPTIONS, RESOLUTION_OPTIONS, QUALITY_OPTIONS, AVATAR_POSITION_OPTIONS } from "./constants";
 
 export const CreateVideoModal = ({
   open,
@@ -79,6 +79,10 @@ export const CreateVideoModal = ({
         <div>
           <Label>Resolution</Label>
           <Select options={RESOLUTION_OPTIONS} value={formValues.resolution} onChange={(v) => setFormValues((prev) => ({ ...prev, resolution: v }))} />
+        </div>
+        <div>
+          <Label>Render Quality</Label>
+          <Select options={QUALITY_OPTIONS} value={formValues.quality} onChange={(v) => setFormValues((prev) => ({ ...prev, quality: v }))} />
         </div>
       </div>
       <div>

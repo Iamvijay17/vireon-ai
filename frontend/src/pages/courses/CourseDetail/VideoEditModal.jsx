@@ -4,7 +4,7 @@ import { Select } from "../../../components/ui/Select";
 import { Switch } from "../../../components/ui/Switch";
 import { VoiceSelect } from "../../../components/ui/VoiceSelect";
 import { Input, Textarea, Label, FieldHint } from "../../../components/ui/Input";
-import { DURATION_OPTIONS, STYLE_OPTIONS, RESOLUTION_OPTIONS, AVATAR_POSITION_OPTIONS } from "./constants";
+import { DURATION_OPTIONS, STYLE_OPTIONS, RESOLUTION_OPTIONS, QUALITY_OPTIONS, AVATAR_POSITION_OPTIONS } from "./constants";
 
 export const VideoEditModal = ({
   open,
@@ -82,6 +82,10 @@ export const VideoEditModal = ({
         <div>
           <Label>Resolution</Label>
           <Select options={RESOLUTION_OPTIONS} value={videoEditForm.resolution} onChange={(v) => setVideoEditForm((prev) => ({ ...prev, resolution: v }))} />
+        </div>
+        <div>
+          <Label>Render Quality</Label>
+          <Select options={QUALITY_OPTIONS} value={videoEditForm.quality} onChange={(v) => setVideoEditForm((prev) => ({ ...prev, quality: v }))} />
         </div>
       </div>
       <div>

@@ -14,7 +14,7 @@ export const Tabs = ({ items = [], active, onChange, className }) => (
         type="button"
         onClick={() => onChange?.(item.key)}
         className={cn(
-          "relative flex shrink-0 items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors",
+          "relative flex shrink-0 cursor-pointer items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors",
           active === item.key ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary"
         )}
       >

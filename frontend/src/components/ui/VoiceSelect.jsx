@@ -159,7 +159,7 @@ export const VoiceSelect = ({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors",
+                  "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors cursor-pointer",
                   opt.value === value
                     ? "bg-accent-subtle text-accent"
                     : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"

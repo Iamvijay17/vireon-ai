@@ -6,7 +6,7 @@ import { Select } from "../../../components/ui/Select";
 import { Switch } from "../../../components/ui/Switch";
 import { VoiceSelect } from "../../../components/ui/VoiceSelect";
 import { Input, Textarea, Label, FieldHint } from "../../../components/ui/Input";
-import { DURATION_OPTIONS, STYLE_OPTIONS, RESOLUTION_OPTIONS } from "./constants";
+import { DURATION_OPTIONS, STYLE_OPTIONS, RESOLUTION_OPTIONS, QUALITY_OPTIONS } from "./constants";
 
 export const CurriculumModal = ({
   open,
@@ -120,6 +120,10 @@ export const CurriculumModal = ({
             <Label>Resolution</Label>
             <Select options={RESOLUTION_OPTIONS} value={form.resolution} onChange={(v) => setForm((prev) => ({ ...prev, resolution: v }))} />
           </div>
+          <div>
+            <Label>Render Quality</Label>
+            <Select options={QUALITY_OPTIONS} value={form.quality} onChange={(v) => setForm((prev) => ({ ...prev, quality: v }))} />
+          </div>
         </div>
         <div className="flex items-center justify-between gap-4 rounded-lg border border-border-light px-3 py-2.5">
           <div>
@@ -133,7 +137,7 @@ export const CurriculumModal = ({
       <div className="space-y-3">
         <button
           type="button"
-          className="flex items-center gap-1.5 text-xs font-medium text-accent-600 hover:underline"
+          className="flex items-center gap-1.5 text-xs font-medium text-accent-600 hover:underline cursor-pointer"
           onClick={() => {
             onClose();
             navigate(`/courses/${courseId}/curriculum`);

@@ -55,7 +55,7 @@ const NavRow = ({ icon: Icon, label, active, collapsed, onClick, indent = false,
     onClick={onClick}
     title={collapsed ? label : undefined}
     className={cn(
-      "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
+      "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors cursor-pointer",
       collapsed && "justify-center px-0",
       indent && !collapsed && "pl-9",
       active
@@ -86,7 +86,7 @@ const AppSidebar = ({ collapsed }) => {
         type="button"
         onClick={() => navigate("/")}
         className={cn(
-          "flex h-16 shrink-0 items-center gap-3 border-b border-white/[0.06] px-5",
+          "flex h-16 shrink-0 items-center gap-3 border-b border-white/[0.06] px-5 cursor-pointer",
           collapsed && "justify-center px-0"
         )}
       >

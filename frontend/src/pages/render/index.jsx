@@ -377,7 +377,7 @@ const RenderPage = () => {
     {
       label: "Job ID",
       value: (
-        <button onClick={copyJobId} className="flex items-center gap-1.5 font-mono text-xs hover:text-accent">
+        <button onClick={copyJobId} className="flex items-center gap-1.5 font-mono text-xs hover:text-accent cursor-pointer">
           {job?._id}
           <Copy className="size-3" />
           {copied && <span className="text-[11px] text-accent">Copied</span>}

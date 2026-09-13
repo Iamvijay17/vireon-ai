@@ -214,7 +214,7 @@ const Dashboard = () => {
                   key={f.value}
                   type="button"
                   onClick={() => setStatusFilter(f.value)}
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                     statusFilter === f.value
                       ? "bg-surface text-text-primary shadow-sm"
                       : "text-text-tertiary hover:text-text-secondary"
@@ -301,7 +301,7 @@ const Dashboard = () => {
                     <div className="min-w-0 flex-1">
                       <button
                         onClick={() => navigate(`/render?id=${job._id}`)}
-                        className="max-w-full truncate text-left text-[13.5px] font-medium text-text-primary hover:text-accent"
+                        className="cursor-pointer max-w-full truncate text-left text-[13.5px] font-medium text-text-primary hover:text-accent"
                       >
                         {job.topic}
                       </button>

@@ -138,7 +138,7 @@ export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hid
               key={i}
               type="button"
               onClick={() => seekToScene(i)}
-              className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`shrink-0 cursor-pointer rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
                 i === activeIndex
                   ? "border-accent bg-accent-subtle text-accent"
                   : "border-border-light text-text-tertiary hover:text-text-primary"

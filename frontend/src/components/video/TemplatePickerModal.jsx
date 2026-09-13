@@ -53,7 +53,7 @@ export function TemplatePickerModal({ open, onClose, scene, value, onSelect }) {
                   onClose?.();
                 }}
                 className={cn(
-                  "group relative overflow-hidden rounded-xl border text-left transition-colors",
+                  "group relative cursor-pointer overflow-hidden rounded-xl border text-left transition-colors",
                   isSelected ? "border-accent ring-2 ring-accent/30" : "border-border-light hover:border-border"
                 )}
               >

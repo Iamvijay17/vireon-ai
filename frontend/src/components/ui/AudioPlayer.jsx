@@ -102,7 +102,7 @@ export const AudioPlayer = ({ src, className }) => {
         type="button"
         onClick={togglePlay}
         aria-label={playing ? "Pause" : "Play"}
-        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success-500 text-white shadow-sm transition-transform hover:scale-105 active:scale-95"
+        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success-500 text-white shadow-sm transition-transform hover:scale-105 active:scale-95 cursor-pointer"
       >
         {playing ? <Pause className="size-4" fill="currentColor" /> : <Play className="ml-0.5 size-4" fill="currentColor" />}
       </button>

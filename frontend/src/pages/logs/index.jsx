@@ -205,7 +205,7 @@ const LiveLogs = () => {
                   type="button"
                   onClick={() => toggleLevel(level.value)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                    "cursor-pointer inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                     active
                       ? "border-transparent bg-accent-subtle text-accent"
                       : "border-border text-text-tertiary hover:bg-surface-hover"
@@ -288,7 +288,7 @@ const LiveLogs = () => {
             <button
               type="button"
               onClick={jumpToLatest}
-              className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-lg shadow-black/20 hover:bg-accent-hover"
+              className="cursor-pointer absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-lg shadow-black/20 hover:bg-accent-hover"
             >
               <ArrowDownToLine className="size-3.5" />
               Jump to latest

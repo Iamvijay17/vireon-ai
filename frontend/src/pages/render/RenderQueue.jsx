@@ -228,7 +228,7 @@ const RenderQueue = () => {
                     <button
                       type="button"
                       onClick={() => navigate(`/render?id=${job._id}`)}
-                      className="flex min-w-0 flex-1 flex-col gap-3 text-left sm:flex-row sm:items-center sm:gap-4"
+                      className="cursor-pointer flex min-w-0 flex-1 flex-col gap-3 text-left sm:flex-row sm:items-center sm:gap-4"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -301,7 +301,7 @@ const RenderQueue = () => {
                     key={job._id}
                     type="button"
                     onClick={() => navigate(`/render?id=${job._id}`)}
-                    className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-hover"
+                    className="cursor-pointer flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-hover"
                   >
                     <div
                       className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${

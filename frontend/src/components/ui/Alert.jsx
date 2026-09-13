@@ -19,7 +19,7 @@ export const Alert = ({ type = "info", title, children, action = null, onClose, 
         {action && <div className="mt-2.5">{action}</div>}
       </div>
       {onClose && (
-        <button onClick={onClose} className="shrink-0 rounded-md p-0.5 text-text-tertiary hover:bg-black/5">
+        <button onClick={onClose} className="shrink-0 cursor-pointer rounded-md p-0.5 text-text-tertiary hover:bg-black/5">
           <X className="size-4" />
         </button>
       )}

@@ -100,7 +100,7 @@ export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
                     type="button"
                     onClick={() => editor.handleMoveItem(selectedSceneIndex, itemIndex, -1)}
                     disabled={!canEdit || itemIndex === 0}
-                    className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
+                    className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     <ArrowUp className="size-3.5" />
                   </button>
@@ -108,7 +108,7 @@ export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
                     type="button"
                     onClick={() => editor.handleMoveItem(selectedSceneIndex, itemIndex, 1)}
                     disabled={!canEdit || itemIndex === editor.getSceneItems(scene).length - 1}
-                    className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-30"
+                    className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     <ArrowDown className="size-3.5" />
                   </button>
@@ -116,7 +116,7 @@ export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
                     type="button"
                     onClick={() => editor.handleRemoveItem(selectedSceneIndex, itemIndex)}
                     disabled={!canEdit}
-                    className="rounded p-1 text-text-tertiary hover:bg-danger-500/10 hover:text-danger-500 disabled:opacity-30"
+                    className="rounded p-1 text-text-tertiary hover:bg-danger-500/10 hover:text-danger-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     <X className="size-3.5" />
                   </button>
