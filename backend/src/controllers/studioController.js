@@ -32,17 +32,22 @@ class StudioController {
    * PNG frame from the currently active preview for this job.
    */
   static async getThumbnail(req, res, next) {
+    // helmet's default Cross-Origin-Resource-Policy: same-origin blocks the
+    // frontend dev server (different port/origin) from loading this in an
+    // <img> tag - same relaxation server.js already applies to voice-sample
+    // static files, for the same reason. Set unconditionally, before the
+    // request can fail: an error response left with the default policy gets
+    // silently dropped by the browser (net::ERR_BLOCKED_BY_RESPONSE) instead
+    // of reaching the <img>'s onerror handler, which is exactly the case a
+    // thumbnail racing an in-progress preview build hits (see
+    // PreviewService.getThumbnail's "No active preview" error).
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
     try {
       const { id } = validate(idSchema)(req.params);
       const { t } = validate(studioThumbnailQuerySchema)(req.query);
       const png = await PreviewService.getThumbnail(id, t);
       res.set('Content-Type', 'image/png');
       res.set('Cache-Control', 'no-store');
-      // helmet's default Cross-Origin-Resource-Policy: same-origin blocks the
-      // frontend dev server (different port/origin) from loading this in an
-      // <img> tag - same relaxation server.js already applies to voice-sample
-      // static files, for the same reason.
-      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
       res.send(png);
     } catch (err) {
       LoggerService.warn('Studio preview thumbnail request failed', { jobId: req.params.id, error: err.message });

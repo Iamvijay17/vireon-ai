@@ -50,17 +50,40 @@ async function runHyperFramesCommand(args, { timeout = 30000 } = {}) {
 }
 
 async function stopActive() {
-  if (!active) return;
   if (idleTimer) {
     clearTimeout(idleTimer);
     idleTimer = null;
   }
-  const { compDir, jobId } = active;
+  const { compDir, jobId } = active || {};
   active = null;
+  if (!compDir) return;
   try {
     await runHyperFramesCommand(['--yes', 'hyperframes@0.8.37', 'preview', compDir, '--stop']);
   } catch (err) {
     LoggerService.warn('Failed to stop idle preview server', { jobId, error: err.message });
+  }
+}
+
+/**
+ * Best-effort stop of whatever `hyperframes preview` server may already be
+ * bound to PREVIEW_PORT for this jobId's compDir, ignoring `active` entirely.
+ *
+ * `active` is in-memory only, so it's wiped by any backend process restart
+ * (e.g. `node --watch` picking up an unrelated file save) - but the CLI's
+ * `--background` preview server is spawned detached and outlives that
+ * restart, orphaned on the port with nothing left tracking it. Without this,
+ * the next `ensurePreview` after a restart skips `stopActive` (active is
+ * null) and tries to bind an already-occupied port, so thumbnails stay
+ * permanently broken until someone manually kills the orphan. compDir is
+ * deterministic per jobId (see getPreviewDir), so this can target the same
+ * orphaned process even with no memory of it ever starting. Failure here
+ * just means nothing was running - safe to ignore.
+ */
+async function stopOrphan(compDir) {
+  try {
+    await runHyperFramesCommand(['--yes', 'hyperframes@0.8.37', 'preview', compDir, '--stop']);
+  } catch {
+    // Nothing was running on this compDir - expected in the common case.
   }
 }
 
@@ -133,6 +156,10 @@ async function doEnsurePreview(jobId, { scenes, resolution, fontPairing } = {}) 
   const { compDir } = await HyperFramesService._buildComposition(jobId, assetsFile, { baseDir: previewDir });
 
   await stopActive();
+  // Defensive stop against this specific compDir even when `active` was
+  // already null - covers a backend restart orphaning the previous
+  // `--background` server on this port (see stopOrphan's own comment).
+  await stopOrphan(compDir);
   // Same npx version as HyperFramesService's render call - on a cold npx
   // cache (package not yet downloaded on this machine), resolving it can
   // take well over 30s, so this needs the same generous timeout as a real

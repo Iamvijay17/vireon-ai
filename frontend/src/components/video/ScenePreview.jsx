@@ -50,6 +50,12 @@ export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hid
   // request for a jobId with no active preview yet (see PreviewService.js),
   // so the first frame can't be requested until the initial build resolves.
   const [previewReady, setPreviewReady] = useState(false);
+  // Bumped on a failed frame fetch to force a fresh request - a rebuild
+  // in flight (e.g. this same effect's debounced rebuild, mid-restart on the
+  // backend) can transiently 404/blocked-CORP the frame at the current
+  // frameTime even after the initial build succeeded once.
+  const [frameRetry, setFrameRetry] = useState(0);
+  const frameRetryTimerRef = useRef(null);
   const audioRef = useRef(null);
   const intervalRef = useRef(null);
   const lastFocusRef = useRef(focusIndex);
@@ -95,6 +101,19 @@ export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hid
   }, []);
 
   useEffect(() => stopPlayback, [stopPlayback]);
+
+  // Reset retry state whenever the requested frame actually changes so a
+  // stale retry timer doesn't fire against a frame the user has since
+  // scrubbed away from.
+  useEffect(() => {
+    setFrameRetry(0);
+    return () => clearTimeout(frameRetryTimerRef.current);
+  }, [frameTime]);
+
+  const handleFrameError = useCallback(() => {
+    if (frameRetry >= 6) return;
+    frameRetryTimerRef.current = setTimeout(() => setFrameRetry((r) => r + 1), 700);
+  }, [frameRetry]);
 
   const seekToScene = useCallback(
     (index) => {
@@ -150,8 +169,9 @@ export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hid
       <div className="relative overflow-hidden rounded-lg border border-border-light bg-black" style={{ aspectRatio: "16 / 9" }}>
         {previewReady && (
           <img
-            src={getStudioThumbnailUrl(videoId, frameTime)}
+            src={`${getStudioThumbnailUrl(videoId, frameTime)}${frameRetry ? `&retry=${frameRetry}` : ""}`}
             alt=""
+            onError={handleFrameError}
             className="h-full w-full"
             style={{ objectFit: "contain" }}
           />
