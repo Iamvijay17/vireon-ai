@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      html, body { margin: 0; padding: 0; }
+
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background-color: #1a1a2e;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+
+      /* Background Layer - port of Title.jsx's backgroundGradient */
+      #bg-gradient {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      }
+
+      /* Content Layer - port of Title.jsx's slideLayout + inner column */
+      #content {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 60px 80px;
+        box-sizing: border-box;
+      }
+
+      #inner {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-width: 80%;
+      }
+
+      #image-wrap {
+        width: 60%;
+        max-width: 400px;
+        aspect-ratio: 4 / 3;
+        border-radius: 16px;
+        overflow: hidden;
+        margin-bottom: 40px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        transform: scale(0.8);
+      }
+
+      #image-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      #title {
+        color: #ffffff;
+        font-size: 72px;
+        font-weight: 300;
+        text-align: center;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        margin: 0 0 16px 0;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        transform: translateY(80px);
+      }
+
+      #subtitle {
+        color: #94a3b8;
+        font-size: 32px;
+        font-weight: 400;
+        text-align: center;
+        line-height: 1.5;
+        max-width: 80%;
+        margin: 0;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Port of backend/remotion/src/templates/001-title/index.jsx using
+      backend/remotion/src/sampleData.js's '001-title' sample scene
+      (title/subtitle/image/backgroundColor, 8s duration).
+
+      HyperFrames renders at whatever --fps is passed on the CLI; the
+      animation timing below is authored in *seconds* (GSAP position
+      parameter), which is frame-rate independent by construction -
+      unlike the Remotion original, which hardcodes frame numbers at an
+      implicit 30fps. The seconds below are the Remotion frame windows
+      divided by 30 so the two versions land on the same wall-clock timing
+      for an SSIM comparison:
+        headingY / headingOpacity : frames [5,30] / [5,25] -> [0.167s, 1.0s] / [0.167s, 0.833s]
+        subtitleOpacity           : frames [15,40]         -> [0.5s, 1.333s]
+        imageScale / imageOpacity : frames [10,50] / [10,30] -> [0.333s, 1.667s] / [0.333s, 1.0s]
+    -->
+    <div
+      id="root"
+      data-composition-id="title-poc"
+      data-start="0"
+      data-duration="8"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div id="bg-gradient"></div>
+      <div id="content">
+        <div id="inner">
+          <div id="image-wrap">
+            <img src="https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=800&h=600&fit=crop" alt="" />
+          </div>
+          <h1 id="title">Educational Card</h1>
+          <p id="subtitle">A preview of the title template in action.</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const timeline = gsap.timeline({ paused: true });
+
+      // Image: scale 0.8 -> 1, opacity 0 -> 1
+      timeline.fromTo(
+        '#image-wrap',
+        { opacity: 0, scale: 0.8 },
+        { opacity: 1, scale: 1, duration: 1.0 - 0.333, ease: 'none' },
+        0.333
+      );
+
+      // Title: translateY 80 -> 0, opacity 0 -> 1 (two windows, matched to Remotion's separate interpolate() calls).
+      // Set an explicit resting state up front so a seek before either tween starts doesn't
+      // inherit whichever fromTo's "from" values GSAP applied last at authoring time.
+      timeline.set('#title', { y: 80, opacity: 0 }, 0);
+      timeline.to('#title', { y: 0, duration: 1.0 - 0.167, ease: 'none' }, 0.167);
+      timeline.to('#title', { opacity: 1, duration: 0.833 - 0.167, ease: 'none' }, 0.167);
+
+      // Subtitle: opacity 0 -> 1
+      timeline.fromTo(
+        '#subtitle',
+        { opacity: 0 },
+        { opacity: 1, duration: 1.333 - 0.5, ease: 'none' },
+        0.5
+      );
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines['title-poc'] = timeline;
+    </script>
+  </body>
+</html>

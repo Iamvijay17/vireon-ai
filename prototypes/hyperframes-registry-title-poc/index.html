@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      html, body { margin: 0; padding: 0; background: #1a1a2e; }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <!--
+      Proof-of-concept: instead of hand-cloning the old Remotion "001-title"
+      template's design, this uses HyperFrames' own registry block
+      (`titlecard-calm`, installed via `npx hyperframes add titlecard-calm`)
+      and wires our sample scene data (backend/remotion/src/sampleData.js's
+      '001-title' entry) into its declared variables via
+      `data-variable-values`, per hyperframes-core's variables-and-media.md.
+    -->
+    <div
+      id="root"
+      data-composition-id="registry-title-poc"
+      data-start="0"
+      data-duration="4"
+      data-width="1920"
+      data-height="1080"
+      data-no-timeline
+    >
+      <div
+        id="title-scene-1"
+        data-composition-id="titlecard-calm"
+        data-composition-src="compositions/titlecard-calm.html"
+        data-variable-values='{"headline":"Educational Card","kicker":"A preview of the title template in action."}'
+        data-start="0"
+        data-duration="4"
+        data-track-index="0"
+        data-width="1920"
+        data-height="1080"
+      ></div>
+    </div>
+  </body>
+</html>

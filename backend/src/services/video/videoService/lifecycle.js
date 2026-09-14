@@ -26,11 +26,11 @@ async function rerender(jobId) {
   // scene data (prepareAssets always does this anyway - see renderStep.js).
   // Deliberately does NOT touch render/ here: renderStep.render() compares
   // the freshly-prepared assets against that existing video.mp4's recorded
-  // fingerprint (RemotionService.isRenderCurrent) and skips re-rendering
+  // fingerprint (HyperFramesService.isRenderCurrent) and skips re-rendering
   // when nothing actually changed since the last render - eagerly deleting
   // it here used to destroy that video.mp4 before the check could ever see
-  // it, forcing every "Re-render" click to pay for a full Remotion render
-  // (often minutes) even when no scene/image/template had changed.
+  // it, forcing every "Re-render" click to pay for a full render (often
+  // minutes) even when no scene/image/template had changed.
   // renderStep.render() deletes render/ itself, right before it actually
   // decides a real re-render is needed.
   const jobDir = path.resolve(__dirname, '../../../../jobs', jobId);
@@ -127,7 +127,7 @@ async function regenerateScript(jobId) {
  * upload) directly, so the worker itself checks for CANCELLED at each step
  * boundary and between per-scene iterations, and bails out as soon as it
  * notices - see videoWorker/shared.js's `bailIfCancelled`. The TTS and
- * Remotion calls specifically also get an immediate abort signal via
+ * HyperFrames render calls specifically also get an immediate abort signal via
  * cancellationBus below (see workers/videoWorker/processor.js's ctx.signal),
  * since those are the steps long enough for a user to notice Stop "not
  * working" while it waits out a checkpoint.

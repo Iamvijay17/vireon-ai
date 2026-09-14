@@ -3,8 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "workspaces": [
-    "frontend",
-    "backend/remotion"
+    "frontend"
   ],
   "scripts": {
     "dev": "concurrently -n API,WORKER,COURSE,WEB -c blue,green,yellow,magenta \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:course-worker\" \"npm:dev:frontend\"",

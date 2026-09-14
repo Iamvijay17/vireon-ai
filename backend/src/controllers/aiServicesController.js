@@ -18,7 +18,7 @@ function assertValidService(service) {
 class AIServicesController {
   /**
    * GET /api/system/ai-services
-   * { gpu: { currentService, mode, maxConcurrent }, services: { llm, tts, comfyui, remotion } }
+   * { gpu: { currentService, mode, maxConcurrent }, services: { llm, tts, comfyui, render } }
    */
   static async getAll(req, res, next) {
     try {

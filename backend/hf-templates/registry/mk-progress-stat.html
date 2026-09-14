@@ -1,0 +1,214 @@
+<!-- hyperframes-registry-item: mk-progress-stat -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      *,
+      *::before,
+      *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: transparent;
+        overflow: hidden;
+      }
+      #mk-ps-root {
+        /* ---- mk tokens: override in the host to re-skin the family ---- */
+        --mk-font: "Inter", -apple-system, sans-serif;
+        --mk-ink: #1d1d1f;
+        --mk-ink-dim: #6e6e73;
+        --mk-ink-dark: #f5f5f7;
+        --mk-ink-dim-dark: #a1a1a6;
+        --mk-accent: #0071e3;
+        --mk-accent-dark: #7d5cff;
+
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: transparent; /* overlays footage or mk-background */
+      }
+      #mk-ps-group {
+        position: absolute;
+        font-family: var(--mk-font);
+      }
+      #mk-ps-num {
+        font-weight: 600;
+        font-size: 190px;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        color: var(--mk-ink);
+        font-variant-numeric: tabular-nums;
+      }
+      #mk-ps-label {
+        margin-top: 10px;
+        font-weight: 500;
+        font-size: 42px;
+        letter-spacing: -0.01em;
+        color: var(--mk-ink);
+      }
+      #mk-ps-track {
+        position: relative;
+        margin-top: 28px;
+        height: 6px;
+        border-radius: 3px;
+        background: rgba(29, 29, 31, 0.1);
+        overflow: hidden;
+      }
+      #mk-ps-fill {
+        position: absolute;
+        inset: 0;
+        border-radius: 3px;
+        background: var(--mk-accent);
+        transform-origin: left center;
+      }
+      #mk-ps-caption {
+        margin-top: 22px;
+        font-weight: 400;
+        font-size: 30px;
+        color: var(--mk-ink-dim);
+      }
+      .mk-dark #mk-ps-num,
+      .mk-dark #mk-ps-label {
+        color: var(--mk-ink-dark);
+      }
+      .mk-dark #mk-ps-caption {
+        color: var(--mk-ink-dim-dark);
+      }
+      .mk-dark #mk-ps-track {
+        background: rgba(245, 245, 247, 0.18);
+      }
+      .mk-dark #mk-ps-fill {
+        background: var(--mk-accent-dark);
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="mk-ps-root"
+      data-composition-id="mk-progress-stat"
+      data-start="0"
+      data-duration="7"
+      data-width="1920"
+      data-height="1080"
+      data-composition-variables="[
+        { &quot;id&quot;: &quot;label&quot;, &quot;type&quot;: &quot;string&quot;, &quot;role&quot;: &quot;content&quot;, &quot;label&quot;: &quot;Label&quot;, &quot;description&quot;: &quot;Vireon addition: the stat's label text.&quot;, &quot;default&quot;: &quot;Goals reached&quot; },
+        { &quot;id&quot;: &quot;caption&quot;, &quot;type&quot;: &quot;string&quot;, &quot;role&quot;: &quot;content&quot;, &quot;label&quot;: &quot;Caption&quot;, &quot;description&quot;: &quot;Vireon addition: the stat's supporting caption line.&quot;, &quot;default&quot;: &quot;&quot; },
+        { &quot;id&quot;: &quot;value&quot;, &quot;type&quot;: &quot;number&quot;, &quot;role&quot;: &quot;content&quot;, &quot;label&quot;: &quot;Value&quot;, &quot;description&quot;: &quot;Vireon addition: the count-up target value.&quot;, &quot;default&quot;: 100 },
+        { &quot;id&quot;: &quot;max&quot;, &quot;type&quot;: &quot;number&quot;, &quot;role&quot;: &quot;content&quot;, &quot;label&quot;: &quot;Max&quot;, &quot;description&quot;: &quot;Vireon addition: the track fills to value/max.&quot;, &quot;default&quot;: 100 },
+        { &quot;id&quot;: &quot;suffix&quot;, &quot;type&quot;: &quot;string&quot;, &quot;role&quot;: &quot;content&quot;, &quot;label&quot;: &quot;Suffix&quot;, &quot;description&quot;: &quot;Vireon addition: e.g. '%' or 'K', appended after the numeral.&quot;, &quot;default&quot;: &quot;%&quot; },
+        { &quot;id&quot;: &quot;duration&quot;, &quot;type&quot;: &quot;number&quot;, &quot;role&quot;: &quot;content&quot;, &quot;label&quot;: &quot;Duration override&quot;, &quot;description&quot;: &quot;Vireon addition: overrides the block's own 7s intro/hold/outro timing to fit a host slot of this many seconds.&quot;, &quot;default&quot;: 7 },
+        { &quot;id&quot;: &quot;accentColor&quot;, &quot;type&quot;: &quot;string&quot;, &quot;role&quot;: &quot;style&quot;, &quot;label&quot;: &quot;Accent color&quot;, &quot;description&quot;: &quot;Vireon addition: overrides --mk-accent-dark.&quot;, &quot;default&quot;: &quot;#7d5cff&quot; },
+        { &quot;id&quot;: &quot;fontFamily&quot;, &quot;type&quot;: &quot;string&quot;, &quot;role&quot;: &quot;style&quot;, &quot;label&quot;: &quot;Font&quot;, &quot;description&quot;: &quot;Vireon addition: overrides --mk-font.&quot;, &quot;default&quot;: null }
+      ]"
+    >
+      <div id="mk-ps-group">
+        <div id="mk-ps-num">0</div>
+        <div id="mk-ps-label"></div>
+        <div id="mk-ps-track"><div id="mk-ps-fill"></div></div>
+        <div id="mk-ps-caption"></div>
+      </div>
+      <div
+        id="mk-ps-drv"
+        class="clip"
+        data-start="0"
+        data-duration="7"
+        data-track-index="0"
+        style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none"
+      ></div>
+    </div>
+    <script>
+      (function () {
+        window.__timelines = window.__timelines || {};
+
+        var vars =
+          window.__hyperframes && window.__hyperframes.getVariables
+            ? window.__hyperframes.getVariables()
+            : {};
+
+        /* ---- published parameters (inspector-style CONFIG) ----
+           A "22 · Goals reached" progress card: big count-up
+           numeral, label, thin accent track filling to value/max, caption. */
+        var CONFIG = {
+          scheme: "dark", // Vireon: forced dark - this composition always renders over mk-background's dark variant
+          value: vars.value != null ? Number(vars.value) : 100,
+          suffix: vars.suffix != null ? String(vars.suffix) : "%",
+          label: vars.label != null ? String(vars.label) : "Goals reached",
+          caption: vars.caption != null ? String(vars.caption) : "Great job, we are getting closer!",
+          max: vars.max != null ? Number(vars.max) : 100,
+          trackWidth: 480, // px
+          x: 1300, // group left edge; null = centered
+          y: 250, // group top edge; null = centered
+          animationIn: true,
+          animationOut: true,
+        };
+
+        var DUR = 7;
+        var root = document.getElementById("mk-ps-root");
+        var group = document.getElementById("mk-ps-group");
+        var num = document.getElementById("mk-ps-num");
+        var fill = document.getElementById("mk-ps-fill");
+
+        if (CONFIG.scheme === "dark") root.classList.add("mk-dark");
+        document.getElementById("mk-ps-label").textContent = CONFIG.label;
+        document.getElementById("mk-ps-caption").textContent = CONFIG.caption;
+        document.getElementById("mk-ps-track").style.width = CONFIG.trackWidth + "px";
+
+        // Vireon addition: style-variant palette override (see
+        // backend/hf-templates/styleVariants.js) - an unset call keeps the
+        // stock light-purple accent and default Inter font.
+        if (vars.accentColor) root.style.setProperty("--mk-accent-dark", String(vars.accentColor));
+        if (vars.fontFamily) root.style.setProperty("--mk-font", String(vars.fontFamily));
+
+        /* position (measure after filling text) */
+        var rect = group.getBoundingClientRect();
+        group.style.left =
+          (CONFIG.x === null ? Math.round((1920 - rect.width) / 2) : CONFIG.x) + "px";
+        group.style.top =
+          (CONFIG.y === null ? Math.round((1080 - rect.height) / 2) : CONFIG.y) + "px";
+
+        // Vireon addition: this block's own file hardcodes a 7s
+        // data-duration, but our host wires the same block in for scene
+        // slots that run as long as the scene's narration audio - see
+        // titlecard-calm.html's identical override for the full reasoning.
+        var parsedDuration = Number.parseFloat(vars.duration != null ? vars.duration : root.dataset.duration);
+        DUR = Number.isFinite(parsedDuration) ? Math.max(0.001, parsedDuration) : 7;
+
+        var tl = gsap.timeline({ paused: true });
+
+        if (CONFIG.animationIn) {
+          gsap.set(group, { opacity: 0, y: 28 });
+          tl.to(group, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 0.3);
+        }
+
+        /* count-up + track fill on the same ease (the data-viz recipe) */
+        var st = { v: 0 };
+        tl.to(
+          st,
+          {
+            v: CONFIG.value,
+            duration: 1.6,
+            ease: "power2.out",
+            onUpdate: function () {
+              num.textContent = Math.round(st.v) + CONFIG.suffix;
+            },
+          },
+          0.5,
+        );
+        gsap.set(fill, { scaleX: 0 });
+        tl.to(fill, { scaleX: CONFIG.value / CONFIG.max, duration: 1.6, ease: "power2.out" }, 0.5);
+
+        if (CONFIG.animationOut) {
+          tl.to(group, { opacity: 0, y: -20, duration: 0.4, ease: "power2.in" }, DUR - 0.5);
+        }
+        tl.set(root, { visibility: "hidden" }, DUR - 0.02);
+
+        window.__timelines["mk-progress-stat"] = tl;
+      })();
+    </script>
+  </body>
+</html>

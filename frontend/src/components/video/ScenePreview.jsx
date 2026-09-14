@@ -1,135 +1,168 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Player } from "@remotion/player";
-import { VideoComposition } from "vireon-remotion-templates/src/VideoComposition";
-import { calculateTotalDurationInFrames, FPS } from "vireon-remotion-templates/src/calculateVideoMetadata";
-import { resolveMediaUrl, resolveSceneAudioUrl } from "../../services/api";
+import { Pause, Play } from "lucide-react";
+import { buildStudioPreview, getStudioThumbnailUrl, resolveSceneAudioUrl } from "../../services/api";
+import { getSceneStartSeconds, settleOffsetFor } from "./sceneTiming";
 
-// Live, in-browser preview of a course video's scenes using the same
-// Remotion composition/templates the backend renders with — no server
-// render, but scene audio still plays: each scene's narration file is
-// resolved to a browser-fetchable URL (same rule the per-scene audio
-// list in CourseVideoEditor uses - see resolveSceneAudioUrl).
-const resolveScenesMedia = (scenes, videoId) =>
-  (scenes || []).map((scene) => {
-    const elements = scene.elements || {};
-    const resolvedAudioFile = resolveSceneAudioUrl(videoId, scene.audio?.file) || undefined;
-    return {
-      ...scene,
-      audio: resolvedAudioFile ? { ...scene.audio, file: resolvedAudioFile } : undefined,
-      imageUrl: scene.imageUrl ? resolveMediaUrl(scene.imageUrl) : scene.imageUrl,
-      elements: {
-        ...elements,
-        image: elements.image ? resolveMediaUrl(elements.image) : elements.image,
-      },
-    };
-  });
+// Live-ish preview of a course/video's scenes using the real HyperFrames
+// pipeline (a scratch composition rebuilt on scene edits + per-frame PNG
+// thumbnails from its preview server - see PreviewService.js), rather than
+// @remotion/player's frame-accurate 60fps <Player>. Scrubbing/seeking fetches
+// one thumbnail frame; "Play" advances through thumbnails at a fixed
+// interval alongside the scene's real narration audio, which stays the
+// timing authority. This is also the ONLY thing that calls buildStudioPreview
+// for a job's scenes - SceneThumbnail elsewhere on the same page just reads
+// the composition this builds, rather than each triggering its own build
+// (the backend runs one shared preview server per job; concurrent builds
+// would race and stomp each other's content).
+const SCRUB_INTERVAL_MS = 250;
+// How long to wait after the last edit before rebuilding the shared preview
+// composition - see the effect below for why this needs to not fire per keystroke.
+const REBUILD_DEBOUNCE_MS = 1200;
 
-const getSceneStartFrames = (scenes) => {
-  let frame = 0;
-  return (scenes || []).map((scene) => {
-    const start = frame;
-    frame += Math.round((scene.duration || 8) * FPS);
-    return start;
-  });
-};
-
-// Most templates fade/slide their title and subtitle in over their first
-// ~20-35 frames. Seeking to a scene's exact first frame (frame 0 of its
-// Sequence) freezes the preview mid fade-in - title/subtitle can render at
-// near-zero opacity, reading as "the text isn't showing" even though it's
-// there. Landing a little further in shows the settled, fully-visible state.
-const SETTLE_FRAMES = 40;
-const settleOffsetFor = (sceneDurationSeconds) => {
-  const sceneDurationFrames = Math.round((sceneDurationSeconds || 8) * FPS);
-  return Math.min(SETTLE_FRAMES, Math.floor(sceneDurationFrames / 2));
-};
+// Cheap content fingerprint so the scratch preview only rebuilds when scene
+// content actually changes, not on every parent re-render (e.g. while the
+// editor's active-scene index changes but the scenes themselves don't).
+// Includes `templateId` and `elements` (not just title/subtitle/duration) -
+// switching templates or editing a template's own fields (e.g. a
+// Specs-Checklist scene's list items) doesn't touch any of the top-level
+// scene fields, so a fingerprint without these silently never rebuilds.
+const sceneFingerprint = (scenes) =>
+  JSON.stringify(
+    (scenes || []).map((s) => ({
+      t: s.title,
+      st: s.subtitle,
+      d: s.duration,
+      ty: s.sceneType,
+      tpl: s.templateId,
+      a: s.audio?.file,
+      el: s.elements,
+    }))
+  );
 
 // `focusIndex` / `onActiveSceneChange` let a parent editor stay in sync with
-// the preview: clicking a scene in an edit form seeks the player there, and
-// scrubbing/playing the player updates which scene the editor highlights.
+// the preview: clicking a scene in an edit form seeks the preview there, and
+// clicking a chip here updates which scene the editor highlights.
 export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hideChips = false, videoId }) {
-  const playerRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [frameTime, setFrameTime] = useState(settleOffsetFor(scenes[0]?.duration));
+  // Gates rendering the thumbnail <img> - the backend 500s a thumbnail
+  // request for a jobId with no active preview yet (see PreviewService.js),
+  // so the first frame can't be requested until the initial build resolves.
+  const [previewReady, setPreviewReady] = useState(false);
+  const audioRef = useRef(null);
+  const intervalRef = useRef(null);
   const lastFocusRef = useRef(focusIndex);
 
-  const previewScenes = useMemo(() => resolveScenesMedia(scenes, videoId), [scenes, videoId]);
-  const sceneStarts = useMemo(() => getSceneStartFrames(scenes), [scenes]);
-  const durationInFrames = useMemo(() => calculateTotalDurationInFrames(scenes), [scenes]);
+  const sceneStarts = useMemo(() => getSceneStartSeconds(scenes), [scenes]);
+  const fingerprint = sceneFingerprint(scenes);
+
+  // Keep the scratch composition in sync with whatever the editor currently
+  // holds (including unsaved edits) - rebuilt whenever scene content changes.
+  // Debounced: rebuilding restarts the actual `hyperframes preview` process
+  // (see PreviewService.js - the running server does not pick up composition
+  // file changes on its own, confirmed by direct testing), which costs
+  // several seconds, so this waits for a pause in edits rather than firing
+  // on every keystroke of a Title/Subtitle field.
+  useEffect(() => {
+    if (!videoId || scenes.length === 0) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      buildStudioPreview(videoId, { scenes })
+        .then(() => {
+          if (!cancelled) setPreviewReady(true);
+        })
+        .catch(() => {});
+    }, REBUILD_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoId, fingerprint]);
+
+  const stopPlayback = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setIsPlaying(false);
+  }, []);
+
+  useEffect(() => stopPlayback, [stopPlayback]);
 
   const seekToScene = useCallback(
     (index) => {
-      const player = playerRef.current;
-      if (!player) return;
-      player.pause();
-      player.seekTo((sceneStarts[index] || 0) + settleOffsetFor(scenes[index]?.duration));
+      stopPlayback();
+      setFrameTime((sceneStarts[index] || 0) + settleOffsetFor(scenes[index]?.duration));
       setActiveIndex(index);
+      lastFocusRef.current = index;
+      onActiveSceneChange?.(index);
     },
-    [sceneStarts, scenes],
+    [sceneStarts, scenes, onActiveSceneChange, stopPlayback]
   );
-
-  // Land on the settled frame of the first scene once scenes actually
-  // arrive - without this, the initial view is stuck at frame 0 of the
-  // whole timeline. This can't be a mount-only effect: the caller (Studio)
-  // fetches job data asynchronously, so `scenes` is typically still `[]` on
-  // this component's first mount and only becomes populated a render or two
-  // later - a `[]`-deps effect would see the empty array, no-op, and never
-  // run again once the real data shows up.
-  const hasSettledInitialRef = useRef(false);
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player || scenes.length === 0 || hasSettledInitialRef.current) return;
-    hasSettledInitialRef.current = true;
-    player.seekTo(settleOffsetFor(scenes[0]?.duration));
-    // Deliberately keyed on `scenes.length` (not `scenes`) plus the ref
-    // guard above: this should fire exactly once, the first time scenes
-    // goes from empty to populated - not on every subsequent scenes edit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenes.length]);
-
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return undefined;
-
-    const onFrameUpdate = (e) => {
-      const frame = e.detail.frame;
-      let idx = 0;
-      for (let i = 0; i < sceneStarts.length; i++) {
-        if (frame >= sceneStarts[i]) idx = i;
-      }
-      setActiveIndex(idx);
-      lastFocusRef.current = idx;
-      onActiveSceneChange?.(idx);
-    };
-
-    player.addEventListener("frameupdate", onFrameUpdate);
-    return () => player.removeEventListener("frameupdate", onFrameUpdate);
-  }, [sceneStarts, onActiveSceneChange]);
 
   useEffect(() => {
     if (focusIndex == null || focusIndex === lastFocusRef.current) return;
     lastFocusRef.current = focusIndex;
     seekToScene(focusIndex);
-  }, [focusIndex, seekToScene]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusIndex]);
 
-  if (previewScenes.length === 0) return null;
+  const togglePlay = useCallback(() => {
+    if (isPlaying) {
+      stopPlayback();
+      return;
+    }
+    const scene = scenes[activeIndex];
+    if (!scene) return;
+    const sceneStart = sceneStarts[activeIndex] || 0;
+    const duration = scene.duration || 8;
+    const audioUrl = scene.audio?.file ? resolveSceneAudioUrl(videoId, scene.audio.file) : null;
+    const startedAt = performance.now();
+
+    setIsPlaying(true);
+    if (audioUrl) {
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      audio.play().catch(() => {});
+      audio.onended = stopPlayback;
+    }
+    intervalRef.current = setInterval(() => {
+      const elapsed = audioRef.current ? audioRef.current.currentTime : (performance.now() - startedAt) / 1000;
+      if (elapsed >= duration) {
+        stopPlayback();
+        return;
+      }
+      setFrameTime(sceneStart + elapsed);
+    }, SCRUB_INTERVAL_MS);
+  }, [isPlaying, scenes, activeIndex, sceneStarts, videoId, stopPlayback]);
+
+  if (scenes.length === 0 || !videoId) return null;
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-hidden rounded-lg border border-border-light bg-black">
-        <Player
-          ref={playerRef}
-          component={VideoComposition}
-          inputProps={{ assets: { scenes: previewScenes }, jobId: "preview" }}
-          durationInFrames={durationInFrames}
-          fps={FPS}
-          compositionWidth={1920}
-          compositionHeight={1080}
-          style={{ width: "100%" }}
-          controls
-          clickToPlay
-          doubleClickToFullscreen
-          loop
-        />
+      <div className="relative overflow-hidden rounded-lg border border-border-light bg-black" style={{ aspectRatio: "16 / 9" }}>
+        {previewReady && (
+          <img
+            src={getStudioThumbnailUrl(videoId, frameTime)}
+            alt=""
+            className="h-full w-full"
+            style={{ objectFit: "contain" }}
+          />
+        )}
+        <button
+          type="button"
+          onClick={togglePlay}
+          className="absolute bottom-2 left-2 cursor-pointer rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+        >
+          {isPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
+        </button>
       </div>
       {!hideChips && (
         <div className="flex gap-1.5 overflow-x-auto pb-1">

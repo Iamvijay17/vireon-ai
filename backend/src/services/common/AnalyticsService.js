@@ -68,9 +68,9 @@ class AnalyticsService {
       VideoJob.aggregate([{ $group: { _id: '$voice', count: { $sum: 1 } } }]),
       VideoJob.aggregate([{ $group: { _id: '$aspectRatio', count: { $sum: 1 } } }]),
       // Whole-pipeline duration (script -> upload), distinct from
-      // avgRenderTimeMs below which times only the Remotion render step
+      // avgRenderTimeMs below which times only the render step
       // itself (see MetricsService's 'render.duration', recorded in
-      // RemotionService.renderVideo).
+      // HyperFramesService.renderVideo).
       VideoJob.aggregate([
         { $match: { status: JOB_STATUS.COMPLETED } },
         { $project: { durationMs: { $subtract: ['$updatedAt', '$createdAt'] } } },

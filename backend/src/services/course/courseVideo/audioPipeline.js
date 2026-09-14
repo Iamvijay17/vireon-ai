@@ -110,7 +110,7 @@ async function generateAudio(videoId) {
     // Save updated script with audio durations back to database and disk
     video.script = scriptData;
 
-    // Also save updated script to disk for Remotion pipeline (durations
+    // Also save updated script to disk for the render pipeline (durations
     // changed, content did too).
     await ScriptParserService.saveScript(video._id.toString(), scriptData);
 

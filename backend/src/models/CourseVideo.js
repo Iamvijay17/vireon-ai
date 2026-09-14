@@ -63,8 +63,7 @@ const courseVideoSchema = new mongoose.Schema(
       enum: ['1920x1080', '3840x2160'],
       default: '1920x1080',
     },
-    // Render quality preset - resolved to an encode CRF at render time (see
-    // config.remotion.qualityCrf / RemotionService.renderVideo).
+    // Render quality preset, passed through to HyperFramesService.renderVideo.
     quality: {
       type: String,
       enum: QUALITY_PRESETS,

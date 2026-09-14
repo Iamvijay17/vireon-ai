@@ -152,7 +152,7 @@ export const ScriptStepCard = ({
       )}
     </StepSection>
 
-    {/* SCENE PREVIEW: live in-browser Remotion preview, no server render */}
+    {/* SCENE PREVIEW: HyperFrames preview flipbook, see ScenePreview.jsx */}
     {hasScript && scenes.length > 0 && isOpen && (
       <Card>
         <CardHeader

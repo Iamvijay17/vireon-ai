@@ -10,7 +10,7 @@ AI-powered video generation platform backend with clean architecture.
 - **Queue:** BullMQ (Redis)
 - **Realtime:** Socket.IO
 - **AI:** LM Studio (Gemma) + Pinokio Qwen3-TTS
-- **Rendering:** Remotion
+- **Rendering:** HyperFrames
 - **Storage:** MinIO (local S3-compatible object storage)
 - **Validation:** Zod
 - **Logging:** Winston
@@ -33,7 +33,7 @@ src/
 │   ├── LMStudioService
 │   ├── ScriptParserService
 │   ├── AudioService (TTS)
-│   ├── RemotionService
+│   ├── HyperFramesService
 │   ├── StorageService      # local scratch dir helpers
 │   ├── providers/          # StorageProvider (MinIO)
 │   ├── LoggerService
@@ -52,8 +52,8 @@ src/
 3. **SCRIPT_COMPLETED** (20%) → LM Studio (Gemma) generates script, validated, saved & uploaded to MinIO
 4. **GENERATING_AUDIO** (40%) → Qwen3-TTS generates audio per scene, each uploaded to MinIO immediately
 5. **AUDIO_COMPLETED** (50%) → All scene audio generated and durably in MinIO
-6. **PREPARING_ASSETS** (60%) → `assets.json` built for Remotion (audio/avatar URLs point at MinIO) - local scratch only, never uploaded
-7. **RENDERING** (80%) → Remotion renders video + thumbnail, fetching audio/avatar straight from MinIO
+6. **PREPARING_ASSETS** (60%) → `assets.json` built for HyperFrames (audio/avatar URLs point at MinIO) - local scratch only, never uploaded
+7. **RENDERING** (80%) → HyperFrames renders video + thumbnail, fetching audio/avatar straight from MinIO
 8. **UPLOADING** (90%) → Render output uploaded to MinIO
 9. **COMPLETED** (100%) → URLs saved, local scratch directory wiped
 

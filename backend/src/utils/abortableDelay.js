@@ -12,7 +12,7 @@ function makeAbortError() {
 /**
  * setTimeout that resolves early with an AbortError the moment `signal`
  * aborts, instead of always waiting out the full delay. Used for retry
- * backoff waits (TTS, Remotion) so a Stop request doesn't sit through a
+ * backoff waits (TTS, render) so a Stop request doesn't sit through a
  * pointless multi-second sleep before the next cancellation checkpoint.
  */
 function abortableDelay(ms, signal) {

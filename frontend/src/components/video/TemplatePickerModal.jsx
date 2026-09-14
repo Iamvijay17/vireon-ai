@@ -1,28 +1,42 @@
 import { useMemo, useState } from "react";
 import { Check, Search } from "lucide-react";
-import { templateNames } from "vireon-remotion-templates/src/templates/TemplateCategories";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { cn } from "../ui/cn";
 import { SceneThumbnail } from "./SceneThumbnail";
-
-const TEMPLATES = Object.entries(templateNames).map(([id, label]) => ({ id, label }));
+import { useTemplateCatalog } from "./templateCatalog";
 
 /**
  * Full gallery of templates, each rendered as a live preview of the current
  * scene's own content (title/subtitle/background) so a user can compare how
- * their scene actually looks before picking one.
+ * their scene actually looks before picking one. The catalog comes from
+ * `GET /api/templates` (see HyperFramesService.listTemplates) rather than an
+ * npm import - it's small today (registry search only turned up real
+ * full-screen-scene matches for 3 templates; see HyperFramesService.js's
+ * TEMPLATE_REGISTRY doc comment for the categories still missing candidates)
+ * but grows without another frontend change.
+ *
+ * Every thumbnail here reads the SAME shared per-job preview build
+ * (ScenePreview.jsx is the only thing that calls buildStudioPreview) at this
+ * scene's real `startSeconds` position, so every cell currently shows the
+ * scene's actual current appearance rather than a per-candidate "what if I
+ * picked this one" preview - differentiating the image per candidate would
+ * mean rebuilding the shared composition per hover, which races against
+ * ScenePreview's own build (see SceneThumbnail.jsx's single-writer note).
+ * Picking by name still works; making the image itself differ per candidate
+ * is future work once that's worth the added complexity.
  */
-export function TemplatePickerModal({ open, onClose, scene, value, onSelect }) {
+export function TemplatePickerModal({ open, onClose, scene, value, onSelect, videoId, startSeconds = 0 }) {
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState(value);
+  const { templates } = useTemplateCatalog();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return TEMPLATES;
-    return TEMPLATES.filter((t) => t.id.toLowerCase().includes(q) || t.label.toLowerCase().includes(q));
-  }, [query]);
+    if (!q) return templates;
+    return templates.filter((t) => t.id.toLowerCase().includes(q) || t.label.toLowerCase().includes(q));
+  }, [query, templates]);
 
   const handleConfirm = () => {
     if (pending) onSelect?.(pending);
@@ -58,7 +72,7 @@ export function TemplatePickerModal({ open, onClose, scene, value, onSelect }) {
                 )}
               >
                 <div className="aspect-video w-full overflow-hidden bg-black">
-                  <SceneThumbnail scene={{ ...scene, templateId: t.id }} />
+                  <SceneThumbnail videoId={videoId} startSeconds={startSeconds} duration={scene?.duration} />
                 </div>
                 <div className="flex items-center justify-between gap-1.5 bg-surface px-2 py-1.5">
                   <span className="truncate text-[11px] font-medium text-text-primary">{t.label}</span>

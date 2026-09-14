@@ -125,7 +125,7 @@ async function run(jobId, videoJob, currentStatus, ctx) {
     seed: jobId,
   });
 
-  // Save script to disk for the Remotion pipeline (backend/jobs/ is
+  // Save script to disk for the render pipeline (backend/jobs/ is
   // scratch space). The script content itself is persisted via
   // updateScript below - not just held in a local var - since this
   // pipeline pauses for manual approval right after this step,

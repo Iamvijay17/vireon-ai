@@ -45,7 +45,7 @@ class StorageService {
    * videoWorker.js's inline uploads - so nothing here needs to survive
    * locally once the job completes. VideoService.rerender() and the Studio
    * Editor's re-render flow read scene audio/avatar straight from storage
-   * (RemotionService.prepareAssets builds URLs via the storage provider, not
+   * (HyperFramesService.prepareAssets builds URLs via the storage provider, not
    * local file paths), so an empty scratch dir doesn't block a re-render.
    */
   static async cleanupJob(jobId) {

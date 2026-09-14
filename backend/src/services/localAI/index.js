@@ -3,7 +3,7 @@ const lmStudioManager = require('./lmStudioManager');
 const ttsManager = require('./ttsManager');
 const comfyUIManager = require('./comfyUIManager');
 const avatarManager = require('./avatarManager');
-const remotionStatus = require('./remotionStatus');
+const renderStatus = require('./renderStatus');
 const { GPUResourceManager } = require('./gpuResourceManager');
 
 /**
@@ -44,7 +44,7 @@ async function getAllStatuses() {
       tts: { ...tts, gpuState: gpuStatus.services.tts.status },
       comfyui: { ...comfyui, gpuState: gpuStatus.services.comfyui.status },
       avatar: { ...avatar, gpuState: gpuStatus.services.avatar.status },
-      remotion: remotionStatus.getStatus(),
+      render: renderStatus.getStatus(),
     },
   };
 }

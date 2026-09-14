@@ -37,7 +37,7 @@ function abortLocal(jobId) {
  * just the video worker). Subscribes to the cancel channel so a stop()
  * request published from a *different* process (typically the API server)
  * still reaches this process's in-flight AbortControllers - stop() and the
- * actual TTS/Remotion call almost never run in the same process.
+ * actual TTS/render call almost never run in the same process.
  */
 function listenForCancellation() {
   if (subscribed) return;
@@ -83,7 +83,7 @@ function register(jobId, controller) {
  * registered in this process immediately, and publishes to Redis so a
  * worker process elsewhere picks it up too - the common case, since stop()
  * is called from the API server's request handler while the actual
- * TTS/Remotion call is running in the separate videoWorker process.
+ * TTS/render call is running in the separate videoWorker process.
  */
 function requestCancel(jobId) {
   abortLocal(jobId);

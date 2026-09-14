@@ -18,7 +18,7 @@ class CourseVideoCancelledError extends Error {
 /**
  * Checkpoint called at the start of each pipeline stage and between
  * per-scene audio iterations. There's no way to kill an in-flight LM
- * Studio/TTS/Remotion call directly, so cancellation only takes effect at
+ * Studio/TTS/render call directly, so cancellation only takes effect at
  * these checkpoints - mirrors videoWorker.js's `bailIfCancelled` for the
  * standalone VideoJob pipeline.
  */

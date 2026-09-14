@@ -10,10 +10,9 @@ const renumber = (list) => list.map((s, i) => ({ ...s, sceneNumber: i + 1 }));
 // ITEMS_EDITABLE_TEMPLATE_IDS).
 const getSceneItems = (scene) => scene.elements?.items || scene.elements?.features || scene.elements?.steps || [];
 
-// Every templateId is "NNN-<sceneType>" and all variants sharing a
-// sceneType read the exact same `elements` shape (see
-// remotion/src/templates/TemplateCategories.js's SceneTypeCategories) -
-// so this strips the numeric prefix to compare scene types.
+// Every templateId is "NNN-<sceneType>" (legacy Remotion numbering, kept as
+// stable ids) and all variants sharing a sceneType read the exact same
+// `elements` shape - so this strips the numeric prefix to compare scene types.
 const sceneTypeOf = (templateId) => (templateId || "").replace(/^\d+-/, "");
 
 /**
@@ -56,8 +55,7 @@ export function useSceneEditor(jobId) {
   // Writes into scene.elements.styleConfig.<role> (or a flat key like
   // "accentColor" when path has no "."), matching the mergeStyle({...theme,
   // ...override}) pattern templates read via `elements.styleConfig` -
-  // see backend/remotion/src/theme.js and CaptionRenderer.jsx's identical
-  // {...defaultCaptionConfig, ...styleConfig} merge. No backend change is
+  // matching a {...defaultCaptionConfig, ...styleConfig} merge. No backend change is
   // needed: `elements` is a schema-less Mixed field and scenes save as a
   // full array replace.
   const handleElementFieldChange = (index, path, value) => {

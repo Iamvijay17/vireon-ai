@@ -320,6 +320,26 @@ export const getAnalyticsOverview = (days = 30) =>
 
 export const getRecentLogs = (limit = 300) => api.get('/api/logs/recent', { params: { limit } });
 
+// ─── Templates ────────────────────────────────────────────────────────────────────
+
+export const getTemplates = () => api.get('/api/templates');
+
+// ─── Studio live preview ──────────────────────────────────────────────────────────
+//
+// Replaces the old @remotion/player-based ScenePreview/SceneThumbnail:
+// buildStudioPreview (re)builds a scratch HyperFrames composition from the
+// editor's current (possibly unsaved) scenes and ensures a preview server is
+// running for it; getStudioThumbnailUrl then just points a plain <img>/<video
+// poster> at that server's per-frame PNG endpoint (auth is a no-op in this
+// single-user backend - see backend/src/middleware/auth.js - so no header
+// wiring is needed for a bare <img src>).
+
+export const buildStudioPreview = (jobId, { scenes, resolution, fontPairing }) =>
+  api.post(`/api/studio/preview/${jobId}`, { scenes, resolution, fontPairing });
+
+export const getStudioThumbnailUrl = (jobId, t) =>
+  `${API_BASE}/api/studio/preview/${jobId}/thumbnail?t=${encodeURIComponent(t)}`;
+
 // ─── Health ────────────────────────────────────────────────────────────────────
 
 export const getHealth = () => api.get('/health');

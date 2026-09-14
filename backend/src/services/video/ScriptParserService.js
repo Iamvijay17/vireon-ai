@@ -11,8 +11,7 @@ const { VIDEO_TYPES } = require('../../constants');
 class ScriptParserService {
   /**
    * Valid scene types. Each maps to one or more numbered templateId values
-   * in the Remotion template registry (see
-   * remotion/src/templates/TemplateRegistry.js and this file's
+   * (legacy Remotion numbering, kept as stable ids - see this file's
    * SCENE_TYPE_TEMPLATE_IDS below) - a scene's sceneType is the stable,
    * semantic value; its templateId is the specific numbered visual variant
    * ("NNN-<sceneType>") picked to render it.
@@ -27,13 +26,16 @@ class ScriptParserService {
   static VALID_SCENE_TYPES = ['title', 'content', 'image', 'contentwithimage', 'podcast'];
 
   /**
-   * sceneType -> numbered templateId(s), mirroring SceneTypeCategories in
-   * remotion/src/templates/TemplateCategories.js (duplicated here since
-   * backend/src is CommonJS and can't import that ESM package directly).
-   * Every id sharing a sceneType renders the exact same `elements` data
-   * structure - they're purely alternate visual layouts - so one is picked
-   * at random per scene. Only "content" currently has more than one
-   * (a plain bullet list, a card grid, and a numbered timeline).
+   * sceneType -> numbered templateId(s). These ids are the legacy Remotion
+   * template numbering (that template source was removed when Remotion was
+   * replaced by HyperFrames - see HyperFramesService.TEMPLATE_REGISTRY,
+   * which currently only wires up a handful of these ids to real HyperFrames
+   * blocks and falls back to a default for the rest; broadening that
+   * registry to cover the full catalog is a separate content-curation
+   * effort). Every id sharing a sceneType is meant to render the exact same
+   * `elements` data structure - they're purely alternate visual layouts -
+   * so one is picked at random per scene. Only "content" currently has more
+   * than one (a plain bullet list, a card grid, and a numbered timeline).
    */
   static SCENE_TYPE_TEMPLATE_IDS = {
     title: ['001-title', '002-title', '003-title', '004-title', '005-title', '006-title', '007-title', '008-title', '009-title', '010-title'],
@@ -44,11 +46,9 @@ class ScriptParserService {
   };
 
   /**
-   * templateId for the Generative Scene Engine (see
-   * remotion/src/engine/*.js and
-   * remotion/src/templates/generative/GeneratedScene.jsx), which computes
-   * layout/style/motion procedurally from a scene's `elements` instead of
-   * rendering one of the hand-coded SCENE_TYPE_TEMPLATE_IDS files.
+   * templateId for the Generative Scene Engine, which computes layout/style/
+   * motion procedurally from a scene's `elements` instead of rendering one
+   * of the hand-coded SCENE_TYPE_TEMPLATE_IDS files.
    */
   static GENERATIVE_TEMPLATE_ID = 'generative';
 
@@ -268,8 +268,7 @@ class ScriptParserService {
     const caption = (!disableCaptions && captionsOnByDefault) ? (scene.audio?.text || scene.subtitle || '') : '';
 
     // One branch per sceneType, matching the elements shape its templates
-    // actually read (see each template's own JSDoc header in
-    // remotion/src/templates/<id>/index.jsx). All templates sharing a
+    // actually read. All templates sharing a
     // sceneType (see SCENE_TYPE_TEMPLATE_IDS) read the exact same shape -
     // they only differ in how they render it - so keying on sceneType
     // rather than templateId keeps this correct automatically as variants

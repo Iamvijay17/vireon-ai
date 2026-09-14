@@ -1,0 +1,39 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/hyperframes.json",
+  "registry": "https://raw.githubusercontent.com/heygen-com/hyperframes/main/registry",
+  "paths": {
+    "blocks": "compositions",
+    "components": "compositions/components",
+    "assets": "assets"
+  },
+  "media": {
+    "autoProxy": true
+  },
+  "registryItems": [
+    {
+      "name": "titlecard-calm",
+      "type": "hyperframes:component",
+      "target": "compositions/components/titlecard-calm.html"
+    },
+    {
+      "name": "mesh-gradient-bg",
+      "type": "hyperframes:component",
+      "target": "compositions/components/mesh-gradient-bg.html"
+    },
+    {
+      "name": "mk-background",
+      "type": "hyperframes:block",
+      "target": "compositions/mk-background.html"
+    },
+    {
+      "name": "mk-specs-list",
+      "type": "hyperframes:block",
+      "target": "compositions/mk-specs-list.html"
+    },
+    {
+      "name": "mk-progress-stat",
+      "type": "hyperframes:block",
+      "target": "compositions/mk-progress-stat.html"
+    }
+  ]
+}

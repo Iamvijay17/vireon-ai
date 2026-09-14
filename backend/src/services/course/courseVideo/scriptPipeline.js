@@ -168,7 +168,7 @@ async function generateScript(videoId) {
     video.scriptStatus = STAGE_STATUS.COMPLETED;
     video.scriptGeneratedAt = new Date();
 
-    // Save script to disk for Remotion pipeline - backend/jobs/ is scratch
+    // Save script to disk for the render pipeline - backend/jobs/ is scratch
     // space, the Mongo doc (saved below) is the durable copy.
     await ScriptParserService.saveScript(video._id.toString(), scriptData);
     await video.save();

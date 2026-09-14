@@ -5,7 +5,7 @@
  *
  * Patterns below match the actual failure message shapes thrown by
  * LMStudioService, sceneSynthesis/standaloneSynthesis (TTS), avatarService,
- * and RemotionService - see each service's own retry loop for the
+ * and HyperFramesService - see each service's own retry loop for the
  * "X failed after N attempts: <cause>" wording this reads.
  */
 function classifyError(err, step) {
@@ -21,7 +21,7 @@ function classifyError(err, step) {
   if (/avatar generation failed/i.test(detail)) {
     return { friendly: 'Avatar generation failed - the animation service did not respond in time. This is usually temporary.', detail };
   }
-  if (/remotion rendering failed/i.test(detail)) {
+  if (/hyperframes rendering failed/i.test(detail)) {
     return { friendly: 'Video rendering failed - the render engine hit an error while assembling the video.', detail };
   }
   if (lower.includes('econnrefused') || lower.includes('enotfound') || lower.includes('etimedout') || lower.includes('econnreset')) {

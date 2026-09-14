@@ -16,7 +16,7 @@ class JobCancelledError extends Error {
 
 /**
  * Checkpoint called between pipeline steps and per-scene loop iterations.
- * There's no way to kill an in-flight LM Studio/TTS/Remotion/upload
+ * There's no way to kill an in-flight LM Studio/TTS/render/upload
  * call directly, so cancellation only takes effect at these checkpoints -
  * the worker can be mid-step for a while after a stop request before it
  * actually notices and bails out.

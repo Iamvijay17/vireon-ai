@@ -13,10 +13,11 @@ import {
   Languages,
 } from "lucide-react";
 import { getCourseVideo, updateCourseVideoScript } from "../../services/api";
-import { templateNames } from "vireon-remotion-templates/src/templates/TemplateCategories";
 import { LoadingState, EmptyState } from "../../components";
 import { ScenePreview } from "../../components/video/ScenePreview";
 import { SceneThumbnail } from "../../components/video/SceneThumbnail";
+import { useTemplateCatalog } from "../../components/video/templateCatalog";
+import { getSceneStartSeconds } from "../../components/video/sceneTiming";
 import { TemplatePickerModal } from "../../components/video/TemplatePickerModal";
 import { useForceSidebarCollapsed } from "../../shared/sidebarContextValue";
 import { Card } from "../../components/ui/Card";
@@ -50,6 +51,7 @@ const CourseVideoStudio = () => {
   // nav sidebar for as long as this page is open, restoring it on the way out.
   useForceSidebarCollapsed(true);
 
+  const { templateNames } = useTemplateCatalog();
   const [video, setVideo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -171,6 +173,7 @@ const CourseVideoStudio = () => {
     () => editedScenes.reduce((sum, s) => sum + (s.duration || 8), 0),
     [editedScenes],
   );
+  const sceneStarts = useMemo(() => getSceneStartSeconds(editedScenes), [editedScenes]);
 
   if (loading) return <LoadingState label="Loading studio..." />;
 
@@ -234,7 +237,7 @@ const CourseVideoStudio = () => {
                   >
                     <GripVertical className="size-3.5 shrink-0 cursor-grab text-text-tertiary" />
                     <div className="aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-black">
-                      <SceneThumbnail scene={s} />
+                      <SceneThumbnail videoId={videoId} startSeconds={sceneStarts[i]} duration={s.duration} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className={cn("truncate text-[11px] font-medium", isActive ? "text-accent" : "text-text-primary")}>
@@ -294,7 +297,7 @@ const CourseVideoStudio = () => {
                   className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-border bg-surface p-1.5 text-left transition-colors hover:border-accent"
                 >
                   <div className="aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-black">
-                    <SceneThumbnail scene={scene} />
+                    <SceneThumbnail videoId={videoId} startSeconds={sceneStarts[selectedSceneIndex]} duration={scene.duration} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-medium text-text-primary">
@@ -309,6 +312,8 @@ const CourseVideoStudio = () => {
                   scene={scene}
                   value={scene.templateId}
                   onSelect={(id) => handleFieldChange(selectedSceneIndex, "templateId", id)}
+                  videoId={videoId}
+                  startSeconds={sceneStarts[selectedSceneIndex]}
                 />
               </div>
 

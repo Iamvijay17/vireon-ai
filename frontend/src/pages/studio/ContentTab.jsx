@@ -1,7 +1,8 @@
 import { LayoutTemplate, ListChecks, ArrowUp, ArrowDown, X, Plus } from "lucide-react";
-import { templateNames } from "vireon-remotion-templates/src/templates/TemplateCategories";
 import { TemplatePickerModal } from "../../components/video/TemplatePickerModal";
 import { SceneThumbnail } from "../../components/video/SceneThumbnail";
+import { useTemplateCatalog } from "../../components/video/templateCatalog";
+import { getSceneStartSeconds } from "../../components/video/sceneTiming";
 import { Button } from "../../components/ui/Button";
 import { Select } from "../../components/ui/Select";
 import { Input, Textarea, NumberInput } from "../../components/ui/Input";
@@ -10,7 +11,10 @@ import { cn } from "../../components/ui/cn";
 import { Field, SectionLabel } from "./shared";
 import { SCENE_TYPE_OPTIONS, ITEMS_EDITABLE_TEMPLATE_IDS } from "./constants";
 
-export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
+export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor, videoId }) => {
+  const sceneStart = getSceneStartSeconds(editor.editedScenes)[selectedSceneIndex] || 0;
+  const { templateNames } = useTemplateCatalog();
+  return (
   <>
     <div>
       <SectionLabel icon={LayoutTemplate}>Template</SectionLabel>
@@ -24,7 +28,7 @@ export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
         )}
       >
         <div className="aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-black">
-          <SceneThumbnail scene={scene} />
+          <SceneThumbnail videoId={videoId} startSeconds={sceneStart} duration={scene.duration} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-medium text-text-primary">
@@ -39,6 +43,8 @@ export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
         scene={scene}
         value={scene.templateId}
         onSelect={(id) => editor.handleTemplateSelect(selectedSceneIndex, id)}
+        videoId={videoId}
+        startSeconds={sceneStart}
       />
       {editor.remappingTemplate && <p className="mt-1.5 text-[11px] text-text-tertiary">Adapting scene content to the new template...</p>}
     </div>
@@ -158,4 +164,5 @@ export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
       )}
     </div>
   </>
-);
+  );
+};

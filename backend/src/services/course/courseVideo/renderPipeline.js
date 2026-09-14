@@ -6,8 +6,8 @@ const LoggerService = require('../../common/LoggerService');
 const SocketService = require('../../common/SocketService');
 const ActivityLogService = require('../../common/ActivityLogService');
 const AvatarService = require('../../avatar/avatarService');
-const RemotionService = require('../../video/RemotionService');
-const RemotionStatus = require('../../localAI/remotionStatus');
+const HyperFramesService = require('../../video/HyperFramesService');
+const RenderStatus = require('../../localAI/renderStatus');
 const StorageService = require('../../storage/StorageService');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
@@ -15,9 +15,8 @@ const { classifyError } = require('../../../utils/errorMessages');
 const { bailIfCancelled } = require('./shared');
 
 /**
- * Render a video using the actual Remotion pipeline.
- * Prepares assets, then calls RemotionService to render.
- * Falls back to a placeholder if Remotion is unavailable.
+ * Render a video using the HyperFrames pipeline.
+ * Prepares assets, then calls HyperFramesService to render.
  */
 async function renderVideo(videoId) {
   const video = await CourseVideo.findById(videoId);
@@ -79,8 +78,8 @@ async function renderVideo(videoId) {
        totalDuration: totalSceneDuration,
      });
 
-    // Build the script object for Remotion
-    const remotionScript = {
+    // Build the script object for the renderer
+    const renderScript = {
       title: scriptData.title || video.title,
       description: scriptData.description || '',
       scenes: scenesWithAudio,
@@ -116,16 +115,16 @@ async function renderVideo(videoId) {
       avatar: video.avatarVideoUrl ? { videoUrl: video.avatarVideoUrl, position: video.avatarPosition } : undefined,
     };
 
-    // Prepare assets for Remotion
+    // Prepare assets
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 65, 'Preparing assets...');
 
-    await RemotionService.prepareAssets(jobId, remotionScript, jobConfig);
+    await HyperFramesService.prepareAssets(jobId, renderScript, jobConfig);
 
     // Cheap structural/asset checks before committing to a render - see
-    // RemotionService.validateAssets. Checked against scenesWithAudio (has
+    // HyperFramesService.validateAssets. Checked against scenesWithAudio (has
     // scene.audio.text and imagePrompt) rather than the assets.json shape,
     // which strips audio.text.
-    await RemotionService.validateAssets(jobId, scenesWithAudio);
+    await HyperFramesService.validateAssets(jobId, scenesWithAudio);
 
     // Update progress
     video.renderProgress = 70;
@@ -134,7 +133,7 @@ async function renderVideo(videoId) {
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 80, 'Rendering video...');
 
     // Rendering spans 80-89% (90 is reserved for the upload step that
-    // follows) - mirrors videoWorker/renderStep.js's mapping of Remotion's
+    // follows) - mirrors videoWorker/renderStep.js's mapping of the render's
     // own progress fraction into a band, throttled so this doesn't spam
     // socket events or DB writes on every frame.
     let lastEmittedProgress = -1;
@@ -152,12 +151,12 @@ async function renderVideo(videoId) {
       });
     };
 
-    // Try Remotion render - throw error if it fails
-    RemotionStatus.begin();
+    // Render - throw error if it fails
+    RenderStatus.begin();
     try {
-      await RemotionService.renderVideo(jobId, null, onRenderProgress);
+      await HyperFramesService.renderVideo(jobId, null, onRenderProgress);
     } finally {
-      RemotionStatus.end();
+      RenderStatus.end();
     }
 
     video.renderedAt = new Date();

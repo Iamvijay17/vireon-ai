@@ -1,36 +1,24 @@
-import { useMemo } from "react";
-import { Thumbnail } from "@remotion/player";
-import { VideoComposition } from "vireon-remotion-templates/src/VideoComposition";
-import { FPS } from "vireon-remotion-templates/src/calculateVideoMetadata";
-import { resolveMediaUrl } from "../../services/api";
+import { getStudioThumbnailUrl } from "../../services/api";
+import { settleOffsetFor } from "./sceneTiming";
 
-// A single static frame of a scene, rendered through the same template the
-// scene actually uses — for the timeline strip, where a full <Player> per
-// scene would be needlessly expensive.
-export function SceneThumbnail({ scene, className }) {
-  const previewScene = useMemo(() => {
-    const elements = scene.elements || {};
-    return {
-      ...scene,
-      audio: undefined,
-      elements: { ...elements, image: elements.image ? resolveMediaUrl(elements.image) : elements.image },
-    };
-  }, [scene]);
-
-  const durationInFrames = Math.max(Math.round((scene.duration || 8) * FPS), 1);
-  const frameToDisplay = Math.min(Math.round(FPS * 0.5), durationInFrames - 1);
-
+// A single static frame, read from the shared preview build that
+// ScenePreview (mounted alongside on every Studio page) already maintains -
+// see backend/src/services/video/PreviewService.js: one composition per job,
+// built once from the full scene list, read here by many thumbnails at
+// different timestamps. Deliberately does NOT trigger its own build -
+// concurrent single-scene builds from multiple thumbnails would race and
+// stomp each other, since the backend runs one shared preview server per job.
+export function SceneThumbnail({ videoId, startSeconds = 0, duration = 8, className }) {
+  if (!videoId) {
+    return <div className={className} style={{ width: "100%", height: "100%", background: "#000" }} />;
+  }
+  const t = startSeconds + settleOffsetFor(duration);
   return (
-    <Thumbnail
-      component={VideoComposition}
-      inputProps={{ assets: { scenes: [previewScene] }, jobId: "preview" }}
-      compositionWidth={1920}
-      compositionHeight={1080}
-      durationInFrames={durationInFrames}
-      fps={FPS}
-      frameToDisplay={frameToDisplay}
-      style={{ width: "100%", height: "100%" }}
+    <img
+      src={getStudioThumbnailUrl(videoId, t)}
+      alt=""
       className={className}
+      style={{ width: "100%", height: "100%", objectFit: "cover", background: "#000" }}
     />
   );
 }

@@ -40,15 +40,14 @@ const createVideoSchema = z
     // youtube_shorts is further restricted to vertical (9:16) resolutions
     // only - see superRefine below.
     resolution: z.enum(RESOLUTIONS).optional().default('1920x1080'),
-    // Render quality preset - see constants.QUALITY_PRESETS /
-    // config.remotion.qualityCrf. 'standard' matches the encode quality
-    // every job used before this setting existed.
+    // Render quality preset - see constants.QUALITY_PRESETS. 'standard'
+    // matches the encode quality every job used before this setting existed.
     quality: z.enum(QUALITY_PRESETS).optional().default('standard'),
-    // Curated title/body Google Font pairing - see backend/remotion/src/fonts.js.
+    // Curated title/body Google Font pairing - see backend/hf-templates/fonts.js.
     // 'default' keeps the legacy system-font look.
     fontPairing: z.enum(FONT_PAIRINGS).optional().default('default'),
-    // Word-by-word caption animation for content scenes - see
-    // backend/remotion/src/captions/captionAnimations.js's registry.
+    // Word-by-word caption animation for content scenes - legacy ids kept
+    // for existing jobs' stored data (see constants.CAPTION_STYLES).
     captionAnimation: z.enum(CAPTION_STYLES).optional().default('fadeInUp'),
     // true: current auto flow (audio/images/render run automatically after
     // script approval). false: manual mode - audio and render each need an
@@ -165,6 +164,19 @@ const jobIdArraySchema = z.object({
   jobIds: z.array(z.string().regex(/^job-[0-9A-Z]{8}$/, 'Invalid video job id')).min(1, 'jobIds must be a non-empty array'),
 });
 
+// Studio's live preview - accepts whatever shape the editor currently holds
+// in memory (not yet saved), so this stays intentionally loose rather than
+// re-declaring the full sceneSchema Mongoose already owns.
+const studioPreviewSchema = z.object({
+  scenes: z.array(z.record(z.any())).min(1, 'At least one scene is required'),
+  resolution: z.string().optional(),
+  fontPairing: z.string().optional(),
+});
+
+const studioThumbnailQuerySchema = z.object({
+  t: z.coerce.number().min(0, 'Timestamp must be non-negative'),
+});
+
 const validate = (schema) => (data) => {
   const result = schema.safeParse(data);
   if (!result.success) {
@@ -187,5 +199,7 @@ module.exports = {
   createAudioSchema,
   audioIdSchema,
   createDialogueAudioSchema,
+  studioPreviewSchema,
+  studioThumbnailQuerySchema,
   validate,
 };

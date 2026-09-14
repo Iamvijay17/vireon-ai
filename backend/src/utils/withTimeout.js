@@ -12,8 +12,8 @@ const { makeAbortError } = require('./abortableDelay');
  * An optional `signal` additionally races an AbortSignal alongside the
  * timer, rejecting immediately (AbortError) the moment it fires instead of
  * waiting out the rest of `ms`. This is what lets a user's Stop click
- * interrupt a TTS/Remotion call that's already in flight - the remote
- * call itself may keep running (Gradio/Remotion have no cancel API this
+ * interrupt a TTS/render call that's already in flight - the remote
+ * call itself may keep running (Gradio/the render CLI have no cancel API this
  * reaches), but the worker stops waiting on it right away and can move on
  * to noticing the job is cancelled.
  */

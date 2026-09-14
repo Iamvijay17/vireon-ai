@@ -2,7 +2,7 @@
  * Abstract Storage Provider Interface.
  *
  * Defines the contract storage providers (currently just MinIO) implement,
- * so callers like RemotionService, AudioService, and AvatarService never
+ * so callers like HyperFramesService, AudioService, and AvatarService never
  * need to know which backend is active.
  *
  * @abstract
@@ -35,8 +35,8 @@ class StorageProvider {
 
   /**
    * Get the public download URL for a file already known to exist in
-   * storage, without uploading anything. Used by RemotionService to point
-   * Remotion's renderer straight at storage instead of a local file.
+   * storage, without uploading anything. Used by HyperFramesService to point
+   * the renderer straight at storage instead of a local file.
    * @param {string} id - The video identifier.
    * @param {string} category - 'audio', 'avatar', or 'render'.
    * @param {string} fileName

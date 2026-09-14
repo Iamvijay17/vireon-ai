@@ -47,8 +47,8 @@ const RESOLUTIONS = [
   { value: "2160x3840", label: "4K Vertical (2160x3840)" },
 ];
 
-// Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js)
-// - resolved to an actual encode CRF at render time (config.remotion.qualityCrf).
+// Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js),
+// passed through to HyperFramesService.renderVideo.
 const QUALITY_PRESETS = [
   { value: "draft", label: "Draft (fast, lower quality)" },
   { value: "standard", label: "Standard" },
@@ -56,7 +56,7 @@ const QUALITY_PRESETS = [
 ];
 
 // Mirrors the backend's CAPTION_STYLES enum (backend/src/constants/index.js) -
-// keys into backend/remotion/src/captions/captionAnimations.js's registry.
+// legacy ids kept for existing jobs' stored data.
 const CAPTION_STYLES = [
   { value: "fadeInUp", label: "Fade Up" },
   { value: "popScale", label: "Pop" },

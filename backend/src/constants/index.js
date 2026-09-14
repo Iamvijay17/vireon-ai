@@ -110,10 +110,9 @@ const RESOLUTIONS = Object.freeze([
   '2160x3840',
 ]);
 
-// Render quality preset - maps to a CRF value at render time (see
-// config.remotion.qualityCrf / RemotionService.renderVideo). 'draft' trades
-// quality for a fast, cheap preview render; 'hd' is the highest-quality,
-// slowest/largest encode.
+// Render quality preset, passed through to HyperFramesService.renderVideo.
+// 'draft' trades quality for a fast, cheap preview render; 'hd' is the
+// highest-quality, slowest/largest encode.
 const QUALITY_PRESETS = Object.freeze(['draft', 'standard', 'hd']);
 
 // Aspect ratio is derived from resolution (see getAspectRatioForResolution)
@@ -147,13 +146,12 @@ const getAspectRatioForResolution = (resolution) => {
 };
 
 // Curated title/body Google Font pairing ids - mirrored in
-// backend/remotion/src/fonts.js (a separate app/package, so the pairing
+// backend/hf-templates/fonts.js (a separate package, so the pairing
 // definitions themselves live there; this is just the id enum for job
 // validation/storage). 'default' keeps the legacy system-font look.
-// Caption animation style ids - mirrored in
-// backend/remotion/src/captions/captionAnimations.js's captionAnimationRegistry
-// (a separate app/package, so the animation hooks themselves live there;
-// this is just the id enum for job validation/storage). Dialogue/podcast
+// Caption animation style ids - this is just the id enum for job
+// validation/storage; the animation hooks themselves are not yet ported to
+// HyperFrames (legacy ids kept for existing jobs' stored data). Dialogue/podcast
 // scenes keep their own hardcoded 'highlightCurrent' style regardless of
 // this setting - it's tuned specifically for multi-speaker captions.
 const CAPTION_STYLES = Object.freeze([

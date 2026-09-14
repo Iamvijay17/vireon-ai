@@ -177,30 +177,13 @@ const config = Object.freeze({
     timeout: parseInt(process.env.AVATAR_TIMEOUT, 10) || 120000,
   },
 
-  remotion: {
-    binary: process.env.REMOTION_BINARY || 'npx remotion',
-    timeout: parseInt(process.env.REMOTION_TIMEOUT, 10) || 300000,
-    maxRetries: parseInt(process.env.REMOTION_MAX_RETRIES, 10) || 2,
-    // Encode settings passed to the Remotion CLI's `render` command - before
-    // this, no codec/crf/pixel-format flags were passed at all, so every
-    // render used Remotion's own built-in defaults with no way to tune
-    // quality vs. file size.
-    codec: process.env.REMOTION_CODEC || 'h264',
-    pixelFormat: process.env.REMOTION_PIXEL_FORMAT || 'yuv420p',
-    // CRF per VideoJob.quality preset (lower = higher quality/larger file).
-    // 'standard' (18) matches Remotion's own h264 default, so existing jobs
-    // that don't set a quality preset keep today's behavior unchanged.
-    // 'draft' is a fast, cheap preview-quality encode; 'hd' is the
-    // highest-quality encode. Falls back to 'standard' for an unrecognized
-    // or missing preset - see RemotionService.renderVideo.
-    qualityCrf: {
-      draft: parseInt(process.env.REMOTION_CRF_DRAFT, 10) || 28,
-      standard: parseInt(process.env.REMOTION_CRF_STANDARD, 10) || 18,
-      hd: parseInt(process.env.REMOTION_CRF_HD, 10) || 12,
-    },
+  // Retry/timeout settings for HyperFramesService.renderVideo's spawned CLI render.
+  render: {
+    timeout: parseInt(process.env.RENDER_TIMEOUT, 10) || 300000,
+    maxRetries: parseInt(process.env.RENDER_MAX_RETRIES, 10) || 2,
   },
 
-  // Generative Scene Engine (remotion/src/engine/*.js): computes layout,
+  // Generative Scene Engine (services/video/ScriptParserService.js): computes layout,
   // style, and motion procedurally from scene content instead of picking
   // one of the ~46 hand-coded template files. Defaults on; set
   // GENERATIVE_ENGINE_ENABLED=false to roll back new scripts to the legacy
@@ -256,9 +239,9 @@ const config = Object.freeze({
   },
 
   // Each concurrent video job spends most of its time on network/GPU-bound
-  // TTS calls, but also runs a CPU-heavy Remotion render (see renderStep.js)
+  // TTS calls, but also runs a CPU-heavy HyperFrames render (see renderStep.js)
   // as one step of the same job - so worker concurrency doubles as a cap on
-  // how many simultaneous Remotion renders a single host can take. A flat
+  // how many simultaneous renders a single host can take. A flat
   // "3" was fine on the dev machine it was tuned on but oversubscribes a
   // smaller host (e.g. a 2-core box hitting 3 concurrent renders) and
   // under-uses a bigger one. Default scales with core count instead;

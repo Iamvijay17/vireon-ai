@@ -76,8 +76,7 @@ const videoJobSchema = new mongoose.Schema(
       enum: RESOLUTIONS,
       default: '1920x1080',
     },
-    // Render quality preset - resolved to an encode CRF at render time (see
-    // config.remotion.qualityCrf / RemotionService.renderVideo).
+    // Render quality preset, passed through to HyperFramesService.renderVideo.
     quality: {
       type: String,
       enum: QUALITY_PRESETS,
@@ -91,7 +90,7 @@ const videoJobSchema = new mongoose.Schema(
       default: '16:9',
     },
     // Curated title/body Google Font pairing applied across the video's
-    // templates and captions - see backend/remotion/src/fonts.js for the
+    // templates and captions - see backend/hf-templates/fonts.js for the
     // matching pairing definitions consumed at render time. 'default' keeps
     // the legacy system-font look (no Google Font load).
     fontPairing: {
@@ -100,8 +99,9 @@ const videoJobSchema = new mongoose.Schema(
       default: 'default',
     },
     // Word-by-word caption animation applied across the video's content
-    // scenes (see backend/remotion/src/captions/captionAnimations.js's
-    // registry) - podcast/dialogue scenes ignore this and always use
+    // scenes - legacy ids kept for existing jobs' stored data (the
+    // animation hooks themselves are not yet ported to HyperFrames);
+    // podcast/dialogue scenes ignore this and always use
     // 'highlightCurrent', which is tuned specifically for them.
     captionAnimation: {
       type: String,
@@ -127,8 +127,8 @@ const videoJobSchema = new mongoose.Schema(
     // photo. When true, AvatarService animates a bundled default portrait
     // matching `voice`'s gender (see AvatarService.resolveDefaultSourceImage)
     // and stores the result in avatarVideoUrl (see videoWorker.js's
-    // GENERATING_AVATAR step). false means no overlay - the Remotion
-    // composition reserves no space for it (see AvatarOverlay).
+    // GENERATING_AVATAR step). false means no overlay - the render
+    // composition reserves no space for it.
     avatarEnabled: { type: Boolean, default: false },
     avatarPosition: {
       type: String,

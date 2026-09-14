@@ -11,12 +11,12 @@ const clamp01 = (n) => Math.min(1, Math.max(0, n));
 
 // Mirrors the 1920x1080 frame at a fixed 16:9 aspect ratio. Dragging a marker
 // writes a normalized {xPct, yPct} (0-1) into `elements.styleConfig.<role>.position`,
-// which `positionStyle()` (backend/remotion/src/theme.js) turns into absolute
-// CSS at render time - see the Studio "Template Style" panel for how this
-// wires into `handleElementFieldChange`.
+// which `positionStyle()` turns into absolute CSS at render time - see the
+// Studio "Template Style" panel for how this wires into
+// `handleElementFieldChange`.
 //
 // This lives in the sidebar rather than overlaid on the live preview
-// deliberately: dragging directly over the Remotion Player fought with its
+// deliberately: dragging directly over the preview player fought with its
 // own click-to-play/seek-bar pointer handling and could trigger the
 // browser's native text-selection drag across the rest of the page.
 // A small self-contained pad avoids all of that.

@@ -283,6 +283,7 @@ const StudioPage = () => {
             dragOverIndex={editor.dragOverIndex}
             setDragOverIndex={editor.setDragOverIndex}
             onDrop={editor.handleDrop}
+            videoId={jobId}
           />
 
           {/* CENTER: LIVE PREVIEW */}
@@ -308,6 +309,7 @@ const StudioPage = () => {
             inspectorTab={inspectorTab}
             setInspectorTab={setInspectorTab}
             job={job}
+            videoId={jobId}
             voiceOptions={voiceOptions}
             isFavorite={isFavorite}
             toggleFavorite={toggleFavorite}

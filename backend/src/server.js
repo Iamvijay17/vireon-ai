@@ -29,6 +29,8 @@ const assetRoutes = require('./routes/assets');
 const analyticsRoutes = require('./routes/analytics');
 const logsRoutes = require('./routes/logs');
 const aiServicesRoutes = require('./routes/aiServices');
+const studioRoutes = require('./routes/studio');
+const templatesRoutes = require('./routes/templates');
 
 const app = express();
 const server = http.createServer(app);
@@ -140,6 +142,8 @@ app.use('/api/assets', assetRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/system/ai-services', aiServicesRoutes);
+app.use('/api/studio', studioRoutes);
+app.use('/api/templates', templatesRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

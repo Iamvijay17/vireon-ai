@@ -70,7 +70,7 @@ async function processVideoJob(job) {
   // doing its actual work, matching where the original inline pipeline
   // set this same variable. ctx.signal aborts the moment a Stop request
   // reaches this process (see cancellationBus) - audioStep/renderStep
-  // thread it into their TTS/Remotion calls so cancellation interrupts
+  // thread it into their TTS/render calls so cancellation interrupts
   // whatever's actually in flight instead of only being noticed at the
   // next bailIfCancelled checkpoint between steps.
   const abortController = new AbortController();
