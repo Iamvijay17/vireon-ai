@@ -42,7 +42,11 @@
     { "id": "kicker", "type": "string", "role": "content", "label": "Kicker", "description": "Small mono label above the wordmark. Empty hides it.", "default": "INTRODUCING" },
     { "id": "rule", "type": "enum", "role": "style", "label": "Rule", "description": "Hairline rule drawn left to right under the wordmark.", "default": "show", "options": [{ "value": "show", "label": "Show" }, { "value": "hide", "label": "Hide" }] },
     { "id": "accent", "type": "enum", "role": "style", "label": "Accent", "description": "Contract color carried by the hairline rule.", "default": "green", "options": [{ "value": "green", "label": "Green" }, { "value": "blue", "label": "Blue" }, { "value": "violet", "label": "Violet" }] },
-    { "id": "exit", "type": "enum", "role": "style", "label": "Exit", "description": "Optional departure. Frame roots own transitions, so none is the default.", "default": "none", "options": [{ "value": "none", "label": "None" }, { "value": "fade", "label": "Fade" }, { "value": "up", "label": "Up" }] }
+    { "id": "exit", "type": "enum", "role": "style", "label": "Exit", "description": "Optional departure. Frame roots own transitions, so none is the default.", "default": "none", "options": [{ "value": "none", "label": "None" }, { "value": "fade", "label": "Fade" }, { "value": "up", "label": "Up" }] },
+    { "id": "accentColor", "type": "string", "role": "style", "label": "Accent color", "description": "Vireon addition: overrides the hairline rule color, bypassing the green/blue/violet enum.", "default": null },
+    { "id": "fontFamily", "type": "string", "role": "style", "label": "Wordmark font", "description": "Vireon addition: overrides --font-display (the wordmark typeface).", "default": null },
+    { "id": "fontMono", "type": "string", "role": "style", "label": "Kicker font", "description": "Vireon addition: overrides --font-mono (the kicker/label typeface).", "default": null },
+    { "id": "googleFontsHref", "type": "string", "role": "style", "label": "Google Fonts URL", "description": "Vireon addition: a Google Fonts CSS2 URL to load before the fonts above are used.", "default": null }
   ]'
 >
   <head>
@@ -51,7 +55,7 @@
   </head>
   <body>
     <template>
-      <div id="root" data-composition-id="titlecard-lockup" data-duration="4" data-fps="30">
+      <div id="root" data-composition-id="titlecard-lockup" data-duration="4" data-fps="30" data-width="1920" data-height="1080">
         <style>
           *,
           *::before,
@@ -218,6 +222,19 @@
             wordmark.textContent = wordmarkText;
             lockup.setAttribute("aria-label", wordmarkText);
             root.style.setProperty("--tl-accent", accentColors[accent]);
+
+            // Vireon addition: per-video style-variant override (see
+            // backend/hf-templates/styleVariants.js) - a literal accentColor
+            // wins over the stock green/blue/violet enum above.
+            if (vars.accentColor) root.style.setProperty("--tl-accent", String(vars.accentColor));
+            if (vars.fontFamily) root.style.setProperty("--font-display", String(vars.fontFamily));
+            if (vars.fontMono) root.style.setProperty("--font-mono", String(vars.fontMono));
+            if (vars.googleFontsHref) {
+              var fontLink = document.createElement("link");
+              fontLink.rel = "stylesheet";
+              fontLink.href = String(vars.googleFontsHref);
+              document.head.appendChild(fontLink);
+            }
 
             if (kickerText) kicker.textContent = kickerText;
             else kicker.setAttribute("hidden", "hidden");

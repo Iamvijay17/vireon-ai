@@ -44,7 +44,11 @@
     { "id": "quote", "type": "string", "role": "content", "label": "Quote", "description": "Customer testimonial copy revealed at reading pace.", "default": "This changed how we ship." },
     { "id": "author", "type": "string", "role": "content", "label": "Author", "description": "Name attributed to the testimonial.", "default": "Ken Tanaka" },
     { "id": "handle", "type": "string", "role": "content", "label": "Handle", "description": "Role or social handle shown beneath the author name.", "default": "@ken" },
-    { "id": "rating", "type": "number", "role": "content", "label": "Rating", "description": "Visible customer rating from zero to five stars.", "default": 5, "min": 0, "max": 5, "step": 0.1 }
+    { "id": "rating", "type": "number", "role": "content", "label": "Rating", "description": "Visible customer rating from zero to five stars.", "default": 5, "min": 0, "max": 5, "step": 0.1 },
+    { "id": "accentColor", "type": "string", "role": "style", "label": "Accent color", "description": "Vireon addition: overrides --muted (stars/handle color).", "default": "#b8c0cc" },
+    { "id": "fontFamily", "type": "string", "role": "style", "label": "Display font", "description": "Vireon addition: overrides --font-display (quote/author typeface).", "default": null },
+    { "id": "fontMono", "type": "string", "role": "style", "label": "Rating font", "description": "Vireon addition: overrides --font-mono (rating typeface).", "default": null },
+    { "id": "googleFontsHref", "type": "string", "role": "style", "label": "Google Fonts URL", "description": "Vireon addition: a Google Fonts CSS2 URL to load before the fonts above are used.", "default": null }
   ]'
 >
   <head>
@@ -53,7 +57,7 @@
   </head>
   <body>
     <template>
-      <div id="root" data-composition-id="testimonial-card" data-duration="4" data-fps="30">
+      <div id="root" data-composition-id="testimonial-card" data-duration="4" data-fps="30" data-width="1920" data-height="1080">
         <style>
           *,
           *::before,
@@ -165,13 +169,13 @@
             place-items: center;
             width: min(8.4cqw, 8.4cqh);
             aspect-ratio: 1;
-            border: 0.16cqh solid color-mix(in srgb, var(--fg) 20%, transparent);
+            border: 0.16cqh solid color-mix(in srgb, var(--fg, #f8fafc) 20%, transparent);
             border-radius: 50%;
             /* Placeholder person: a single (front) avatar circle at L1, with
                the initials knocked out in the ground colour. */
-            background: color-mix(in srgb, var(--fg) 72%, var(--surface));
-            color: var(--bg);
-            font-family: var(--font-display);
+            background: color-mix(in srgb, var(--fg, #f8fafc) 72%, var(--surface, #14161a));
+            color: var(--bg, #0b0c0e);
+            font-family: var(--font-display, Inter, system-ui, sans-serif);
             font-size: min(2.65cqw, 2.65cqh);
             font-weight: 780;
             letter-spacing: 0.03em;
@@ -180,8 +184,8 @@
           .tc-author {
             min-width: 0;
             align-self: end;
-            color: var(--fg);
-            font-family: var(--font-display);
+            color: var(--fg, #f8fafc);
+            font-family: var(--font-display, Inter, system-ui, sans-serif);
             font-size: min(3.2cqw, 3.2cqh);
             font-weight: 700;
             line-height: 1.08;
@@ -190,7 +194,7 @@
           .tc-handle {
             min-width: 0;
             align-self: start;
-            color: var(--muted);
+            color: var(--muted, #b8c0cc);
             font-size: min(2.35cqw, 2.35cqh);
             line-height: 1.15;
           }
@@ -268,6 +272,19 @@
               })
               .join("")
               .toUpperCase();
+
+            // Vireon addition: per-video style-variant override (see
+            // backend/hf-templates/styleVariants.js) - applied as inline CSS
+            // custom properties so an unset call keeps today's defaults.
+            if (vars.accentColor) root.style.setProperty("--muted", String(vars.accentColor));
+            if (vars.fontFamily) root.style.setProperty("--font-display", String(vars.fontFamily));
+            if (vars.fontMono) root.style.setProperty("--font-mono", String(vars.fontMono));
+            if (vars.googleFontsHref) {
+              var fontLink = document.createElement("link");
+              fontLink.rel = "stylesheet";
+              fontLink.href = String(vars.googleFontsHref);
+              document.head.appendChild(fontLink);
+            }
 
             quoteEl.textContent = quoteText;
             authorEl.textContent = authorText;

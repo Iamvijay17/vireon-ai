@@ -23,13 +23,21 @@
   </head>
   <body>
     <template>
-      <div id="root" data-composition-id="marker-checklist-card" data-duration="4.5" data-fps="30">
+      <div id="root" data-composition-id="marker-checklist-card" data-duration="4.5" data-fps="30" data-width="1920" data-height="1080">
         <style>
           *,
           *::before,
           *::after {
             box-sizing: border-box;
           }
+          /* Vireon patch: restored as local @font-face (the lint's
+             font_family_without_font_face check needs a static declaration
+             it can see - a runtime-injected Google Fonts <link> doesn't
+             satisfy it). Files copied from the CLI project's own
+             assets/fonts/ into hf-templates/registry/assets/fonts/ -
+             _buildComposition copies that folder into every job's compDir
+             alongside compositions/, matching where the CLI project itself
+             keeps them (sibling of compositions/, not inside it). */
           @font-face {
             font-family: "Permanent Marker";
             src: url("assets/fonts/permanent-marker-400.woff2") format("woff2");

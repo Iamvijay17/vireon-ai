@@ -1,16 +1,22 @@
 import { LayoutTemplate, Palette, Settings, Image as ImageIcon, Languages } from "lucide-react";
 
+// "contentwithimage"/"image"/"podcast" are deliberately omitted here: HyperFrames'
+// TEMPLATE_REGISTRY (backend/src/services/video/HyperFramesService.js) has no
+// template for any of them yet, so resolveSceneTemplate silently falls back to
+// the title card - picking one from this dropdown looked like a choice but
+// always rendered the same title template. Existing scenes already carrying
+// one of these types (e.g. podcast-generated scripts, see ScriptParserService's
+// GENERATIVE_SUPPORTED_SCENE_TYPES) are unaffected - the Select just shows a
+// placeholder for them rather than corrupting the stored value. Add them back
+// once real templates exist for each.
 export const SCENE_TYPE_OPTIONS = [
   { value: "title", label: "Title" },
   { value: "content", label: "Content" },
-  { value: "contentwithimage", label: "Content + Image" },
-  { value: "image", label: "Image" },
-  { value: "podcast", label: "Podcast" },
 ];
 
 // The 3 "content" scene-type variants all use `elements.items: [{ heading?, text? }]`
 // - keep in sync with STANDARDIZED_ITEMS_TEMPLATE_IDS in backend/src/controllers/sceneController.js.
-export const ITEMS_EDITABLE_TEMPLATE_IDS = ["001-content", "002-content", "003-content", "004-content", "005-content", "006-content", "007-content", "008-content", "009-content", "010-content", "011-content", "012-content", "013-content", "014-content", "015-content", "016-content"];
+export const ITEMS_EDITABLE_TEMPLATE_IDS = ["001-content", "002-content", "003-content", "004-content", "005-content", "006-content", "007-content", "008-content", "009-content", "010-content", "011-content", "012-content", "013-content", "014-content", "015-content", "016-content", "019-content", "020-content"];
 
 export const FONT_WEIGHT_OPTIONS = [
   { value: 300, label: "Light" },

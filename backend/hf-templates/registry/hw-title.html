@@ -1,10 +1,34 @@
 <!-- hyperframes-registry-item: hw-title -->
+<!--
+  Vireon patch: the stock file hardcoded CONFIG.text and a fixed DUR=6 with
+  no data-composition-variables schema at all - it was a code example, not a
+  wired block. Patched to read `text`/`duration`/`accentColor` from
+  window.__hyperframes.getVariables() like every other registered template
+  (see backend/src/services/video/HyperFramesService.js TEMPLATE_REGISTRY),
+  and to scale IN/OUT/hide-at-end off the real per-scene duration instead of
+  the stock 6s (otherwise the handwritten line vanishes at t=6s for any
+  longer scene - confirmed by reading the hide tween below).
+-->
 <!doctype html>
-<html lang="en">
+<html
+  lang="en"
+  data-composition-duration="6"
+  data-composition-variables='[
+    { "id": "headline", "type": "string", "role": "content", "label": "Headline", "description": "Handwritten headline text.", "default": "shine like the star you are" },
+    { "id": "duration", "type": "number", "role": "content", "label": "Duration override", "description": "Vireon addition: overrides the block’s own 6s timing to fit a host slot of this many seconds.", "default": 6 },
+    { "id": "accentColor", "type": "string", "role": "style", "label": "Accent color", "description": "Vireon addition: overrides the squiggle underline color.", "default": "#ffb020" }
+  ]'
+>
   <head>
     <meta charset="utf-8" />
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <style>
+      /* Vireon patch: the lint's font_family_without_font_face check needs a
+         static @font-face it can see (a runtime Google Fonts <link> doesn't
+         satisfy it). File copied from the CLI project's own assets/fonts/
+         into hf-templates/registry/assets/fonts/ - _buildComposition copies
+         that folder into every job's compDir alongside compositions/,
+         matching where the CLI project itself keeps it. */
       @font-face {
         font-family: "Caveat";
         src: url("assets/fonts/Caveat-700-latin.woff2") format("woff2");
@@ -88,13 +112,18 @@
       (function () {
         window.__timelines = window.__timelines || {};
 
+        var vars =
+          window.__hyperframes && window.__hyperframes.getVariables
+            ? window.__hyperframes.getVariables()
+            : {};
+
         /* ---- published parameters ----
            Handwritten title with the highlight-sweep scalar (the shared
            mk-callout-highlight mechanic) + squiggle underline + the boil.
            Demonstrates the dispatcher composing sweep + boil on one
            timeline (learning: one onUpdate — everything through hwOnUpdate). */
         var CONFIG = {
-          text: "shine like the star you are",
+          text: vars.headline == null ? "shine like the star you are" : String(vars.headline),
           fontSize: 120,
           scheme: "chalk", // "chalk" (white, over footage) | "ink" (dark, boards)
           sweep: { enabled: true, start: 0.8, end: 3.2 },
@@ -107,7 +136,20 @@
           animationOut: true,
         };
 
-        var DUR = 6;
+        if (vars.accentColor) {
+          document
+            .getElementById("hw-t-root")
+            .style.setProperty("--hw-accent-warm", String(vars.accentColor));
+        }
+
+        // Vireon addition: real per-scene duration instead of the stock 6s -
+        // see the file-level comment above (the hide-at-end tween otherwise
+        // fires at t=6s regardless of the actual scene length).
+        var rootEl = document.getElementById("hw-t-root");
+        var parsedDuration = Number(
+          vars.duration != null ? vars.duration : rootEl.dataset.duration,
+        );
+        var DUR = Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : 6;
         function clamp(v, lo, hi) {
           return Math.min(hi, Math.max(lo, v));
         }

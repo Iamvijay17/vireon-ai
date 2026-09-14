@@ -23,11 +23,13 @@ const execFileAsync = promisify(execFile);
  * Templates are no longer hand-authored/ported from the old Remotion
  * designs - they're HyperFrames registry blocks (see
  * backend/hf-templates/registry/) wired up with our own per-scene data via
- * `data-variable-values`. TEMPLATE_REGISTRY below covers 'title' and two
- * 'content' variants (a list and a stat card) - registry search turned up no
- * suitable blocks yet for 'image'/'contentwithimage'/'podcast' (see gap
- * reports filed via `hyperframes feedback --search-miss`), so those
- * categories still fall back to the title template via resolveSceneTemplate.
+ * `data-variable-values`. TEMPLATE_REGISTRY below covers 'title' (3 variants)
+ * and 'content' (5 variants) - see LEGACY_TEMPLATE_ALIASES for how
+ * ScriptParserService's existing random per-scene templateId picks land on
+ * these. Registry search turned up no suitable blocks yet for
+ * 'image'/'contentwithimage'/'podcast' (see gap reports filed via
+ * `hyperframes feedback --search-miss`), so those categories still fall back
+ * to the title template via resolveSceneTemplate.
  */
 
 const FPS = 30;
@@ -109,6 +111,41 @@ const TEMPLATE_REGISTRY = {
       googleFontsHref: variant?.googleFontsHref,
     }),
   },
+  // Registry: "Titlecard Lockup" (npx hyperframes catalog --query "title
+  // card with headline and kicker text") - a second, distinct title look
+  // (centered wordmark + hairline rule) so 'title' scenes stop always
+  // rendering titlecard-calm - see LEGACY_TEMPLATE_ALIASES below.
+  'titlecard-lockup': {
+    compositionId: 'titlecard-lockup',
+    label: 'Title Lockup',
+    category: 'title',
+    file: path.resolve(__dirname, '../../../hf-templates/registry/titlecard-lockup.html'),
+    stockDuration: 4,
+    toVariables: (scene, variant) => ({
+      wordmark: scene.title || scene.elements?.title || '',
+      kicker: scene.subtitle || scene.elements?.subtitle || '',
+      accentColor: variant?.accentColor,
+      fontFamily: variant?.fontFamily,
+      fontMono: variant?.fontMono,
+      googleFontsHref: variant?.googleFontsHref,
+    }),
+  },
+  // Registry: "Handwritten Title" (npx hyperframes catalog --query "title
+  // card with headline and kicker text") - a third title look (marker-style
+  // headline sweep). Patched from its stock hardcoded-text example (see
+  // hw-title.html's own Vireon-patch comment) to take `headline`/`duration`.
+  'hw-title': {
+    compositionId: 'hw-title',
+    label: 'Handwritten Title',
+    category: 'title',
+    file: path.resolve(__dirname, '../../../hf-templates/registry/hw-title.html'),
+    stockDuration: 6,
+    toVariables: (scene, variant) => ({
+      headline: scene.title || scene.elements?.title || '',
+      duration: scene.duration || 8,
+      accentColor: variant?.accentColor,
+    }),
+  },
   // Registry: "Specs Checklist" (npx hyperframes catalog --query "headline
   // with a short bulleted list") - a left-aligned label/value row list.
   // Content-editable via the same `elements.items: [{heading?, text?}]`
@@ -155,6 +192,101 @@ const TEMPLATE_REGISTRY = {
       fontFamily: variant?.fontFamily,
     }),
   },
+  // Registry: "Testimonial Card" (npx hyperframes catalog --query "quote
+  // card with attribution"), renamed testimonial-quote.html on disk - reuses
+  // scene.title/subtitle as quote/author since we have no separate
+  // quote-authoring UI yet (same trick 017-content uses for its label/caption).
+  '018-content': {
+    compositionId: 'testimonial-card',
+    label: 'Testimonial Quote',
+    category: 'content',
+    file: path.resolve(__dirname, '../../../hf-templates/registry/testimonial-quote.html'),
+    stockDuration: 4,
+    toVariables: (scene, variant) => ({
+      quote: scene.title || scene.elements?.title || '',
+      author: scene.subtitle || scene.elements?.subtitle || '',
+      duration: scene.duration || 8,
+      accentColor: variant?.accentColor,
+      fontFamily: variant?.fontFamily,
+      fontMono: variant?.fontMono,
+      googleFontsHref: variant?.googleFontsHref,
+    }),
+  },
+  // Registry: "Marker Checklist Card" (npx hyperframes catalog --query
+  // "bulleted list of key points") - a paper/marker-pen look, deliberately
+  // fixed-palette (no accentColor/fontFamily hooks - see the file's own
+  // comment) so it reads as a distinct aesthetic rather than a re-skinned
+  // 016-content. Items map identically to 016-content's l1/v1..l3/v3 rows,
+  // capped at 3 since the block has exactly three fixed rows.
+  '019-content': {
+    compositionId: 'marker-checklist-card',
+    label: 'Marker Checklist',
+    category: 'content',
+    file: path.resolve(__dirname, '../../../hf-templates/registry/marker-checklist-card.html'),
+    stockDuration: 4.5,
+    toVariables: (scene) => {
+      const items = (scene.elements?.items || []).slice(0, 3);
+      const rows = {};
+      items.forEach((item, i) => {
+        rows[`l${i + 1}`] = item.heading ?? item.title ?? '';
+        rows[`v${i + 1}`] = item.text ?? item.description ?? item.value ?? '';
+      });
+      return {
+        top: scene.title || scene.elements?.title || '',
+        ...rows,
+      };
+    },
+  },
+  // Registry: "Notes Typing" (npx hyperframes catalog --query "bulleted list
+  // of key points") - notes-app confession look: bold title, pipe-separated
+  // body lines typed in sequence.
+  '020-content': {
+    compositionId: 'notes-typing',
+    label: 'Notes Typing',
+    category: 'content',
+    file: path.resolve(__dirname, '../../../hf-templates/registry/notes-typing.html'),
+    stockDuration: 10,
+    toVariables: (scene) => ({
+      title: scene.title || scene.elements?.title || '',
+      lines: (scene.elements?.items || [])
+        .map((item) => item.text ?? item.description ?? item.heading ?? item.title ?? '')
+        .filter(Boolean)
+        .join('|'),
+    }),
+  },
+};
+
+/**
+ * Maps the legacy Remotion-era numbered templateIds (see
+ * ScriptParserService.SCENE_TYPE_TEMPLATE_IDS - that service already picks
+ * one of these at random per scene, expecting visual variety) onto the real
+ * HyperFrames templates above. Without this map every one of those ids
+ * misses TEMPLATE_REGISTRY and resolveSceneTemplate silently collapsed every
+ * scene onto one fixed default per category - the actual cause of "every
+ * video looks the same", not a rotation bug. Round-robins across whichever
+ * real templates exist for that category so ScriptParserService's existing
+ * random pick is what drives the variety - no separate rotation state needed.
+ */
+const TITLE_TEMPLATE_POOL = ['titlecard-calm', 'titlecard-lockup', 'hw-title'];
+const CONTENT_TEMPLATE_POOL = ['016-content', '017-content', '018-content', '019-content', '020-content'];
+
+function buildLegacyAliasMap(legacyIds, pool) {
+  const map = {};
+  legacyIds.forEach((legacyId, i) => {
+    map[legacyId] = pool[i % pool.length];
+  });
+  return map;
+}
+
+const LEGACY_TEMPLATE_ALIASES = {
+  ...buildLegacyAliasMap(
+    ['001-title', '002-title', '003-title', '004-title', '005-title', '006-title', '007-title', '008-title', '009-title', '010-title'],
+    TITLE_TEMPLATE_POOL
+  ),
+  ...buildLegacyAliasMap(
+    ['001-content', '002-content', '003-content', '004-content', '005-content', '006-content', '007-content', '008-content', '009-content', '010-content', '011-content', '012-content', '013-content', '014-content', '015-content'],
+    CONTENT_TEMPLATE_POOL
+  ),
 };
 
 /** Default template for a scene that hasn't had a specific one picked yet. */
@@ -188,6 +320,7 @@ const BACKGROUND_TEMPLATE = {
 function resolveSceneTemplate(scene) {
   return (
     TEMPLATE_REGISTRY[scene.templateId] ||
+    TEMPLATE_REGISTRY[LEGACY_TEMPLATE_ALIASES[scene.templateId]] ||
     TEMPLATE_REGISTRY[SCENE_TYPE_DEFAULT_TEMPLATE[scene.sceneType]] ||
     TEMPLATE_REGISTRY['titlecard-calm']
   );
@@ -524,6 +657,20 @@ class HyperFramesService {
     const compDir = path.join(jobDir, 'hf-composition');
     const compositionsDir = path.join(compDir, 'compositions');
     await fs.mkdir(compositionsDir, { recursive: true });
+
+    // marker-checklist-card/hw-title ship local @font-face files (Permanent
+    // Marker, Courier Prime, Caveat) instead of a Google Fonts <link> - the
+    // lint's font_family_without_font_face check needs a static @font-face
+    // it can see, which a runtime-injected link doesn't satisfy. Their
+    // relative url("assets/fonts/...") resolves against compDir (the host
+    // document's location), same as in the CLI project itself where
+    // assets/ sits beside compositions/ - so copy that shared folder into
+    // every job's compDir once, rather than per-template.
+    await fs.cp(
+      path.resolve(__dirname, '../../../hf-templates/registry/assets'),
+      path.join(compDir, 'assets'),
+      { recursive: true }
+    );
 
     const [width, height] = (assetsFile.resolution || '1920x1080').split('x').map(Number);
 
