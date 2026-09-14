@@ -41,12 +41,12 @@ function getPreviewDir(jobId) {
  * "Video Generation" directory name (and any other arg with a space) splits
  * into two argv entries unless quoted first.
  */
-async function runHyperFramesCommand(args) {
+async function runHyperFramesCommand(args, { timeout = 30000 } = {}) {
   const isWin = process.platform === 'win32';
   const npxBin = isWin ? 'npx.cmd' : 'npx';
   const quoteArg = (arg) => (isWin && /[\s"]/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg);
   const spawnArgs = isWin ? args.map(quoteArg) : args;
-  return execFileAsync(npxBin, spawnArgs, { windowsHide: true, shell: isWin, timeout: 30000 });
+  return execFileAsync(npxBin, spawnArgs, { windowsHide: true, shell: isWin, timeout });
 }
 
 async function stopActive() {
@@ -133,10 +133,14 @@ async function doEnsurePreview(jobId, { scenes, resolution, fontPairing } = {}) 
   const { compDir } = await HyperFramesService._buildComposition(jobId, assetsFile, { baseDir: previewDir });
 
   await stopActive();
+  // Same npx version as HyperFramesService's render call - on a cold npx
+  // cache (package not yet downloaded on this machine), resolving it can
+  // take well over 30s, so this needs the same generous timeout as a real
+  // render rather than the short one `stop` uses.
   await runHyperFramesCommand([
     '--yes', 'hyperframes@0.8.37', 'preview', compDir,
     '--background', '--port', String(PREVIEW_PORT),
-  ]);
+  ], { timeout: 300000 });
   active = { jobId, compDir, lastAccess: Date.now() };
 
   scheduleIdleStop();
