@@ -34,6 +34,36 @@
       "name": "mk-progress-stat",
       "type": "hyperframes:block",
       "target": "compositions/mk-progress-stat.html"
+    },
+    {
+      "name": "titlecard-lockup",
+      "type": "hyperframes:component",
+      "target": "compositions/components/titlecard-lockup.html"
+    },
+    {
+      "name": "hw-title",
+      "type": "hyperframes:block",
+      "target": "compositions/hw-title.html"
+    },
+    {
+      "name": "marker-checklist-card",
+      "type": "hyperframes:component",
+      "target": "compositions/components/marker-checklist-card.html"
+    },
+    {
+      "name": "notes-typing",
+      "type": "hyperframes:component",
+      "target": "compositions/components/notes-typing.html"
+    },
+    {
+      "name": "line-by-line-slide",
+      "type": "hyperframes:component",
+      "target": "compositions/components/line-by-line-slide.html"
+    },
+    {
+      "name": "testimonial-card",
+      "type": "hyperframes:component",
+      "target": "compositions/components/testimonial-card.html"
     }
   ]
 }

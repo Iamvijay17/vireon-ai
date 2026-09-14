@@ -1,6 +1,15 @@
 {
+  "assets/fonts/Caveat-700-latin.woff2": "891951df5e8b5b0f0bc760d31375405e795c666b5add70437de12d4a6482b33f",
+  "assets/fonts/courier-prime-700.woff2": "654a1d16c0b027ead89781bd3a4360d7f0af17a3ddf78c287d0e1843c6bca8d7",
+  "assets/fonts/permanent-marker-400.woff2": "8963f64fa28dc4aea162405d784baa23ff6499df554d9b4cdee898e28d19cca4",
+  "compositions/components/line-by-line-slide.html": "4d6ce6381540c89e971dcebff09a48be031177455ceddacac41886113afe3f44",
+  "compositions/components/marker-checklist-card.html": "c99d951e0f361447109f50b5301cbbd8bcfed621cd7a66d92d9c5a65ec1614f0",
   "compositions/components/mesh-gradient-bg.html": "fa2734a794ff802b4fa8390a075f26fb93e584b5640abd2d526aaa10429fae1e",
+  "compositions/components/notes-typing.html": "d1e0ad020fb0fd17b9e5abdddb1c125c40806d4f2f31c08bb6fffcd8867d495a",
+  "compositions/components/testimonial-card.html": "e93c5f8ffaffcaedb209326d526eefdda6c98d7e7b9e7344649717683a507e73",
   "compositions/components/titlecard-calm.html": "5d6833d8bf512352e67d39a7b1f4133fe1bd84a9d0c76f528c6f40eea9e950ae",
+  "compositions/components/titlecard-lockup.html": "6a5e54b3819357bd264337cf16240b6a4e65e1059c08ccd82554611a60cdb072",
+  "compositions/hw-title.html": "58cd8cdf8dec492f9c7a79561c856105b731ebecfe847c8bab6d0d8b121ea9ef",
   "compositions/mk-background.html": "4a6ebd8ad9c04b4c0f54865ab51be06a81ec78c6145b0b5068777025860aee31",
   "compositions/mk-progress-stat.html": "c96ce0d1f7a149067af874e8fca841b4a15ba49a3d832c99f65aa89a16b594b0",
   "compositions/mk-specs-list.html": "a6c68fd7cdec5b30d043ffe89562149d3e54806bf045cc867bd068059d979fe8"
