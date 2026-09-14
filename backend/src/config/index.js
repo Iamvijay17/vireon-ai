@@ -183,26 +183,6 @@ const config = Object.freeze({
     maxRetries: parseInt(process.env.RENDER_MAX_RETRIES, 10) || 2,
   },
 
-  // Generative Scene Engine (services/video/ScriptParserService.js): was meant
-  // to compute layout/style/motion procedurally from scene content, tagging
-  // every scene's templateId "generative" instead of picking one of the real
-  // HyperFrames templates. Never actually got a renderer, though - HyperFramesService's
-  // resolveSceneTemplate has no branch for "generative" at all, so it always
-  // misses TEMPLATE_REGISTRY and falls through to the single hardcoded default
-  // per category (titlecard-calm for every "title" scene, 016-content for
-  // every "content" scene) - confirmed as the actual cause of every video
-  // rendering with the same 2 looks regardless of how many templates exist.
-  // Defaults OFF until a real generative renderer exists; set
-  // GENERATIVE_ENGINE_ENABLED=true to opt back into the "generative" tag (only
-  // useful once HyperFramesService knows what to do with it). Off routes new
-  // scripts through the legacy random-pick-from-fixed-templates behavior (see
-  // ScriptParserService._getDefaultTemplateForType), which resolves through
-  // LEGACY_TEMPLATE_ALIASES to the actual template pool and gives each scene
-  // real, persisted-per-scene variety.
-  generativeEngine: {
-    enabled: process.env.GENERATIVE_ENGINE_ENABLED === 'true',
-  },
-
   minio: {
     endpoint: process.env.MINIO_ENDPOINT || '127.0.0.1',
     port: parseInt(process.env.MINIO_PORT, 10) || 9000,

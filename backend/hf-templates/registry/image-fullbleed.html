@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<!--
+  image-fullbleed: Vireon-authored HyperFrames primitive (photo / caption)
+
+  Concept: a full-bleed photo with a bottom gradient scrim carrying a small
+  kicker label and a headline caption - the "image" scene category's
+  full-screen photo template (see backend/src/services/video/HyperFramesService.js's
+  TEMPLATE_REGISTRY, which had no real block for this category before this
+  file - "image"/"contentwithimage"/"podcast" scenes previously silently
+  rendered as the title card).
+
+  Variables:
+    - image (string url): the photo. Falls back to a plain dark gradient
+      (no broken-image icon) when empty - a scene without a generated/pasted
+      image yet should still render something legible.
+    - caption (string): the headline over the photo.
+    - label (string): the small uppercase kicker above the caption.
+
+  Envelope: same fixed IN/OUT + elastic HOLD math as titlecard-calm (see that
+  file's own comment) so scene durations driven by real narration length
+  don't fade the card to invisible for the remainder of the slot. The photo
+  itself gets a slow, deterministic Ken Burns scale across the full duration
+  (no easing - GSAP tweens are paused/seeked, not real-time, so this stays
+  frame-accurate under HyperFrames' seek-safe rendering contract).
+
+  Mount contract: same as titlecard-calm - #root fills the host box, no
+  data-width/data-height, one paused timeline registered under this file's
+  hardcoded composition id.
+-->
+<html lang="en" data-composition-id="image-fullbleed" data-composition-duration="6" data-composition-variables='[
+    {"id":"image","type":"image","role":"content","label":"Photo","description":"Full-bleed background photo.","default":""},
+    {"id":"caption","type":"string","role":"content","label":"Caption","description":"Headline over the photo.","default":"A closer look"},
+    {"id":"label","type":"string","role":"content","label":"Label","description":"Small uppercase kicker above the caption.","default":"FEATURED"},
+    {"id":"duration","type":"number","role":"content","label":"Duration override","description":"Vireon addition: overrides the block own 6s intro/hold/outro timing to fit a host slot of this many seconds.","default":6},
+    {"id":"accentColor","type":"string","role":"style","label":"Accent color","description":"Vireon addition: overrides --muted, the kicker color.","default":"#b8c0cc"},
+    {"id":"fontFamily","type":"string","role":"style","label":"Display font","description":"Vireon addition: overrides --font-display (the headline typeface).","default":null},
+    {"id":"fontMono","type":"string","role":"style","label":"Kicker font","description":"Vireon addition: overrides --font-mono (the kicker typeface).","default":null},
+    {"id":"googleFontsHref","type":"string","role":"style","label":"Google Fonts URL","description":"Vireon addition: a Google Fonts CSS2 URL to load before the fonts above are used.","default":null}
+  ]'>
+  <head>
+    <meta charset="UTF-8">
+    <title>Image Fullbleed</title>
+  </head>
+  <body>
+    <template>
+      <div id="root" data-composition-id="image-fullbleed" data-duration="6" data-fps="30" data-width="1920" data-height="1080">
+        <style>
+          *,
+          *::before,
+          *::after {
+            box-sizing: border-box;
+          }
+
+          #root {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            container-type: size;
+            isolation: isolate;
+            color: var(--fg, #f7f7f2);
+            font-family: var(--font-display, "Helvetica Neue", Helvetica, Arial, sans-serif);
+            background: linear-gradient(160deg, #1c1d22, #0c0d10);
+            pointer-events: none;
+          }
+
+          .if-media {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            display: none;
+            will-change: transform;
+          }
+
+          .if-media.has-src {
+            display: block;
+          }
+
+          .if-scrim {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.72) 100%);
+          }
+
+          .if-lockup {
+            position: absolute;
+            left: 6cqw;
+            right: 6cqw;
+            bottom: 7cqh;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 3cqh;
+            will-change: transform, opacity;
+          }
+
+          .if-label {
+            display: block;
+            color: var(--muted, #b8c0cc);
+            font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+            font-size: 3cqmin;
+            font-weight: 600;
+            line-height: 1;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            will-change: transform, opacity;
+          }
+
+          .if-caption {
+            display: block;
+            width: 100%;
+            max-width: 90cqw;
+            color: var(--fg, #f7f7f2);
+            font-family: var(--font-display, "Helvetica Neue", Helvetica, Arial, sans-serif);
+            font-size: 8.5cqmin;
+            font-weight: 600;
+            line-height: 1.05;
+            letter-spacing: -0.02em;
+            overflow-wrap: anywhere;
+            text-wrap: balance;
+            will-change: transform, opacity;
+          }
+        </style>
+
+        <div data-hf-id="hf-if1a" id="image-fullbleed-clip" class="clip" data-start="0" data-duration="6" data-track-index="0">
+          <img data-hf-id="hf-if1b" class="if-media" alt="" />
+          <div data-hf-id="hf-if1c" class="if-scrim"></div>
+          <div data-hf-id="hf-if1d" class="if-lockup">
+            <span data-hf-id="hf-if1e" class="if-label"></span>
+            <span data-hf-id="hf-if1f" class="if-caption"></span>
+          </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (function () {
+            "use strict";
+
+            var root = document.getElementById("root");
+            var media = root.querySelector(".if-media");
+            var lockup = root.querySelector(".if-lockup");
+            var label = root.querySelector(".if-label");
+            var caption = root.querySelector(".if-caption");
+            var vars =
+              window.__hyperframes && window.__hyperframes.getVariables
+                ? window.__hyperframes.getVariables()
+                : {};
+
+            var imageSrc = vars.image == null ? "" : String(vars.image);
+            var captionText = vars.caption == null ? "A closer look" : String(vars.caption);
+            var labelText = vars.label == null ? "FEATURED" : String(vars.label);
+
+            if (imageSrc) {
+              media.src = imageSrc;
+              media.classList.add("has-src");
+            }
+            caption.textContent = captionText;
+            label.textContent = labelText;
+
+            if (vars.accentColor) root.style.setProperty("--muted", String(vars.accentColor));
+            if (vars.fontFamily) root.style.setProperty("--font-display", String(vars.fontFamily));
+            if (vars.fontMono) root.style.setProperty("--font-mono", String(vars.fontMono));
+            if (vars.googleFontsHref) {
+              var fontLink = document.createElement("link");
+              fontLink.rel = "stylesheet";
+              fontLink.href = String(vars.googleFontsHref);
+              document.head.appendChild(fontLink);
+            }
+
+            var IN_BASE = 1.2;
+            var OUT_BASE = 0.55;
+            var parsedDuration = Number.parseFloat(vars.duration != null ? vars.duration : root.dataset.duration);
+            var duration = Number.isFinite(parsedDuration) ? Math.max(0.001, parsedDuration) : 6;
+            var totalBase = IN_BASE + OUT_BASE;
+            var phaseScale = duration < totalBase ? duration / totalBase : 1;
+            var IN = IN_BASE * phaseScale;
+            var OUT = OUT_BASE * phaseScale;
+            var HOLD = Math.max(0, duration - IN - OUT);
+            var OUT_START = IN + HOLD;
+            var LABEL_IN = 0.5 * phaseScale;
+            var CAPTION_AT = 0.28 * phaseScale;
+            var CAPTION_IN = 0.72 * phaseScale;
+
+            gsap.set(lockup, { opacity: 1, y: "0cqh" });
+            gsap.set(media, { scale: 1 });
+
+            var tl = gsap.timeline({ paused: true });
+
+            if (imageSrc) {
+              tl.fromTo(media, { scale: 1 }, { scale: 1.08, duration: duration, ease: "none" }, 0);
+            }
+
+            tl.fromTo(
+              label,
+              { opacity: 0, y: "2.2cqh" },
+              { opacity: 1, y: "0cqh", duration: LABEL_IN, ease: "power2.out" },
+              0,
+            );
+            tl.fromTo(
+              caption,
+              { opacity: 0, y: "3.2cqh" },
+              { opacity: 1, y: "0cqh", duration: CAPTION_IN, ease: "power3.out" },
+              CAPTION_AT,
+            );
+
+            tl.to(
+              lockup,
+              { opacity: 0, y: "-2.1cqh", duration: OUT, ease: "power2.in" },
+              OUT_START,
+            );
+
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["image-fullbleed"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

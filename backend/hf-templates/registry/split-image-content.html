@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<!--
+  split-image-content: Vireon-authored HyperFrames primitive (photo + text panel)
+
+  Concept: a 50/50 split - photo on the left, a dark text panel on the
+  right carrying a small badge, a headline, and a body paragraph. Fills the
+  "contentwithimage" scene category's gap in TEMPLATE_REGISTRY (see
+  image-fullbleed.html's comment for why this category had no real template
+  before this file - every "contentwithimage" scene silently rendered as the
+  plain title card).
+
+  Variables:
+    - image (string url): the left-panel photo. Falls back to a plain dark
+      gradient fill (no broken-image icon) when empty.
+    - title (string): the panel headline.
+    - body (string): the supporting paragraph (prose, not a bulleted list -
+      016-content/mk-specs-list already covers the bulleted-list shape).
+    - badge (string): a short pill label above the headline (e.g. a
+      category tag). Hidden entirely when empty rather than showing an
+      empty pill.
+
+  Envelope: same fixed IN/OUT + elastic HOLD math as titlecard-calm/
+  image-fullbleed. The photo panel slides in from the left edge; the text
+  column staggers badge -> title -> body, all via one paused/seeked GSAP
+  timeline (HyperFrames' seek-safe rendering contract - no real-time
+  animation).
+-->
+<html lang="en" data-composition-id="split-image-content" data-composition-duration="6" data-composition-variables='[
+    {"id":"image","type":"image","role":"content","label":"Photo","description":"Left-panel photo.","default":""},
+    {"id":"title","type":"string","role":"content","label":"Headline","description":"Panel headline.","default":"A closer look"},
+    {"id":"body","type":"string","role":"content","label":"Body","description":"Supporting paragraph next to the photo.","default":""},
+    {"id":"badge","type":"string","role":"content","label":"Badge","description":"Short pill label above the headline. Hidden when empty.","default":""},
+    {"id":"duration","type":"number","role":"content","label":"Duration override","description":"Vireon addition: overrides the block own 6s intro/hold/outro timing to fit a host slot of this many seconds.","default":6},
+    {"id":"accentColor","type":"string","role":"style","label":"Accent color","description":"Vireon addition: overrides --accent, the badge/rule color.","default":"#8b8fff"},
+    {"id":"fontFamily","type":"string","role":"style","label":"Display font","description":"Vireon addition: overrides --font-display (the headline typeface).","default":null},
+    {"id":"fontMono","type":"string","role":"style","label":"Badge font","description":"Vireon addition: overrides --font-mono (the badge typeface).","default":null},
+    {"id":"googleFontsHref","type":"string","role":"style","label":"Google Fonts URL","description":"Vireon addition: a Google Fonts CSS2 URL to load before the fonts above are used.","default":null}
+  ]'>
+  <head>
+    <meta charset="UTF-8">
+    <title>Split Image Content</title>
+  </head>
+  <body>
+    <template>
+      <div id="root" data-composition-id="split-image-content" data-duration="6" data-fps="30" data-width="1920" data-height="1080">
+        <style>
+          *,
+          *::before,
+          *::after {
+            box-sizing: border-box;
+          }
+
+          #root {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            container-type: size;
+            isolation: isolate;
+            display: flex;
+            color: var(--fg, #f7f7f2);
+            font-family: var(--font-display, "Helvetica Neue", Helvetica, Arial, sans-serif);
+            background: #101116;
+            pointer-events: none;
+          }
+
+          .sic-media-col {
+            position: relative;
+            width: 50%;
+            height: 100%;
+            overflow: hidden;
+            background: linear-gradient(160deg, #23242b, #101116);
+            will-change: transform, opacity;
+          }
+
+          .sic-media {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            display: none;
+          }
+
+          .sic-media.has-src {
+            display: block;
+          }
+
+          .sic-panel {
+            position: relative;
+            width: 50%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 3cqh;
+            padding: 0 6cqw;
+            background: #14151b;
+          }
+
+          .sic-badge {
+            display: none;
+            align-self: flex-start;
+            padding: 0.9cqh 1.6cqw;
+            border-radius: 999px;
+            border: 1px solid var(--accent, #8b8fff);
+            color: var(--accent, #8b8fff);
+            font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+            font-size: 2.6cqmin;
+            font-weight: 600;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            will-change: transform, opacity;
+          }
+
+          .sic-badge.has-text {
+            display: inline-block;
+          }
+
+          .sic-title {
+            display: block;
+            color: var(--fg, #f7f7f2);
+            font-family: var(--font-display, "Helvetica Neue", Helvetica, Arial, sans-serif);
+            font-size: 6.4cqmin;
+            font-weight: 600;
+            line-height: 1.08;
+            letter-spacing: -0.02em;
+            overflow-wrap: anywhere;
+            text-wrap: balance;
+            will-change: transform, opacity;
+          }
+
+          .sic-body {
+            display: block;
+            max-width: 34cqw;
+            color: var(--muted, #b8bec9);
+            font-family: var(--font-display, "Helvetica Neue", Helvetica, Arial, sans-serif);
+            font-size: 2.9cqmin;
+            font-weight: 400;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+            will-change: transform, opacity;
+          }
+        </style>
+
+        <div data-hf-id="hf-sic1" id="split-image-content-clip" class="clip" data-start="0" data-duration="6" data-track-index="0">
+          <div data-hf-id="hf-sic2" class="sic-media-col">
+            <img data-hf-id="hf-sic3" class="sic-media" alt="" />
+          </div>
+          <div data-hf-id="hf-sic4" class="sic-panel">
+            <span data-hf-id="hf-sic5" class="sic-badge"></span>
+            <span data-hf-id="hf-sic6" class="sic-title"></span>
+            <span data-hf-id="hf-sic7" class="sic-body"></span>
+          </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (function () {
+            "use strict";
+
+            var root = document.getElementById("root");
+            var mediaCol = root.querySelector(".sic-media-col");
+            var media = root.querySelector(".sic-media");
+            var badge = root.querySelector(".sic-badge");
+            var title = root.querySelector(".sic-title");
+            var body = root.querySelector(".sic-body");
+            var vars =
+              window.__hyperframes && window.__hyperframes.getVariables
+                ? window.__hyperframes.getVariables()
+                : {};
+
+            var imageSrc = vars.image == null ? "" : String(vars.image);
+            var titleText = vars.title == null ? "A closer look" : String(vars.title);
+            var bodyText = vars.body == null ? "" : String(vars.body);
+            var badgeText = vars.badge == null ? "" : String(vars.badge);
+
+            if (imageSrc) {
+              media.src = imageSrc;
+              media.classList.add("has-src");
+            }
+            title.textContent = titleText;
+            body.textContent = bodyText;
+            if (badgeText) {
+              badge.textContent = badgeText;
+              badge.classList.add("has-text");
+            }
+
+            if (vars.accentColor) root.style.setProperty("--accent", String(vars.accentColor));
+            if (vars.fontFamily) root.style.setProperty("--font-display", String(vars.fontFamily));
+            if (vars.fontMono) root.style.setProperty("--font-mono", String(vars.fontMono));
+            if (vars.googleFontsHref) {
+              var fontLink = document.createElement("link");
+              fontLink.rel = "stylesheet";
+              fontLink.href = String(vars.googleFontsHref);
+              document.head.appendChild(fontLink);
+            }
+
+            var IN_BASE = 1.2;
+            var OUT_BASE = 0.55;
+            var parsedDuration = Number.parseFloat(vars.duration != null ? vars.duration : root.dataset.duration);
+            var duration = Number.isFinite(parsedDuration) ? Math.max(0.001, parsedDuration) : 6;
+            var totalBase = IN_BASE + OUT_BASE;
+            var phaseScale = duration < totalBase ? duration / totalBase : 1;
+            var IN = IN_BASE * phaseScale;
+            var OUT = OUT_BASE * phaseScale;
+            var HOLD = Math.max(0, duration - IN - OUT);
+            var OUT_START = IN + HOLD;
+            var MEDIA_IN = 0.9 * phaseScale;
+            var BADGE_AT = 0.15 * phaseScale;
+            var BADGE_IN = 0.45 * phaseScale;
+            var TITLE_AT = 0.32 * phaseScale;
+            var TITLE_IN = 0.62 * phaseScale;
+            var BODY_AT = 0.52 * phaseScale;
+            var BODY_IN = 0.55 * phaseScale;
+
+            gsap.set([mediaCol, badge, title, body], { opacity: 1, x: "0cqw", y: "0cqh" });
+
+            var tl = gsap.timeline({ paused: true });
+
+            tl.fromTo(
+              mediaCol,
+              { opacity: 0, x: "-3cqw" },
+              { opacity: 1, x: "0cqw", duration: MEDIA_IN, ease: "power3.out" },
+              0,
+            );
+            if (badgeText) {
+              tl.fromTo(
+                badge,
+                { opacity: 0, y: "1.8cqh" },
+                { opacity: 1, y: "0cqh", duration: BADGE_IN, ease: "power2.out" },
+                BADGE_AT,
+              );
+            }
+            tl.fromTo(
+              title,
+              { opacity: 0, y: "2.6cqh" },
+              { opacity: 1, y: "0cqh", duration: TITLE_IN, ease: "power3.out" },
+              TITLE_AT,
+            );
+            tl.fromTo(
+              body,
+              { opacity: 0, y: "2cqh" },
+              { opacity: 1, y: "0cqh", duration: BODY_IN, ease: "power2.out" },
+              BODY_AT,
+            );
+
+            tl.to(
+              [mediaCol, badge, title, body],
+              { opacity: 0, duration: OUT, ease: "power2.in" },
+              OUT_START,
+            );
+
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["split-image-content"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

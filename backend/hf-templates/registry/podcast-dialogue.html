@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<!--
+  podcast-dialogue: Vireon-authored HyperFrames primitive (host card + waveform)
+
+  Concept: a centered host card - circular avatar (or initials fallback when
+  no hostImage is set), host name, a caption line, and a row of animated
+  waveform bars underneath standing in for "someone is talking" since a
+  podcast/dialogue turn has no other on-screen visual. Fills the "podcast"
+  scene category's gap in TEMPLATE_REGISTRY (see image-fullbleed.html's
+  comment for the shared backstory - every "podcast" scene silently rendered
+  as the plain title card before this file).
+
+  Variables:
+    - hostName (string): the speaking turn's display name.
+    - hostImage (string url): circular avatar photo. Falls back to a
+      solid accent-colored circle with the name's initials when empty -
+      no hostImage field is wired up anywhere in Studio yet (see
+      ScriptParserService._createDefaultElements's podcast branch), so this
+      is the common case, not an edge case.
+    - caption (string): a subtitle line under the name (episode/turn label).
+
+  The waveform bars are a decorative loop, NOT audio-reactive (this
+  composition has no access to the narration audio's actual waveform) -
+  driven by a single paused/seeked GSAP timeline with per-bar repeating
+  scale keyframes, same seek-safe rendering contract as every other
+  Vireon-authored block here (no real-time/rAF-driven motion, so an
+  arbitrary seek during rendering still lands on the exact right frame).
+
+  Envelope: same fixed IN/OUT + elastic HOLD math as titlecard-calm/
+  image-fullbleed - the waveform loop runs underneath for the entire HOLD
+  window instead of a one-shot animation.
+-->
+<html lang="en" data-composition-id="podcast-dialogue" data-composition-duration="6" data-composition-variables='[
+    {"id":"hostName","type":"string","role":"content","label":"Host name","description":"The speaking turn display name.","default":"Host"},
+    {"id":"hostImage","type":"image","role":"content","label":"Host photo","description":"Circular avatar photo. Falls back to initials when empty.","default":""},
+    {"id":"caption","type":"string","role":"content","label":"Caption","description":"Subtitle line under the name.","default":""},
+    {"id":"duration","type":"number","role":"content","label":"Duration override","description":"Vireon addition: overrides the block own 6s intro/hold/outro timing to fit a host slot of this many seconds.","default":6},
+    {"id":"accentColor","type":"string","role":"style","label":"Accent color","description":"Vireon addition: overrides --accent, the avatar-fallback/waveform color.","default":"#8b8fff"},
+    {"id":"fontFamily","type":"string","role":"style","label":"Display font","description":"Vireon addition: overrides --font-display (the name typeface).","default":null},
+    {"id":"fontMono","type":"string","role":"style","label":"Caption font","description":"Vireon addition: overrides --font-mono (the caption typeface).","default":null},
+    {"id":"googleFontsHref","type":"string","role":"style","label":"Google Fonts URL","description":"Vireon addition: a Google Fonts CSS2 URL to load before the fonts above are used.","default":null}
+  ]'>
+  <head>
+    <meta charset="UTF-8">
+    <title>Podcast Dialogue</title>
+  </head>
+  <body>
+    <template>
+      <div id="root" data-composition-id="podcast-dialogue" data-duration="6" data-fps="30" data-width="1920" data-height="1080">
+        <style>
+          *,
+          *::before,
+          *::after {
+            box-sizing: border-box;
+          }
+
+          #root {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            container-type: size;
+            isolation: isolate;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3.4cqh;
+            color: var(--fg, #f7f7f2);
+            font-family: var(--font-display, "Helvetica Neue", Helvetica, Arial, sans-serif);
+            pointer-events: none;
+          }
+
+          .pd-avatar {
+            position: relative;
+            width: 22cqh;
+            height: 22cqh;
+            border-radius: 50%;
+            overflow: hidden;
+            background: var(--accent, #8b8fff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            will-change: transform, opacity;
+          }
+
+          .pd-avatar-photo {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            display: none;
+          }
+
+          .pd-avatar-photo.has-src {
+            display: block;
+          }
+
+          .pd-avatar-initials {
+            color: #0c0d10;
+            font-size: 8cqmin;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+          }
+
+          .pd-avatar-photo.has-src ~ .pd-avatar-initials {
+            display: none;
+          }
+
+          .pd-name {
+            display: block;
+            color: var(--fg, #f7f7f2);
+            font-size: 6.4cqmin;
+            font-weight: 600;
+            letter-spacing: -0.015em;
+            text-align: center;
+            overflow-wrap: anywhere;
+            will-change: transform, opacity;
+          }
+
+          .pd-caption {
+            display: none;
+            color: var(--muted, #b8bec9);
+            font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+            font-size: 2.8cqmin;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+            text-align: center;
+            will-change: transform, opacity;
+          }
+
+          .pd-caption.has-text {
+            display: block;
+          }
+
+          .pd-waveform {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 0.9cqw;
+            height: 6cqh;
+            will-change: opacity;
+          }
+
+          .pd-bar {
+            width: 0.9cqw;
+            height: 100%;
+            border-radius: 999px;
+            background: var(--accent, #8b8fff);
+            transform-origin: 50% 100%;
+            will-change: transform;
+          }
+        </style>
+
+        <div data-hf-id="hf-pd1" id="podcast-dialogue-clip" class="clip" data-start="0" data-duration="6" data-track-index="0">
+          <div data-hf-id="hf-pd2" class="pd-avatar">
+            <img data-hf-id="hf-pd3" class="pd-avatar-photo" alt="" />
+            <span data-hf-id="hf-pd4" class="pd-avatar-initials"></span>
+          </div>
+          <span data-hf-id="hf-pd5" class="pd-name"></span>
+          <span data-hf-id="hf-pd6" class="pd-caption"></span>
+          <div data-hf-id="hf-pd7" class="pd-waveform">
+            <span data-hf-id="hf-pd8" class="pd-bar"></span>
+            <span data-hf-id="hf-pd9" class="pd-bar"></span>
+            <span data-hf-id="hf-pd10" class="pd-bar"></span>
+            <span data-hf-id="hf-pd11" class="pd-bar"></span>
+            <span data-hf-id="hf-pd12" class="pd-bar"></span>
+            <span data-hf-id="hf-pd13" class="pd-bar"></span>
+            <span data-hf-id="hf-pd14" class="pd-bar"></span>
+          </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          (function () {
+            "use strict";
+
+            var root = document.getElementById("root");
+            var avatar = root.querySelector(".pd-avatar");
+            var avatarPhoto = root.querySelector(".pd-avatar-photo");
+            var avatarInitials = root.querySelector(".pd-avatar-initials");
+            var name = root.querySelector(".pd-name");
+            var caption = root.querySelector(".pd-caption");
+            var waveform = root.querySelector(".pd-waveform");
+            var bars = Array.prototype.slice.call(root.querySelectorAll(".pd-bar"));
+            var vars =
+              window.__hyperframes && window.__hyperframes.getVariables
+                ? window.__hyperframes.getVariables()
+                : {};
+
+            var hostImageSrc = vars.hostImage == null ? "" : String(vars.hostImage);
+            var hostNameText = vars.hostName == null ? "Host" : String(vars.hostName);
+            var captionText = vars.caption == null ? "" : String(vars.caption);
+
+            if (hostImageSrc) {
+              avatarPhoto.src = hostImageSrc;
+              avatarPhoto.classList.add("has-src");
+            }
+            name.textContent = hostNameText;
+            avatarInitials.textContent = hostNameText
+              .trim()
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map(function (word) {
+                return word.charAt(0).toUpperCase();
+              })
+              .join("") || "?";
+            if (captionText) {
+              caption.textContent = captionText;
+              caption.classList.add("has-text");
+            }
+
+            if (vars.accentColor) root.style.setProperty("--accent", String(vars.accentColor));
+            if (vars.fontFamily) root.style.setProperty("--font-display", String(vars.fontFamily));
+            if (vars.fontMono) root.style.setProperty("--font-mono", String(vars.fontMono));
+            if (vars.googleFontsHref) {
+              var fontLink = document.createElement("link");
+              fontLink.rel = "stylesheet";
+              fontLink.href = String(vars.googleFontsHref);
+              document.head.appendChild(fontLink);
+            }
+
+            var IN_BASE = 1.2;
+            var OUT_BASE = 0.55;
+            var parsedDuration = Number.parseFloat(vars.duration != null ? vars.duration : root.dataset.duration);
+            var duration = Number.isFinite(parsedDuration) ? Math.max(0.001, parsedDuration) : 6;
+            var totalBase = IN_BASE + OUT_BASE;
+            var phaseScale = duration < totalBase ? duration / totalBase : 1;
+            var IN = IN_BASE * phaseScale;
+            var OUT = OUT_BASE * phaseScale;
+            var HOLD = Math.max(0, duration - IN - OUT);
+            var HOLD_START = IN;
+            var OUT_START = IN + HOLD;
+            var AVATAR_IN = 0.55 * phaseScale;
+            var NAME_AT = 0.22 * phaseScale;
+            var NAME_IN = 0.5 * phaseScale;
+            var CAPTION_AT = 0.36 * phaseScale;
+            var CAPTION_IN = 0.45 * phaseScale;
+            var WAVEFORM_AT = 0.42 * phaseScale;
+            var WAVEFORM_IN = 0.35 * phaseScale;
+
+            gsap.set([avatar, name, caption, waveform], { opacity: 1, y: "0cqh", scale: 1 });
+            gsap.set(bars, { scaleY: 0.25 });
+
+            var tl = gsap.timeline({ paused: true });
+
+            tl.fromTo(
+              avatar,
+              { opacity: 0, scale: 0.85 },
+              { opacity: 1, scale: 1, duration: AVATAR_IN, ease: "back.out(1.7)" },
+              0,
+            );
+            tl.fromTo(
+              name,
+              { opacity: 0, y: "2cqh" },
+              { opacity: 1, y: "0cqh", duration: NAME_IN, ease: "power2.out" },
+              NAME_AT,
+            );
+            if (captionText) {
+              tl.fromTo(
+                caption,
+                { opacity: 0, y: "1.4cqh" },
+                { opacity: 1, y: "0cqh", duration: CAPTION_IN, ease: "power2.out" },
+                CAPTION_AT,
+              );
+            }
+            tl.fromTo(
+              waveform,
+              { opacity: 0 },
+              { opacity: 1, duration: WAVEFORM_IN, ease: "power1.out" },
+              WAVEFORM_AT,
+            );
+
+            // Decorative talking-waveform loop, staggered per bar so it never
+            // reads as a single mechanical pulse. Built as explicit per-step
+            // .to() calls with values from a deterministic hash (not
+            // Math.random()) rather than a function-based repeat/yoyo value -
+            // HyperFrames renders by seeking directly to arbitrary timestamps,
+            // never by playing frame-by-frame, so a value that only resolves
+            // via GSAP's own repeat-iteration bookkeeping (or wall-clock
+            // randomness) would not reproduce the same frame on every render.
+            function hashFrac(n) {
+              var s = Math.sin(n * 12.9898) * 43758.5453;
+              return s - Math.floor(s);
+            }
+            var loopEnd = HOLD > 0 ? HOLD_START + HOLD : duration;
+            bars.forEach(function (bar, i) {
+              var barStart = WAVEFORM_AT + WAVEFORM_IN + i * 0.04;
+              var steps = Math.max(1, Math.floor((loopEnd - barStart) / 0.28));
+              for (var s = 0; s < steps; s++) {
+                tl.to(
+                  bar,
+                  { scaleY: 0.35 + hashFrac(i * 13.37 + s * 7.91) * 0.65, duration: 0.28, ease: "sine.inOut" },
+                  barStart + s * 0.28,
+                );
+              }
+            });
+
+            tl.to(
+              [avatar, name, caption, waveform],
+              { opacity: 0, duration: OUT, ease: "power2.in" },
+              OUT_START,
+            );
+
+            tl.seek(0);
+            window.__timelines = window.__timelines || {};
+            window.__timelines["podcast-dialogue"] = tl;
+          })();
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

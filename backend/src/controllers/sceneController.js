@@ -103,14 +103,6 @@ class SceneController {
       if (!templateId || typeof templateId !== 'string') {
         throw { status: 400, message: 'templateId is required' };
       }
-      // ScriptParserService.GENERATIVE_TEMPLATE_ID ("generative") is one
-      // shared id across every sceneType, unlike a numbered "NNN-<sceneType>"
-      // id - it can't be reverse-derived, so the caller (which already
-      // knows which sceneType bucket it's picking "generative" from in the
-      // template picker) must say so explicitly.
-      if (templateId === ScriptParserService.GENERATIVE_TEMPLATE_ID && !sceneType) {
-        throw { status: 400, message: 'sceneType is required when templateId is "generative"' };
-      }
 
       const job = await VideoJob.findById(id).select('hostName guestName').lean();
       if (!job) {
@@ -136,18 +128,11 @@ class SceneController {
 
       // Both templates speak the same items shape - keep the user's actual
       // bullet/step content instead of resetting it to an empty placeholder.
-      // "generative" rendering a "content" scene reads the exact same
-      // `items` shape as the legacy numbered content templates (see
-      // ScriptParserService._createContentElementsFromMeta) - for the "from"
-      // side, its own sceneType isn't known here, so an `items` array on
-      // the old elements is used as the structural signal instead.
-      const isItemsShaped = (id, type, elements) =>
-        STANDARDIZED_ITEMS_TEMPLATE_IDS.includes(id) ||
-        (id === ScriptParserService.GENERATIVE_TEMPLATE_ID && (type === 'content' || Array.isArray(elements?.items)));
+      const isItemsShaped = (id) => STANDARDIZED_ITEMS_TEMPLATE_IDS.includes(id);
 
       const bothStandardized =
-        isItemsShaped(templateId, sceneType, oldElements) &&
-        isItemsShaped(fromTemplateId, null, oldElements);
+        isItemsShaped(templateId) &&
+        isItemsShaped(fromTemplateId);
       if (bothStandardized && Array.isArray(oldElements.items) && oldElements.items.length) {
         newElements.items = oldElements.items;
       }
