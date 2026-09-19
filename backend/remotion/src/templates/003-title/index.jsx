@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import gsap from 'gsap';
+import { AbsoluteFill, Audio, Img, useCurrentFrame, useVideoConfig } from 'remotion';
 import { backgroundColors } from '../../styles';
 import { typography, spacing, mergeStyle, positionStyle } from '../../theme';
 
@@ -17,7 +18,7 @@ import { typography, spacing, mergeStyle, positionStyle } from '../../theme';
  */
 const Title003 = React.memo(({ scene }) => {
   const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   // Fixed-px avatar/accent-line sizing below is tuned for a 1920-wide
   // canvas - scale it against the shorter canvas dimension so it isn't
   // oversized/cramped on portrait/square.
@@ -29,17 +30,57 @@ const Title003 = React.memo(({ scene }) => {
   const bgColor = elements.backgroundColor || backgroundColors.clean;
   const overrides = elements.styleConfig || {};
   const accentColor = overrides.accentColor;
+  const hasTitleOverride = Boolean(overrides.title?.position);
+  const hasSubtitleOverride = Boolean(overrides.subtitle?.position);
 
   const gradientShift = useMemo(() => ({
     background: `linear-gradient(135deg, ${bgColor} 0%, #1a1a3e 50%, #0d1117 100%)`,
   }), [bgColor]);
 
-  const titleOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
-  const titleY = interpolate(frame, [0, 25], [30, 0], { extrapolateRight: 'clamp' });
-  const lineScaleX = interpolate(frame, [15, 32], [0, 1], { extrapolateRight: 'clamp' });
-  const subOpacity = interpolate(frame, [22, 42], [0, 1], { extrapolateRight: 'clamp' });
-  const imageOpacity = interpolate(frame, [10, 32], [0, 1], { extrapolateRight: 'clamp' });
-  const imageScale = interpolate(frame, [10, 50], [0.92, 1], { extrapolateRight: 'clamp' });
+  // GSAP timeline driven by Remotion's frame instead of real time: the
+  // timeline stays paused and is seeked to `frame / fps` on every render, so
+  // it renders identically whether played back live or captured frame-by-
+  // frame out of order during server-side rendering.
+  const titleRef = useRef(null);
+  const lineRef = useRef(null);
+  const subtitleRef = useRef(null);
+  const imageRef = useRef(null);
+  const timeline = useMemo(() => gsap.timeline({ paused: true }), []);
+
+  useLayoutEffect(() => {
+    timeline.clear();
+
+    if (image && imageRef.current) {
+      timeline.fromTo(
+        imageRef.current,
+        { opacity: 0, scale: 0.25, rotation: -12 },
+        { opacity: 1, scale: 1, rotation: 0, duration: 1.1, ease: 'elastic.out(1, 0.55)' },
+        0.15
+      );
+    }
+    if (!hasTitleOverride && titleRef.current) {
+      timeline
+        .fromTo(titleRef.current, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power1.out' }, 0.3)
+        .fromTo(
+          titleRef.current,
+          { y: 220, scale: 0.7 },
+          { y: 0, scale: 1, duration: 1.2, ease: 'elastic.out(1, 0.5)' },
+          0.3
+        );
+    }
+    if (lineRef.current) {
+      timeline.fromTo(lineRef.current, { scaleX: 0 }, { scaleX: 1, duration: 0.9, ease: 'elastic.out(1, 0.4)' }, 1.1);
+    }
+    if (!hasSubtitleOverride && subtitleRef.current) {
+      timeline
+        .fromTo(subtitleRef.current, { opacity: 0 }, { opacity: 1, duration: 0.5, ease: 'power1.out' }, 1.4)
+        .fromTo(subtitleRef.current, { y: 60 }, { y: 0, duration: 0.7, ease: 'back.out(2.5)' }, 1.4);
+    }
+  }, [timeline, fps, hasTitleOverride, hasSubtitleOverride, image]);
+
+  useLayoutEffect(() => {
+    timeline.seek(frame / fps, false);
+  }, [timeline, frame, fps]);
 
   const titleStyle = mergeStyle(
     { ...typography.title, fontSize: typography.title.fontSize * scale, marginBottom: spacing.md, ...positionStyle(overrides.title?.position) },
@@ -70,14 +111,13 @@ const Title003 = React.memo(({ scene }) => {
       >
         {image && (
           <div
+            ref={imageRef}
             style={{
               width: 220 * scale,
               height: 220 * scale,
               borderRadius: '50%',
               overflow: 'hidden',
               marginBottom: spacing.xl,
-              opacity: imageOpacity,
-              transform: `scale(${imageScale})`,
               boxShadow: '0 12px 40px rgba(0,0,0,0.35)',
             }}
           >
@@ -88,24 +128,21 @@ const Title003 = React.memo(({ scene }) => {
         {title && (
           <h1
             data-style-role="title"
-            style={{
-              ...titleStyle,
-              opacity: overrides.title?.position ? 1 : titleOpacity,
-              transform: overrides.title?.position ? titleStyle.transform : `translateY(${titleY}px)`,
-            }}
+            ref={hasTitleOverride ? null : titleRef}
+            style={hasTitleOverride ? { ...titleStyle, opacity: 1 } : titleStyle}
           >
             {title}
           </h1>
         )}
 
         <div
+          ref={lineRef}
           style={{
             width: 64 * scale,
             height: 2,
             borderRadius: 1,
             backgroundColor: accentColor || '#60a5fa',
             margin: `${spacing.md}px 0`,
-            transform: `scaleX(${lineScaleX})`,
             transformOrigin: 'center center',
           }}
         />
@@ -113,10 +150,8 @@ const Title003 = React.memo(({ scene }) => {
         {subtitle && (
           <p
             data-style-role="subtitle"
-            style={{
-              ...subtitleStyle,
-              opacity: overrides.subtitle?.position ? 1 : subOpacity,
-            }}
+            ref={hasSubtitleOverride ? null : subtitleRef}
+            style={hasSubtitleOverride ? { ...subtitleStyle, opacity: 1 } : subtitleStyle}
           >
             {subtitle}
           </p>

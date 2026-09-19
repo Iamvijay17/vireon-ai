@@ -9,6 +9,27 @@ const { JOB_STATUS, STAGE_STATUS } = require('../../constants');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Maps a job's raw JOB_STATUS names to the friendly per-video pipeline
+// stages shown on the analytics page. A statusHistory entry's durationMs is
+// the time spent in `entry.from` before moving to `entry.to`, so each stage
+// sums the durationMs of every entry whose `from` falls in its bucket.
+const STAGE_BUCKETS = [
+  { key: 'planning', label: 'Planning', statuses: [JOB_STATUS.SCRIPT_GENERATION] },
+  { key: 'tts', label: 'TTS', statuses: [JOB_STATUS.GENERATING_AUDIO] },
+  { key: 'avatar', label: 'Avatar', statuses: [JOB_STATUS.GENERATING_AVATAR] },
+  { key: 'sceneBuild', label: 'Scene Build', statuses: [JOB_STATUS.GENERATING_IMAGES, JOB_STATUS.PREPARING_ASSETS] },
+  { key: 'rendering', label: 'Rendering', statuses: [JOB_STATUS.RENDERING] },
+  { key: 'upload', label: 'Upload', statuses: [JOB_STATUS.UPLOADING] },
+];
+
+const buildStageDurations = (statusHistory = []) =>
+  STAGE_BUCKETS.map(({ key, label, statuses }) => {
+    const durationMs = statusHistory
+      .filter((entry) => entry.from && statuses.includes(entry.from))
+      .reduce((sum, entry) => sum + (entry.durationMs || 0), 0);
+    return { key, label, durationMs };
+  });
+
 const toDayKey = (date) => date.toISOString().slice(0, 10);
 
 // Builds an ordered array of { date: 'YYYY-MM-DD', ... } covering every day
@@ -235,6 +256,47 @@ class AnalyticsService {
         },
       },
       recentFailures,
+    };
+  }
+
+  /**
+   * Paginated per-video pipeline timing breakdown - reads each job's
+   * statusHistory (see VideoJob.js) and buckets it into the friendly stages
+   * shown on the analytics page (Planning, TTS, Avatar, Scene Build,
+   * Rendering, Upload), plus a total end-to-end duration.
+   */
+  static async getVideoMetrics({ page = 1, limit = 20, status } = {}) {
+    const query = status ? { status } : {};
+    const skip = (page - 1) * limit;
+
+    const [jobs, total] = await Promise.all([
+      VideoJob.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select('topic type status createdAt updatedAt completedAt statusHistory')
+        .lean(),
+      VideoJob.countDocuments(query),
+    ]);
+
+    const rows = jobs.map((job) => {
+      const stages = buildStageDurations(job.statusHistory);
+      const endedAt = job.completedAt || job.updatedAt;
+      const totalMs = endedAt ? new Date(endedAt).getTime() - new Date(job.createdAt).getTime() : null;
+      return {
+        id: job._id,
+        topic: job.topic,
+        type: job.type,
+        status: job.status,
+        createdAt: job.createdAt,
+        totalMs,
+        stages,
+      };
+    });
+
+    return {
+      rows,
+      pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
     };
   }
 }

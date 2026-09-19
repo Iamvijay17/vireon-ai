@@ -232,6 +232,11 @@ const config = Object.freeze({
       process.env.MINIO_PUBLIC_URL ||
       `http${process.env.MINIO_USE_SSL === 'true' ? 's' : ''}://${process.env.MINIO_ENDPOINT || '127.0.0.1'}:${process.env.MINIO_PORT || 9000}`,
     uploadRetries: parseInt(process.env.MINIO_UPLOAD_RETRIES, 10) || 3,
+    // Guards against a wedged MinIO connection (TCP connect succeeds but the
+    // PUT never completes/rejects) hanging the UPLOADING step forever - see
+    // withTimeout's doc comment. Each retry attempt gets its own fresh
+    // timeout window.
+    uploadTimeoutMs: parseInt(process.env.MINIO_UPLOAD_TIMEOUT_MS, 10) || 120000,
   },
 
   // Smart Cache: content-addressed reuse of avatar clips and TTS audio

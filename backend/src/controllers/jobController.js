@@ -4,6 +4,7 @@ const CourseService = require('../services/course/CourseService');
 const CourseVideoService = require('../services/course/CourseVideoService');
 const AudioGeneration = require('../models/AudioGeneration');
 const ActivityLogService = require('../services/common/ActivityLogService');
+const { getPipelineTimeline } = require('../services/video/videoService/pipelineTimeline');
 const videoQueue = require('../queues/videoQueue');
 const LoggerService = require('../services/common/LoggerService');
 const SocketService = require('../services/common/SocketService');
@@ -141,7 +142,8 @@ class JobController {
       if (type === 'video') {
         const job = await VideoService.getById(id);
         const logs = await ActivityLogService.getByVideo(id);
-        return res.json({ job: JobAggregatorService.normalizeVideo(job), logs });
+        const pipeline = await getPipelineTimeline(job);
+        return res.json({ job: JobAggregatorService.normalizeVideo(job), logs, pipeline });
       }
 
       if (type === 'course') {

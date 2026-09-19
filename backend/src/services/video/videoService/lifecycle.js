@@ -74,7 +74,7 @@ async function rerender(jobId) {
  * awaiting approval, or completed) - clears the existing script/render
  * output and resets to QUEUED so the worker's `needsScriptGeneration`
  * check (script.scenes empty, or status === QUEUED) re-runs script
- * generation from scratch through ChunkedScriptService, picking up
+ * generation from scratch through AIDirectorService, picking up
  * whatever scene-count/prompt logic is current instead of reusing the
  * stale script already on the job. Downstream audio/render artifacts are
  * cleared too since they're tied to the old script's scene numbers and

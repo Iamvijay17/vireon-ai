@@ -82,7 +82,7 @@ class AvatarService {
    * skipping the GPU call entirely after the first male and first female
    * job.
    */
-  static async animatePortrait(jobId, sourceImagePath) {
+  static async animatePortrait(jobId, sourceImagePath, signal) {
     const cacheKey = this._cacheKeyForSourceImage(sourceImagePath);
     if (cacheKey) {
       const cachedUrl = await CacheService.getAvatarClip(cacheKey);
@@ -95,10 +95,10 @@ class AvatarService {
     // GPU-sequential: only claim the GPU once a cache hit has been ruled
     // out - a cached clip must never trigger a LivePortrait cold start,
     // that would defeat the whole point of the Smart Cache above.
-    return LocalAIService.gpu.withGPU("avatar", () => this._generateViaLivePortrait(jobId, sourceImagePath, cacheKey));
+    return LocalAIService.gpu.withGPU("avatar", () => this._generateViaLivePortrait(jobId, sourceImagePath, cacheKey, signal));
   }
 
-  static async _generateViaLivePortrait(jobId, sourceImagePath, cacheKey) {
+  static async _generateViaLivePortrait(jobId, sourceImagePath, cacheKey, signal) {
     const baseUrl = config.avatar.url.replace(/\/$/, "");
     const avatarDir = path.resolve(__dirname, "../../../jobs", jobId, "avatar");
     await fs.mkdir(avatarDir, { recursive: true });
@@ -119,8 +119,11 @@ class AvatarService {
 
         // Timeouts guard against a wedged Gradio server (queue subsystem
         // stuck even though its health check still passes) hanging this
-        // call forever - see withTimeout's doc comment.
-        const client = await withTimeout(Client.connect(baseUrl), config.avatar.timeout, "Connecting to LivePortrait server timed out");
+        // call forever - see withTimeout's doc comment. `signal` additionally
+        // lets a user's Stop click interrupt this call immediately instead
+        // of only being noticed after the whole avatar step finishes - see
+        // videoWorker/avatarStep.js.
+        const client = await withTimeout(Client.connect(baseUrl), config.avatar.timeout, "Connecting to LivePortrait server timed out", signal);
 
         let result;
         try {
@@ -147,7 +150,7 @@ class AvatarService {
             3e-7, // motion smooth strength (v2v)
             "", // internal textbox
             "", // internal textbox
-          ]), config.avatar.timeout, "LivePortrait generation timed out");
+          ]), config.avatar.timeout, "LivePortrait generation timed out", signal);
         } finally {
           client.close();
         }
@@ -175,6 +178,10 @@ class AvatarService {
 
         return { file: "avatar.mp4", path: outputFile, url };
       } catch (err) {
+        // A cancellation should bail out immediately, not burn through the
+        // remaining retry attempts with backoff delays first.
+        if (err.name === "AbortError") throw err;
+
         lastError = err;
         const isLastAttempt = attempt === config.avatar.maxRetries;
         LoggerService.warn(`Avatar generation attempt ${attempt} failed${isLastAttempt ? " (final)" : ""}`, {

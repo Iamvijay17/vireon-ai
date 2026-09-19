@@ -6,6 +6,7 @@ const LoggerService = require('../../common/LoggerService');
 const StorageProvider = require('./StorageProvider');
 const Asset = require('../../../models/Asset');
 const AssetService = require('../../asset/AssetService');
+const withTimeout = require('../../../utils/withTimeout');
 
 // Which bucket a category lives in, and what subfolder (if any) its files
 // sit under within a video's own prefix. script.json/assets.json are local
@@ -176,7 +177,11 @@ class MinioStorageProvider extends StorageProvider {
         // function returns, so a stat done any later (e.g. inside
         // AssetService.recordUpload, un-awaited) reliably loses that race.
         const size = await fs.stat(filePath).then((s) => s.size).catch(() => null);
-        await this.client.fPutObject(bucket, key, filePath);
+        await withTimeout(
+          this.client.fPutObject(bucket, key, filePath),
+          config.minio.uploadTimeoutMs,
+          `MinIO upload of ${category}/${fileName} timed out`
+        );
         const url = this.getPublicUrl(id, category, fileName);
         LoggerService.upload(`Uploaded ${category}/${fileName}`, { url });
         await AssetService.recordUpload({ id, category, bucket, key, url, filePath, size });

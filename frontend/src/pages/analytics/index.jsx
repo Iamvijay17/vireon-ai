@@ -21,13 +21,17 @@ import {
   Cpu,
   LayoutGrid,
   Hourglass,
+  ChevronLeft,
+  ChevronRight,
+  ListVideo,
 } from "lucide-react";
-import { getAnalyticsOverview } from "../../services/api";
+import { getAnalyticsOverview, getVideoMetrics } from "../../services/api";
 import { PageHeader, LoadingState, EmptyState } from "../../components";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Select } from "../../components/ui/Select";
 import { Badge } from "../../components/ui/Badge";
+import { Table } from "../../components/ui/Table";
 import { TrendChart } from "../../components/charts/TrendChart";
 import { RankedBarChart } from "../../components/charts/RankedBarChart";
 import { CATEGORICAL_PALETTE } from "../../lib/chartPalette";
@@ -35,6 +39,16 @@ import { StatusStackedBar } from "../../components/charts/StatusStackedBar";
 import { StatusDonut } from "../../components/charts/StatusDonut";
 import { GaugeRing } from "../../components/charts/GaugeRing";
 import { toast } from "../../components/ui/toastBus";
+
+// Mirrors AnalyticsService's STAGE_BUCKETS (backend/src/services/common/AnalyticsService.js)
+const STAGE_COLUMNS = [
+  { key: "planning", label: "Planning" },
+  { key: "tts", label: "TTS" },
+  { key: "avatar", label: "Avatar" },
+  { key: "sceneBuild", label: "Scene Build" },
+  { key: "rendering", label: "Rendering" },
+  { key: "upload", label: "Upload" },
+];
 
 const RANGE_OPTIONS = [
   { value: "7", label: "Last 7 days" },
@@ -121,10 +135,21 @@ const toneCls = {
   info: "bg-info-500/15 text-info-600 dark:text-info-500",
 };
 
+const STATUS_BADGE = {
+  COMPLETED: "success",
+  FAILED: "danger",
+  CANCELLED: "neutral",
+  RETRY_SCHEDULED: "warning",
+};
+
 const Analytics = () => {
   const [days, setDays] = useState("30");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const [videoRows, setVideoRows] = useState([]);
+  const [videoPagination, setVideoPagination] = useState({ page: 1, total: 0, totalPages: 0 });
+  const [videoLoading, setVideoLoading] = useState(true);
 
   const fetchData = async (range = days) => {
     try {
@@ -138,10 +163,27 @@ const Analytics = () => {
     }
   };
 
+  const fetchVideoMetrics = async (page = 1) => {
+    try {
+      setVideoLoading(true);
+      const res = await getVideoMetrics({ page, limit: 10 });
+      setVideoRows(res.data.rows || []);
+      setVideoPagination(res.data.pagination || { page, total: 0, totalPages: 0 });
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to load per-video metrics");
+    } finally {
+      setVideoLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData(days);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days]);
+
+  useEffect(() => {
+    fetchVideoMetrics(1);
+  }, []);
 
   const summary = data?.summary || {};
   const trend = useMemo(() => data?.trend || [], [data]);
@@ -479,8 +521,86 @@ const Analytics = () => {
         </div>
       </Card>
 
+      {/* Per-video pipeline stage timing breakdown */}
+      <Card className="mt-4 animate-slide-up overflow-hidden rounded-2xl shadow-sm" style={{ "--stagger-index": 17 }}>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <ListVideo className="size-4 text-text-tertiary" /> Per-Video Metrics
+            </span>
+          }
+          subtitle="Time spent in each pipeline stage, most recent jobs first"
+        />
+        {videoLoading && videoRows.length === 0 ? (
+          <LoadingState label="Loading per-video metrics..." />
+        ) : videoRows.length === 0 ? (
+          <EmptyState description="No video jobs yet." />
+        ) : (
+          <Table
+            rowKey="id"
+            loading={videoLoading}
+            data={videoRows}
+            columns={[
+              {
+                key: "topic",
+                title: "Video",
+                render: (row) => (
+                  <div className="min-w-0 max-w-[220px]">
+                    <p className="truncate font-medium text-text-primary">{row.topic}</p>
+                    <p className="text-[11px] text-text-tertiary">{new Date(row.createdAt).toLocaleString()}</p>
+                  </div>
+                ),
+              },
+              {
+                key: "status",
+                title: "Status",
+                render: (row) => <Badge variant={STATUS_BADGE[row.status] || "info"}>{row.status}</Badge>,
+              },
+              ...STAGE_COLUMNS.map((stage) => ({
+                key: stage.key,
+                title: stage.label,
+                align: "right",
+                render: (row) => {
+                  const ms = row.stages.find((s) => s.key === stage.key)?.durationMs;
+                  return ms ? formatDuration(ms) : "—";
+                },
+              })),
+              {
+                key: "totalMs",
+                title: "Total",
+                align: "right",
+                render: (row) => <span className="font-semibold text-text-primary">{formatDuration(row.totalMs)}</span>,
+              },
+            ]}
+          />
+        )}
+        {videoPagination.totalPages > 1 && (
+          <div className="flex items-center justify-end gap-2 border-t border-border-light px-4 py-3">
+            <span className="mr-2 text-xs text-text-tertiary">
+              Page {videoPagination.page} of {videoPagination.totalPages}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              iconOnly
+              disabled={videoPagination.page <= 1}
+              onClick={() => fetchVideoMetrics(videoPagination.page - 1)}
+              icon={<ChevronLeft className="size-4" />}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              iconOnly
+              disabled={videoPagination.page >= videoPagination.totalPages}
+              onClick={() => fetchVideoMetrics(videoPagination.page + 1)}
+              icon={<ChevronRight className="size-4" />}
+            />
+          </div>
+        )}
+      </Card>
+
       {/* Recent failures */}
-      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 17 }}>
+      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 18 }}>
         <CardHeader
           title={
             <span className="flex items-center gap-2">

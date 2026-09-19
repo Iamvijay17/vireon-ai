@@ -2,6 +2,7 @@ const config = require('../../config');
 const PromptService = require('../common/PromptService');
 const LMStudioService = require('../common/LMStudioService');
 const LoggerService = require('../common/LoggerService');
+const StoryStructureService = require('./StoryStructureService');
 
 // Target size for a single chunk's LLM response, in tokens. Deliberately
 // well under the old flat 32000-token ceiling - a local model reliably
@@ -38,25 +39,20 @@ const CONTINUING_INSTRUCTIONS = {
 };
 
 /**
- * Generates video scripts (any type) in bounded chunks instead of one
- * giant LLM completion.
- *
- * Scene count scales with requested duration (videoWorker.js), so a long
- * video can ask for far more scenes than a single local-model response can
- * actually finish generating in one completion - see the module comment
- * above. This splits generation into small, independent calls that each
- * stay within what the model reliably completes, and stitches the results
- * back into one script.
+ * Generates a video's scene narration (any type) in bounded chunks,
+ * anchored to the beat/style plan StoryStructureService already produced -
+ * each chunk is told which beat's purpose/tone it's writing towards and
+ * what shared motion vocabulary to draw from, instead of only inferring
+ * continuity from a recap of the previous chunk's scenes.
  */
-class ChunkedScriptService {
+class ScenePlanningService {
   /**
-   * Generate a full script (title/description/tags/thumbnailPrompt +
-   * scenes) for the given total scene/word budget, chunking scene
-   * generation when it would exceed a single chunk's token budget. Returns
-   * the same shape LMStudioService.generateScript would for a single-shot
-   * call, ready for ScriptParserService.validate.
+   * Generate the scene array for the given total scene/word budget,
+   * chunking generation when it would exceed a single chunk's token
+   * budget. `structure` is the output of StoryStructureService.plan().
+   * Returns `{ scenes }`, ready for VisualPlanningService.
    */
-  static async generate({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, hostName, guestName, jobId, checkCancelled, onProgress }) {
+  static async generate({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, hostName, guestName, jobId, structure, checkCancelled, onProgress }) {
     const narrationMultiplier = videoType === 'podcast' ? 1 : 2;
     const tokensPerScene = 80 + wordsPerScene * 1.4 * narrationMultiplier;
     const chunkSceneCount = Math.min(
@@ -70,11 +66,11 @@ class ChunkedScriptService {
     const resolvedGuestName = guestName || 'Guest';
 
     if (sceneCount <= chunkSceneCount) {
-      return this._generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier, hostName: resolvedHostName, guestName: resolvedGuestName });
+      const parsed = await this._generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier, hostName: resolvedHostName, guestName: resolvedGuestName, structure });
+      return { scenes: parsed.scenes };
     }
 
     const chunkCount = Math.ceil(sceneCount / chunkSceneCount);
-    let meta = null;
     const allScenes = [];
 
     for (let i = 0; i < chunkCount; i++) {
@@ -91,8 +87,10 @@ class ChunkedScriptService {
         ? (typeof closingTemplate === 'function' ? closingTemplate(resolvedHostName) : closingTemplate)
         : (CONTINUING_INSTRUCTIONS[videoType] || CONTINUING_INSTRUCTIONS.default);
 
+      const beat = StoryStructureService.beatForScene(structure.beats, startSceneNumber);
+
       LoggerService.info(`Generating script chunk ${i + 1}/${chunkCount}`, {
-        jobId, videoType, startSceneNumber, endSceneNumber,
+        jobId, videoType, startSceneNumber, endSceneNumber, beatIndex: beat?.beatIndex,
       });
 
       let chunkScenes;
@@ -106,14 +104,11 @@ class ChunkedScriptService {
           closingInstruction,
           hostName: resolvedHostName,
           guestName: resolvedGuestName,
+          beatPurpose: beat?.purpose || '',
+          toneNote: beat?.toneNote || structure.styleGuide.voiceTone,
+          motionVocabulary: structure.styleGuide.motionVocabulary,
         });
         const parsed = await this._callChunk(prompt, thisChunkSceneCount, thisChunkWordCount, narrationMultiplier);
-        meta = {
-          title: parsed.title,
-          description: parsed.description,
-          tags: parsed.tags,
-          thumbnailPrompt: parsed.thumbnailPrompt,
-        };
         chunkScenes = parsed.scenes;
       } else {
         const templateName = videoType === 'podcast' ? 'podcast-continuation' : 'generic-continuation';
@@ -128,6 +123,9 @@ class ChunkedScriptService {
           hostName: resolvedHostName,
           guestName: resolvedGuestName,
           recap: this._buildRecap(videoType, allScenes, resolvedHostName, resolvedGuestName),
+          beatPurpose: beat?.purpose || '',
+          toneNote: beat?.toneNote || structure.styleGuide.voiceTone,
+          motionVocabulary: structure.styleGuide.motionVocabulary,
         });
         const parsed = await this._callChunk(prompt, thisChunkSceneCount, thisChunkWordCount, narrationMultiplier);
         chunkScenes = parsed.scenes;
@@ -156,11 +154,12 @@ class ChunkedScriptService {
       jobId, videoType, requestedScenes: sceneCount, generatedScenes: allScenes.length, chunks: chunkCount,
     });
 
-    return { ...meta, scenes: allScenes };
+    return { scenes: allScenes };
   }
 
-  static async _generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier, hostName, guestName }) {
+  static async _generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier, hostName, guestName, structure }) {
     const closingTemplate = CLOSING_INSTRUCTIONS[videoType] || CLOSING_INSTRUCTIONS.educational;
+    const beat = StoryStructureService.beatForScene(structure.beats, 1);
     const prompt = PromptService.render(videoType, {
       topic,
       language,
@@ -170,6 +169,9 @@ class ChunkedScriptService {
       closingInstruction: typeof closingTemplate === 'function' ? closingTemplate(hostName || 'Host') : closingTemplate,
       hostName: hostName || 'Host',
       guestName: guestName || 'Guest',
+      beatPurpose: beat?.purpose || '',
+      toneNote: beat?.toneNote || structure.styleGuide.voiceTone,
+      motionVocabulary: structure.styleGuide.motionVocabulary,
     });
     return this._callChunk(prompt, sceneCount, wordCount, narrationMultiplier);
   }
@@ -210,4 +212,4 @@ class ChunkedScriptService {
   }
 }
 
-module.exports = ChunkedScriptService;
+module.exports = ScenePlanningService;

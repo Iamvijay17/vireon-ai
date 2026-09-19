@@ -316,6 +316,9 @@ export const deleteAsset = (id) => api.delete(`/api/assets/${id}`);
 export const getAnalyticsOverview = (days = 30) =>
   api.get('/api/analytics/overview', { params: { days } });
 
+export const getVideoMetrics = (params = {}) =>
+  api.get('/api/analytics/videos', { params });
+
 // ─── Live Logs ──────────────────────────────────────────────────────────────────
 
 export const getRecentLogs = (limit = 300) => api.get('/api/logs/recent', { params: { limit } });

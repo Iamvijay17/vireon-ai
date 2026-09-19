@@ -4,6 +4,7 @@ const AvatarService = require('../../services/avatar/avatarService');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS } = require('../../constants');
+const { JobCancelledError } = require('./shared');
 
 /**
  * Step 5.5: avatar generation - optional, only for jobs with
@@ -26,7 +27,17 @@ async function run(jobId, videoJob, ctx) {
   await ActivityLogService.add(jobId, 'Avatar generation started');
 
   const sourceImagePath = AvatarService.resolveDefaultSourceImage(videoJob.voice);
-  const avatarResult = await AvatarService.animatePortrait(jobId, sourceImagePath);
+  let avatarResult;
+  try {
+    avatarResult = await AvatarService.animatePortrait(jobId, sourceImagePath, ctx.signal);
+  } catch (err) {
+    // ctx.signal (see processor.js) is aborted the moment a Stop request
+    // reaches this process - see cancellationBus - which interrupts the
+    // in-flight LivePortrait call instead of only being noticed after the
+    // whole avatar step finishes.
+    if (err.name === 'AbortError') throw new JobCancelledError(jobId);
+    throw err;
+  }
   const jobWithAvatar = await VideoService.updateAvatar(jobId, avatarResult);
   avatarVideoUrl = jobWithAvatar.avatarVideoUrl;
 

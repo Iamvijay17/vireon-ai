@@ -1,6 +1,6 @@
 const LoggerService = require('../../services/common/LoggerService');
 const ActivityLogService = require('../../services/common/ActivityLogService');
-const ChunkedScriptService = require('../../services/video/ChunkedScriptService');
+const AIDirectorService = require('../../services/director/AIDirectorService');
 const LocalAIService = require('../../services/localAI');
 const ScriptParserService = require('../../services/video/ScriptParserService');
 const VideoService = require('../../services/video/VideoService');
@@ -85,19 +85,21 @@ async function run(jobId, videoJob, currentStatus, ctx) {
 
   await bailIfCancelled(jobId);
 
-  // Call LM Studio. Scene count scales directly with requested duration
-  // for every video type, so a long video can ask for far more scenes
-  // than a single local-model response reliably finishes generating
-  // before it stops mid-JSON. Generate in bounded chunks instead (see
-  // ChunkedScriptService) - each a small independent call the model can
-  // actually complete; short scripts still resolve in one call.
+  // Call LM Studio via the AI Director pipeline: it plans the narrative
+  // arc/style guide first (StoryStructureService), then writes scene
+  // narration anchored to that plan in bounded chunks (ScenePlanningService)
+  // - each chunk a small independent call the model can actually complete,
+  // since scene count scales directly with requested duration and a long
+  // video can ask for far more scenes than a single local-model response
+  // reliably finishes generating before it stops mid-JSON. Short scripts
+  // still resolve in one call.
   // GPU-sequential: this dev machine's 6GB card can't hold LM Studio and
   // Qwen3-TTS/ComfyUI loaded at once, so claim the GPU for LM Studio here
-  // and hold it across every chunk (ChunkedScriptService may make several
-  // calls), releasing only once the whole script is generated - the audio
-  // step right after this one will then need to wait/evict to get its turn.
+  // and hold it across every call the Director makes, releasing only once
+  // the whole script is generated - the audio step right after this one
+  // will then need to wait/evict to get its turn.
   const rawScript = await LocalAIService.gpu.withGPU('llm', () =>
-    ChunkedScriptService.generate({
+    AIDirectorService.direct({
       videoType: videoJob.type,
       topic: videoJob.topic,
       language: videoJob.language,
@@ -106,6 +108,9 @@ async function run(jobId, videoJob, currentStatus, ctx) {
       wordsPerScene,
       hostName: videoJob.hostName,
       guestName: videoJob.guestName,
+      hostVoice: videoJob.hostVoice,
+      guestVoice: videoJob.guestVoice,
+      durationMinutes,
       jobId,
       checkCancelled: () => bailIfCancelled(jobId),
       onProgress: async (chunkIndex, chunkCount, scenesGenerated) => {
