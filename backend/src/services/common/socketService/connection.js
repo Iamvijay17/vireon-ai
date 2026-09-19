@@ -3,8 +3,29 @@ const config = require('../../../config');
 const LoggerService = require('../LoggerService');
 const { SOCKET_EVENTS } = require('../../../constants');
 const VideoService = require('../../video/VideoService');
+const JobEventService = require('../JobEventService');
 const courseQueue = require('../../../queues/courseQueue');
 const { state, ROOM_ID_PATTERN, WORKER_STATUS_POLL_MS } = require('./state');
+
+/**
+ * Replay everything that happened on a job after `sinceSeq` to one socket,
+ * as the same event names the client already listens for - a replayed
+ * jobProgress is indistinguishable from a live one apart from arriving
+ * late, so no page needs special handling to catch up after a reconnect.
+ */
+async function replayJobEvents(jobId, sinceSeq, socket) {
+  try {
+    const events = await JobEventService.since(jobId, sinceSeq);
+    for (const event of events) {
+      socket.emit(event.type, { ...event.data, seq: event.seq });
+    }
+    if (events.length > 0) {
+      LoggerService.debug(`Replayed ${events.length} event(s) for job ${jobId}`, { sinceSeq });
+    }
+  } catch (err) {
+    LoggerService.error('Failed to replay job events', { error: err.message, jobId });
+  }
+}
 
 /**
  * Send current job status to a specific socket.
@@ -76,7 +97,13 @@ function init(httpServer) {
       socket.emit(SOCKET_EVENTS.COURSE_WORKER_STATUS, state.lastWorkerStatus);
     }
 
-    socket.on(SOCKET_EVENTS.JOIN, async (jobId, callback) => {
+    // Accepts either a bare jobId (the original signature) or
+    // `{ jobId, sinceSeq }` from a client that has already seen part of
+    // this job's timeline and wants the rest - see JobEventService.
+    socket.on(SOCKET_EVENTS.JOIN, async (payload, callback) => {
+      const jobId = typeof payload === 'string' ? payload : payload?.jobId;
+      const sinceSeq = typeof payload === 'object' && payload !== null ? payload.sinceSeq : null;
+
       try {
         if (typeof jobId !== 'string' || !ROOM_ID_PATTERN.test(jobId)) {
           throw new Error('Invalid jobId');
@@ -87,6 +114,12 @@ function init(httpServer) {
         // Send acknowledgment
         if (callback && typeof callback === 'function') {
           callback({ status: 'ok', jobId });
+        }
+
+        // Replay before the status snapshot: the snapshot reflects the job
+        // as it is now, so it should be the last thing the client applies.
+        if (Number.isFinite(sinceSeq) && sinceSeq >= 0) {
+          await replayJobEvents(jobId, sinceSeq, socket);
         }
 
         // Immediately send current job status to the client

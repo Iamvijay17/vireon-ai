@@ -1,5 +1,6 @@
 const VideoJob = require('../../../models/VideoJob');
 const LoggerService = require('../../common/LoggerService');
+const JobEventService = require('../../common/JobEventService');
 const {
   JOB_STATUS,
   getAspectRatioForResolution,
@@ -118,6 +119,8 @@ async function deleteJob(jobId) {
     throw { status: 404, message: 'Job not found or already deleted' };
   }
 
+  await JobEventService.deleteByJob(jobId);
+
   LoggerService.info('Video job deleted', { jobId });
   return { message: 'Job deleted successfully' };
 }
@@ -131,6 +134,8 @@ async function bulkDelete(jobIds) {
   if (result.deletedCount === 0) {
     throw { status: 404, message: 'No jobs found to delete' };
   }
+
+  await JobEventService.deleteByJob(jobIds);
 
   LoggerService.info('Bulk video jobs deleted', {
     requested: jobIds.length,

@@ -224,7 +224,7 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
           // waiting for a bulk end-of-pipeline upload - backend/jobs/ is
           // scratch space now, MinIO is the durable copy. `jobId` here is
           // the video's own id (see the storage plan's bucket table).
-          await getStorageProvider().uploadFile(jobId, outputFile, "audio");
+          await getStorageProvider().uploadFile(jobId, outputFile, "audio", { cacheKey: cacheHash });
 
           return {
             file: `scene${scene.sceneNumber}.mp3`,

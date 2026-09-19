@@ -71,6 +71,27 @@ router.get('/:type/:id', authenticate, JobController.getById);
 
 /**
  * @swagger
+ * /api/jobs/{type}/{id}/events:
+ *   get:
+ *     summary: Append-only event timeline for a job, oldest first
+ *     tags: [Jobs]
+ *     parameters:
+ *       - { name: type, in: path, required: true, schema: { type: string, enum: [video, course, audio] } }
+ *       - { name: id, in: path, required: true, schema: { type: string } }
+ *       - name: since
+ *         in: query
+ *         description: Exclusive - returns events with seq greater than this
+ *         schema: { type: integer, default: 0 }
+ *       - name: limit
+ *         in: query
+ *         schema: { type: integer, default: 500, maximum: 500 }
+ *     responses:
+ *       200: { description: "{ events, latestSeq }" }
+ */
+router.get('/:type/:id/events', authenticate, JobController.events);
+
+/**
+ * @swagger
  * /api/jobs/{type}/{id}/cancel:
  *   post:
  *     summary: Cancel a job (not supported for audio - synchronous generation)

@@ -35,13 +35,45 @@ export const disconnect = () => {
   }
 };
 
+// ─── Event Replay ──────────────────────────────────────────────────────────────
+// Every job event the backend emits carries the `seq` it was stored under
+// (see JobEventService). Remembering the highest seq seen per job means a
+// re-join after a dropped connection can ask for everything that happened
+// while the socket was down, instead of silently resuming from whatever
+// fires next. Callers don't opt in - joinJobRoom passes it automatically.
+
+const lastSeqByJob = new Map();
+
+const JOB_EVENT_NAMES = [
+  'jobCreated',
+  'jobProgress',
+  'jobCompleted',
+  'jobFailed',
+  'sceneAudioReady',
+];
+
+JOB_EVENT_NAMES.forEach((name) => {
+  socket.on(name, (data) => {
+    if (!data?.jobId || typeof data.seq !== 'number') return;
+    const jobId = String(data.jobId);
+    if (data.seq > (lastSeqByJob.get(jobId) ?? 0)) {
+      lastSeqByJob.set(jobId, data.seq);
+    }
+  });
+});
+
 // ─── Room Management ───────────────────────────────────────────────────────────
 
 export const joinJobRoom = (jobId) => {
-  socket.emit('join', jobId);
+  const sinceSeq = lastSeqByJob.get(String(jobId));
+  // No seq yet means this client hasn't seen any of this job's events, so
+  // there's nothing to catch up on - a fresh page load gets current state
+  // from REST plus the jobStatus snapshot the server sends on join.
+  socket.emit('join', sinceSeq == null ? jobId : { jobId, sinceSeq });
 };
 
 export const leaveJobRoom = (jobId) => {
+  lastSeqByJob.delete(String(jobId));
   socket.emit('leave', jobId);
 };
 

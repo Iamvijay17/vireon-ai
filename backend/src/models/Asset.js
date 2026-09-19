@@ -44,12 +44,30 @@ const assetSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // sha256 of the uploaded bytes. Two assets sharing a contentHash are
+    // byte-identical copies stored under different keys - which is what
+    // makes "how much of what we generate have we generated before"
+    // answerable without re-reading objects out of MinIO.
+    contentHash: {
+      type: String,
+      default: null,
+    },
+    // The producing step's input hash, where the producer knows one (TTS
+    // passes CacheService.hashTtsInputs). contentHash says the bytes match;
+    // cacheKey says the inputs did - the two disagreeing is the signal that
+    // a generation step isn't as deterministic as its cache assumes.
+    cacheKey: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );
 
 assetSchema.index({ ownerType: 1, category: 1 });
 assetSchema.index({ ownerId: 1, key: 1 }, { unique: true });
+assetSchema.index({ contentHash: 1 }, { sparse: true });
+assetSchema.index({ cacheKey: 1 }, { sparse: true });
 
 const Asset = mongoose.model('Asset', assetSchema);
 

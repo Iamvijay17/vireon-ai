@@ -2,19 +2,44 @@ const { SOCKET_EVENTS } = require('../../../constants');
 const { state } = require('./state');
 const { emitToJob } = require('./coreEmit');
 const { publish } = require('./redisBridge');
+const JobEventService = require('../JobEventService');
+
+/**
+ * Persist an event to the job's timeline, then emit it carrying the `seq`
+ * it was stored under.
+ *
+ * Recording here rather than at each call site means one hook covers the
+ * whole v1 pipeline in both processes - the API emits directly via
+ * Socket.IO, the worker publishes over Redis, but both come through these
+ * functions. The emit waits on the append (a single indexed upsert) so the
+ * live payload carries the same seq the stored event has; that seq is what
+ * lets a reconnecting client ask for exactly what it missed.
+ *
+ * JobEventService.append never throws and returns null if it failed, so the
+ * emit always happens - a lost event record must not cost a live update.
+ */
+function record(jobId, type, data, dispatch) {
+  JobEventService.append(jobId, type, data).then((event) => {
+    dispatch(event ? { ...data, seq: event.seq } : data);
+  });
+}
 
 /**
  * Emit job created event.
  */
 function emitJobCreated(job) {
-  if (state.io) {
-    state.io.emit(SOCKET_EVENTS.JOB_CREATED, {
-      jobId: job._id,
-      status: job.status,
-      progress: job.progress,
-      topic: job.topic,
-    });
-  }
+  const data = {
+    jobId: job._id,
+    status: job.status,
+    progress: job.progress,
+    topic: job.topic,
+  };
+
+  record(job._id, 'jobCreated', data, (payload) => {
+    if (state.io) {
+      state.io.emit(SOCKET_EVENTS.JOB_CREATED, payload);
+    }
+  });
 }
 
 /**
@@ -31,12 +56,14 @@ function emitJobProgress(job) {
     currentScene: job.currentScene,
   };
 
-  if (state.io) {
-    emitToJob(job._id, SOCKET_EVENTS.JOB_PROGRESS, data);
-  } else {
-    // We're in the worker process - publish via Redis
-    publish(job._id, 'jobProgress', data);
-  }
+  record(job._id, 'jobProgress', data, (payload) => {
+    if (state.io) {
+      emitToJob(job._id, SOCKET_EVENTS.JOB_PROGRESS, payload);
+    } else {
+      // We're in the worker process - publish via Redis
+      publish(job._id, 'jobProgress', payload);
+    }
+  });
 }
 
 /**
@@ -55,11 +82,13 @@ function emitSceneAudioReady(jobId, sceneNumber, audioData) {
     },
   };
 
-  if (state.io) {
-    emitToJob(jobId, SOCKET_EVENTS.SCENE_AUDIO_READY, data);
-  } else {
-    publish(jobId, 'sceneAudioReady', data);
-  }
+  record(jobId, 'sceneAudioReady', data, (payload) => {
+    if (state.io) {
+      emitToJob(jobId, SOCKET_EVENTS.SCENE_AUDIO_READY, payload);
+    } else {
+      publish(jobId, 'sceneAudioReady', payload);
+    }
+  });
 }
 
 /**
@@ -74,11 +103,13 @@ function emitJobCompleted(job) {
     thumbnailUrl: job.thumbnailUrl,
   };
 
-  if (state.io) {
-    emitToJob(job._id, SOCKET_EVENTS.JOB_COMPLETED, data);
-  } else {
-    publish(job._id, 'jobCompleted', data);
-  }
+  record(job._id, 'jobCompleted', data, (payload) => {
+    if (state.io) {
+      emitToJob(job._id, SOCKET_EVENTS.JOB_COMPLETED, payload);
+    } else {
+      publish(job._id, 'jobCompleted', payload);
+    }
+  });
 }
 
 /**
@@ -91,11 +122,13 @@ function emitJobFailed(job, error) {
     error: error || job.error?.message,
   };
 
-  if (state.io) {
-    emitToJob(job._id, SOCKET_EVENTS.JOB_FAILED, data);
-  } else {
-    publish(job._id, 'jobFailed', data);
-  }
+  record(job._id, 'jobFailed', data, (payload) => {
+    if (state.io) {
+      emitToJob(job._id, SOCKET_EVENTS.JOB_FAILED, payload);
+    } else {
+      publish(job._id, 'jobFailed', payload);
+    }
+  });
 }
 
 module.exports = {

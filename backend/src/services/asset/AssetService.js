@@ -1,4 +1,6 @@
 const path = require('path');
+const crypto = require('crypto');
+const fs = require('fs');
 const Asset = require('../../models/Asset');
 const VideoJob = require('../../models/VideoJob');
 const CourseVideo = require('../../models/CourseVideo');
@@ -26,6 +28,23 @@ function mimeTypeFor(fileName) {
 }
 
 /**
+ * sha256 of a local file, streamed so a 100MB render doesn't land in
+ * memory. Returns null rather than throwing if the file is already gone -
+ * the same race the `size` parameter exists to dodge (job cleanup can wipe
+ * scratch moments after an upload), and a missing hash is worth less than a
+ * failed upload.
+ */
+function hashFile(filePath) {
+  return new Promise((resolve) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', () => resolve(null));
+  });
+}
+
+/**
  * Resolve which collection an id belongs to. `audio-studio` category is
  * unambiguous (always an AudioGeneration); `audio`/`avatar`/`render` are
  * shared between video jobs and course videos, so those need a lookup -
@@ -50,10 +69,11 @@ class AssetService {
    * later - stat'ing here lost that race 100% of the time in practice,
    * silently leaving every asset's size null.
    */
-  static async recordUpload({ id, category, bucket, key, url, filePath, size = null }) {
+  static async recordUpload({ id, category, bucket, key, url, filePath, size = null, cacheKey = null }) {
     try {
       const fileName = path.basename(filePath);
       const ownerType = await resolveOwnerType(id, category);
+      const contentHash = await hashFile(filePath);
 
       await Asset.findOneAndUpdate(
         { ownerId: id, key },
@@ -67,6 +87,8 @@ class AssetService {
           fileName,
           size,
           mimeType: mimeTypeFor(fileName),
+          contentHash,
+          cacheKey,
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );

@@ -13,10 +13,12 @@ class StorageProvider {
    * @param {string} id - The video identifier.
    * @param {string} filePath - Absolute path to the local file.
    * @param {string} category - Asset category (e.g., 'audio', 'render').
+   * @param {{ cacheKey?: string }} [opts] - Optional provenance for the
+   *   recorded Asset; `cacheKey` is the producing step's input hash.
    * @returns {Promise<string>} The public URL of the uploaded file.
    * @abstract
    */
-  async uploadFile(id, filePath, category) {
+  async uploadFile(id, filePath, category, opts = {}) {
     throw new Error('Method "uploadFile" must be implemented by subclass');
   }
 

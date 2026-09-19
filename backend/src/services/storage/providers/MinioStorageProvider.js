@@ -158,9 +158,12 @@ class MinioStorageProvider extends StorageProvider {
    * @param {string} id
    * @param {string} filePath - Absolute path to local file.
    * @param {string} category - 'audio', 'avatar', or 'render'.
+   * @param {{ cacheKey?: string }} [opts] - `cacheKey` is the producing
+   *   step's input hash, recorded on the Asset when the caller knows one
+   *   (see CacheService.hashTtsInputs).
    * @returns {Promise<string>} Public download URL.
    */
-  async uploadFile(id, filePath, category) {
+  async uploadFile(id, filePath, category, opts = {}) {
     await this.#ready;
     const fileName = path.basename(filePath);
     const { bucket, key } = this.#resolve(id, category, fileName);
@@ -184,7 +187,7 @@ class MinioStorageProvider extends StorageProvider {
         );
         const url = this.getPublicUrl(id, category, fileName);
         LoggerService.upload(`Uploaded ${category}/${fileName}`, { url });
-        await AssetService.recordUpload({ id, category, bucket, key, url, filePath, size });
+        await AssetService.recordUpload({ id, category, bucket, key, url, filePath, size, cacheKey: opts.cacheKey || null });
         return url;
       } catch (err) {
         lastError = err;

@@ -4,6 +4,7 @@ const CourseService = require('../services/course/CourseService');
 const CourseVideoService = require('../services/course/CourseVideoService');
 const AudioGeneration = require('../models/AudioGeneration');
 const ActivityLogService = require('../services/common/ActivityLogService');
+const JobEventService = require('../services/common/JobEventService');
 const { getPipelineTimeline } = require('../services/video/videoService/pipelineTimeline');
 const videoQueue = require('../queues/videoQueue');
 const LoggerService = require('../services/common/LoggerService');
@@ -161,6 +162,23 @@ class JobController {
         throw new NotFoundError('Audio generation not found');
       }
       return res.json({ job: JobAggregatorService.normalizeAudio(record), logs: [] });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * A job's event timeline after `?since=<seq>`, oldest first. The socket
+   * `join` handler replays the same events automatically on reconnect;
+   * this is the pull-based equivalent, for a page loading fresh or for
+   * inspecting what a finished job actually did.
+   */
+  static async events(req, res, next) {
+    try {
+      const { id } = req.params;
+      const events = await JobEventService.since(id, req.query.since, req.query.limit);
+      const latestSeq = await JobEventService.latestSeq(id);
+      return res.json({ events, latestSeq });
     } catch (err) {
       next(err);
     }
