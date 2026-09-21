@@ -55,10 +55,8 @@ const NavRow = ({ icon: Icon, label, active, collapsed, onClick, indent = false,
     onClick={onClick}
     title={collapsed ? label : undefined}
     className={cn(
-      "relative flex w-full rounded-lg text-[13px] font-medium transition-colors cursor-pointer",
-      collapsed
-        ? "flex-col items-stretch justify-center gap-1 px-1 py-2.5"
-        : "items-center gap-3 px-2.5 py-2",
+      "relative flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors cursor-pointer",
+      collapsed && "justify-center px-0",
       indent && !collapsed && "pl-9",
       active
         ? "bg-sidebar-active-bg text-sidebar-text-active"
@@ -72,13 +70,12 @@ const NavRow = ({ icon: Icon, label, active, collapsed, onClick, indent = false,
       <span
         className={cn(
           "absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-accent",
-          collapsed && "left-0 top-1/2"
+          collapsed && "left-0"
         )}
       />
     )}
-    <Icon className={cn("size-[18px] shrink-0", collapsed && "mx-auto", active && "text-accent-400")} />
+    <Icon className={cn("size-[18px] shrink-0", active && "text-accent-400")} />
     {!collapsed && <span className="min-w-0 flex-1 truncate text-left">{label}</span>}
-    {collapsed && <span className="block w-full truncate text-center text-[10px] font-medium leading-none">{label}</span>}
     {!collapsed && trailing}
   </button>
 );
