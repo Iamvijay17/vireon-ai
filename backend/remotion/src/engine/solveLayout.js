@@ -38,10 +38,15 @@ const chooseStrategy = (profile, rng) => {
   // which never reads `profile.body` - silently dropping the text. Routing
   // a substantial body to quote-feature instead actually uses it.
   if (itemCount === 0) return body && body.length >= 60 ? 'quote-feature' : 'title-only';
-  if (density === 'paragraph' && itemCount <= 3) return 'paragraph-stack';
+  // paragraph-stack, stack-list, grid, timeline and comparison-split (at
+  // itemCount===2 only) all build against `profile.itemCount` generically,
+  // so any of them renders a given item list correctly - the seed picks
+  // among the visually-valid set instead of one fixed strategy always
+  // winning for a given content shape.
+  if (density === 'paragraph' && itemCount <= 3) return pick(rng, ['paragraph-stack', 'stack-list']);
   if (itemCount === 1 && STAT_PATTERN.test((items[0]?.text || '').trim())) return 'stat-highlight';
-  if (itemCount === 2) return 'comparison-split';
-  if (itemCount >= 4 && density !== 'paragraph') return pick(rng, ['grid', 'timeline']);
+  if (itemCount === 2) return pick(rng, ['comparison-split', 'grid', 'stack-list']);
+  if (itemCount >= 4 && density !== 'paragraph') return pick(rng, ['grid', 'timeline', 'stack-list']);
   return hasHeadings ? 'timeline' : 'stack-list';
 };
 

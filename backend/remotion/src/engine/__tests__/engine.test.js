@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { analyzeContent } from '../analyzeContent';
 import { solveLayout } from '../solveLayout';
 import { choreograph } from '../choreograph';
+import { generateStyle } from '../generateStyle';
 import { computeMotionStyle, MOTION_IDS, MOTION_REGISTRY } from '../motion';
 import { SCENE_IDS, SCENE_REGISTRY } from '../scenes';
 import {
@@ -27,25 +28,29 @@ import { chooseBackground, chooseDecoration } from '../chooseVisuals';
 
 test('scene routing: representative content shapes resolve to the expected strategy', () => {
   const cases = [
-    { scene: { elements: { title: 'Just a title' } }, expected: 'title-only' },
-    { scene: { elements: { title: 'T', body: 'x'.repeat(80) } }, expected: 'quote-feature' },
+    { scene: { elements: { title: 'Just a title' } }, expected: ['title-only'] },
+    { scene: { elements: { title: 'T', body: 'x'.repeat(80) } }, expected: ['quote-feature'] },
+    // paragraph-stack and stack-list both build against itemCount generically,
+    // so a seeded pick between them is intentional - see solveLayout.js.
     {
       scene: { elements: { title: 'T', items: [{ text: 'x'.repeat(150) }, { text: 'y'.repeat(150) }] } },
-      expected: 'paragraph-stack',
+      expected: ['paragraph-stack', 'stack-list'],
     },
-    { scene: { elements: { title: 'T', items: [{ text: '87% of teams renew' }] } }, expected: 'stat-highlight' },
+    { scene: { elements: { title: 'T', items: [{ text: '87% of teams renew' }] } }, expected: ['stat-highlight'] },
+    // comparison-split, grid and stack-list all handle exactly 2 items fine
+    // structurally, so a seeded pick among them is intentional.
     {
       scene: { elements: { title: 'T', items: [{ heading: 'A', text: 'one' }, { heading: 'B', text: 'two' }] } },
-      expected: 'comparison-split',
+      expected: ['comparison-split', 'grid', 'stack-list'],
     },
-    { scene: { elements: { title: 'T', image: 'https://example.com/a.png' } }, expected: 'split-image' },
-    { scene: { sceneType: 'image', elements: { image: 'https://example.com/a.png', caption: 'C' } }, expected: 'image-fullbleed' },
+    { scene: { elements: { title: 'T', image: 'https://example.com/a.png' } }, expected: ['split-image'] },
+    { scene: { sceneType: 'image', elements: { image: 'https://example.com/a.png', caption: 'C' } }, expected: ['image-fullbleed'] },
   ];
 
   for (const { scene, expected } of cases) {
     const profile = analyzeContent(scene);
     const plan = solveLayout(profile, 'routing-test-seed');
-    assert.equal(plan.strategy, expected, `expected "${expected}" for ${JSON.stringify(scene.elements)}`);
+    assert.ok(expected.includes(plan.strategy), `expected one of ${expected.join('/')} for ${JSON.stringify(scene.elements)}, got "${plan.strategy}"`);
     assert.ok(Array.isArray(plan.slots) && plan.slots.length > 0, 'strategy must produce at least one slot');
   }
 });
@@ -203,12 +208,17 @@ test('visual selection: more content coverage never increases decoration intensi
   assert.equal(sparsePlan.strategy, 'stack-list');
   const sparseDecoration = chooseDecoration({ layoutPlan: sparsePlan, style, seed: 'coverage-seed' });
 
+  // itemCount<=3 paragraph-density content is now seeded between
+  // 'paragraph-stack' and 'stack-list' (see solveLayout.js) - pinned to a
+  // seed that resolves to 'paragraph-stack' here since this test is about
+  // the coverage-vs-intensity relationship, not strategy variety (covered
+  // separately by the non-repetition tests below).
   const denseProfile = analyzeContent({
     elements: { title: 'T', items: [{ text: 'x'.repeat(150) }, { text: 'y'.repeat(150) }] },
   });
-  const densePlan = solveLayout(denseProfile, 'coverage-seed');
+  const densePlan = solveLayout(denseProfile, 'coverage-seed-1');
   assert.equal(densePlan.strategy, 'paragraph-stack');
-  const denseDecoration = chooseDecoration({ layoutPlan: densePlan, style, seed: 'coverage-seed' });
+  const denseDecoration = chooseDecoration({ layoutPlan: densePlan, style, seed: 'coverage-seed-1' });
 
   assert.ok(
     denseDecoration.intensity <= sparseDecoration.intensity,
@@ -363,4 +373,62 @@ test('determinism: a different seed may (but need not) vary the result, and neve
     solveLayout(profile, 'seed-a');
     solveLayout(profile, 'seed-b');
   });
+});
+
+// ---------------------------------------------------------------------------
+// Non-repetition - across a batch of different seeds (different jobs), the
+// same content shape should not collapse onto one strategy/palette/motion
+// rhythm every time. This is the actual product requirement ("videos look
+// too similar") turned into a regression check, so a future change can't
+// silently narrow the variety back down without a test failing.
+// ---------------------------------------------------------------------------
+
+const SEEDS = Array.from({ length: 20 }, (_, i) => `non-repetition-job-${i}`);
+
+test('non-repetition: an ambiguous 2-item scene spreads across more than one layout strategy', () => {
+  const scene = {
+    elements: { title: 'T', items: [{ heading: 'A', text: 'one' }, { heading: 'B', text: 'two' }] },
+  };
+  const profile = analyzeContent(scene);
+  const strategies = new Set(SEEDS.map((seed) => solveLayout(profile, seed).strategy));
+  assert.ok(strategies.size > 1, `expected more than one strategy across ${SEEDS.length} seeds, got only: ${[...strategies]}`);
+});
+
+test('non-repetition: an ambiguous 4-item scene spreads across more than one layout strategy', () => {
+  const scene = {
+    elements: {
+      title: 'T',
+      items: [{ text: 'one' }, { text: 'two' }, { text: 'three' }, { text: 'four' }],
+    },
+  };
+  const profile = analyzeContent(scene);
+  const strategies = new Set(SEEDS.map((seed) => solveLayout(profile, seed).strategy));
+  assert.ok(strategies.size > 1, `expected more than one strategy across ${SEEDS.length} seeds, got only: ${[...strategies]}`);
+});
+
+test('non-repetition: palette hue/background spreads across many distinct values, not a small fixed set', () => {
+  const backgrounds = new Set(SEEDS.map((seed) => generateStyle(seed).palette.bg));
+  assert.ok(backgrounds.size >= SEEDS.length * 0.9, `expected near-unique backgrounds across ${SEEDS.length} seeds, got only ${backgrounds.size} distinct`);
+});
+
+test('non-repetition: motion stagger timing (delay/duration) varies across seeds, not just animation type', () => {
+  const scene = {
+    elements: {
+      title: 'T',
+      items: [{ text: 'one' }, { text: 'two' }, { text: 'three' }],
+    },
+  };
+  const profile = analyzeContent(scene);
+  const firstItemDelays = new Set();
+  const firstItemDurations = new Set();
+  for (const seed of SEEDS) {
+    const plan = solveLayout(profile, seed);
+    const motionPlan = choreograph(plan, seed);
+    const firstItemSlot = plan.slots.find((s) => s.role === 'listItem' || s.role === 'body');
+    if (!firstItemSlot) continue;
+    firstItemDelays.add(motionPlan[firstItemSlot.id].delay);
+    firstItemDurations.add(motionPlan[firstItemSlot.id].duration);
+  }
+  assert.ok(firstItemDelays.size > 1, `expected varied delay across seeds, got only: ${[...firstItemDelays]}`);
+  assert.ok(firstItemDurations.size > 1, `expected varied duration across seeds, got only: ${[...firstItemDurations]}`);
 });

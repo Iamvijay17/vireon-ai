@@ -52,6 +52,15 @@ export const getSceneTypes = () => {
  * frontend/Studio template pickers.
  */
 export const templateNames = {
+  // Not in SceneTypeCategories (that list only feeds LLM template-selection
+  // hints, where ScriptParserService already defaults every scene to
+  // "generative" directly - no need to have the LLM name it explicitly).
+  // Listed here so it's pickable in the frontend/Studio template pickers,
+  // which read this map instead - previously the only way to reach the
+  // more-varied generative-engine path was a direct API override, so anyone
+  // picking a template by hand only ever saw the 48 static (repetitive)
+  // options.
+  generative: 'Generative (Auto) - procedurally varied layout, palette, and motion each render',
   '001-title': 'Title (title + subtitle + optional image)',
   '002-title': 'Title - Parallax Hero (full-bleed image with parallax zoom)',
   '003-title': 'Title - Modern Minimal (thin type + single accent line)',
@@ -138,6 +147,7 @@ export const getAllSceneTypeHints = () => {
  * only existed to describe the 60+ numeric templates for the LLM/editor).
  */
 const TEMPLATE_METADATA = [
+  { templateId: 'generative', title: 'Generative (Auto)', description: 'Procedurally generated layout, palette, and motion, seeded per scene so it never repeats the same look twice. Works for any scene type.' },
   { templateId: '001-title', title: 'Title', description: 'Centered title, subtitle, and optional image. Use for opening/intro scenes.' },
   { templateId: '002-title', title: 'Title - Parallax Hero', description: 'Full-bleed image with a slow parallax zoom and bottom-anchored title/subtitle. Use for cinematic opening scenes.' },
   { templateId: '003-title', title: 'Title - Modern Minimal', description: 'Thin-weight centered typography with a single accent line under the title. Use for understated, minimal intros.' },
