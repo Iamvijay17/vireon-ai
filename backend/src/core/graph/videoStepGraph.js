@@ -1,5 +1,6 @@
 const AudioService = require('../../services/audio/audioService');
 const AvatarService = require('../../services/avatar/avatarService');
+const { buildNarrationTrack } = require('../../services/avatar/narrationTrack');
 const RemotionService = require('../../services/video/RemotionService');
 const StorageService = require('../../services/storage/StorageService');
 const { getStorageProvider } = require('../../services/storage/providers');
@@ -106,7 +107,21 @@ function realHandlers({ jobId, videoJob }) {
     avatar: async () => {
       const VideoService = require('../../services/video/VideoService');
       const sourceImagePath = AvatarService.resolveDefaultSourceImage(videoJob.voice);
-      const result = await AvatarService.animatePortrait(jobId, sourceImagePath);
+      // Re-read: sceneAudio nodes just persisted scene.audio.file, needed
+      // here to build the narration track - videoJob (closed over above)
+      // is a stale pre-run snapshot.
+      const fresh = await VideoService.getById(jobId);
+      const fs = require('fs').promises;
+      const narrationAudioPath = await buildNarrationTrack(jobId, fresh.script?.scenes);
+      if (!narrationAudioPath) {
+        return { videoUrl: '', position: videoJob.avatarPosition };
+      }
+      let result;
+      try {
+        result = await AvatarService.animatePortrait(jobId, sourceImagePath, narrationAudioPath);
+      } finally {
+        await fs.unlink(narrationAudioPath).catch(() => {});
+      }
       const updated = await VideoService.updateAvatar(jobId, result);
       return { videoUrl: updated.avatarVideoUrl, position: videoJob.avatarPosition };
     },

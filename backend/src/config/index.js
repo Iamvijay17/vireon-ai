@@ -127,18 +127,21 @@ const config = Object.freeze({
       healthCheckIntervalMs: parseInt(process.env.COMFYUI_HEALTH_CHECK_INTERVAL_MS, 10) || 3000,
       healthCheckTimeoutMs: parseInt(process.env.COMFYUI_HEALTH_CHECK_TIMEOUT_MS, 10) || 5000,
     },
-    // LivePortrait (talking-head avatar overlay - AvatarService) is the
+    // MuseTalk (audio-driven lip-sync avatar overlay - AvatarService) is the
     // same shape as TTS: a Gradio app, launched via its own Pinokio app
-    // (C:\pinokio\api\liveportrait.git\{start.js,app\app.py}, conda env at
-    // app\LivePortrait_env\python.exe on Windows - no Scripts\ subfolder,
-    // unlike a normal venv). Values below are this machine's actual paths.
+    // (C:\pinokio\api\musetalk.git\{start.js,app\app.py} - point
+    // AVATAR_START_COMMAND/AVATAR_WORKDIR at wherever that app's own
+    // start.js resolves its venv python.exe + app.py). Was LivePortrait
+    // (canned stock-driving-video motion, audio-agnostic) until the avatar
+    // overlay's mouth needed to actually match the TTS narration - see
+    // services/avatar/avatarService.js.
     avatar: {
       enabled: process.env.AVATAR_SERVICE_ENABLED !== 'false',
       autoStart: process.env.AVATAR_AUTO_START !== 'false',
       autoStop: process.env.AVATAR_AUTO_STOP !== 'false',
       startCommand: process.env.AVATAR_START_COMMAND || '',
       workdir: process.env.AVATAR_WORKDIR || '',
-      healthUrl: process.env.AVATAR_HEALTH_URL || `${(process.env.LIVEPORTRAIT_URL || 'http://127.0.0.1:8890').replace(/\/$/, '')}/`,
+      healthUrl: process.env.AVATAR_HEALTH_URL || `${(process.env.MUSETALK_URL || 'http://127.0.0.1:8890').replace(/\/$/, '')}/`,
       startupTimeoutMs: parseInt(process.env.AVATAR_STARTUP_TIMEOUT_MS, 10) || 180000,
       healthCheckIntervalMs: parseInt(process.env.AVATAR_HEALTH_CHECK_INTERVAL_MS, 10) || 3000,
       healthCheckTimeoutMs: parseInt(process.env.AVATAR_HEALTH_CHECK_TIMEOUT_MS, 10) || 5000,
@@ -172,14 +175,12 @@ const config = Object.freeze({
   },
 
   avatar: {
-    url: process.env.LIVEPORTRAIT_URL || 'http://127.0.0.1:8890',
-    // Stock talking-head reference clip (bundled with the app) - drives the
-    // motion applied to the default source portrait below. See
-    // AvatarService.animatePortrait.
-    drivingVideoPath: path.resolve(__dirname, '../../assets/avatar/stock-driving.mp4'),
+    url: process.env.MUSETALK_URL || 'http://127.0.0.1:8890',
     // No user-uploaded photo - the avatar's source portrait is always one of
     // these two bundled defaults, picked by the job's voice's gender (see
-    // AvatarService.resolveDefaultSourceImage).
+    // AvatarService.resolveDefaultSourceImage). MuseTalk animates the mouth
+    // region of this still image directly from the job's own narration
+    // audio (see AvatarService.animatePortrait) - no separate driving video.
     defaultMaleImagePath: path.resolve(__dirname, '../../assets/avatar/default-male.jpg'),
     defaultFemaleImagePath: path.resolve(__dirname, '../../assets/avatar/default-female.jpg'),
     maxRetries: parseInt(process.env.AVATAR_MAX_RETRIES, 10) || 3,

@@ -201,15 +201,23 @@ async function regenerateSceneAudio(videoId, sceneNumber) {
       throw new Error('Audio generation returned no result');
     }
 
+    const sceneAudioUpdate = {
+      'script.scenes.$.audio.file': result.file,
+      'script.scenes.$.audio.duration': result.duration,
+      'script.scenes.$.duration': result.duration,
+    };
+    // A previously-generated avatar clip is lip-synced to the narration
+    // audio that existed at the time (see narrationTrack.buildNarrationTrack)
+    // - regenerating a scene's audio invalidates it so the next render
+    // re-syncs to the new content (mirrors videoService/statusUpdates.js's
+    // updateSceneAudio).
+    if (video.avatarVideoUrl) {
+      sceneAudioUpdate.avatarVideoUrl = '';
+    }
+
     await CourseVideo.updateOne(
       { _id: videoId, 'script.scenes.sceneNumber': sceneNumber },
-      {
-        $set: {
-          'script.scenes.$.audio.file': result.file,
-          'script.scenes.$.audio.duration': result.duration,
-          'script.scenes.$.duration': result.duration,
-        },
-      }
+      { $set: sceneAudioUpdate }
     );
 
     await ActivityLogService.add(videoId, `Scene ${sceneNumber} audio regenerated`);

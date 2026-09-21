@@ -85,6 +85,14 @@ async function updateSceneAudio(jobId, sceneNumber, audioData) {
     scene.audio.captionTimestamps = audioData.captionTimestamps || null;
     // The audio file duration is the actual scene duration
     scene.duration = audioData.duration;
+    // A previously-generated avatar clip is lip-synced to the narration
+    // audio that existed at the time (see narrationTrack.buildNarrationTrack)
+    // - any scene audio change (initial generation is a no-op here, since
+    // avatarVideoUrl isn't set yet; an explicit regenerate is the real
+    // case) invalidates it so the next render re-syncs to the new content.
+    if (job.avatarVideoUrl) {
+      job.avatarVideoUrl = '';
+    }
     // `elements` was built at script-validation time, before audio (and
     // its real per-word timing) existed - copy it in now so templates that
     // read elements.captionTimestamps pick up real sync instead of null.

@@ -37,34 +37,6 @@ class CacheService {
     return crypto.createHash('sha256').update(JSON.stringify(sorted)).digest('hex');
   }
 
-  // ---- Avatar clips: exactly 2 possible outputs (male/female), cached permanently ----
-
-  static async getAvatarClip(gender) {
-    if (!config.cache.enabled) return null;
-    const key = `avatar/${gender}.mp4`;
-    try {
-      await this.#client().statObject(config.minio.cacheBucket, key);
-      const url = `${config.minio.publicUrl}/${config.minio.cacheBucket}/${key}`;
-      LoggerService.info('Smart Cache hit: avatar clip', { gender });
-      MetricsService.increment('cache.hits');
-      return url;
-    } catch {
-      MetricsService.increment('cache.misses');
-      return null;
-    }
-  }
-
-  static async putAvatarClip(gender, localFilePath) {
-    if (!config.cache.enabled) return;
-    const key = `avatar/${gender}.mp4`;
-    try {
-      await this.#client().fPutObject(config.minio.cacheBucket, key, localFilePath);
-      LoggerService.info('Smart Cache stored: avatar clip', { gender });
-    } catch (err) {
-      LoggerService.warn('Smart Cache failed to store avatar clip', { gender, error: err.message });
-    }
-  }
-
   // ---- TTS audio: keyed by a content hash of (text, voice, seed, ...) ----
 
   /**

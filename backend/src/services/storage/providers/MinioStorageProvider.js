@@ -65,8 +65,8 @@ class MinioStorageProvider extends StorageProvider {
 
   async #ensureBuckets() {
     // Cache bucket gets the same anonymous-read policy as the other two -
-    // CacheService.getAvatarClip hands its URL straight to callers as
-    // avatarVideoUrl, which needs to be fetchable the same way a
+    // CacheService's TTS cache (getTtsAudio/putTtsAudio) hands cached audio
+    // straight to callers, which needs to be fetchable the same way a
     // scenesBucket URL is.
     const buckets = [...new Set([config.minio.scenesBucket, config.minio.videoBucket, config.minio.cacheBucket])];
     for (const bucket of buckets) {

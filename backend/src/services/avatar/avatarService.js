@@ -5,18 +5,25 @@ const config = require("../../config");
 const LoggerService = require("../common/LoggerService");
 const { getStorageProvider } = require("../storage/providers");
 const AudioService = require("../audio/audioService");
-const CacheService = require("../common/CacheService");
 const LocalAIService = require("../localAI");
 const withTimeout = require("../../utils/withTimeout");
 
 /**
  * Service for animating a source portrait photo into a small talking-head
- * clip via the LivePortrait Gradio app (see AvatarService.animatePortrait).
- * Motion is driven by a fixed stock reference clip (config.avatar.drivingVideoPath).
- * The source photo isn't user-supplied either - it's one of two bundled
- * default portraits (config.avatar.default{Male,Female}ImagePath), picked by
- * the job's own narration voice's gender (see resolveDefaultSourceImage) so
- * the avatar matches the voice without asking the user for a photo.
+ * clip via the MuseTalk Gradio app (see AvatarService.animatePortrait).
+ * Mouth motion is driven by the job's own narration audio (a single
+ * concatenated track built by narrationTrack.buildNarrationTrack from the
+ * job's per-scene TTS output), so the avatar's lips actually track what's
+ * being said instead of a canned reference clip. The source photo isn't
+ * user-supplied either - it's one of two bundled default portraits
+ * (config.avatar.default{Male,Female}ImagePath), picked by the job's own
+ * narration voice's gender (see resolveDefaultSourceImage) so the avatar
+ * matches the voice without asking the user for a photo.
+ *
+ * Because the output now depends on the job's own narration content (not
+ * just the source image), it's no longer one of a fixed handful of possible
+ * outputs - unlike the old LivePortrait-driven version, results aren't
+ * cached across jobs.
  *
  * Single Responsibility: avatar overlay clip generation.
  */
@@ -39,8 +46,10 @@ class AvatarService {
    * multipart path (rather than passing a Blob straight into
    * client.predict) because @gradio/client's own blob-upload path drops the
    * original filename (see FormData.append("files", blob) with no filename
-   * argument), which makes LivePortrait's server reject the file - it
-   * infers media type from the uploaded file's extension.
+   * argument), which makes a Gradio server reject the file - it infers
+   * media type from the uploaded file's extension (confirmed against
+   * LivePortrait's server; assumed to hold for MuseTalk's too, since both
+   * are plain Gradio apps).
    */
   static async _uploadFile(baseUrl, filePath, filename, mimeType) {
     const buf = await fs.readFile(filePath);
@@ -48,7 +57,7 @@ class AvatarService {
     form.append("files", new Blob([buf], { type: mimeType }), filename);
     const res = await fetch(`${baseUrl}/upload`, { method: "POST", body: form });
     if (!res.ok) {
-      throw new Error(`LivePortrait upload failed: ${res.status} ${await res.text()}`);
+      throw new Error(`MuseTalk upload failed: ${res.status} ${await res.text()}`);
     }
     const paths = await res.json();
     return paths[0];
@@ -59,46 +68,16 @@ class AvatarService {
   }
 
   /**
-   * Since `sourceImagePath` is always one of the two bundled default
-   * portraits (never a user upload - see the class doc comment), the
-   * driving clip is fixed, and every LivePortrait param is a hardcoded
-   * literal, the entire output space for this method is exactly 2 possible
-   * videos. Returns the cache key ('male'/'female') for those 2, or null
-   * for anything else (not cacheable).
+   * Animate `sourceImagePath` (a local file on disk) with `narrationAudioPath`
+   * (a local WAV file - see narrationTrack.buildNarrationTrack), download the
+   * result, and save it to jobs/{jobId}/avatar/avatar.mp4 - same
+   * jobs/{jobId}/<kind>/ convention AudioService uses for jobs/{jobId}/audio/.
    */
-  static _cacheKeyForSourceImage(sourceImagePath) {
-    if (sourceImagePath === config.avatar.defaultMaleImagePath) return "male";
-    if (sourceImagePath === config.avatar.defaultFemaleImagePath) return "female";
-    return null;
+  static async animatePortrait(jobId, sourceImagePath, narrationAudioPath, signal) {
+    return LocalAIService.gpu.withGPU("avatar", () => this._generateViaMuseTalk(jobId, sourceImagePath, narrationAudioPath, signal));
   }
 
-  /**
-   * Animate `sourceImagePath` (a local file on disk) with the stock driving
-   * clip, download the result, and save it to
-   * jobs/{jobId}/avatar/avatar.mp4 - same jobs/{jobId}/<kind>/ convention
-   * AudioService uses for jobs/{jobId}/audio/. Since the output only ever
-   * takes one of 2 possible forms (see _cacheKeyForSourceImage), the result
-   * is cached permanently in Smart Cache and reused across every job,
-   * skipping the GPU call entirely after the first male and first female
-   * job.
-   */
-  static async animatePortrait(jobId, sourceImagePath, signal) {
-    const cacheKey = this._cacheKeyForSourceImage(sourceImagePath);
-    if (cacheKey) {
-      const cachedUrl = await CacheService.getAvatarClip(cacheKey);
-      if (cachedUrl) {
-        LoggerService.success("Avatar overlay served from Smart Cache", { jobId, cacheKey });
-        return { file: "avatar.mp4", path: null, url: cachedUrl };
-      }
-    }
-
-    // GPU-sequential: only claim the GPU once a cache hit has been ruled
-    // out - a cached clip must never trigger a LivePortrait cold start,
-    // that would defeat the whole point of the Smart Cache above.
-    return LocalAIService.gpu.withGPU("avatar", () => this._generateViaLivePortrait(jobId, sourceImagePath, cacheKey, signal));
-  }
-
-  static async _generateViaLivePortrait(jobId, sourceImagePath, cacheKey, signal) {
+  static async _generateViaMuseTalk(jobId, sourceImagePath, narrationAudioPath, signal) {
     const baseUrl = config.avatar.url.replace(/\/$/, "");
     const avatarDir = path.resolve(__dirname, "../../../jobs", jobId, "avatar");
     await fs.mkdir(avatarDir, { recursive: true });
@@ -112,9 +91,9 @@ class AvatarService {
         const srcExt = path.extname(sourceImagePath).slice(1) || "jpg";
         const srcMime = srcExt === "png" ? "image/png" : "image/jpeg";
 
-        const [srcServerPath, drvServerPath] = await Promise.all([
+        const [srcServerPath, audioServerPath] = await Promise.all([
           this._uploadFile(baseUrl, sourceImagePath, `source.${srcExt}`, srcMime),
-          this._uploadFile(baseUrl, config.avatar.drivingVideoPath, "driving.mp4", "video/mp4"),
+          this._uploadFile(baseUrl, narrationAudioPath, "narration.wav", "audio/wav"),
         ]);
 
         // Timeouts guard against a wedged Gradio server (queue subsystem
@@ -123,41 +102,26 @@ class AvatarService {
         // lets a user's Stop click interrupt this call immediately instead
         // of only being noticed after the whole avatar step finishes - see
         // videoWorker/avatarStep.js.
-        const client = await withTimeout(Client.connect(baseUrl), config.avatar.timeout, "Connecting to LivePortrait server timed out", signal);
+        const client = await withTimeout(Client.connect(baseUrl), config.avatar.timeout, "Connecting to MuseTalk server timed out", signal);
 
+        // NOTE: endpoint name/positional args below match MuseTalk's stock
+        // Gradio demo app (image + audio -> lip-synced video). Verify/adjust
+        // against the actually-running app the first time it's reachable -
+        // same as LivePortrait's own params were hand-verified previously.
         let result;
         try {
-          result = await withTimeout(client.predict("/gpu_wrapped_execute_video", [
+          result = await withTimeout(client.predict("/inference", [
             this._fileData(srcServerPath, `source.${srcExt}`), // source image
-            null, // source video
-            { video: this._fileData(drvServerPath, "driving.mp4"), subtitles: null }, // driving video
-            null, // driving image
-            null, // driving file
-            true, // relative motion
-            true, // do crop (source)
-            true, // paste-back
-            true, // stitching
-            "all", // animation region
-            "expression-friendly", // driving option (i2v)
-            1, // driving multiplier (i2v)
-            false, // do crop (driving)
-            2.3, // source crop scale
-            0, // source crop x
-            -0.125, // source crop y
-            2.2, // driving crop scale
-            0, // driving crop x
-            -0.1, // driving crop y
-            3e-7, // motion smooth strength (v2v)
-            "", // internal textbox
-            "", // internal textbox
-          ]), config.avatar.timeout, "LivePortrait generation timed out", signal);
+            this._fileData(audioServerPath, "narration.wav"), // driving audio
+            0, // bbox_shift
+          ]), config.avatar.timeout, "MuseTalk generation timed out", signal);
         } finally {
           client.close();
         }
 
-        const animatedVideo = result.data?.[0]?.video;
+        const animatedVideo = result.data?.[0]?.video || result.data?.[0];
         if (!animatedVideo?.url) {
-          throw new Error("No animated video returned from LivePortrait");
+          throw new Error("No animated video returned from MuseTalk");
         }
 
         const videoRes = await fetch(animatedVideo.url);
@@ -169,10 +133,6 @@ class AvatarService {
         // Upload immediately - backend/jobs/ is scratch space, MinIO is the
         // durable copy. `jobId` here is the video's own id.
         const url = await getStorageProvider().uploadFile(jobId, outputFile, "avatar");
-
-        if (cacheKey) {
-          await CacheService.putAvatarClip(cacheKey, outputFile);
-        }
 
         LoggerService.success("Avatar overlay generated", { jobId, file: "avatar/avatar.mp4" });
 

@@ -6,6 +6,7 @@ const LoggerService = require('../../common/LoggerService');
 const SocketService = require('../../common/SocketService');
 const ActivityLogService = require('../../common/ActivityLogService');
 const AvatarService = require('../../avatar/avatarService');
+const { buildNarrationTrack } = require('../../avatar/narrationTrack');
 const RemotionService = require('../../video/RemotionService');
 const RemotionStatus = require('../../localAI/remotionStatus');
 const StorageService = require('../../storage/StorageService');
@@ -100,11 +101,20 @@ async function renderVideo(videoId) {
       await ActivityLogService.add(videoId, 'Avatar generation started');
 
       const sourceImagePath = AvatarService.resolveDefaultSourceImage(video.voice);
-      const avatarResult = await AvatarService.animatePortrait(jobId, sourceImagePath);
-      video.avatarVideoUrl = avatarResult.url;
-      await video.save();
+      const narrationAudioPath = await buildNarrationTrack(jobId, scenesWithAudio);
+      if (narrationAudioPath) {
+        try {
+          const avatarResult = await AvatarService.animatePortrait(jobId, sourceImagePath, narrationAudioPath);
+          video.avatarVideoUrl = avatarResult.url;
+          await video.save();
 
-      await ActivityLogService.add(videoId, 'Avatar overlay generated successfully.');
+          await ActivityLogService.add(videoId, 'Avatar overlay generated successfully.');
+        } finally {
+          await fs.unlink(narrationAudioPath).catch(() => {});
+        }
+      } else {
+        LoggerService.warn('No scene audio available yet - skipping avatar generation', { videoId });
+      }
     }
 
     // Job config

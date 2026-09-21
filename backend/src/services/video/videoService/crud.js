@@ -183,13 +183,15 @@ async function update(jobId, updates) {
     if (!guestVoice) throw { status: 400, message: 'Guest voice is required for podcast videos' };
   }
 
-  // Whether the currently-generated avatar clip (if any) is still valid:
-  // only when the avatar stays enabled and the voice - which determines
-  // which default portrait's gender it was animated from - hasn't
-  // changed. Any other transition (freshly enabling, disabling, or a
-  // voice change while enabled) invalidates it, so the next render
-  // regenerates via AvatarService (see videoWorker.js's GENERATING_AVATAR
-  // step and AvatarService.resolveDefaultSourceImage).
+  // Whether the currently-generated avatar clip (if any) is still valid.
+  // The avatar's mouth is lip-synced to the job's own narration audio (see
+  // AvatarService/narrationTrack.buildNarrationTrack), so it depends on
+  // BOTH the source portrait's gender (driven by voice) AND the narration
+  // content itself - changing either invalidates it. `updates` here never
+  // carries script/scene edits (see this function's own doc comment: it's
+  // topic/duration/voice/names/resolution only), so a voice change is the
+  // only thing this endpoint can invalidate; scene-audio regeneration
+  // invalidates it separately (see statusUpdates.updateSceneAudio).
   const wasAvatarEnabled = job.avatarEnabled;
   const previousVoice = job.voice;
 

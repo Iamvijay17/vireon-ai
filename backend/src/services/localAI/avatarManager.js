@@ -5,12 +5,13 @@ const { ManagedProcess, parseCommand } = require('./processManager');
 const { SERVICE_STATE, checkHealth, waitUntilHealthy } = require('./serviceHealth');
 
 /**
- * LivePortrait (talking-head avatar overlay - see services/avatar/avatarService.js)
- * is another Gradio app launched via its own Pinokio app on this machine
- * (C:\pinokio\api\liveportrait.git). Same shape as ttsManager.js - see that
- * file for why there's no lightweight "unload" for a Gradio process.
+ * MuseTalk (audio-driven lip-sync avatar overlay - see
+ * services/avatar/avatarService.js) is another Gradio app launched via its
+ * own Pinokio app on this machine (C:\pinokio\api\musetalk.git). Same shape
+ * as ttsManager.js - see that file for why there's no lightweight "unload"
+ * for a Gradio process.
  */
-const managed = new ManagedProcess('LivePortrait');
+const managed = new ManagedProcess('MuseTalk');
 let inFlightEnsure = null;
 
 function cfg() {
@@ -22,7 +23,7 @@ async function isRunning() {
 }
 
 /**
- * LivePortrait's env (see the comment above ManagedProcess) is a conda
+ * MuseTalk's env (see the comment above ManagedProcess) is a conda
  * environment, not a plain venv - its `_ssl`/etc. native modules load DLLs
  * (e.g. libssl-1_1-x64.dll) out of <env>\Library\bin, which is only on
  * PATH after a real `conda activate`. Pinokio's own launcher does that
@@ -47,17 +48,17 @@ async function start() {
   const { startCommand, workdir } = cfg();
   if (!startCommand) {
     throw new Error(
-      'AVATAR_START_COMMAND is not configured - set AVATAR_START_COMMAND and AVATAR_WORKDIR in .env to LivePortrait\'s venv python.exe and app.py (see C:\\pinokio\\api\\liveportrait.git\\start.js for the exact paths), or start it manually via Pinokio.'
+      'AVATAR_START_COMMAND is not configured - set AVATAR_START_COMMAND and AVATAR_WORKDIR in .env to MuseTalk\'s venv python.exe and app.py (see C:\\pinokio\\api\\musetalk.git\\start.js for the exact paths), or start it manually via Pinokio.'
     );
   }
 
   const { command, args } = parseCommand(startCommand);
-  LoggerService.info('[AI SERVICE] Starting LivePortrait', { command: startCommand, cwd: workdir });
+  LoggerService.info('[AI SERVICE] Starting MuseTalk', { command: startCommand, cwd: workdir });
   managed.spawn({ command, args, cwd: workdir || undefined, env: { PATH: condaEnvPathAdditions(command) } });
 }
 
 async function stop() {
-  LoggerService.info('[AI SERVICE] Stopping LivePortrait');
+  LoggerService.info('[AI SERVICE] Stopping MuseTalk');
   return managed.stop();
 }
 
@@ -73,7 +74,7 @@ async function restart() {
 
 async function waitUntilReady() {
   const { healthUrl, startupTimeoutMs, healthCheckIntervalMs, healthCheckTimeoutMs } = cfg();
-  LoggerService.info('[AI SERVICE] Waiting for LivePortrait');
+  LoggerService.info('[AI SERVICE] Waiting for MuseTalk');
 
   const ready = await waitUntilHealthy(healthUrl, {
     timeoutMs: startupTimeoutMs,
@@ -85,7 +86,7 @@ async function waitUntilReady() {
     throw new Error(`Avatar service failed to become ready after ${Math.round(startupTimeoutMs / 1000)} seconds.`);
   }
 
-  LoggerService.info('[AI SERVICE] LivePortrait ready', { pid: managed.pid });
+  LoggerService.info('[AI SERVICE] MuseTalk ready', { pid: managed.pid });
   return true;
 }
 
@@ -94,15 +95,15 @@ async function ensureRunning() {
     return true;
   }
 
-  LoggerService.info('[AI SERVICE] Checking LivePortrait');
+  LoggerService.info('[AI SERVICE] Checking MuseTalk');
 
   if (await isRunning()) {
-    LoggerService.info('[AI SERVICE] LivePortrait already running');
+    LoggerService.info('[AI SERVICE] MuseTalk already running');
     return true;
   }
 
   if (cfg().autoStart === false) {
-    throw new Error('LivePortrait is not running and AVATAR_AUTO_START=false - start it manually via Pinokio.');
+    throw new Error('MuseTalk is not running and AVATAR_AUTO_START=false - start it manually via Pinokio.');
   }
 
   if (inFlightEnsure) {
@@ -114,13 +115,13 @@ async function ensureRunning() {
     try {
       await start();
       await waitUntilReady();
-      LoggerService.info('[AI SERVICE] LivePortrait startup complete', {
+      LoggerService.info('[AI SERVICE] MuseTalk startup complete', {
         durationMs: Date.now() - startedAt,
         pid: managed.pid,
       });
       return true;
     } catch (err) {
-      LoggerService.error('[AI SERVICE] LivePortrait failed to start', { error: err.message });
+      LoggerService.error('[AI SERVICE] MuseTalk failed to start', { error: err.message });
       throw err;
     } finally {
       inFlightEnsure = null;
