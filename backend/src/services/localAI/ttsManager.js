@@ -21,12 +21,11 @@ async function isRunning() {
 async function start() {
   const { startCommand, workdir, ffmpegPath } = cfg();
   if (!startCommand) {
-    // Pinokio may only be the launcher, but this repo has no way to know
-    // *which* Pinokio app folder/venv holds Qwen3-TTS on an arbitrary
-    // machine - see config/index.js's comment. Fail loudly with the exact
-    // fix instead of silently doing nothing.
+    // This repo has no way to know *which* venv/checkout holds Qwen3-TTS on
+    // an arbitrary machine - see config/index.js's comment. Fail loudly with
+    // the exact fix instead of silently doing nothing.
     throw new Error(
-      'TTS_START_COMMAND is not configured - set TTS_START_COMMAND and TTS_WORKDIR in .env to the Qwen3-TTS venv python.exe and app.py (see the Pinokio app\'s install.json/pinokio.js for the exact paths), or start Qwen3-TTS manually via Pinokio.'
+      'TTS_START_COMMAND is not configured - set TTS_START_COMMAND and TTS_WORKDIR in .env to the Qwen3-TTS venv python.exe and app.py (see backend/README.md for the standalone install), or start Qwen3-TTS manually.'
     );
   }
 
@@ -46,6 +45,21 @@ async function start() {
       // inside that auto-download instead of erroring. Force the plain
       // HTTP downloader instead.
       HF_HUB_DISABLE_XET: '1',
+      // huggingface_hub caches a downloaded blob once, then symlinks it into
+      // the model's snapshot dir - creating a symlink needs the "Create
+      // symbolic links" Windows privilege (Developer Mode or admin), which
+      // this account doesn't have. Confirmed live: a first-time model
+      // download crashed with "OSError: [WinError 1314] A required
+      // privilege is not held by the client" from _create_symlink. Falls
+      // back to a plain file copy instead.
+      HF_HUB_DISABLE_SYMLINKS: '1',
+      // app.py prints emoji status lines (checkered flag/cross mark/etc.) on
+      // every generation call. Windows' default console codepage (cp1252)
+      // can't encode them, so without this every single generate call - a
+      // *successful* one included - crashed on its own status print with
+      // UnicodeEncodeError, masking whatever the real result was. Confirmed
+      // live on 2026-09-21.
+      PYTHONIOENCODING: 'utf-8',
     },
     // See processManager.js's ManagedProcess.spawn doc comment - a hidden
     // console window crashed this specific process's native runtime
@@ -128,7 +142,7 @@ async function ensureRunning() {
   }
 
   if (cfg().autoStart === false) {
-    throw new Error('Qwen3-TTS is not running and TTS_AUTO_START=false - start it manually via Pinokio.');
+    throw new Error('Qwen3-TTS is not running and TTS_AUTO_START=false - start it manually (see TTS_START_COMMAND/TTS_WORKDIR in .env).');
   }
 
   if (inFlightEnsure) {

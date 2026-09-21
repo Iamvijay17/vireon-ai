@@ -9,7 +9,7 @@ AI-powered video generation platform backend with clean architecture.
 - **Database:** MongoDB (Mongoose)
 - **Queue:** BullMQ (Redis)
 - **Realtime:** Socket.IO
-- **AI:** LM Studio (Gemma) + Pinokio Qwen3-TTS
+- **AI:** LM Studio (Gemma) + self-hosted Qwen3-TTS
 - **Rendering:** Remotion
 - **Storage:** MinIO (local S3-compatible object storage)
 - **Validation:** Zod

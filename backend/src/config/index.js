@@ -47,9 +47,9 @@ const config = Object.freeze({
   },
 
   // Local AI Service Manager (backend/src/services/localAI): auto-starts
-  // LM Studio and the Qwen3-TTS Gradio server (normally launched by hand via
-  // the LM Studio app / Pinokio) so a job never fails just because the user
-  // forgot to open them first. Health-check URLs default to derivations of
+  // LM Studio and the Qwen3-TTS Gradio server (normally launched by hand)
+  // so a job never fails just because the user forgot to open them first.
+  // Health-check URLs default to derivations of
   // the existing lmStudio.url/tts.url above rather than separate hardcoded
   // host/port literals, so the two stay in sync.
   localAI: {
@@ -88,10 +88,11 @@ const config = Object.freeze({
       autoStart: process.env.TTS_AUTO_START !== 'false',
       autoStop: process.env.TTS_AUTO_STOP !== 'false',
       // No safe cross-machine default exists for these two - they point at
-      // this machine's actual Pinokio install (see install.json/pinokio.js
-      // in the Qwen3-TTS Pinokio app folder, which run `python app.py` from
-      // its own venv). Leave unset (auto-start disabled, falls back to
-      // "start it manually") rather than guessing a path that doesn't exist.
+      // this machine's actual standalone Qwen3-TTS checkout (a clone of
+      // github.com/sup3rmass1ve/qwen3-tts, run via `python app.py` from its
+      // own venv - see backend/README.md). Leave unset (auto-start disabled,
+      // falls back to "start it manually") rather than guessing a path that
+      // doesn't exist.
       startCommand: process.env.TTS_START_COMMAND || '',
       workdir: process.env.TTS_WORKDIR || '',
       // Voice-cloning reads a reference .mp3 via pydub, which shells out to

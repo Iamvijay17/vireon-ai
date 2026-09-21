@@ -5,7 +5,7 @@ const sceneSynthesis = require('./sceneSynthesis');
 const standaloneSynthesis = require('./standaloneSynthesis');
 
 /**
- * Service for generating audio via Pinokio Qwen3-TTS API.
+ * Service for generating audio via a self-hosted Qwen3-TTS Gradio API.
  * Supports two voice modes:
  *  - "custom:<Speaker>"  -> one of Qwen3-TTS's built-in speaker presets
  *  - "clone:<file>.wav"  -> voice cloning from a reference .wav file in backend/voices/
