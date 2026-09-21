@@ -55,7 +55,7 @@ const NavRow = ({ icon: Icon, label, active, collapsed, onClick, indent = false,
     onClick={onClick}
     title={collapsed ? label : undefined}
     className={cn(
-      "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors cursor-pointer",
+      "relative flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors cursor-pointer",
       collapsed && "justify-center px-0",
       indent && !collapsed && "pl-9",
       active
@@ -63,7 +63,18 @@ const NavRow = ({ icon: Icon, label, active, collapsed, onClick, indent = false,
         : "text-sidebar-text hover:bg-sidebar-hover hover:text-sidebar-text-active"
     )}
   >
-    <Icon className="size-[18px] shrink-0" />
+    {/* Ties the active row to the brand accent, matching the underline
+        Tabs already uses for its active state - previously the sidebar's
+        active state was pure white/neutral with no accent at all. */}
+    {active && (
+      <span
+        className={cn(
+          "absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-accent",
+          collapsed && "left-0"
+        )}
+      />
+    )}
+    <Icon className={cn("size-[18px] shrink-0", active && "text-accent-400")} />
     {!collapsed && <span className="min-w-0 flex-1 truncate text-left">{label}</span>}
     {!collapsed && trailing}
   </button>

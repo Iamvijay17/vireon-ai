@@ -24,18 +24,19 @@
   --color-neutral-925: #131316;
   --color-neutral-950: #0a0a0b;
 
-  /* Accent scale — single restrained brand color, used sparingly (CTAs, active states, focus) */
-  --color-accent-50: #f2f1ff;
-  --color-accent-100: #e7e5ff;
-  --color-accent-200: #d1cbff;
-  --color-accent-300: #b3a6ff;
-  --color-accent-400: #9478ff;
-  --color-accent-500: #6d56f9;
-  --color-accent-600: #5b3fef;
-  --color-accent-700: #4c30d6;
-  --color-accent-800: #3f28ad;
-  --color-accent-900: #352489;
-  --color-accent-950: #211457;
+  /* Accent scale — single restrained brand color, used sparingly (CTAs, active states, focus).
+     Electric blue/cyan (hue ~199deg) — v2 UI refresh, replaces the earlier violet accent. */
+  --color-accent-50: #eafaff;
+  --color-accent-100: #cff3ff;
+  --color-accent-200: #a0e9ff;
+  --color-accent-300: #62d7ff;
+  --color-accent-400: #22beff;
+  --color-accent-500: #0ba5ec;
+  --color-accent-600: #0284c7;
+  --color-accent-700: #036aa3;
+  --color-accent-800: #075985;
+  --color-accent-900: #0c4a6e;
+  --color-accent-950: #082f4a;
 
   /* Status */
   --color-success-500: #1fa971;
@@ -129,7 +130,7 @@
   --accent: var(--color-accent-400);
   --accent-hover: var(--color-accent-300);
   --accent-active: var(--color-accent-500);
-  --accent-subtle: rgb(148 120 255 / 0.12);
+  --accent-subtle: rgb(34 190 255 / 0.14);
 
   --scrollbar-thumb: var(--color-neutral-700);
   --scrollbar-thumb-hover: var(--color-neutral-600);

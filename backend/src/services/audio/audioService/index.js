@@ -29,6 +29,7 @@ module.exports = {
   alignCaptions,
   generateSceneAudio: sceneSynthesis.generateSceneAudio,
   generateAllAudio: sceneSynthesis.generateAllAudio,
+  predictCacheKey: sceneSynthesis.predictCacheKey,
   generateStandaloneAudio: standaloneSynthesis.generateStandaloneAudio,
   generateStandaloneAudioChunk: standaloneSynthesis.generateStandaloneAudioChunk,
   generateDialogueTurnAudio: standaloneSynthesis.generateDialogueTurnAudio,

@@ -90,6 +90,35 @@ async function connectTtsClient(signal = null) {
  * single-scene callers), this function connects and closes its own client
  * so concurrent unrelated calls never share - or fight over - one socket.
  */
+/**
+ * Compute a scene's TTS cache key without synthesizing anything - the same
+ * hash `synthesizeSceneAudio` would compute right before checking
+ * CacheService, exposed standalone so the step-graph compiler (see
+ * core/graph/videoStepGraph.js) can predict a cache hit/miss for a scene
+ * that hasn't run yet, e.g. to report expected cache-hit rate before
+ * spending any GPU time.
+ */
+async function predictCacheKey(scene, voice, fastMode = false) {
+  const { text } = scene.audio || {};
+  if (!text) return null;
+
+  const resolved = await resolveVoice(voice);
+  const seed = seedForScene(scene, voice);
+  const instruct = instructFor(scene);
+  const modelSize = fastMode ? config.tts.fastModelSize : config.tts.modelSize;
+
+  return CacheService.hashTtsInputs({
+    text,
+    mode: resolved.mode,
+    speaker: resolved.speaker || null,
+    cloneFile: resolved.file || null,
+    description: resolved.description || null,
+    instruct,
+    seed,
+    modelSize,
+  });
+}
+
 async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipCache = false, clientHolder = null, signal = null) {
   if (signal?.aborted) throw makeAbortError();
 
@@ -415,4 +444,4 @@ async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCanc
   return results;
 }
 
-module.exports = { instructFor, synthesizeSceneAudio, generateSceneAudio, generateAllAudio };
+module.exports = { instructFor, predictCacheKey, synthesizeSceneAudio, generateSceneAudio, generateAllAudio };
