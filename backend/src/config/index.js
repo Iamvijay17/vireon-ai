@@ -160,6 +160,14 @@ const config = Object.freeze({
     // instead stays warm indefinitely until another service's acquire()
     // forces it out (GPU capacity is a hard limit either way).
     idleTimeoutMs: (parseInt(process.env.AI_SERVICE_IDLE_TIMEOUT, 10) || 60) * 1000,
+    // Coordination backend for LocalAIService.gpu (LM Studio/TTS/ComfyUI/
+    // avatar sequencing). 'in-process' (default) is today's
+    // GPUResourceManager, correct only because exactly one worker process
+    // runs. 'redis' uses core/leases (GPULeaseCoordinator) instead, so a
+    // second worker process on the same GPU actually serializes against
+    // the first rather than racing it - required before Phase 4's "split
+    // the worker binary by capability" can run more than one worker.
+    coordinator: process.env.GPU_COORDINATOR === 'redis' ? 'redis' : 'in-process',
   },
 
   avatar: {
