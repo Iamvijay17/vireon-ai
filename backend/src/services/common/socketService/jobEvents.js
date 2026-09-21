@@ -79,6 +79,10 @@ function emitSceneAudioReady(jobId, sceneNumber, audioData) {
     audio: {
       file: audioData.file,
       duration: audioData.duration,
+      // Surfaces whether this scene's TTS was served from CacheService
+      // (see audioService/sceneSynthesis.js) instead of freshly generated -
+      // lets the job timeline distinguish cache hits from real work.
+      fromCache: audioData.fromCache || false,
     },
   };
 

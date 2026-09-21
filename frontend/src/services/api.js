@@ -304,6 +304,11 @@ export const retryJob = (type, id) => api.post(`/api/jobs/${type}/${id}/retry`);
 
 export const bulkJobAction = (jobs, action) => api.post('/api/jobs/bulk', { jobs, action });
 
+// Durable per-job event timeline (JobEvent). `since` is an exclusive seq:
+// pass the highest seq already seen to fetch only what's newer.
+export const getJobEvents = (type, id, { since = 0, limit } = {}) =>
+  api.get(`/api/jobs/${type}/${id}/events`, { params: { since, ...(limit ? { limit } : {}) } });
+
 // ─── Assets (unified registry across video/course-video/audio-studio uploads) ────
 
 export const getAssets = (page = 1, limit = 20, filters = {}) =>

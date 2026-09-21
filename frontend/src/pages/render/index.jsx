@@ -13,7 +13,7 @@ import {
   regenerateVideoSceneAudio,
   getVoices,
 } from "../../services/api";
-import { LoadingState, ErrorState } from "../../components";
+import { LoadingState, ErrorState, JobEventTimeline } from "../../components";
 import RenderQueue from "./RenderQueue";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Timeline } from "../../components/ui/Timeline";
@@ -21,6 +21,8 @@ import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { DescriptionList } from "../../components/ui/DescriptionList";
 import { Tooltip } from "../../components/ui/Tooltip";
+import { Tabs } from "../../components/ui/Tabs";
+import { useJobEvents } from "../../shared/useJobEvents";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
@@ -58,6 +60,8 @@ const RenderPage = () => {
   const videoRef = useRef(null);
 
   const { activityLog, fetchActivityLogs } = useActivityLog();
+  const { events: jobEvents, loading: eventsLoading } = useJobEvents("video", jobId);
+  const [historyTab, setHistoryTab] = useState("events");
 
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
@@ -493,9 +497,23 @@ const RenderPage = () => {
           </Card>
 
           <Card className="h-fit animate-slide-up" style={{ "--stagger-index": 1 }}>
-            <CardHeader title="Activity Log" />
+            <CardHeader title="History" />
+            <Tabs
+              className="px-3"
+              active={historyTab}
+              onChange={setHistoryTab}
+              items={[
+                { key: "events", label: `Events${jobEvents.length ? ` (${jobEvents.length})` : ""}` },
+                { key: "activity", label: "Activity Log" },
+              ]}
+            />
             <div className="h-[420px] overflow-y-auto p-5">
-              {activityLog.length === 0 ? (
+              {historyTab === "events" ? (
+                <JobEventTimeline
+                  events={jobEvents}
+                  emptyText={eventsLoading ? "Loading events..." : "No events recorded yet"}
+                />
+              ) : activityLog.length === 0 ? (
                 <p className="text-[13px] text-text-tertiary">No activity yet</p>
               ) : (
                 <Timeline

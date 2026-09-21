@@ -210,6 +210,17 @@ const config = Object.freeze({
     enabled: process.env.GENERATIVE_ENGINE_ENABLED !== 'false',
   },
 
+  // SceneGraph IR (src/ir/): typed compile of script + job config that
+  // validates every scene against its template's props schema.
+  //   'shadow'        (default) compile, log issues, diff against the legacy
+  //                   render-props builder - legacy output is still what renders
+  //   'authoritative' IR-derived props render; compile errors fail the job
+  //                   at script time, before any TTS/GPU spend
+  //   'off'           skip entirely
+  ir: {
+    mode: ['off', 'shadow', 'authoritative'].includes(process.env.IR_MODE) ? process.env.IR_MODE : 'shadow',
+  },
+
   minio: {
     endpoint: process.env.MINIO_ENDPOINT || '127.0.0.1',
     port: parseInt(process.env.MINIO_PORT, 10) || 9000,

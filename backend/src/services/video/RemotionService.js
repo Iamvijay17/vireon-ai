@@ -8,6 +8,8 @@ const LoggerService = require('../common/LoggerService');
 const { getStorageProvider } = require('../storage/providers');
 const MetricsService = require('../common/MetricsService');
 const { abortableDelay, makeAbortError } = require('../../utils/abortableDelay');
+const { toRenderProps, diffRenderProps } = require('../../ir');
+const { checkSceneGraph } = require('./sceneGraphCheck');
 
 const execFileAsync = promisify(execFile);
 
@@ -164,7 +166,7 @@ class RemotionService {
     const jobDir = path.resolve(__dirname, '../../../jobs', jobId);
     await fs.mkdir(jobDir, { recursive: true });
 
-    const assets = {
+    const legacyAssets = {
       title: script.title,
       description: script.description,
       resolution: jobConfig.resolution || '1920x1080',
@@ -240,6 +242,8 @@ class RemotionService {
       },
     };
 
+    const assets = await this._reconcileWithSceneGraph(jobId, script, jobConfig, legacyAssets);
+
     const assetsPath = path.join(jobDir, 'assets.json');
     await fs.writeFile(assetsPath, JSON.stringify(assets, null, 2), 'utf-8');
 
@@ -250,6 +254,40 @@ class RemotionService {
     });
 
     return assets;
+  }
+
+  /**
+   * Run the SceneGraph compiler over the same inputs prepareAssets just
+   * used and decide which render props to hand on, per config.ir.mode:
+   * shadow keeps the legacy props but logs every field where the two
+   * builders disagree; authoritative uses the IR-derived props (and has
+   * already thrown on compile errors inside checkSceneGraph).
+   */
+  static async _reconcileWithSceneGraph(jobId, script, jobConfig, legacyAssets) {
+    const result = await checkSceneGraph({
+      jobId,
+      script,
+      jobConfig,
+      stage: 'render',
+      audioUrlFor: (sceneNumber) => getStorageProvider().getPublicUrl(jobId, 'audio', `scene${sceneNumber}.mp3`),
+    });
+    if (!result?.ir) return legacyAssets;
+
+    const irAssets = toRenderProps(result.ir);
+
+    if (config.ir.mode === 'authoritative') return irAssets;
+
+    const differences = diffRenderProps(legacyAssets, irAssets);
+    if (differences.length > 0) {
+      LoggerService.warn('SceneGraph render props differ from legacy builder', {
+        jobId,
+        count: differences.length,
+        sample: differences.slice(0, 10),
+      });
+    } else {
+      LoggerService.info('SceneGraph render props match legacy builder', { jobId });
+    }
+    return legacyAssets;
   }
 
   /**

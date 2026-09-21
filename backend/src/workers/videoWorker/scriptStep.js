@@ -6,7 +6,8 @@ const ScriptParserService = require('../../services/video/ScriptParserService');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS } = require('../../constants');
-const { bailIfCancelled } = require('./shared');
+const { bailIfCancelled, renderConfigFor } = require('./shared');
+const { checkSceneGraph } = require('../../services/video/sceneGraphCheck');
 
 /**
  * Step 1-3: script generation, only if starting fresh or restarting from
@@ -128,6 +129,16 @@ async function run(jobId, videoJob, currentStatus, ctx) {
     hostName: videoJob.hostName,
     guestName: videoJob.guestName,
     seed: jobId,
+  });
+
+  // Earliest point a template/props mismatch can be caught - before the
+  // script is persisted and long before any TTS or GPU time is spent on
+  // it. In authoritative mode this throws and fails the job here.
+  await checkSceneGraph({
+    jobId,
+    script: validatedScript,
+    jobConfig: renderConfigFor(videoJob),
+    stage: 'script',
   });
 
   // Save script to disk for the Remotion pipeline (backend/jobs/ is

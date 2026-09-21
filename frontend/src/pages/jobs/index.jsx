@@ -12,7 +12,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { getJobs, getJob, cancelJob, retryJob, bulkJobAction } from "../../services/api";
-import { PageHeader, LoadingState, EmptyState, StatusTag } from "../../components";
+import { PageHeader, LoadingState, EmptyState, StatusTag, JobEventTimeline } from "../../components";
+import { useJobEvents } from "../../shared/useJobEvents";
 import { Card } from "../../components/ui/Card";
 import { Table } from "../../components/ui/Table";
 import { Button } from "../../components/ui/Button";
@@ -135,6 +136,15 @@ const JobsPage = () => {
   };
 
   const selectedJobs = filtered.filter((j) => selectedIds.has(rowKeyOf(j)));
+
+  // Only the video pipeline records JobEvents today; other types fall back
+  // to the human-readable activity log below.
+  const detailHasEvents = detail?.job?.type === "video";
+  const { events: detailEvents, loading: detailEventsLoading } = useJobEvents(
+    detail?.job?.type,
+    detail?.job?.id,
+    { enabled: detailHasEvents }
+  );
 
   const openDetail = async (job) => {
     setDetail({ job, logs: [], lessons: [] });
@@ -511,6 +521,16 @@ const JobsPage = () => {
                     ))}
                   </div>
                 )}
+              </div>
+            ) : detailHasEvents ? (
+              <div>
+                <h4 className="mb-2 text-[13px] font-semibold text-text-primary">Events</h4>
+                <div className="max-h-80 overflow-y-auto pr-1">
+                  <JobEventTimeline
+                    events={detailEvents}
+                    emptyText={detailEventsLoading ? "Loading events..." : "No events recorded yet"}
+                  />
+                </div>
               </div>
             ) : detail.logs.length > 0 ? (
               <div>

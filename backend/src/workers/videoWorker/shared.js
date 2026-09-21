@@ -28,4 +28,23 @@ async function bailIfCancelled(jobId) {
   }
 }
 
-module.exports = { JobCancelledError, bailIfCancelled };
+/**
+ * The job-level settings RemotionService.prepareAssets and the SceneGraph
+ * compiler read, in one place so the script-stage and render-stage
+ * compiles see the same config. `avatarVideoUrl` is only known at render
+ * time (AvatarService runs after audio).
+ */
+function renderConfigFor(videoJob, avatarVideoUrl = '') {
+  return {
+    type: videoJob.type,
+    language: videoJob.language,
+    resolution: videoJob.resolution,
+    quality: videoJob.quality,
+    aspectRatio: videoJob.aspectRatio,
+    fontPairing: videoJob.fontPairing,
+    captionAnimation: videoJob.captionAnimation,
+    avatar: avatarVideoUrl ? { videoUrl: avatarVideoUrl, position: videoJob.avatarPosition } : undefined,
+  };
+}
+
+module.exports = { JobCancelledError, bailIfCancelled, renderConfigFor };

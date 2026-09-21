@@ -9,6 +9,8 @@ import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { Badge } from "../../components/ui/Badge";
+import { CopyButton } from "../../components/ui/CopyButton";
+import { Tooltip } from "../../components/ui/Tooltip";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 
@@ -148,6 +150,36 @@ const AssetsPage = () => {
       title: "Size",
       width: 90,
       render: (asset) => <span className="text-xs text-text-tertiary">{formatBytes(asset.size)}</span>,
+    },
+    {
+      key: "cache",
+      title: "Cache",
+      width: 130,
+      // contentHash = sha256 of the uploaded bytes (a byte-identical dupe
+      // elsewhere shares it); cacheKey = the producing step's input hash
+      // (only set where CacheService is wired in - TTS/audio today). Shown
+      // truncated + copyable since the full hash is only useful pasted
+      // elsewhere, never read at a glance.
+      render: (asset) => (
+        <div className="flex flex-col gap-1">
+          {asset.contentHash && (
+            <Tooltip content={`contentHash ${asset.contentHash}`}>
+              <span className="inline-flex items-center gap-1 font-mono text-[11px] text-text-tertiary">
+                {asset.contentHash.slice(0, 8)}
+                <CopyButton value={asset.contentHash} label="Copy contentHash" size="xs" />
+              </span>
+            </Tooltip>
+          )}
+          {asset.cacheKey && (
+            <Tooltip content={`cacheKey ${asset.cacheKey}`}>
+              <Badge variant="info" className="w-fit font-mono text-[10px]">
+                {asset.cacheKey.slice(0, 8)}
+              </Badge>
+            </Tooltip>
+          )}
+          {!asset.contentHash && !asset.cacheKey && <span className="text-xs text-text-tertiary">—</span>}
+        </div>
+      ),
     },
     {
       key: "createdAt",

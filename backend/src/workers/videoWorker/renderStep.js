@@ -7,7 +7,7 @@ const RemotionStatus = require('../../services/localAI/remotionStatus');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS, JOB_STEPS } = require('../../constants');
-const { JobCancelledError } = require('./shared');
+const { JobCancelledError, renderConfigFor } = require('./shared');
 
 /**
  * Step 6: prepare Remotion assets.json - always regenerated (not skipped
@@ -23,14 +23,7 @@ async function prepareAssets(jobId, videoJob, script, avatarVideoUrl, ctx) {
   await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS);
   SocketService.emitJobProgress({ _id: jobId, progress: JOB_STEPS[JOB_STATUS.PREPARING_ASSETS].progress, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
 
-  const assets = await RemotionService.prepareAssets(jobId, script, {
-    resolution: videoJob.resolution,
-    quality: videoJob.quality,
-    aspectRatio: videoJob.aspectRatio,
-    fontPairing: videoJob.fontPairing,
-    type: videoJob.type,
-    avatar: avatarVideoUrl ? { videoUrl: avatarVideoUrl, position: videoJob.avatarPosition } : undefined,
-  });
+  const assets = await RemotionService.prepareAssets(jobId, script, renderConfigFor(videoJob, avatarVideoUrl));
 
   LoggerService.success('Assets prepared');
 
