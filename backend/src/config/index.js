@@ -52,7 +52,7 @@ const config = Object.freeze({
   // mid-JSON.
   ollama: {
     url: (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/+$/, ''),
-    model: process.env.OLLAMA_MODEL || 'qwen3.5:9b',
+    model: process.env.OLLAMA_MODEL || 'gemma4:e4b-it-qat',
     numCtx: parseInt(process.env.OLLAMA_NUM_CTX, 10) || 16384,
     // Thinking models (qwen3.x, ...) otherwise spend the token budget on a
     // hidden reasoning trace before the JSON - off by default for our
