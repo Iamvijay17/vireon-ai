@@ -7,6 +7,7 @@ const SocketService = require('../services/common/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
 const { getStorageProvider } = require('../services/storage/providers');
 const { sanitizeFilename } = require('../utils/filename');
+const { NotFoundError, ValidationError } = require('../utils/errors');
 
 class CourseController {
   /**
@@ -152,7 +153,7 @@ class CourseController {
   static async generateCurriculum(req, res, next) {
     try {
       if (!req.body.title || !req.body.topic) {
-        throw { status: 400, message: 'title and topic are required' };
+        throw new ValidationError('title and topic are required');
       }
 
       const {
@@ -253,7 +254,7 @@ class CourseController {
       const rendered = videos.filter((v) => v.renderUrl);
 
       if (rendered.length === 0) {
-        throw { status: 404, message: 'No rendered videos to download for this course' };
+        throw new NotFoundError('No rendered videos to download for this course');
       }
 
       const storage = getStorageProvider();

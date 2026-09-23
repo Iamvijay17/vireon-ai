@@ -4,6 +4,7 @@ const LoggerService = require('../services/common/LoggerService');
 const VideoService = require('../services/video/VideoService');
 const ScriptParserService = require('../services/video/ScriptParserService');
 const { JOB_STATUS } = require('../constants');
+const { NotFoundError, ValidationError } = require('../utils/errors');
 
 // Cross-cutting fields that aren't part of any template's per-template shape
 // in ScriptParserService._createDefaultElements, but should still carry over
@@ -29,7 +30,7 @@ class SceneController {
       const { scenes } = req.body;
 
       if (!Array.isArray(scenes)) {
-        throw { status: 400, message: 'Scenes must be an array' };
+        throw new ValidationError('Scenes must be an array');
       }
 
       // Preserve AWAITING_APPROVAL if that's the job's current status, so
@@ -98,10 +99,10 @@ class SceneController {
       const { templateId, fromTemplateId, title, subtitle, audioText, speaker, elements: currentElements, sceneType } = req.body;
 
       if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
-        throw { status: 400, message: 'sceneNumber must be a positive integer' };
+        throw new ValidationError('sceneNumber must be a positive integer');
       }
       if (!templateId || typeof templateId !== 'string') {
-        throw { status: 400, message: 'templateId is required' };
+        throw new ValidationError('templateId is required');
       }
       // ScriptParserService.GENERATIVE_TEMPLATE_ID ("generative") is one
       // shared id across every sceneType, unlike a numbered "NNN-<sceneType>"
@@ -109,12 +110,12 @@ class SceneController {
       // knows which sceneType bucket it's picking "generative" from in the
       // template picker) must say so explicitly.
       if (templateId === ScriptParserService.GENERATIVE_TEMPLATE_ID && !sceneType) {
-        throw { status: 400, message: 'sceneType is required when templateId is "generative"' };
+        throw new ValidationError('sceneType is required when templateId is "generative"');
       }
 
       const job = await VideoJob.findById(id).select('hostName guestName').lean();
       if (!job) {
-        throw { status: 404, message: 'Video job not found' };
+        throw new NotFoundError('Video job not found');
       }
 
       const sceneInput = {
@@ -168,7 +169,7 @@ class SceneController {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
       const sceneNumber = parseInt(req.params.sceneNumber, 10);
       if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
-        throw { status: 400, message: 'sceneNumber must be a positive integer' };
+        throw new ValidationError('sceneNumber must be a positive integer');
       }
 
       const result = await VideoService.regenerateSceneAudio(id, sceneNumber);

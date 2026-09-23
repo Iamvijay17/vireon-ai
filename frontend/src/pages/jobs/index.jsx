@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -11,7 +11,8 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { getJobs, getJob, cancelJob, retryJob, bulkJobAction } from "../../services/api";
+import { cancelJob, retryJob, bulkJobAction } from "../../services/api";
+import { useJobs, useJobDetail, useInvalidateJobs } from "../../lib/useJobs";
 import { PageHeader, LoadingState, EmptyState, StatusTag, JobEventTimeline } from "../../components";
 import { useJobEvents } from "../../shared/useJobEvents";
 import { Card } from "../../components/ui/Card";
@@ -55,7 +56,10 @@ const ROUTE_FOR = {
 };
 
 const PAGE_SIZE = 20;
-const POLL_MS = 5000;
+// Safety net only. Socket events invalidate this page's query (see
+// lib/useSocketQuerySync.js); this covers the gap when an event is missed,
+// and useJobs disables it entirely when nothing is actively processing.
+const ACTIVE_POLL_MS = 10000;
 
 /**
  * Cross-type job management console - lists video jobs, courses, and audio
@@ -66,56 +70,46 @@ const POLL_MS = 5000;
  */
 const JobsPage = () => {
   const navigate = useNavigate();
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 0 });
+  const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [rowActionKey, setRowActionKey] = useState(null);
-  const [detail, setDetail] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const intervalRef = useRef(null);
+  const [detailJob, setDetailJob] = useState(null);
 
-  const fetchJobs = async (page = 1, silent = false) => {
-    try {
-      if (!silent) setLoading(true);
-      const res = await getJobs(page, PAGE_SIZE, {
-        type: typeFilter || undefined,
-        search: search || undefined,
-      });
-      setJobs(res.data.jobs || []);
-      setPagination(res.data.pagination || { page, total: 0, pages: 0 });
-      if (!silent) setSelectedIds(new Set());
-    } catch (err) {
-      if (!silent) toast.error(err.friendlyMessage || "Failed to load jobs");
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
+  const filters = useMemo(
+    () => ({ type: typeFilter || undefined, search: search || undefined }),
+    [typeFilter, search]
+  );
 
-  useEffect(() => {
-    fetchJobs(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typeFilter, search]);
+  const { jobs, pagination, loading, refreshing, error, refetch } = useJobs({
+    page,
+    limit: PAGE_SIZE,
+    filters,
+    // The safety net runs only while something is actually processing.
+    isActive: (job) => classifyStatus(job.status) === "processing",
+    activePollMs: ACTIVE_POLL_MS,
+  });
+
+  const invalidateJobs = useInvalidateJobs();
 
   const filtered = useMemo(() => {
     if (statusFilter === "all") return jobs;
     return jobs.filter((j) => classifyStatus(j.status) === statusFilter);
   }, [jobs, statusFilter]);
 
-  const hasActive = filtered.some((j) => classifyStatus(j.status) === "processing");
-
+  // Keyed on the error object so a persistent failure toasts once per
+  // failed fetch, not once per re-render.
   useEffect(() => {
-    clearInterval(intervalRef.current);
-    if (hasActive) {
-      intervalRef.current = setInterval(() => fetchJobs(pagination.page, true), POLL_MS);
-    }
-    return () => clearInterval(intervalRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasActive, pagination.page]);
+    if (error) toast.error(error.friendlyMessage || "Failed to load jobs");
+  }, [error]);
+
+  const goToPage = (next) => {
+    setPage(next);
+    setSelectedIds(new Set());
+  };
 
   const rowKeyOf = (job) => `${job.type}:${job.id}`;
 
@@ -137,6 +131,19 @@ const JobsPage = () => {
 
   const selectedJobs = filtered.filter((j) => selectedIds.has(rowKeyOf(j)));
 
+  // Fetched by the drawer's own query rather than an imperative loader, so
+  // a socket event for this job refreshes the open drawer too - the old
+  // version only ever showed what was true when it was opened.
+  const { detail: fetchedDetail, loading: detailLoading } = useJobDetail(
+    detailJob?.type,
+    detailJob?.id,
+    { enabled: Boolean(detailJob) }
+  );
+
+  // Render the clicked row immediately while its full record loads, which
+  // is what the old openDetail's optimistic setDetail was doing.
+  const detail = fetchedDetail || (detailJob ? { job: detailJob, logs: [], lessons: [] } : null);
+
   // Only the video pipeline records JobEvents today; other types fall back
   // to the human-readable activity log below.
   const detailHasEvents = detail?.job?.type === "video";
@@ -146,19 +153,7 @@ const JobsPage = () => {
     { enabled: detailHasEvents }
   );
 
-  const openDetail = async (job) => {
-    setDetail({ job, logs: [], lessons: [] });
-    setDetailLoading(true);
-    try {
-      const res = await getJob(job.type, job.id);
-      setDetail({ job: res.data.job, logs: res.data.logs || [], lessons: res.data.lessons || [] });
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to load job details");
-      setDetail(null);
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+  const openDetail = (job) => setDetailJob(job);
 
   const handleCancel = async (job) => {
     const ok = await confirmDialog({
@@ -172,7 +167,7 @@ const JobsPage = () => {
     try {
       await cancelJob(job.type, job.id);
       toast.success(`Cancelled "${job.title}"`);
-      fetchJobs(pagination.page, true);
+      invalidateJobs();
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to cancel job");
     } finally {
@@ -191,7 +186,7 @@ const JobsPage = () => {
     try {
       await retryJob(job.type, job.id);
       toast.success(`Retried "${job.title}"`);
-      fetchJobs(pagination.page, true);
+      invalidateJobs();
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to retry job");
     } finally {
@@ -211,7 +206,7 @@ const JobsPage = () => {
     try {
       await bulkJobAction([{ type: job.type, id: job.id }], "delete");
       toast.success(`Deleted "${job.title}"`);
-      fetchJobs(pagination.page, true);
+      invalidateJobs();
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to delete job");
     } finally {
@@ -244,7 +239,7 @@ const JobsPage = () => {
       } else {
         toast.error(`${label}d ${succeeded.length}/${items.length} jobs - ${failed.length} skipped/failed`);
       }
-      fetchJobs(pagination.page, true);
+      invalidateJobs();
       setSelectedIds(new Set());
     } catch (err) {
       toast.error(err.friendlyMessage || `Failed to ${action} jobs`);
@@ -416,9 +411,9 @@ const JobsPage = () => {
             size="sm"
             iconOnly
             aria-label="Refresh jobs"
-            loading={loading}
+            loading={loading || refreshing}
             icon={<RefreshCw className="size-4" />}
-            onClick={() => fetchJobs(pagination.page)}
+            onClick={() => refetch()}
           />
         </div>
       </Card>
@@ -480,7 +475,7 @@ const JobsPage = () => {
               size="sm"
               iconOnly
               disabled={pagination.page <= 1}
-              onClick={() => fetchJobs(pagination.page - 1)}
+              onClick={() => goToPage(pagination.page - 1)}
               icon={<ChevronLeft className="size-4" />}
             />
             <Button
@@ -488,14 +483,14 @@ const JobsPage = () => {
               size="sm"
               iconOnly
               disabled={pagination.page >= totalPages}
-              onClick={() => fetchJobs(pagination.page + 1)}
+              onClick={() => goToPage(pagination.page + 1)}
               icon={<ChevronRight className="size-4" />}
             />
           </div>
         )}
       </Card>
 
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={detail?.job?.title} width="lg">
+      <Modal open={!!detailJob} onClose={() => setDetailJob(null)} title={detail?.job?.title} width="lg">
         {detailLoading ? (
           <LoadingState label="Loading details..." />
         ) : detail ? (

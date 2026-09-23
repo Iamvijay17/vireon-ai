@@ -17,7 +17,9 @@
     "worker:dev": "concurrently -n MINIO,WORKER -c yellow,green --kill-others-on-fail=false \"npm:minio\" \"npm:worker:only:dev\"",
     "course-worker": "concurrently -n MINIO,COURSE-WORKER -c yellow,green --kill-others-on-fail=false \"npm:minio\" \"npm:course-worker:only\"",
     "course-worker:dev": "concurrently -n MINIO,COURSE-WORKER -c yellow,green --kill-others-on-fail=false \"npm:minio\" \"npm:course-worker:only:dev\"",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "lint": "eslint src/"
   },
   "keywords": [
@@ -55,6 +57,7 @@
   },
   "devDependencies": {
     "concurrently": "^10.0.5",
-    "eslint": "^9.18.0"
+    "eslint": "^9.18.0",
+    "jest": "^29.7.0"
   }
 }

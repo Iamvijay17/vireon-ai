@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { SchemaValidationError } = require('../utils/errors');
 const {
   VIDEO_TYPES,
   RESOLUTIONS,
@@ -172,7 +173,7 @@ const validate = (schema) => (data) => {
       field: e.path.join('.'),
       message: e.message,
     }));
-    throw { status: 400, errors };
+    throw new SchemaValidationError(errors);
   }
   return result.data;
 };

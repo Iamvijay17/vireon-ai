@@ -4,7 +4,7 @@ const VideoJob = require('../../../models/VideoJob');
 const LoggerService = require('../../common/LoggerService');
 const { JOB_STATUS } = require('../../../constants');
 const { assertTransitionAllowed } = require('../../../constants/jobTransitions');
-const { NotFoundError } = require('../../../utils/errors');
+const { NotFoundError, ValidationError } = require('../../../utils/errors');
 const { getStepForResume, getResumeStep } = require('./resumeLogic');
 const cancellationBus = require('../../common/cancellationBus');
 
@@ -205,7 +205,7 @@ async function generateAudio(jobId) {
   }
 
   if (job.fastGeneration) {
-    throw { status: 400, message: 'This job uses fast generation - audio runs automatically after approval.' };
+    throw new ValidationError('This job uses fast generation - audio runs automatically after approval.');
   }
 
   assertTransitionAllowed(job, 'generateAudio', (status) => `Job is in ${status} state. Approve the script before generating audio.`);
@@ -225,7 +225,7 @@ async function generateRender(jobId) {
   }
 
   if (job.fastGeneration) {
-    throw { status: 400, message: 'This job uses fast generation - rendering runs automatically after approval.' };
+    throw new ValidationError('This job uses fast generation - rendering runs automatically after approval.');
   }
 
   assertTransitionAllowed(job, 'generateRender', (status) => `Job is in ${status} state. Generate audio before rendering.`);

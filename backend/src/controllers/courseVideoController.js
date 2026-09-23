@@ -7,6 +7,7 @@ const { SOCKET_EVENTS } = require('../constants');
 const { validate, idSchema, idArraySchema } = require('../validators');
 const { getStorageProvider } = require('../services/storage/providers');
 const { sanitizeFilename } = require('../utils/filename');
+const { NotFoundError, ValidationError } = require('../utils/errors');
 
 const VALID_BULK_ACTIONS = ['generate-script', 'generate-audio', 'render', 'generate-full'];
 
@@ -40,7 +41,7 @@ class CourseVideoController {
       const { videoIds } = validate(idArraySchema)(req.body);
 
       if (!VALID_BULK_ACTIONS.includes(action)) {
-        throw { status: 400, message: `action must be one of: ${VALID_BULK_ACTIONS.join(', ')}` };
+        throw new ValidationError(`action must be one of: ${VALID_BULK_ACTIONS.join(', ')}`);
       }
 
       const { jobs, skipped } = await CourseVideoService.prepareBulkJobs(videoIds, action);
@@ -322,7 +323,7 @@ class CourseVideoController {
       const { id } = validate(idSchema)({ id: req.params.id });
       const sceneNumber = parseInt(req.params.sceneNumber, 10);
       if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
-        throw { status: 400, message: 'sceneNumber must be a positive integer' };
+        throw new ValidationError('sceneNumber must be a positive integer');
       }
 
       const result = await CourseVideoService.regenerateSceneAudio(id, sceneNumber);
@@ -342,7 +343,7 @@ class CourseVideoController {
       const video = await CourseVideoService.getById(id);
 
       if (!video.renderUrl) {
-        throw { status: 404, message: 'This video has not been rendered yet' };
+        throw new NotFoundError('This video has not been rendered yet');
       }
 
       const storage = getStorageProvider();

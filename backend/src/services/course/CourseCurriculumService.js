@@ -1,5 +1,6 @@
 const CourseCurriculum = require('../../models/CourseCurriculum');
 const LoggerService = require('../common/LoggerService');
+const { NotFoundError, ValidationError } = require('../../utils/errors');
 
 /**
  * Service for persisting generated Udemy-style course structures.
@@ -34,7 +35,7 @@ class CourseCurriculumService {
     }
   ) {
     if (!Array.isArray(lessons) || lessons.length === 0) {
-      throw { status: 400, message: 'lessons must be a non-empty array' };
+      throw new ValidationError('lessons must be a non-empty array');
     }
 
     const curriculum = await CourseCurriculum.findOneAndUpdate(
@@ -104,7 +105,7 @@ class CourseCurriculumService {
   static async getById(curriculumId) {
     const curriculum = await CourseCurriculum.findById(curriculumId).lean();
     if (!curriculum) {
-      throw { status: 404, message: 'Course curriculum not found' };
+      throw new NotFoundError('Course curriculum not found');
     }
     return curriculum;
   }

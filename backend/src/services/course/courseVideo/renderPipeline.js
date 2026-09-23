@@ -14,6 +14,7 @@ const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
 const { classifyError } = require('../../../utils/errorMessages');
 const { bailIfCancelled } = require('./shared');
+const { NotFoundError, ValidationError } = require('../../../utils/errors');
 
 /**
  * Render a video using the actual Remotion pipeline.
@@ -23,11 +24,11 @@ const { bailIfCancelled } = require('./shared');
 async function renderVideo(videoId) {
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   if (!video.audioUrl) {
-    throw { status: 400, message: 'Audio must be generated before rendering the video' };
+    throw new ValidationError('Audio must be generated before rendering the video');
   }
 
   video.status = VIDEO_STATUS.RENDERING_VIDEO;

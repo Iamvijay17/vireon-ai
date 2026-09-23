@@ -7,6 +7,10 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 const config = require('./config');
+// Validate the assembled config before anything connects to Mongo/Redis/MinIO
+// below - a bad .env should be a startup crash naming the variable, not a
+// confusing mid-job failure. See config/validate.js.
+require('./config/validate').assertValidOrExit(config);
 const swaggerSpec = require('./config/swagger');
 const LoggerService = require('./services/common/LoggerService');
 const VideoService = require('./services/video/VideoService');
@@ -29,6 +33,10 @@ const assetRoutes = require('./routes/assets');
 const analyticsRoutes = require('./routes/analytics');
 const logsRoutes = require('./routes/logs');
 const aiServicesRoutes = require('./routes/aiServices');
+
+// Binding to anything outside this set exposes an unauthenticated API to
+// the network - see the warning at listen() below.
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 
 const app = express();
 const server = http.createServer(app);
@@ -322,7 +330,15 @@ async function startServer() {
     await reapStuckVideoJobs();
     await reapStuckCourseVideoJobs();
 
-    server.listen(config.port, () => {
+    // Bound explicitly rather than relying on listen(port)'s implicit
+    // all-interfaces default, so the exposure is a visible decision.
+    if (!LOOPBACK_HOSTS.has(config.host)) {
+      LoggerService.warn(
+        `Listening on ${config.host} - this API has no authentication (middleware/auth.js is a pass-through stub), so anything that can reach port ${config.port} can drive it. Intended for a trusted LAN only; set HOST=127.0.0.1 to restrict it to this machine.`
+      );
+    }
+
+    server.listen(config.port, config.host, () => {
       LoggerService.border('🚀 VIREON AI SERVER STARTING', 'event');
       LoggerService.info('Server initialized', {
         port: config.port,

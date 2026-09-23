@@ -4,6 +4,7 @@ const videoQueue = require('../queues/videoQueue');
 const LoggerService = require('../services/common/LoggerService');
 const SocketService = require('../services/common/SocketService');
 const { validate, createVideoSchema, updateVideoJobSchema, jobIdSchema, jobIdArraySchema } = require('../validators');
+const { ValidationError } = require('../utils/errors');
 
 /**
  * (Re-)enqueue a job for the worker, always under a BullMQ jobId matching
@@ -160,7 +161,7 @@ class VideoController {
       // instead.
       const existingBullJob = await videoQueue.getJob(id);
       if (existingBullJob && (await existingBullJob.getState()) === 'active') {
-        throw { status: 400, message: 'Job is still actively being processed and cannot be restarted. If it appears stuck, wait a few minutes for automatic crash recovery, or stop it first.' };
+        throw new ValidationError('Job is still actively being processed and cannot be restarted. If it appears stuck, wait a few minutes for automatic crash recovery, or stop it first.');
       }
 
       const job = await VideoService.restart(id);
@@ -331,7 +332,7 @@ class VideoController {
       // real worker finishes and overwrites it again.
       const existingBullJob = await videoQueue.getJob(id);
       if (existingBullJob && (await existingBullJob.getState()) === 'active') {
-        throw { status: 400, message: 'Job is still actively being processed and cannot regenerate its script. Stop it first if it appears stuck.' };
+        throw new ValidationError('Job is still actively being processed and cannot regenerate its script. Stop it first if it appears stuck.');
       }
 
       const job = await VideoService.regenerateScript(id);

@@ -5,7 +5,7 @@ import AppNavbar from "./navbar";
 import Breadcrumbs from "./Breadcrumbs";
 import CommandPalette from "./CommandPalette";
 import LogDrawer from "../components/LogDrawer";
-import { LoadingState } from "../components";
+import { LoadingState, ErrorBoundary } from "../components";
 import { cn } from "../components/ui/cn";
 import { SidebarContext } from "../shared/sidebarContextValue";
 
@@ -64,27 +64,34 @@ const AppLayout = () => {
 
         <main className="flex-1 p-6">
           <div key={location.pathname} className="animate-fade-in">
-            <Suspense fallback={<LoadingState label="Loading..." />}>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/wizard" element={<Wizard />} />
-                <Route path="/render" element={<RenderPage />} />
-                <Route path="/studio" element={<StudioPage />} />
-                <Route path="/audio" element={<AudioPage />} />
-                <Route path="/projects" element={<Projects />} />
-                <Route path="/jobs" element={<Jobs />} />
-                <Route path="/assets" element={<Assets />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/logs" element={<LiveLogs />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/editor/complete" element={<CompletedVideos />} />
-                <Route path="/courses" element={<CoursesList />} />
-                <Route path="/courses/:id" element={<CourseDetail />} />
-                <Route path="/courses/:id/curriculum" element={<CourseCurriculum />} />
-                <Route path="/courses/:courseId/videos/:videoId" element={<CourseVideoEditor />} />
-                <Route path="/courses/:courseId/videos/:videoId/studio" element={<CourseVideoStudio />} />
-              </Routes>
-            </Suspense>
+            {/* Inside the layout, not around it: a page crash keeps the
+                sidebar, navbar and log drawer alive so the user can
+                navigate away instead of hitting a blank screen. Resets on
+                route change (see ErrorBoundary.componentDidUpdate), and
+                wraps Suspense so a failed lazy() chunk is caught too. */}
+            <ErrorBoundary resetKey={location.pathname}>
+              <Suspense fallback={<LoadingState label="Loading..." />}>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/wizard" element={<Wizard />} />
+                  <Route path="/render" element={<RenderPage />} />
+                  <Route path="/studio" element={<StudioPage />} />
+                  <Route path="/audio" element={<AudioPage />} />
+                  <Route path="/projects" element={<Projects />} />
+                  <Route path="/jobs" element={<Jobs />} />
+                  <Route path="/assets" element={<Assets />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/logs" element={<LiveLogs />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/editor/complete" element={<CompletedVideos />} />
+                  <Route path="/courses" element={<CoursesList />} />
+                  <Route path="/courses/:id" element={<CourseDetail />} />
+                  <Route path="/courses/:id/curriculum" element={<CourseCurriculum />} />
+                  <Route path="/courses/:courseId/videos/:videoId" element={<CourseVideoEditor />} />
+                  <Route path="/courses/:courseId/videos/:videoId/studio" element={<CourseVideoStudio />} />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
 

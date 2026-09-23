@@ -6,6 +6,7 @@ const LLMService = require('../../common/LLMService');
 const courseQueue = require('../../../queues/courseQueue');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../../../constants');
+const { ConflictError, NotFoundError, ValidationError } = require('../../../utils/errors');
 
 /**
  * Create a new video in a course.
@@ -74,7 +75,7 @@ async function createFromLessons(courseId, lessons, options) {
   const { voice, style, duration, additionalInstructions, fastAudio, resolution, quality } = options;
 
   if (!Array.isArray(lessons) || lessons.length === 0) {
-    throw { status: 400, message: 'lessons must be a non-empty array' };
+    throw new ValidationError('lessons must be a non-empty array');
   }
 
   const lastVideo = await CourseVideo.findOne({ courseId }).sort({ order: -1 }).select('order');
@@ -131,7 +132,7 @@ async function createPromoVideo(courseId, promo, options = {}) {
   const { voice, style, duration, additionalInstructions, fastAudio, resolution, quality } = options;
 
   if (!promo || !promo.topic) {
-    throw { status: 400, message: 'promo.topic is required' };
+    throw new ValidationError('promo.topic is required');
   }
 
   const existing = await CourseVideo.findOne({ courseId, isPromo: true });
@@ -211,7 +212,7 @@ async function getAllByCourse(courseId) {
 async function getById(videoId) {
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
   return video;
 }
@@ -239,12 +240,12 @@ const STAGE_FIELD_FOR_ACTION = {
 async function claimStage(videoId, action) {
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   if (action === 'retry') {
     if (video.status !== VIDEO_STATUS.FAILED) {
-      throw { status: 409, message: `Video is in ${video.status} state, not Failed` };
+      throw new ConflictError(`Video is in ${video.status} state, not Failed`);
     }
     return video;
   }
@@ -253,7 +254,7 @@ async function claimStage(videoId, action) {
   if (field) {
     const current = video[field];
     if (current === STAGE_STATUS.QUEUED || current === STAGE_STATUS.PROCESSING) {
-      throw { status: 409, message: `${action} is already ${current} for this video` };
+      throw new ConflictError(`${action} is already ${current} for this video`);
     }
     video[field] = STAGE_STATUS.QUEUED;
     await video.save();
@@ -273,7 +274,7 @@ const UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'resol
 async function update(videoId, data) {
   const existing = await CourseVideo.findById(videoId).select('avatarEnabled voice').lean();
   if (!existing) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   const updateData = {};
@@ -302,7 +303,7 @@ async function update(videoId, data) {
     { new: true, runValidators: true }
   );
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   LoggerService.info('Course video updated', {
@@ -319,7 +320,7 @@ async function update(videoId, data) {
 async function deleteVideo(videoId) {
   const video = await CourseVideo.findByIdAndDelete(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   await getStorageProvider().deleteJob(videoId).catch(() => {});
@@ -344,12 +345,12 @@ async function deleteVideo(videoId) {
  */
 async function bulkDelete(videoIds) {
   if (!Array.isArray(videoIds) || videoIds.length === 0) {
-    throw { status: 400, message: 'videoIds must be a non-empty array' };
+    throw new ValidationError('videoIds must be a non-empty array');
   }
 
   const videos = await CourseVideo.find({ _id: { $in: videoIds } });
   if (videos.length === 0) {
-    throw { status: 404, message: 'No videos found to delete' };
+    throw new NotFoundError('No videos found to delete');
   }
 
   const deletedIds = videos.map((v) => v._id.toString());
@@ -394,12 +395,12 @@ async function bulkDelete(videoIds) {
 async function stop(videoId) {
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   const terminalStatuses = [VIDEO_STATUS.COMPLETED, VIDEO_STATUS.FAILED, VIDEO_STATUS.CANCELLED];
   if (terminalStatuses.includes(video.status)) {
-    throw { status: 400, message: `Video is in ${video.status} state and cannot be stopped - it isn't running.` };
+    throw new ValidationError(`Video is in ${video.status} state and cannot be stopped - it isn't running.`);
   }
 
   const previousStatus = video.status;

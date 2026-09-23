@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, RefreshCw, Rocket, Eye, CheckCircle2, XCircle, Film, Redo2, Pencil, Square, CircleSlash } from "lucide-react";
-import { getVideoJobs, restartVideoJob, stopVideoJob } from "../../services/api";
+import { restartVideoJob, stopVideoJob } from "../../services/api";
+import { useVideoJobs, useInvalidateJobs } from "../../lib/useJobs";
 import { LoadingState, EmptyState, StatusTag } from "../../components";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -11,41 +12,39 @@ import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 
 const TERMINAL_STATUSES = ["COMPLETED", "FAILED", "CANCELLED"];
-const POLL_MS = 5000;
+// Safety net only - see useVideoJobs. Socket events invalidate this query
+// too (lib/useSocketQuerySync.js); this covers per-job progress, which is
+// pushed only to sockets that joined that job's room.
+const ACTIVE_POLL_MS = 10000;
 
 /**
  * Landing view for /render with no job id (the sidebar "Render" link never
- * carries one). Shows the live render queue instead of a dead end, and
- * polls while anything is actively rendering - job progress is only pushed
- * to sockets that joined that job's room (see SocketService.emitJobProgress),
- * so a page that hasn't opened any single job isn't a valid socket listener.
+ * carries one). Shows the live render queue instead of a dead end.
+ *
+ * Data comes from useVideoJobs, refreshed by socket-driven cache
+ * invalidation (lib/useSocketQuerySync.js) plus a slow safety-net refetch
+ * while anything is actively rendering. The safety net is still needed
+ * here specifically because per-job *progress* is only pushed to sockets
+ * that joined that job's room (see SocketService.emitJobProgress), and this
+ * page opens no single job's room.
  */
 const RenderQueue = () => {
   const navigate = useNavigate();
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [regeneratingId, setRegeneratingId] = useState(null);
   const [regenerateAllLoading, setRegenerateAllLoading] = useState(false);
   const [stoppingId, setStoppingId] = useState(null);
   const [stopAllLoading, setStopAllLoading] = useState(false);
-  const intervalRef = useRef(null);
 
-  const fetchJobs = async (silent = false) => {
-    try {
-      if (!silent) setLoading(true);
-      const res = await getVideoJobs(1, 100);
-      setJobs(res.data.jobs || []);
-    } catch (err) {
-      if (!silent) toast.error(err.friendlyMessage || "Failed to load render queue");
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
+  const { jobs, loading, refreshing, error, refetch } = useVideoJobs({
+    isActive: (job) => !TERMINAL_STATUSES.includes(job.status),
+    activePollMs: ACTIVE_POLL_MS,
+  });
+
+  const invalidateJobs = useInvalidateJobs();
 
   useEffect(() => {
-    fetchJobs();
-    return () => clearInterval(intervalRef.current);
-  }, []);
+    if (error) toast.error(error.friendlyMessage || "Failed to load render queue");
+  }, [error]);
 
   const active = jobs.filter((j) => !TERMINAL_STATUSES.includes(j.status));
 
@@ -62,7 +61,7 @@ const RenderQueue = () => {
       setRegeneratingId(job._id);
       await restartVideoJob(job._id);
       toast.success(`Restarted "${job.topic}"`);
-      fetchJobs(true);
+      invalidateJobs();
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to regenerate job");
     } finally {
@@ -89,7 +88,7 @@ const RenderQueue = () => {
       } else {
         toast.error(`Restarted ${eligible.length - failed}/${eligible.length} jobs - ${failed} failed`);
       }
-      fetchJobs(true);
+      invalidateJobs();
     } finally {
       setRegenerateAllLoading(false);
     }
@@ -108,7 +107,7 @@ const RenderQueue = () => {
       setStoppingId(job._id);
       await stopVideoJob(job._id);
       toast.success(`Stopped "${job.topic}"`);
-      fetchJobs(true);
+      invalidateJobs();
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to stop job");
     } finally {
@@ -134,7 +133,7 @@ const RenderQueue = () => {
       } else {
         toast.error(`Stopped ${active.length - failed}/${active.length} jobs - ${failed} failed`);
       }
-      fetchJobs(true);
+      invalidateJobs();
     } finally {
       setStopAllLoading(false);
     }
@@ -144,16 +143,6 @@ const RenderQueue = () => {
     .filter((j) => TERMINAL_STATUSES.includes(j.status))
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
     .slice(0, 6);
-
-  // Keep the queue live while something is actually rendering, without
-  // relying on per-job socket rooms this page never joins.
-  useEffect(() => {
-    clearInterval(intervalRef.current);
-    if (active.length > 0) {
-      intervalRef.current = setInterval(() => fetchJobs(true), POLL_MS);
-    }
-    return () => clearInterval(intervalRef.current);
-  }, [active.length]);
 
   if (loading && jobs.length === 0) {
     return <LoadingState label="Loading render queue..." />;
@@ -169,7 +158,7 @@ const RenderQueue = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" loading={loading} onClick={() => fetchJobs()} icon={<RefreshCw className="size-4" />}>
+          <Button variant="secondary" size="sm" loading={loading || refreshing} onClick={() => refetch()} icon={<RefreshCw className="size-4" />}>
             Refresh
           </Button>
           <Button variant="primary" size="lg" icon={<Plus className="size-4" />} onClick={() => navigate("/wizard")}>

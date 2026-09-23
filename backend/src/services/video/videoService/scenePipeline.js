@@ -3,6 +3,7 @@ const LoggerService = require('../../common/LoggerService');
 const ActivityLogService = require('../../common/ActivityLogService');
 const AudioService = require('../../audio/audioService');
 const { updateSceneAudio } = require('./statusUpdates');
+const { NotFoundError } = require('../../../utils/errors');
 
 /**
  * Regenerate audio for a single scene, rather than the whole job. Runs
@@ -13,12 +14,12 @@ const { updateSceneAudio } = require('./statusUpdates');
 async function regenerateSceneAudio(jobId, sceneNumber) {
   const job = await VideoJob.findById(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found' };
+    throw new NotFoundError('Job not found');
   }
 
   const scene = job.script?.scenes?.find((s) => s.sceneNumber === sceneNumber);
   if (!scene) {
-    throw { status: 404, message: `Scene ${sceneNumber} not found` };
+    throw new NotFoundError(`Scene ${sceneNumber} not found`);
   }
 
   const SocketService = require('../../common/SocketService');

@@ -53,7 +53,7 @@ async function cancelOne(type, id) {
     return CourseService.stopAll(id);
   }
 
-  throw { status: 400, message: 'Cancel is not supported for audio jobs (generation is synchronous)' };
+  throw new ValidationError('Cancel is not supported for audio jobs (generation is synchronous)');
 }
 
 /**
@@ -68,7 +68,7 @@ async function retryOne(type, id) {
   if (type === 'video') {
     const existingBullJob = await videoQueue.getJob(id);
     if (existingBullJob && (await existingBullJob.getState()) === 'active') {
-      throw { status: 400, message: 'Job is still actively being processed and cannot be restarted.' };
+      throw new ValidationError('Job is still actively being processed and cannot be restarted.');
     }
     const job = await VideoService.restart(id);
     await ActivityLogService.add(id, 'Job restarted');
@@ -84,7 +84,7 @@ async function retryOne(type, id) {
     return job;
   }
 
-  throw { status: 400, message: `Retry is not supported for ${type} jobs from Job Management - use the ${type} page's own retry action` };
+  throw new ValidationError(`Retry is not supported for ${type} jobs from Job Management - use the ${type} page's own retry action`);
 }
 
 /**
@@ -220,10 +220,10 @@ class JobController {
     try {
       const { jobs, action } = req.body;
       if (!Array.isArray(jobs) || jobs.length === 0) {
-        throw { status: 400, message: 'jobs must be a non-empty array of { type, id }' };
+        throw new ValidationError('jobs must be a non-empty array of { type, id }');
       }
       if (!['cancel', 'retry', 'delete'].includes(action)) {
-        throw { status: 400, message: 'action must be one of: cancel, retry, delete' };
+        throw new ValidationError('action must be one of: cancel, retry, delete');
       }
 
       const handler = { cancel: cancelOne, retry: retryOne, delete: deleteOne }[action];

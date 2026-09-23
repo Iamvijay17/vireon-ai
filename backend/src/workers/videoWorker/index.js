@@ -1,6 +1,9 @@
 const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
 const config = require('../../config');
+// Same fail-fast guard server.js applies - a worker started against a bad
+// .env would otherwise pick up jobs and fail them one by one.
+require('../../config/validate').assertValidOrExit(config);
 const LoggerService = require('../../services/common/LoggerService');
 
 // Fire-and-forget: spawns a local redis-server if REDIS_HOST is localhost
@@ -128,6 +131,10 @@ async function shutdown(signal) {
   try {
     await worker.close();
     clearTimeout(forceExit);
+    // Hand the GPU back before exiting. A process that dies holding the
+    // cross-process lease makes every other process wait out its full TTL
+    // for a card that is already free.
+    await require('../../services/localAI').gpu.shutdown().catch(() => {});
     await mongoose.connection.close();
     LoggerService.info('Video worker shut down gracefully');
     process.exit(0);

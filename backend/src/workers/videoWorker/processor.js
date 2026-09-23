@@ -6,7 +6,7 @@ const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const videoQueue = require('../../queues/videoQueue');
 const { JOB_STATUS } = require('../../constants');
-const { computeBackoffMs } = require('../../utils/backoff');
+const { decideRetry, describeRetry, describeExhausted, retryJobId } = require('../../services/common/retryPolicy');
 const { classifyError } = require('../../utils/errorMessages');
 const { bailIfCancelled } = require('./shared');
 const cancellationBus = require('../../services/common/cancellationBus');
@@ -162,10 +162,14 @@ async function processVideoJob(job) {
     });
 
     const { friendly, detail } = classifyError(err, step);
+    // retryCount stores retries already taken, so the attempt that just
+    // failed is one past it. See services/common/retryPolicy.js for the
+    // budget/backoff rules both workers now share.
     const attempt = (videoJob.error?.retryCount || 0) + 1;
     const maxRetries = videoJob.maxRetries || 3;
+    const retry = decideRetry({ attempt, maxRetries });
 
-    if (attempt <= maxRetries) {
+    if (retry.shouldRetry) {
       // Retries remain - schedule an automatic resume instead of leaving
       // this FAILED for a human to click Restart. A distinct BullMQ job id
       // (not the video job's own id) avoids colliding with this attempt's
@@ -173,21 +177,19 @@ async function processVideoJob(job) {
       // means BullMQ marks *this* attempt 'completed' rather than 'failed' -
       // see videoQueue.js's comment for why that race matters.
       try {
-        const delay = computeBackoffMs(attempt);
-        const nextRetryAt = new Date(Date.now() + delay);
         const scheduledJob = await VideoService.scheduleRetry(jobId, {
           message: friendly,
           detail,
           step,
           retryCount: attempt,
-          nextRetryAt,
+          nextRetryAt: retry.nextRetryAt,
         });
         SocketService.emitJobProgress(scheduledJob);
         await ActivityLogService.add(
           jobId,
-          `${step} failed (attempt ${attempt}/${maxRetries}): ${friendly} - retrying in ${Math.round(delay / 1000)}s`
+          describeRetry({ step, attempt, maxRetries, delayMs: retry.delayMs, reason: friendly })
         );
-        await videoQueue.add('render-video', { jobId }, { jobId: `${jobId}:retry:${attempt}`, delay });
+        await videoQueue.add('render-video', { jobId }, { jobId: retryJobId(jobId, attempt), delay: retry.delayMs });
         MetricsService.increment('job.retries');
       } catch (dbErr) {
         LoggerService.error('Failed to schedule automatic retry', { error: dbErr.message });
@@ -199,7 +201,7 @@ async function processVideoJob(job) {
     try {
       const failedJob = await VideoService.fail(jobId, friendly, step, { detail, retryCount: attempt });
       SocketService.emitJobFailed(failedJob, friendly);
-      await ActivityLogService.add(jobId, `${step} failed after ${attempt} attempts: ${friendly}`);
+      await ActivityLogService.add(jobId, describeExhausted({ step, attempt, reason: friendly }));
     } catch (dbErr) {
       LoggerService.error('Failed to update job status in DB', { error: dbErr.message });
     }

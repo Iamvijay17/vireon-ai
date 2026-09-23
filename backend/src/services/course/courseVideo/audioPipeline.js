@@ -9,6 +9,7 @@ const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
 const { classifyError } = require('../../../utils/errorMessages');
 const { bailIfCancelled } = require('./shared');
+const { NotFoundError, ValidationError } = require('../../../utils/errors');
 
 /**
  * Generate audio for an approved video.
@@ -16,14 +17,14 @@ const { bailIfCancelled } = require('./shared');
 async function generateAudio(videoId) {
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   if (!video.script?.scenes?.length) {
-    throw { status: 400, message: 'A script must exist before generating audio' };
+    throw new ValidationError('A script must exist before generating audio');
   }
   if (!video.approved) {
-    throw { status: 400, message: 'The script must be approved before generating audio' };
+    throw new ValidationError('The script must be approved before generating audio');
   }
 
   video.status = VIDEO_STATUS.GENERATING_AUDIO;
@@ -176,12 +177,12 @@ async function generateAudio(videoId) {
 async function regenerateSceneAudio(videoId, sceneNumber) {
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   const scene = video.script?.scenes?.find((s) => s.sceneNumber === sceneNumber);
   if (!scene) {
-    throw { status: 404, message: `Scene ${sceneNumber} not found` };
+    throw new NotFoundError(`Scene ${sceneNumber} not found`);
   }
 
   const jobId = video._id.toString();

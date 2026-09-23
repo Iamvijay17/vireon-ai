@@ -4,6 +4,7 @@ const { VIDEO_STATUS } = require('../../../constants');
 const { generateScript } = require('./scriptPipeline');
 const { generateAudio } = require('./audioPipeline');
 const { renderVideo } = require('./renderPipeline');
+const { NotFoundError, ValidationError } = require('../../../utils/errors');
 
 /**
  * Mark a failed step as retry-pending (RETRY_SCHEDULED) instead of leaving
@@ -19,7 +20,7 @@ async function scheduleRetry(videoId, { nextRetryAt } = {}) {
     { new: true }
   );
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
   return video;
 }
@@ -30,11 +31,11 @@ async function scheduleRetry(videoId, { nextRetryAt } = {}) {
 async function retryStep(videoId) {
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   if (video.status !== VIDEO_STATUS.FAILED) {
-    throw { status: 400, message: `Video is in ${video.status} state, not Failed` };
+    throw new ValidationError(`Video is in ${video.status} state, not Failed`);
   }
 
   const failedStep = video.error?.step || 'Script Generation';

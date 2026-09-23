@@ -1,6 +1,8 @@
 const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
 const config = require('../config');
+// Same fail-fast guard server.js applies - see config/validate.js.
+require('../config/validate').assertValidOrExit(config);
 const LoggerService = require('../services/common/LoggerService');
 
 // Fire-and-forget: spawns a local redis-server if REDIS_HOST is localhost
@@ -12,7 +14,7 @@ const CourseVideoService = require('../services/course/CourseVideoService');
 const SocketService = require('../services/common/SocketService');
 const StorageService = require('../services/storage/StorageService');
 const courseQueue = require('../queues/courseQueue');
-const { computeBackoffMs } = require('../utils/backoff');
+const { decideRetry, describeRetry, retryJobId } = require('../services/common/retryPolicy');
 const ActivityLogService = require('../services/common/ActivityLogService');
 
 // See videoWorker.js's identical handlers for why this process needs them
@@ -143,23 +145,26 @@ const courseVideoWorker = new Worker(
           LoggerService.error('Course video not found while handling job failure', { videoId, action });
         }
 
+        // The pipeline module already incremented error.retryCount before
+        // rethrowing, so this is the attempt that just failed - no +1 here,
+        // unlike videoWorker's processor. retryStep re-runs the same failed
+        // action from a clean slate and shouldn't itself trigger another
+        // automatic retry loop, hence the `eligible` veto. Budget/backoff
+        // rules live in services/common/retryPolicy.js, shared with the
+        // video worker.
         const attempt = video?.error?.retryCount || 0;
         const maxRetries = video?.maxRetries || 3;
-        // retryStep re-runs the same failed action from a clean slate and
-        // shouldn't itself trigger another automatic retry loop - only the
-        // original generate-script/generate-audio/render actions do.
-        const isAutoRetryable = !!video && attempt > 0 && attempt <= maxRetries && action !== 'retry';
+        const retry = decideRetry({ attempt, maxRetries, eligible: !!video && action !== 'retry' });
 
-        if (isAutoRetryable) {
-          const delay = computeBackoffMs(attempt);
-          const nextRetryAt = new Date(Date.now() + delay);
-          await CourseVideoService.scheduleRetry(videoId, { nextRetryAt });
+        if (retry.shouldRetry) {
+          const step = video.error?.step || action;
+          await CourseVideoService.scheduleRetry(videoId, { nextRetryAt: retry.nextRetryAt });
           await ActivityLogService.add(
             videoId,
-            `${video.error?.step || action} failed (attempt ${attempt}/${maxRetries}) - retrying in ${Math.round(delay / 1000)}s`
+            describeRetry({ step, attempt, maxRetries, delayMs: retry.delayMs })
           );
-          await courseQueue.add(action, { videoId, action }, { jobId: `${videoId}:retry:${attempt}`, delay });
-          LoggerService.info('Course video job scheduled for automatic retry', { videoId, action, attempt, delay });
+          await courseQueue.add(action, { videoId, action }, { jobId: retryJobId(videoId, attempt), delay: retry.delayMs });
+          LoggerService.info('Course video job scheduled for automatic retry', { videoId, action, attempt, delay: retry.delayMs });
           return { success: false, videoId, retryScheduled: true, attempt };
         }
       } catch (dbErr) {
@@ -228,6 +233,10 @@ async function shutdown(signal) {
   try {
     await courseVideoWorker.close();
     clearTimeout(forceExit);
+    // Hand the GPU back before exiting. A process that dies holding the
+    // cross-process lease makes every other process wait out its full TTL
+    // for a card that is already free.
+    await require('../services/localAI').gpu.shutdown().catch(() => {});
     await mongoose.connection.close();
     LoggerService.info('Course video worker shut down gracefully');
     process.exit(0);

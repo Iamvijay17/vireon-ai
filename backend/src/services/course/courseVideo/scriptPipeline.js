@@ -7,6 +7,7 @@ const LocalAIService = require('../../localAI');
 const ScriptParserService = require('../../video/ScriptParserService');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
 const { classifyError } = require('../../../utils/errorMessages');
+const { NotFoundError, ValidationError } = require('../../../utils/errors');
 
 /**
  * Build the prompt for a course's promotional trailer video (the
@@ -136,7 +137,7 @@ Rules:
 async function generateScript(videoId) {
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   // Update status
@@ -217,11 +218,11 @@ async function generateScript(videoId) {
 async function approveScript(videoId) {
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   if (video.status !== VIDEO_STATUS.SCRIPT_GENERATED && video.status !== VIDEO_STATUS.WAITING_FOR_APPROVAL) {
-    throw { status: 400, message: `Script cannot be approved in ${video.status} state` };
+    throw new ValidationError(`Script cannot be approved in ${video.status} state`);
   }
 
   video.approved = true;
@@ -288,12 +289,12 @@ async function bulkApproveScripts(videoIds) {
  */
 async function updateScript(videoId, script) {
   if (!script || typeof script !== 'object' || !Array.isArray(script.scenes)) {
-    throw { status: 400, message: 'script must be an object with a scenes array' };
+    throw new ValidationError('script must be an object with a scenes array');
   }
 
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   video.script = script;
@@ -319,7 +320,7 @@ async function regenerateScript(videoId) {
   // Reset script data and re-generate
   const video = await CourseVideo.findById(videoId);
   if (!video) {
-    throw { status: 404, message: 'Video not found' };
+    throw new NotFoundError('Video not found');
   }
 
   video.script = { title: '', description: '', tags: [], thumbnailPrompt: '', scenes: [] };

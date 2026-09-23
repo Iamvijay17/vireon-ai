@@ -11,6 +11,11 @@ const IMAGE_BEARING = new Set(['image', 'contentwithimage']);
  * Compile a video job's SceneGraph IR into a step DAG - the v2 replacement
  * shape for videoWorker/processor.js's 9 hard-coded sequential steps.
  *
+ * PARKED, not abandoned: see src/core/README.md for why this is not wired
+ * into the live pipeline (per-scene nodes would serialize on the single GPU
+ * slot anyway, while thrashing the batch-wide withGPU that audioStep.js
+ * holds on purpose) and what would change that.
+ *
  * Every scene's audio (and image, where the sceneType needs one) becomes
  * its own node with no edge between sibling scenes, so N independent
  * scenes can run concurrently instead of the strict for-loop

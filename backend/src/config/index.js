@@ -14,6 +14,13 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: true });
 
 const config = Object.freeze({
   port: parseInt(process.env.PORT, 10) || 3000,
+  // Interface to bind. Defaults to 0.0.0.0 because LAN access is an
+  // intended workflow here (CORS_ORIGIN ships with LAN origins, and the
+  // frontend runs `vite --host`). That is only safe on a trusted network:
+  // middleware/auth.js is a documented pass-through, so anything that can
+  // reach this port can drive the whole API. Set HOST=127.0.0.1 to make it
+  // loopback-only. server.js warns on every non-loopback bind.
+  host: process.env.HOST || '0.0.0.0',
   nodeEnv: process.env.NODE_ENV || 'development',
   isDev: (process.env.NODE_ENV || 'development') === 'development',
   isProd: process.env.NODE_ENV === 'production',
@@ -213,11 +220,19 @@ const config = Object.freeze({
     // Coordination backend for LocalAIService.gpu (LM Studio/TTS/ComfyUI/
     // avatar sequencing). 'in-process' (default) is today's
     // GPUResourceManager, correct only because exactly one worker process
-    // runs. 'redis' uses core/leases (GPULeaseCoordinator) instead, so a
+    // runs. 'redis' additionally backs it with core/leases/RedisLease, so a
     // second worker process on the same GPU actually serializes against
     // the first rather than racing it - required before Phase 4's "split
     // the worker binary by capability" can run more than one worker.
+    // Warm reuse survives: the holder only unloads when another process
+    // signals demand (RedisLease.signalDemand), not on every release.
     coordinator: process.env.GPU_COORDINATOR === 'redis' ? 'redis' : 'in-process',
+    // TTL on the cross-process GPU lease (coordinator: 'redis' only). Held
+    // leases renew at a third of this, so it does NOT need to cover a long
+    // TTS/render call - it only bounds how long a *crashed* holder's claim
+    // lingers before another process can reclaim the card. Short is good;
+    // too short risks a renewal round-trip losing a race it should win.
+    leaseTtlMs: parseInt(process.env.GPU_LEASE_TTL_MS, 10) || 30000,
   },
 
   avatar: {

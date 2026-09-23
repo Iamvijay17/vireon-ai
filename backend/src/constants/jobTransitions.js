@@ -1,4 +1,5 @@
 const { JOB_STATUS } = require('./index');
+const { ValidationError } = require('../utils/errors');
 
 const ALL_STATUSES = Object.values(JOB_STATUS);
 
@@ -44,7 +45,7 @@ function assertTransitionAllowed(job, action, describe) {
     throw new Error(`Unknown video job transition "${action}"`);
   }
   if (!allowed.includes(job.status)) {
-    throw { status: 400, message: describe(job.status) };
+    throw new ValidationError(describe(job.status));
   }
 }
 

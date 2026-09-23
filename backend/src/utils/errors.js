@@ -42,6 +42,22 @@ class ConflictError extends AppError {
   }
 }
 
+/**
+ * 400 - a request rejected by a zod schema, carrying the per-field issues
+ * the UI renders next to each input.
+ *
+ * Distinct from ValidationError because it has a `details` payload:
+ * errorHandler used to detect this shape structurally (`err.status &&
+ * err.errors`), which matched any error that happened to have both
+ * properties. A real type makes the branch exact.
+ */
+class SchemaValidationError extends AppError {
+  constructor(details, message = 'Validation failed') {
+    super(message, 400);
+    this.details = details;
+  }
+}
+
 /** 500 - a pipeline/render step failed for a reason worth distinguishing from a generic 500. */
 class RenderError extends AppError {
   constructor(message = 'Render failed') {
@@ -49,4 +65,4 @@ class RenderError extends AppError {
   }
 }
 
-module.exports = { AppError, NotFoundError, ValidationError, ConflictError, RenderError };
+module.exports = { AppError, NotFoundError, ValidationError, ConflictError, SchemaValidationError, RenderError };

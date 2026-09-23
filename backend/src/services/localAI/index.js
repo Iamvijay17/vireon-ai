@@ -35,7 +35,21 @@ if (!llmEntry) {
 }
 const llmManager = llmEntry.manager;
 
-const gpu = new GPUResourceManager();
+// GPU_COORDINATOR=redis backs the sequencing below with a Redis lease, so a
+// second process (the course-video worker, a split render worker, a second
+// videoWorker) serializes against this one instead of racing it onto the same
+// card. 'in-process' keeps the original Map-only behavior, which is correct
+// only while exactly one process touches the GPU.
+//
+// The lease is created lazily here rather than inside GPUResourceManager so
+// that the in-process path opens no Redis connections at all.
+let gpuLease = null;
+if (config.gpu.coordinator === 'redis') {
+  const { RedisLease } = require('../../core/leases/RedisLease');
+  gpuLease = new RedisLease();
+}
+
+const gpu = new GPUResourceManager({ lease: gpuLease });
 gpu.register('llm', llmManager, { autoStop: llmEntry.cfg.autoStop, process: llmManager.process });
 gpu.register('tts', ttsManager, { autoStop: config.localAI.tts.autoStop, process: ttsManager.process });
 gpu.register('comfyui', comfyUIManager, { autoStop: config.localAI.comfyUI.autoStop, process: comfyUIManager.process });

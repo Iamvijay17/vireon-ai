@@ -50,16 +50,17 @@ class LeaseTimeoutError extends Error {
  * in that process's memory) becomes something a second worker, or a
  * capability-split worker, can actually participate in.
  *
- * Not wired into gpuResourceManager yet - see GPULeaseCoordinator for the
- * drop-in adapter that exposes the *same* acquire/release/withGPU shape
- * gpuResourceManager does, so switching which one a caller uses is a
- * one-line change gated by config.gpu.coordinator.
+ * Wired into GPUResourceManager (see its constructor's `lease` option),
+ * which holds one process-wide lease named 'gpu-slot' whenever it has a
+ * model loaded. Enabled by GPU_COORDINATOR=redis; the in-process path is
+ * unchanged when it is off.
  */
 class RedisLease {
   constructor({ host = config.redis.host, port = config.redis.port } = {}) {
     this._client = new Redis({ host, port, maxRetriesPerRequest: null });
     this._subscriber = null; // lazily created - most processes only ever release, never wait
     this._waiters = new Map(); // name -> Set<() => void>
+    this._demandHandlers = new Map(); // name -> Set<() => void>
   }
 
   _key(name) {
@@ -70,10 +71,25 @@ class RedisLease {
     return `lease-released:${name}`;
   }
 
+  // Separate channel from _channel(): "released" is a fact about the past
+  // (the key is free now, re-attempt), "wanted" is a request about the
+  // future (someone is queuing behind you - stop holding this for
+  // convenience). A holder needs to hear the second without being woken by
+  // every instance of the first. See GPUResourceManager's demand handler.
+  _demandChannel(name) {
+    return `lease-wanted:${name}`;
+  }
+
   async _ensureSubscriber() {
     if (this._subscriber) return this._subscriber;
     this._subscriber = new Redis({ host: this._client.options.host, port: this._client.options.port, maxRetriesPerRequest: null });
     this._subscriber.on('message', (channel, message) => {
+      if (channel.startsWith('lease-wanted:')) {
+        const name = channel.replace(/^lease-wanted:/, '');
+        for (const handler of this._demandHandlers.get(name) || []) handler();
+        return;
+      }
+
       if (message !== 'released') return;
       const name = channel.replace(/^lease-released:/, '');
       const waiters = this._waiters.get(name);
@@ -93,6 +109,33 @@ class RedisLease {
       this._waiters.set(name, new Set());
       await subscriber.subscribe(this._channel(name));
     }
+  }
+
+  /**
+   * Announce that this process wants `name` but could not get it. A holder
+   * that is only keeping the lease for convenience (e.g. a warm but idle
+   * GPU service) can use this to give it up early instead of making the
+   * waiter sit out the full idle timeout.
+   *
+   * Purely advisory: nothing about correctness depends on anyone listening,
+   * and a holder doing real work is free to ignore it.
+   */
+  async signalDemand(name) {
+    await this._client.publish(this._demandChannel(name), 'wanted');
+  }
+
+  /**
+   * Run `handler` whenever another process signals demand for `name`.
+   * Returns an unsubscribe function.
+   */
+  async onDemand(name, handler) {
+    const subscriber = await this._ensureSubscriber();
+    if (!this._demandHandlers.has(name)) {
+      this._demandHandlers.set(name, new Set());
+      await subscriber.subscribe(this._demandChannel(name));
+    }
+    this._demandHandlers.get(name).add(handler);
+    return () => this._demandHandlers.get(name)?.delete(handler);
   }
 
   /**
@@ -116,6 +159,11 @@ class RedisLease {
       if (ok) return { name, token, ttlMs };
 
       if (Date.now() >= deadline) throw new LeaseTimeoutError(name, waitMs);
+
+      // Tell the current holder someone is queuing before sleeping. Re-sent
+      // on every loop iteration rather than once, so a holder that starts
+      // listening late (or was mid-operation the first time) still hears it.
+      await this.signalDemand(name).catch(() => {});
 
       const remaining = deadline === Infinity ? pollMs : Math.min(pollMs, deadline - Date.now());
       await this._waitForWakeOrTimeout(name, remaining);

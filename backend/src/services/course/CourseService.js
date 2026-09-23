@@ -3,6 +3,7 @@ const CourseVideo = require('../../models/CourseVideo');
 const LoggerService = require('../common/LoggerService');
 const { getStorageProvider } = require('../storage/providers');
 const { COURSE_STATUS, VIDEO_STATUS } = require('../../constants');
+const { NotFoundError } = require('../../utils/errors');
 
 /**
  * Service for managing courses.
@@ -77,7 +78,7 @@ class CourseService {
   static async getById(courseId) {
     const course = await Course.findById(courseId);
     if (!course) {
-      throw { status: 404, message: 'Course not found' };
+      throw new NotFoundError('Course not found');
     }
 
     // Get video counts by status
@@ -107,7 +108,7 @@ class CourseService {
       { new: true, runValidators: true }
     );
     if (!course) {
-      throw { status: 404, message: 'Course not found' };
+      throw new NotFoundError('Course not found');
     }
 
     LoggerService.info('Course updated', {
@@ -132,7 +133,7 @@ class CourseService {
       { new: true }
     );
     if (!course) {
-      throw { status: 404, message: 'Course not found' };
+      throw new NotFoundError('Course not found');
     }
     return course.curriculumDraft;
   }
@@ -147,7 +148,7 @@ class CourseService {
       { new: true }
     );
     if (!course) {
-      throw { status: 404, message: 'Course not found' };
+      throw new NotFoundError('Course not found');
     }
     return { success: true };
   }
@@ -158,7 +159,7 @@ class CourseService {
   static async delete(courseId) {
     const course = await Course.findByIdAndDelete(courseId);
     if (!course) {
-      throw { status: 404, message: 'Course not found' };
+      throw new NotFoundError('Course not found');
     }
 
     // Delete all videos in this course, along with their MinIO assets
@@ -181,7 +182,7 @@ class CourseService {
   static async stopAll(courseId) {
     const course = await Course.findById(courseId);
     if (!course) {
-      throw { status: 404, message: 'Course not found' };
+      throw new NotFoundError('Course not found');
     }
 
     const terminalStatuses = [VIDEO_STATUS.COMPLETED, VIDEO_STATUS.FAILED, VIDEO_STATUS.CANCELLED];

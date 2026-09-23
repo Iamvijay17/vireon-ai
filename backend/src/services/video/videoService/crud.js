@@ -7,7 +7,7 @@ const {
   STANDALONE_VIDEO_DURATIONS,
   SHORTS_VIDEO_DURATIONS,
 } = require('../../../constants');
-const { NotFoundError } = require('../../../utils/errors');
+const { NotFoundError, ValidationError } = require('../../../utils/errors');
 
 // A job actively being worked on by the worker can't have its details
 // edited underneath it - the same "actively processing" concern as
@@ -116,7 +116,7 @@ async function getById(jobId) {
 async function deleteJob(jobId) {
   const job = await VideoJob.findByIdAndDelete(jobId);
   if (!job) {
-    throw { status: 404, message: 'Job not found or already deleted' };
+    throw new NotFoundError('Job not found or already deleted');
   }
 
   await JobEventService.deleteByJob(jobId);
@@ -132,7 +132,7 @@ async function deleteJob(jobId) {
 async function bulkDelete(jobIds) {
   const result = await VideoJob.deleteMany({ _id: { $in: jobIds } });
   if (result.deletedCount === 0) {
-    throw { status: 404, message: 'No jobs found to delete' };
+    throw new NotFoundError('No jobs found to delete');
   }
 
   await JobEventService.deleteByJob(jobIds);
@@ -158,7 +158,7 @@ async function update(jobId, updates) {
   }
 
   if (BUSY_STATUSES.includes(job.status)) {
-    throw { status: 400, message: `Job is actively processing (${job.status}) and can't be edited right now.` };
+    throw new ValidationError(`Job is actively processing (${job.status}) and can't be edited right now.`);
   }
 
   // `type` isn't editable, so duration/resolution are re-validated against
@@ -167,20 +167,20 @@ async function update(jobId, updates) {
   const resolution = updates.resolution ?? job.resolution;
   if (job.type === 'youtube_shorts') {
     if (!SHORTS_VIDEO_DURATIONS.includes(duration)) {
-      throw { status: 400, message: `YouTube Shorts duration must be one of: ${SHORTS_VIDEO_DURATIONS.join(', ')}` };
+      throw new ValidationError(`YouTube Shorts duration must be one of: ${SHORTS_VIDEO_DURATIONS.join(', ')}`);
     }
     if (getAspectRatioForResolution(resolution) !== '9:16') {
-      throw { status: 400, message: 'YouTube Shorts must use a vertical resolution' };
+      throw new ValidationError('YouTube Shorts must use a vertical resolution');
     }
   } else if (!STANDALONE_VIDEO_DURATIONS.includes(duration)) {
-    throw { status: 400, message: `Duration must be one of: ${STANDALONE_VIDEO_DURATIONS.join(', ')}` };
+    throw new ValidationError(`Duration must be one of: ${STANDALONE_VIDEO_DURATIONS.join(', ')}`);
   }
 
   if (job.type === 'podcast') {
     const hostVoice = updates.hostVoice ?? job.hostVoice;
     const guestVoice = updates.guestVoice ?? job.guestVoice;
-    if (!hostVoice) throw { status: 400, message: 'Host voice is required for podcast videos' };
-    if (!guestVoice) throw { status: 400, message: 'Guest voice is required for podcast videos' };
+    if (!hostVoice) throw new ValidationError('Host voice is required for podcast videos');
+    if (!guestVoice) throw new ValidationError('Guest voice is required for podcast videos');
   }
 
   // Whether the currently-generated avatar clip (if any) is still valid.

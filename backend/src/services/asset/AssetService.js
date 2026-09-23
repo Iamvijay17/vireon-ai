@@ -6,6 +6,7 @@ const VideoJob = require('../../models/VideoJob');
 const CourseVideo = require('../../models/CourseVideo');
 const AudioGeneration = require('../../models/AudioGeneration');
 const LoggerService = require('../common/LoggerService');
+const { NotFoundError } = require('../../utils/errors');
 
 const MIME_TYPES = {
   '.mp3': 'audio/mpeg',
@@ -128,7 +129,7 @@ class AssetService {
   static async deleteById(assetId) {
     const asset = await Asset.findById(assetId);
     if (!asset) {
-      throw { status: 404, message: 'Asset not found' };
+      throw new NotFoundError('Asset not found');
     }
 
     const { getStorageProvider } = require('../storage/providers');
