@@ -28,11 +28,40 @@ const config = Object.freeze({
     port: parseInt(process.env.REDIS_PORT, 10) || 6379,
   },
 
+  // Which local LLM server backs script/curriculum generation. Both are
+  // driven through the same LLMService + GPU 'llm' slot; only the process
+  // manager (localAI/lmStudioManager vs ollamaManager) and the request shape
+  // differ. timeout/maxRetries are provider-neutral - LLM_* wins, the older
+  // LM_STUDIO_* names still work so an existing .env keeps its tuning.
+  llm: {
+    provider: (process.env.LLM_PROVIDER || 'lmstudio').toLowerCase(),
+    timeout: parseInt(process.env.LLM_TIMEOUT || process.env.LM_STUDIO_TIMEOUT, 10) || 60000,
+    maxRetries: parseInt(process.env.LLM_MAX_RETRIES || process.env.LM_STUDIO_MAX_RETRIES, 10) || 3,
+  },
+
   lmStudio: {
     url: process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/chat/completions',
     model: process.env.LM_STUDIO_MODEL || 'google/gemma-4-e4b',
-    timeout: parseInt(process.env.LM_STUDIO_TIMEOUT, 10) || 60000,
-    maxRetries: parseInt(process.env.LM_STUDIO_MAX_RETRIES, 10) || 3,
+  },
+
+  // Ollama is called through its native /api/chat (not the OpenAI-compat
+  // /v1 endpoint) because only the native API accepts per-request
+  // options.num_ctx, format:"json" and think:false. Ollama's default context
+  // window is far smaller than our largest scene-planning responses
+  // (maxTokens up to 32k), so without num_ctx long scripts get cut off
+  // mid-JSON.
+  ollama: {
+    url: (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/+$/, ''),
+    model: process.env.OLLAMA_MODEL || 'qwen3.5:9b',
+    numCtx: parseInt(process.env.OLLAMA_NUM_CTX, 10) || 16384,
+    // Thinking models (qwen3.x, ...) otherwise spend the token budget on a
+    // hidden reasoning trace before the JSON - off by default for our
+    // structured-output calls.
+    think: process.env.OLLAMA_THINK === 'true',
+    // How long Ollama keeps the model in VRAM after a request. GPU handoff
+    // to TTS/ComfyUI unloads explicitly (keep_alive:0), so this only matters
+    // between back-to-back LLM calls.
+    keepAlive: process.env.OLLAMA_KEEP_ALIVE || '30m',
   },
 
   tts: {
@@ -82,6 +111,23 @@ const config = Object.freeze({
       startupTimeoutMs: parseInt(process.env.LM_STUDIO_STARTUP_TIMEOUT_MS, 10) || 60000,
       healthCheckIntervalMs: parseInt(process.env.LM_STUDIO_HEALTH_CHECK_INTERVAL_MS, 10) || 2000,
       healthCheckTimeoutMs: parseInt(process.env.LM_STUDIO_HEALTH_CHECK_TIMEOUT_MS, 10) || 3000,
+    },
+    ollama: {
+      enabled: process.env.OLLAMA_ENABLED !== 'false',
+      autoStart: process.env.OLLAMA_AUTO_START !== 'false',
+      autoStop: process.env.OLLAMA_AUTO_STOP !== 'false',
+      // The Windows tray app normally has `ollama serve` running already;
+      // this is only spawned when nothing answers the health check.
+      startCommand: process.env.OLLAMA_START_COMMAND || 'ollama serve',
+      healthUrl:
+        process.env.OLLAMA_HEALTH_URL ||
+        `${(process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/+$/, '')}/api/version`,
+      startupTimeoutMs: parseInt(process.env.OLLAMA_STARTUP_TIMEOUT_MS, 10) || 60000,
+      // Loading a model into VRAM (the /api/generate preload) - separate
+      // from server startup since a 9B model can take a while from disk.
+      modelLoadTimeoutMs: parseInt(process.env.OLLAMA_MODEL_LOAD_TIMEOUT_MS, 10) || 180000,
+      healthCheckIntervalMs: parseInt(process.env.OLLAMA_HEALTH_CHECK_INTERVAL_MS, 10) || 2000,
+      healthCheckTimeoutMs: parseInt(process.env.OLLAMA_HEALTH_CHECK_TIMEOUT_MS, 10) || 3000,
     },
     tts: {
       enabled: process.env.TTS_ENABLED !== 'false',

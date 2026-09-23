@@ -1,6 +1,6 @@
 const config = require('../../config');
 const PromptService = require('../common/PromptService');
-const LMStudioService = require('../common/LMStudioService');
+const LLMService = require('../common/LLMService');
 const LoggerService = require('../common/LoggerService');
 const StoryStructureService = require('./StoryStructureService');
 
@@ -206,9 +206,9 @@ class ScenePlanningService {
   static async _callChunk(prompt, chunkSceneCount, chunkWordCount, narrationMultiplier) {
     const estimatedTokens = Math.round((chunkSceneCount * 80 + chunkWordCount * 1.4 * narrationMultiplier) * 1.25);
     const maxTokens = Math.min(32000, Math.max(3000, estimatedTokens));
-    const timeout = Math.max(config.lmStudio.timeout, Math.min(600000, maxTokens * 50));
+    const timeout = Math.max(config.llm.timeout, Math.min(600000, maxTokens * 50));
 
-    return LMStudioService.generateScript(prompt, { maxTokens, timeout });
+    return LLMService.generateScript(prompt, { maxTokens, timeout });
   }
 }
 

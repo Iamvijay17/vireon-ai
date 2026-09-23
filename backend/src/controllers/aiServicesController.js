@@ -3,7 +3,7 @@ const LoggerService = require('../services/common/LoggerService');
 const { ValidationError } = require('../utils/errors');
 
 const MANAGERS = {
-  llm: LocalAIService.lmStudio,
+  llm: LocalAIService.llm,
   tts: LocalAIService.tts,
   comfyui: LocalAIService.comfyUI,
   avatar: LocalAIService.avatar,

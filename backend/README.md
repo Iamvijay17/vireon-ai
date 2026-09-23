@@ -9,7 +9,7 @@ AI-powered video generation platform backend with clean architecture.
 - **Database:** MongoDB (Mongoose)
 - **Queue:** BullMQ (Redis)
 - **Realtime:** Socket.IO
-- **AI:** LM Studio (Gemma) + self-hosted Qwen3-TTS
+- **AI:** Ollama or LM Studio (`LLM_PROVIDER`) + self-hosted Qwen3-TTS
 - **Rendering:** Remotion
 - **Storage:** MinIO (local S3-compatible object storage)
 - **Validation:** Zod
@@ -30,7 +30,7 @@ src/
 │   ├── AuthService
 │   ├── VideoService
 │   ├── PromptService
-│   ├── LMStudioService
+│   ├── LLMService
 │   ├── ScriptParserService
 │   ├── AudioService (TTS)
 │   ├── RemotionService
@@ -49,7 +49,7 @@ src/
 
 1. **QUEUED** → Job created, added to BullMQ queue
 2. **SCRIPT_GENERATION** (10%) → Prompt template rendered with user input
-3. **SCRIPT_COMPLETED** (20%) → LM Studio (Gemma) generates script, validated, saved & uploaded to MinIO
+3. **SCRIPT_COMPLETED** (20%) → the local LLM (Ollama or LM Studio) generates script, validated, saved & uploaded to MinIO
 4. **GENERATING_AUDIO** (40%) → Qwen3-TTS generates audio per scene, each uploaded to MinIO immediately
 5. **AUDIO_COMPLETED** (50%) → All scene audio generated and durably in MinIO
 6. **PREPARING_ASSETS** (60%) → `assets.json` built for Remotion (audio/avatar URLs point at MinIO) - local scratch only, never uploaded
@@ -101,6 +101,10 @@ See `.env` file for all configurable variables. Key ones:
 PORT=3000
 MONGODB_URI=mongodb://localhost:27017/vireon-ai
 JWT_SECRET=your-secret
+LLM_PROVIDER=ollama            # or lmstudio
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3.5:9b
+OLLAMA_NUM_CTX=16384
 LM_STUDIO_URL=http://localhost:1234/v1/chat/completions
 TTS_API_URL=http://localhost:7860
 GITHUB_TOKEN=your-token

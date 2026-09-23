@@ -25,7 +25,7 @@ const LEVEL_META = {
   error: { label: "Error", text: "text-red-600 dark:text-red-400" },
   warn: { label: "Warn", text: "text-amber-600 dark:text-amber-400" },
   info: { label: "Info", text: "text-sky-600 dark:text-sky-400" },
-  lmstudio: { label: "LM Studio", text: "text-violet-600 dark:text-violet-400" },
+  lmstudio: { label: "LLM", text: "text-violet-600 dark:text-violet-400" },
   tts: { label: "TTS", text: "text-emerald-600 dark:text-emerald-400" },
   render: { label: "Render", text: "text-slate-600 dark:text-slate-400" },
   upload: { label: "Upload", text: "text-orange-600 dark:text-orange-400" },

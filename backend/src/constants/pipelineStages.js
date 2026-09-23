@@ -50,7 +50,7 @@ const PIPELINE_STAGE_DEFS = Object.freeze([
     cancellable: true,
     cacheable: true, // skipped entirely if a script already exists - scriptStep.js
     retryable: true,
-    timeoutConfigKey: 'lmStudio.timeout',
+    timeoutConfigKey: 'llm.timeout',
   },
   {
     key: 'TTS',

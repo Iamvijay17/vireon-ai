@@ -13,7 +13,7 @@ for (const def of PIPELINE_STAGE_DEFS) {
 
 const STAGE_ORDER = PIPELINE_STAGE_DEFS.map((d) => d.key);
 
-/** Dotted-path lookup into `config` (e.g. 'lmStudio.timeout') - null-safe. */
+/** Dotted-path lookup into `config` (e.g. 'llm.timeout') - null-safe. */
 function resolveTimeout(configKey) {
   if (!configKey) return null;
   return configKey.split('.').reduce((obj, part) => (obj == null ? obj : obj[part]), config) ?? null;

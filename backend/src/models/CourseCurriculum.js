@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { generateCourseCurriculumId } = require('../utils/id');
 
 // One lesson entry in a generated Udemy-style curriculum. Mirrors the shape
-// LMStudioService.generateCurriculum returns (see that file), so a stored
+// LLMService.generateCurriculum returns (see that file), so a stored
 // document can be replayed straight into CourseVideoService.createFromLessons
 // without reshaping.
 const lessonSchema = new mongoose.Schema(
@@ -15,7 +15,7 @@ const lessonSchema = new mongoose.Schema(
   { _id: false }
 );
 
-// The course-level promotional trailer pitch (see LMStudioService.generateCurriculum) -
+// The course-level promotional trailer pitch (see LLMService.generateCurriculum) -
 // one per course, not a lesson, so it isn't numbered/reordered with the lesson list.
 const promoSchema = new mongoose.Schema(
   {

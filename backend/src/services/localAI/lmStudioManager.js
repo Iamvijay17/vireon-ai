@@ -112,7 +112,7 @@ async function waitUntilReady() {
 }
 
 /**
- * The single entry point every LM Studio caller (LMStudioService, video
+ * The single entry point every LM Studio caller (LLMService, video
  * jobs, curriculum generation) should call before making a request. Reuses
  * an already-running server untouched; only starts one when nothing
  * answers the health check.
@@ -177,6 +177,8 @@ async function getStatus() {
 
   return {
     status: state,
+    provider: 'lmstudio',
+    model: config.lmStudio.model,
     pid: managed.pid,
     url,
     lastChecked: new Date().toISOString(),

@@ -4,7 +4,7 @@ const LoggerService = require('../common/LoggerService');
 /**
  * Service for persisting generated Udemy-style course structures.
  * Single Responsibility: CourseCurriculum CRUD (read history / write a new
- * snapshot). Generation itself lives in LMStudioService/CourseVideoService.
+ * snapshot). Generation itself lives in LLMService/CourseVideoService.
  */
 class CourseCurriculumService {
   /**

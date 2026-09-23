@@ -1,5 +1,5 @@
 const PromptService = require('../common/PromptService');
-const LMStudioService = require('../common/LMStudioService');
+const LLMService = require('../common/LLMService');
 const LoggerService = require('../common/LoggerService');
 
 /**
@@ -19,7 +19,7 @@ class StoryStructureService {
       durationMinutes,
     });
 
-    const parsed = await LMStudioService.generateScript(prompt, { maxTokens: 3000 });
+    const parsed = await LLMService.generateScript(prompt, { maxTokens: 3000 });
 
     const beats = Array.isArray(parsed?.beats) && parsed.beats.length > 0
       ? parsed.beats

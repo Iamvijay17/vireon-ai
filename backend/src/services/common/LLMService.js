@@ -4,52 +4,112 @@ const LoggerService = require('./LoggerService');
 const JsonRepairService = require('./JsonRepairService');
 const LocalAIService = require('../localAI');
 
-/**
- * Service for interacting with LM Studio (Gemma) API.
- * Single Responsibility: AI text generation via LM Studio.
- */
-class LMStudioService {
-  /**
-   * Call LM Studio's chat-completions endpoint and parse a JSON object out
-   * of the response, with retry + exponential backoff. Shared by
-   * generateScript and generateCurriculum.
-   */
-  static async _callLLM(prompt, { maxTokens = 10000, timeout = config.lmStudio.timeout } = {}) {
-    // Auto-start LM Studio (and JIT-load the configured model) instead of
-    // requiring the user to have opened it by hand first. Cheap to call on
-    // every request - it's just a health check once LM Studio is already up.
-    await LocalAIService.lmStudio.ensureRunning();
+const PROVIDER_LABEL = { lmstudio: 'LM Studio', ollama: 'Ollama' };
 
+/**
+ * Service for interacting with the local LLM - LM Studio or Ollama, picked
+ * by LLM_PROVIDER (config.llm.provider).
+ * Single Responsibility: AI text generation via the local LLM server.
+ */
+class LLMService {
+  static get providerLabel() {
+    return PROVIDER_LABEL[config.llm.provider] || config.llm.provider;
+  }
+
+  static get model() {
+    return config.llm.provider === 'ollama' ? config.ollama.model : config.lmStudio.model;
+  }
+
+  /** LM Studio: OpenAI-compatible chat-completions. Returns the raw text. */
+  static async _requestLMStudio(prompt, { maxTokens, timeout }) {
+    const response = await axios.post(
+      config.lmStudio.url,
+      {
+        model: config.lmStudio.model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: maxTokens,
+      },
+      { headers: { 'Content-Type': 'application/json' }, timeout }
+    );
+    return response.data?.choices?.[0]?.message?.content;
+  }
+
+  /**
+   * Ollama: native /api/chat - see config.ollama for why not /v1. format:
+   * 'json' constrains decoding to valid JSON, so JsonRepairService below
+   * should rarely have anything to do on this path. num_ctx is kept fixed
+   * (config.ollama.numCtx) rather than sized per request: changing it makes
+   * Ollama reload the model, which on this 6GB card costs more than the
+   * extra context does.
+   */
+  static async _requestOllama(prompt, { maxTokens, timeout }) {
+    const { url, model, numCtx, think, keepAlive } = config.ollama;
+
+    // ~3.5 chars/token is a rough English estimate - only used to warn,
+    // never to decide anything.
+    const estimatedPromptTokens = Math.ceil(prompt.length / 3.5);
+    if (estimatedPromptTokens + maxTokens > numCtx) {
+      LoggerService.warn('Ollama request may exceed num_ctx - raise OLLAMA_NUM_CTX if responses come back truncated', {
+        numCtx,
+        estimatedPromptTokens,
+        maxTokens,
+      });
+    }
+
+    const response = await axios.post(
+      `${url}/api/chat`,
+      {
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false,
+        format: 'json',
+        think,
+        keep_alive: keepAlive,
+        options: {
+          temperature: 0.7,
+          num_ctx: numCtx,
+          num_predict: maxTokens,
+        },
+      },
+      { headers: { 'Content-Type': 'application/json' }, timeout }
+    );
+
+    if (response.data?.done_reason === 'length') {
+      LoggerService.warn('Ollama stopped at the token limit - response may be truncated', {
+        numCtx,
+        maxTokens,
+        evalCount: response.data?.eval_count,
+      });
+    }
+    return response.data?.message?.content;
+  }
+
+  /**
+   * Call the configured LLM and parse a JSON object out of the response,
+   * with retry + exponential backoff. Shared by generateScript and
+   * generateCurriculum.
+   */
+  static async _callLLM(prompt, { maxTokens = 10000, timeout = config.llm.timeout } = {}) {
+    // Auto-start the LLM server (and load the configured model) instead of
+    // requiring the user to have opened it by hand first. Cheap to call on
+    // every request - it's just a health check once the server is already up.
+    await LocalAIService.llm.ensureRunning();
+
+    const label = this.providerLabel;
+    const request = config.llm.provider === 'ollama' ? this._requestOllama : this._requestLMStudio;
     let lastError = null;
 
-    for (let attempt = 1; attempt <= config.lmStudio.maxRetries; attempt++) {
+    for (let attempt = 1; attempt <= config.llm.maxRetries; attempt++) {
       try {
-        LoggerService.lmstudio(`Attempt ${attempt}/${config.lmStudio.maxRetries}`, {
-          model: config.lmStudio.model,
+        LoggerService.lmstudio(`Attempt ${attempt}/${config.llm.maxRetries}`, {
+          provider: config.llm.provider,
+          model: this.model,
         });
 
-        const response = await axios.post(
-          config.lmStudio.url,
-          {
-            model: config.lmStudio.model,
-            messages: [
-              {
-                role: 'user',
-                content: prompt,
-              },
-            ],
-            temperature: 0.7,
-            max_tokens: maxTokens,
-          },
-          {
-            headers: { 'Content-Type': 'application/json' },
-            timeout,
-          }
-        );
-
-        const content = response.data?.choices?.[0]?.message?.content;
+        const content = await request.call(this, prompt, { maxTokens, timeout });
         if (!content) {
-          throw new Error('Empty response from LM Studio');
+          throw new Error(`Empty response from ${label}`);
         }
 
         // Clean response - remove markdown code blocks if present
@@ -68,19 +128,21 @@ class LMStudioService {
           // input"). Try to repair before burning a whole attempt (and
           // several more minutes of generation) over a fixable slip.
           const repaired = JsonRepairService.parse(cleaned);
-          LoggerService.warn('LM Studio response needed JSON repair before parsing', {
+          LoggerService.warn(`${label} response needed JSON repair before parsing`, {
             originalError: parseErr.message,
           });
           return repaired;
         }
       } catch (err) {
         lastError = err;
-        const isLastAttempt = attempt === config.lmStudio.maxRetries;
+        const isLastAttempt = attempt === config.llm.maxRetries;
 
         LoggerService.warn(
-          `LM Studio attempt ${attempt} failed${isLastAttempt ? ' (final)' : ''}`,
+          `${label} attempt ${attempt} failed${isLastAttempt ? ' (final)' : ''}`,
           {
-            error: err.response?.data?.error?.message || err.message,
+            // LM Studio nests the message under error.message, Ollama
+            // returns { error: "..." } directly.
+            error: err.response?.data?.error?.message || err.response?.data?.error || err.message,
             status: err.response?.status,
           }
         );
@@ -93,11 +155,13 @@ class LMStudioService {
       }
     }
 
-    throw new Error(`LM Studio failed after ${config.lmStudio.maxRetries} attempts: ${lastError.message}`);
+    // "<Provider> failed after N attempts" - utils/errorMessages.js matches
+    // this wording to show a friendly message.
+    throw new Error(`${label} failed after ${config.llm.maxRetries} attempts: ${lastError.message}`);
   }
 
   /**
-   * Generate script by calling LM Studio API with the rendered prompt.
+   * Generate script by calling the local LLM with the rendered prompt.
    * `options` (maxTokens/timeout) should scale with the requested script
    * size - see videoWorker.js's estimate. The 10000-token default only
    * covers short scripts; longer ones get cut off mid-JSON ("Unexpected end
@@ -154,12 +218,12 @@ Rules:
 
     const parsed = await this._callLLM(prompt, {
       maxTokens: 6000,
-      timeout: Math.max(config.lmStudio.timeout, 90000),
+      timeout: Math.max(config.llm.timeout, 90000),
     });
 
     const lessons = Array.isArray(parsed?.lessons) ? parsed.lessons : [];
     if (lessons.length === 0) {
-      throw new Error('LM Studio returned no lessons for curriculum');
+      throw new Error(`${this.providerLabel} returned no lessons for curriculum`);
     }
 
     const subtitle = typeof parsed?.subtitle === 'string' ? parsed.subtitle : '';
@@ -206,4 +270,4 @@ Rules:
   }
 }
 
-module.exports = LMStudioService;
+module.exports = LLMService;

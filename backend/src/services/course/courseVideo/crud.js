@@ -2,7 +2,7 @@ const CourseVideo = require('../../../models/CourseVideo');
 const CourseService = require('../CourseService');
 const LoggerService = require('../../common/LoggerService');
 const SocketService = require('../../common/SocketService');
-const LMStudioService = require('../../common/LMStudioService');
+const LLMService = require('../../common/LLMService');
 const courseQueue = require('../../../queues/courseQueue');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../../../constants');
@@ -59,7 +59,7 @@ async function create(courseId, data) {
  * trailer pitch (title/topic/description), separate from `lessons`.
  */
 async function previewCurriculum(title, topic) {
-  return LMStudioService.generateCurriculum(title, topic);
+  return LLMService.generateCurriculum(title, topic);
 }
 
 /**
@@ -119,7 +119,7 @@ async function createFromLessons(courseId, lessons, options) {
 /**
  * Create (or replace) the course's single promotional trailer video, from
  * the { title, topic, description } pitch generated alongside the
- * curriculum (see LMStudioService.generateCurriculum). This is
+ * curriculum (see LLMService.generateCurriculum). This is
  * course-level, not a lesson: exactly one per course, given order -1 so
  * it always sorts before every numbered lesson without shifting their
  * order values, and flagged isPromo so buildScriptPrompt uses the
