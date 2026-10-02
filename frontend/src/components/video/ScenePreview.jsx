@@ -3,6 +3,7 @@ import { Player } from "@remotion/player";
 import { VideoComposition } from "vireon-remotion-templates/src/VideoComposition";
 import { calculateTotalDurationInFrames, FPS } from "vireon-remotion-templates/src/calculateVideoMetadata";
 import { resolveMediaUrl, resolveSceneAudioUrl } from "../../services/api";
+import { useDebouncedValue } from "../../lib/useDebouncedValue";
 
 // Live, in-browser preview of a course video's scenes using the same
 // Remotion composition/templates the backend renders with — no server
@@ -39,6 +40,9 @@ const getSceneStartFrames = (scenes) => {
 // near-zero opacity, reading as "the text isn't showing" even though it's
 // there. Landing a little further in shows the settled, fully-visible state.
 const SETTLE_FRAMES = 40;
+
+// How long the preview waits after the last edit before re-rendering.
+const PREVIEW_SETTLE_MS = 250;
 const settleOffsetFor = (sceneDurationSeconds) => {
   const sceneDurationFrames = Math.round((sceneDurationSeconds || 8) * FPS);
   return Math.min(SETTLE_FRAMES, Math.floor(sceneDurationFrames / 2));
@@ -47,24 +51,45 @@ const settleOffsetFor = (sceneDurationSeconds) => {
 // `focusIndex` / `onActiveSceneChange` let a parent editor stay in sync with
 // the preview: clicking a scene in an edit form seeks the player there, and
 // scrubbing/playing the player updates which scene the editor highlights.
-export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hideChips = false, videoId }) {
+// Stable default: a fresh `[]` per render would change identity every time and
+// keep the debounce below perpetually re-arming.
+const NO_SCENES = [];
+
+export function ScenePreview({ scenes = NO_SCENES, focusIndex, onActiveSceneChange, hideChips = false, videoId }) {
   const playerRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const lastFocusRef = useRef(focusIndex);
 
-  const previewScenes = useMemo(() => resolveScenesMedia(scenes, videoId), [scenes, videoId]);
-  const sceneStarts = useMemo(() => getSceneStartFrames(scenes), [scenes]);
-  const durationInFrames = useMemo(() => calculateTotalDurationInFrames(scenes), [scenes]);
+  // The editors pass `scenes` straight from their text inputs, so it changes
+  // on every keystroke - and every change re-renders the whole 1080p
+  // composition. The preview works from a copy that settles 250 ms after the
+  // last edit. A change in scene COUNT (add/delete) skips the wait so the
+  // timeline never lags a structural edit.
+  const settledScenes = useDebouncedValue(scenes, PREVIEW_SETTLE_MS);
+  const shownScenes = settledScenes.length === scenes.length ? settledScenes : scenes;
+
+  const previewScenes = useMemo(() => resolveScenesMedia(shownScenes, videoId), [shownScenes, videoId]);
+  const sceneStarts = useMemo(() => getSceneStartFrames(shownScenes), [shownScenes]);
+  const durationInFrames = useMemo(() => calculateTotalDurationInFrames(shownScenes), [shownScenes]);
+
+  // Remotion re-renders the composition whenever `inputProps` changes
+  // identity. A fresh object literal each render (the previous code) meant
+  // ANY parent re-render - selecting a scene, a socket update, typing in the
+  // inspector - re-rendered the full composition even when no scene changed.
+  const inputProps = useMemo(
+    () => ({ assets: { scenes: previewScenes }, jobId: "preview" }),
+    [previewScenes],
+  );
 
   const seekToScene = useCallback(
     (index) => {
       const player = playerRef.current;
       if (!player) return;
       player.pause();
-      player.seekTo((sceneStarts[index] || 0) + settleOffsetFor(scenes[index]?.duration));
+      player.seekTo((sceneStarts[index] || 0) + settleOffsetFor(shownScenes[index]?.duration));
       setActiveIndex(index);
     },
-    [sceneStarts, scenes],
+    [sceneStarts, shownScenes],
   );
 
   // Land on the settled frame of the first scene once scenes actually
@@ -119,7 +144,7 @@ export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hid
         <Player
           ref={playerRef}
           component={VideoComposition}
-          inputProps={{ assets: { scenes: previewScenes }, jobId: "preview" }}
+          inputProps={inputProps}
           durationInFrames={durationInFrames}
           fps={FPS}
           compositionWidth={1920}

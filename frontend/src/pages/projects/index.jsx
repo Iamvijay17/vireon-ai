@@ -179,7 +179,15 @@ const Projects = () => {
             >
               <div className="relative aspect-video w-full overflow-hidden bg-neutral-950">
                 {p.thumbnail ? (
-                  <img src={p.thumbnail} alt={p.title} className="size-full object-cover" />
+                  <img
+                    src={p.thumbnail}
+                    alt={p.title}
+                    width={1280}
+                    height={720}
+                    loading="lazy"
+                    decoding="async"
+                    className="size-full object-cover"
+                  />
                 ) : (
                   <div className="flex size-full items-center justify-center text-neutral-600">
                     {p.kind === "course" ? <BookOpen className="size-8" /> : <Film className="size-8" />}

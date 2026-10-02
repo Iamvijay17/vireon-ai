@@ -27,6 +27,7 @@ import { Dropdown, DropdownItem } from "../../components/ui/Dropdown";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 import { classifyStatus } from "../../lib/statusTone";
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from "../../lib/useDebouncedValue";
 
 const TYPE_OPTIONS = [
   { value: "", label: "All types" },
@@ -79,9 +80,13 @@ const JobsPage = () => {
   const [rowActionKey, setRowActionKey] = useState(null);
   const [detailJob, setDetailJob] = useState(null);
 
+  // The input stays bound to `search` (instant typing); only the query key uses
+  // the debounced copy, so a server request goes out when typing pauses
+  // rather than on every keystroke.
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
   const filters = useMemo(
-    () => ({ type: typeFilter || undefined, search: search || undefined }),
-    [typeFilter, search]
+    () => ({ type: typeFilter || undefined, search: debouncedSearch || undefined }),
+    [typeFilter, debouncedSearch]
   );
 
   const { jobs, pagination, loading, refreshing, error, refetch } = useJobs({

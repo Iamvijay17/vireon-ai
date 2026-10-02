@@ -42,6 +42,18 @@ const formatTime = (timestamp) => {
 let seq = 0;
 const withKey = (entry) => ({ ...entry, _key: `${Date.now()}-${seq++}` });
 
+// The backend's log lines have no id, so the same line arriving once over the
+// socket and once in the history fetch is recognised by its content.
+const signature = (entry) => `${entry.timestamp}|${entry.level}|${entry.message}`;
+
+// History first, then any live lines the socket delivered before the history
+// arrived that the history doesn't already contain.
+const mergeHistory = (history, live) => {
+  const seen = new Set(history.map(signature));
+  const merged = [...history, ...live.filter((entry) => !seen.has(signature(entry)))];
+  return merged.length > MAX_ENTRIES ? merged.slice(merged.length - MAX_ENTRIES) : merged;
+};
+
 const LogDrawer = () => {
   const [open, setOpen] = useState(false);
   // When pinned the drawer stays open until the user closes it, even after the
@@ -70,14 +82,28 @@ const LogDrawer = () => {
   const dragRef = useRef(null); // { startX, startY, edge, offset, moved } while dragging
   const navigate = useNavigate();
 
-  // Connect and hydrate with recent logs once. The socket service exposes a
-  // shared singleton, so connecting here is safe even on the logs page itself.
+  // Connect so live lines start streaming. The socket service exposes a shared
+  // singleton, so connecting here is safe even on the logs page itself.
   useEffect(() => {
     connect();
-    getRecentLogs(200)
-      .then((res) => setEntries((res.data.logs || []).map(withKey)))
-      .catch(() => {});
   }, []);
+
+  // Load the recent history the first time the drawer is opened - not on
+  // every page load, when the drawer is closed and nobody can see it (it was
+  // a 5 KB request on every route). A failed load is retried on next open.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (!open || hydratedRef.current) return;
+    hydratedRef.current = true;
+    getRecentLogs(200)
+      .then((res) => {
+        const history = (res.data.logs || []).map(withKey);
+        setEntries((live) => mergeHistory(history, live));
+      })
+      .catch(() => {
+        hydratedRef.current = false;
+      });
+  }, [open]);
 
   // Stream new log lines live.
   useEffect(() => {

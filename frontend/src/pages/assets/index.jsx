@@ -15,6 +15,7 @@ import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 import { useApiQuery, useInvalidate } from "../../lib/useApiQuery";
 import { queryKeys } from "../../lib/queryClient";
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from "../../lib/useDebouncedValue";
 
 const OWNER_TYPE_OPTIONS = [
   { value: "", label: "All owners" },
@@ -73,14 +74,16 @@ const AssetsPage = () => {
   const [orphanedOnly, setOrphanedOnly] = useState(false);
   const [rowActionId, setRowActionId] = useState(null);
 
+  // Debounced for the query key only - see the same note in pages/jobs.
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
   const filters = useMemo(
     () => ({
       ownerType: ownerType || undefined,
       category: category || undefined,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       orphanedOnly: orphanedOnly || undefined,
     }),
-    [ownerType, category, search, orphanedOnly]
+    [ownerType, category, debouncedSearch, orphanedOnly]
   );
 
   // The filters are part of the query key, so changing one fetches (and
