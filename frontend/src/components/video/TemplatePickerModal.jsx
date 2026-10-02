@@ -14,7 +14,7 @@ const TEMPLATES = Object.entries(templateNames).map(([id, label]) => ({ id, labe
  * scene's own content (title/subtitle/background) so a user can compare how
  * their scene actually looks before picking one.
  */
-export function TemplatePickerModal({ open, onClose, scene, value, onSelect }) {
+export function TemplatePickerModal({ open, onClose, scene, value, onSelect, jobId }) {
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState(value);
 
@@ -58,7 +58,7 @@ export function TemplatePickerModal({ open, onClose, scene, value, onSelect }) {
                 )}
               >
                 <div className="aspect-video w-full overflow-hidden bg-black">
-                  <SceneThumbnail scene={{ ...scene, templateId: t.id }} />
+                  <SceneThumbnail scene={{ ...scene, templateId: t.id }} jobId={jobId} />
                 </div>
                 <div className="flex items-center justify-between gap-1.5 bg-surface px-2 py-1.5">
                   <span className="truncate text-[11px] font-medium text-text-primary">{t.label}</span>

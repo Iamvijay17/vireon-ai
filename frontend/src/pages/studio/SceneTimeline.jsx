@@ -13,6 +13,7 @@ export const SceneTimeline = ({
   dragOverIndex,
   setDragOverIndex,
   onDrop,
+  jobId,
 }) => (
   <Card className="flex min-h-0 flex-col">
     <div className="flex items-center justify-between border-b border-border-light px-3.5 py-3">
@@ -47,7 +48,7 @@ export const SceneTimeline = ({
           >
             <GripVertical className="size-3.5 shrink-0 cursor-grab text-text-tertiary" />
             <div className="aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-black">
-              <SceneThumbnail scene={s} />
+              <SceneThumbnail scene={s} jobId={jobId} />
             </div>
             <div className="min-w-0 flex-1">
               <p className={cn("truncate text-[11px] font-medium", isActive ? "text-accent" : "text-text-primary")}>
