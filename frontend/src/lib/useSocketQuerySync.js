@@ -8,6 +8,46 @@ import {
   onAudioStudioCompleted, onAudioStudioFailed,
 } from '../services/socket';
 import { queryKeys } from './queryClient';
+import { createThrottle } from './throttle';
+
+// A video job emits dozens of `*Progress` events over its life (37 for one
+// real job). Each used to refetch the job lists and detail immediately; now the
+// first refetches at once and the rest of a burst collapses into one more per
+// window. Anything that changes what the lists show for good (created,
+// completed, failed, deleted, ...) is never delayed.
+export const PROGRESS_REFETCH_WINDOW_MS = 1500;
+
+/**
+ * Collects the query keys to invalidate and applies them in batches.
+ * `queue(keys)` is for high-frequency events (leading + trailing throttle);
+ * `now(keys)` flushes everything pending immediately. `cancel()` on unmount.
+ */
+export function createInvalidationBatcher(invalidate, windowMs = PROGRESS_REFETCH_WINDOW_MS) {
+  const pending = new Map(); // serialized key -> key, so duplicates collapse
+  const add = (keys) => keys.forEach((k) => pending.set(JSON.stringify(k), k));
+  const flush = () => {
+    const keys = [...pending.values()];
+    pending.clear();
+    keys.forEach(invalidate);
+  };
+  const throttledFlush = createThrottle(flush, windowMs);
+
+  return {
+    queue(keys) {
+      add(keys);
+      throttledFlush();
+    },
+    now(keys) {
+      add(keys);
+      throttledFlush.cancel();
+      flush();
+    },
+    cancel() {
+      throttledFlush.cancel();
+      pending.clear();
+    },
+  };
+}
 
 /**
  * Bridges the socket to the query cache: one place that translates "the
@@ -36,45 +76,45 @@ export function useSocketQuerySync() {
     // so this does not fight the per-page connections.
     connect();
 
-    const invalidate = (key) => queryClient.invalidateQueries({ queryKey: key });
+    const batcher = createInvalidationBatcher((key) => queryClient.invalidateQueries({ queryKey: key }));
 
-    // Any video-job event changes both the unified jobs console and the
-    // video-specific lists.
-    const invalidateJob = (payload) => {
-      invalidate(queryKeys.jobs.all);
-      invalidate(queryKeys.videos.all);
+    // Keys a video-job event makes stale: the unified jobs console, the
+    // video-specific lists and that job's own detail.
+    const jobKeys = (payload) => {
+      const keys = [queryKeys.jobs.all, queryKeys.videos.all];
       const id = payload?.jobId || payload?._id;
-      if (id) invalidate(queryKeys.videos.detail(String(id)));
+      if (id) keys.push(queryKeys.videos.detail(String(id)));
+      return keys;
     };
 
-    const invalidateCourseVideo = (payload) => {
-      invalidate(queryKeys.jobs.all);
-      invalidate(queryKeys.courses.all);
+    const courseVideoKeys = (payload) => {
+      const keys = [queryKeys.jobs.all, queryKeys.courses.all];
       const courseId = payload?.courseId;
-      if (courseId) invalidate(queryKeys.courses.videos(String(courseId)));
+      if (courseId) keys.push(queryKeys.courses.videos(String(courseId)));
+      return keys;
     };
 
-    const invalidateAudio = () => {
-      invalidate(queryKeys.audio.all);
-      invalidate(queryKeys.jobs.all);
-    };
+    const audioKeys = () => [queryKeys.audio.all, queryKeys.jobs.all];
 
+    // Progress events are batched; every other event flushes immediately.
     // Every listener returns its own unsubscribe (see services/socket.js),
     // so cleanup is just calling them all - no socket.off name-matching.
     const unsubscribers = [
-      onJobCreated(invalidateJob),
-      onJobProgress(invalidateJob),
-      onJobCompleted(invalidateJob),
-      onJobFailed(invalidateJob),
+      onJobCreated((p) => batcher.now(jobKeys(p))),
+      onJobProgress((p) => batcher.queue(jobKeys(p))),
+      onJobCompleted((p) => batcher.now(jobKeys(p))),
+      onJobFailed((p) => batcher.now(jobKeys(p))),
 
-      onCourseVideoCreated(invalidateCourseVideo),
-      onCourseVideoDeleted(invalidateCourseVideo),
-      onCourseVideoUpdated(invalidateCourseVideo),
-      onCourseVideoProgress(invalidateCourseVideo),
-      onCourseVideoRenderReady(invalidateCourseVideo),
+      onCourseVideoCreated((p) => batcher.now(courseVideoKeys(p))),
+      onCourseVideoDeleted((p) => batcher.now(courseVideoKeys(p))),
+      onCourseVideoUpdated((p) => batcher.now(courseVideoKeys(p))),
+      onCourseVideoProgress((p) => batcher.queue(courseVideoKeys(p))),
+      onCourseVideoRenderReady((p) => batcher.now(courseVideoKeys(p))),
 
-      onAudioStudioCompleted(invalidateAudio),
-      onAudioStudioFailed(invalidateAudio),
+      onAudioStudioCompleted(() => batcher.now(audioKeys())),
+      onAudioStudioFailed(() => batcher.now(audioKeys())),
+
+      () => batcher.cancel(),
     ];
 
     return () => unsubscribers.forEach((off) => off());

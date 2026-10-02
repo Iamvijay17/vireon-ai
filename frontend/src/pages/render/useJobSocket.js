@@ -11,6 +11,13 @@ import {
 } from "../../services/socket";
 import { toast } from "../../components/ui/toastBus";
 import { useSocketRoom } from "../../shared/useSocketRoom";
+import { createThrottle } from "../../lib/throttle";
+
+// A job emits a progress event every few seconds to every few minutes (37 for
+// one real video). Re-reading the activity log on each one was a request per
+// event; this caps it at one per window, while completed/failed still refresh
+// immediately.
+const ACTIVITY_REFRESH_WINDOW_MS = 3000;
 
 /**
  * Joins the job's socket room and keeps `job` in sync with every event
@@ -39,7 +46,12 @@ export function useJobSocket(jobId, fetchJob, fetchActivityLogs, setJob, setLoad
         if (data.jobId === currentJobId) handler(data);
       };
 
+      const refreshLogs = createThrottle(() => fetchActivityLogs(currentJobId), ACTIVITY_REFRESH_WINDOW_MS);
+
       return [
+        // Drops a pending trailing refresh when the room is left / unmounted.
+        () => refreshLogs.cancel(),
+
         onJobProgress(
           forThisJob((data) => {
             setJob((prev) =>
@@ -53,7 +65,7 @@ export function useJobSocket(jobId, fetchJob, fetchActivityLogs, setJob, setLoad
                   }
                 : prev
             );
-            fetchActivityLogs(currentJobId);
+            refreshLogs();
           })
         ),
 
@@ -70,7 +82,7 @@ export function useJobSocket(jobId, fetchJob, fetchActivityLogs, setJob, setLoad
                   }
                 : prev
             );
-            fetchActivityLogs(currentJobId);
+            refreshLogs.flush();
             toast.success("Video generation completed!");
           })
         ),
@@ -78,7 +90,7 @@ export function useJobSocket(jobId, fetchJob, fetchActivityLogs, setJob, setLoad
         onJobFailed(
           forThisJob((data) => {
             setJob((prev) => (prev ? { ...prev, status: "FAILED", error: data.error } : prev));
-            fetchActivityLogs(currentJobId);
+            refreshLogs.flush();
             toast.error("Video generation failed");
           })
         ),

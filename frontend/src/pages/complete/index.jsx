@@ -108,6 +108,10 @@ const CompletedVideos = () => {
                       <img
                         src={resolveMediaUrl(job.thumbnailUrl)}
                         alt={job.topic}
+                        width={vertical ? 720 : 1280}
+                        height={vertical ? 1280 : 720}
+                        loading="lazy"
+                        decoding="async"
                         className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
