@@ -5,12 +5,19 @@ import { Alert } from "../../components/ui/Alert";
 import { Steps } from "../../components/ui/Steps";
 import { CircularProgress } from "../../components/ui/CircularProgress";
 import { PIPELINE_STEPS } from "./constants";
+import { isJobRunning } from "../../lib/jobStatus";
+import { cn } from "../../components/ui/cn";
 
-export const ProgressCard = ({ job, currentStepIndex, isComplete, isFailed, isCancelled, isActive }) => (
+export const ProgressCard = ({ job, currentStepIndex, isComplete, isFailed, isCancelled, isActive }) => {
+  // `isActive` means "not finished". A job awaiting approval, between stages or
+  // scheduled for retry is unfinished but NOT working: no creeping ring, no
+  // spinning icon.
+  const running = isJobRunning(job?.status);
+  return (
   <Card className="animate-slide-up p-6">
     <div className="flex flex-col items-center gap-3 border-b border-border-light pb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
       <div className="flex items-center gap-4">
-        <CircularProgress percent={job?.progress || 0} error={isFailed} trickle={isActive} />
+        <CircularProgress percent={job?.progress || 0} error={isFailed} trickle={running} />
         <div>
           <Badge
             variant={isComplete ? "success" : isFailed ? "danger" : isCancelled ? "neutral" : "accent"}
@@ -18,7 +25,7 @@ export const ProgressCard = ({ job, currentStepIndex, isComplete, isFailed, isCa
               isComplete ? <CheckCircle2 className="size-3" /> :
               isFailed ? <XCircle className="size-3" /> :
               isCancelled ? <CircleSlash className="size-3" /> :
-              <RefreshCw className="size-3 animate-spin" />
+              <RefreshCw className={cn("size-3", running && "animate-spin")} />
             }
           >
             {job?.status?.replace(/_/g, " ")}
@@ -54,4 +61,5 @@ export const ProgressCard = ({ job, currentStepIndex, isComplete, isFailed, isCa
       )}
     </div>
   </Card>
-);
+  );
+};

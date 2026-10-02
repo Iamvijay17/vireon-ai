@@ -10,6 +10,7 @@ import { Progress } from "../../components/ui/Progress";
 import { Badge } from "../../components/ui/Badge";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
+import { isJobRunning } from "../../lib/jobStatus";
 
 const TERMINAL_STATUSES = ["COMPLETED", "FAILED", "CANCELLED"];
 // Safety net only - see useVideoJobs. Socket events invalidate this query
@@ -231,7 +232,8 @@ const RenderQueue = () => {
                       </div>
                       <div className="flex items-center gap-3 sm:w-64">
                         <StatusTag status={job.status} />
-                        <Progress percent={job.progress || 0} size="sm" className="flex-1" trickle />
+                        {/* Creep only while the worker is really executing a step - not for jobs waiting on approval/retry/queue. */}
+                        <Progress percent={job.progress || 0} size="sm" className="flex-1" trickle={isJobRunning(job.status)} />
                       </div>
                     </button>
                     <div className="flex items-center gap-1.5 self-end sm:self-auto">

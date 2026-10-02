@@ -25,6 +25,7 @@ import { Progress } from "../../components/ui/Progress";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 import { classifyStatus } from "../../lib/statusTone";
+import { isJobRunning } from "../../lib/jobStatus";
 import { timeAgo } from "../../lib/timeAgo";
 
 const FILTERS = [
@@ -290,7 +291,7 @@ const Dashboard = () => {
 
                     {isActive && (
                       <div className="hidden w-32 shrink-0 sm:block">
-                        <Progress percent={job.progress || 0} size="sm" status="active" trickle />
+                        <Progress percent={job.progress || 0} size="sm" status="active" trickle={isJobRunning(job.status)} />
                       </div>
                     )}
 
