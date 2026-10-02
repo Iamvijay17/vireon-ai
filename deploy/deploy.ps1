@@ -12,7 +12,9 @@
  A failed health check automatically rolls back to the previous version.
 #>
 param([switch]$Poll, [switch]$Rollback, [string]$Tag, [switch]$Force)
-$ErrorActionPreference = 'Stop'
+# Continue: native tools (docker, git, npm) write progress to stderr, which 'Stop' would treat as failure.
+# Failures are detected via $LASTEXITCODE below.
+$ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
 $stateDir = Join-Path $repo '.deploy'
@@ -28,7 +30,7 @@ function Save-State($s) { $s | ConvertTo-Json | Set-Content $stateFile }
 function Wait-Healthy([int]$seconds = 120) {
   $end = (Get-Date).AddSeconds($seconds)
   while ((Get-Date) -lt $end) {
-    try { if ((Invoke-RestMethod 'http://127.0.0.1:8080/health' -TimeoutSec 5).status -eq 'ok') { return $true } } catch {}
+    try { if ((Invoke-RestMethod 'http://127.0.0.1:8080/health' -TimeoutSec 5 -ErrorAction Stop).status -eq 'ok') { return $true } } catch {}
     Start-Sleep 3
   }
   return $false
@@ -49,13 +51,13 @@ function Apply([string]$tag, [string]$sha) {
   docker compose pull backend frontend
   if ($LASTEXITCODE -ne 0) { throw "image $tag not available" }
   if ($sha) {
-    git checkout --quiet $sha
+    git checkout --quiet --force $sha
     if ($LASTEXITCODE -ne 0) { throw "git checkout $sha failed" }
   }
   if (git diff --name-only HEAD@{1} HEAD 2>$null | Select-String 'package-lock.json') {
     Log 'Lockfile changed - npm ci'
     npm ci --prefix backend --omit=dev
-    if (Test-Path backend\remotion\package.json) { npm ci --prefix backend\remotion }
+    npm ci --workspace=backend/remotion --include-workspace-root=false
   }
   docker compose up -d --remove-orphans
   if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed' }
