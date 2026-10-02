@@ -7,6 +7,8 @@
  * Pure function of the IR: two compiles of the same script + config give
  * the same props, which is what will let this step be cached by hash.
  */
+const SYNTHESIZED_SCENE_ID = /^scene-\d+$/;
+
 function toRenderProps(ir) {
   return {
     title: ir.title,
@@ -20,6 +22,10 @@ function toRenderProps(ir) {
       : undefined,
     scenes: ir.scenes.map((scene) => ({
       sceneNumber: scene.sceneNumber,
+      // Real ids only: the compiler synthesizes `scene-N` for scripts that never
+      // had one, and the legacy builder (and the browser preview) leave those
+      // undefined - passing the synthetic id would change their seed.
+      sceneId: SYNTHESIZED_SCENE_ID.test(scene.sceneId || '') ? undefined : scene.sceneId,
       sceneType: scene.sceneType,
       title: scene.title,
       subtitle: scene.subtitle,
@@ -47,7 +53,7 @@ function toRenderProps(ir) {
     })),
     output: {
       video: './render/video.mp4',
-      thumbnail: './render/thumbnail.png',
+      thumbnail: './render/thumbnail.jpg',
     },
   };
 }
