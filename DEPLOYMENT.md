@@ -77,7 +77,7 @@ cd "C:\Programs\Video Generation\vireon-prod"
 copy .env.example .env            # then edit .env
 copy <dev>\backend\.env backend\.env   # then set NODE_ENV=production etc.
 npm ci --prefix backend --omit=dev
-npm ci --prefix backend\remotion
+npm ci --workspace=backend/remotion --include-workspace-root=false   # from the repo root
 ```
 Make sure MinIO is running (`D:\Programs\minio\start-minio.ps1`), then bring up the stack
 (first time builds locally; later deploys pull images from GHCR):
