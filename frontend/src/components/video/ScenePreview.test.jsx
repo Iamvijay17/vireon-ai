@@ -86,4 +86,14 @@ describe("ScenePreview render stability", () => {
     expect(lastProps().inputProps.assets.scenes).toHaveLength(3); // no timer advance needed
     expect(lastProps().durationInFrames).toBe(3 * 240);
   });
+
+  it("seeds the generative style with the real job id so the preview matches the render", () => {
+    render(<ScenePreview scenes={scenesOf("a")} videoId="job-ABC12345" />);
+    expect(lastProps().inputProps.jobId).toBe("job-ABC12345");
+  });
+
+  it("falls back to a fixed seed when no id is available", () => {
+    render(<ScenePreview scenes={scenesOf("a")} />);
+    expect(lastProps().inputProps.jobId).toBe("preview");
+  });
 });
