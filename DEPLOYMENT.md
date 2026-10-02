@@ -193,6 +193,15 @@ Test a backup without touching Atlas: restore into a throwaway `docker run -d --
 - **Backend unhealthy:** `docker compose logs backend`. Usual causes: Atlas IP allow-list
   (add your home IP or 0.0.0.0/0 for free tier), wrong `MONGODB_URI`, Redis not up.
 - **Rate-limit hits for everyone:** `trust proxy` is set in production; ensure `NODE_ENV=production`.
+- **UI warns "course worker not running" / new jobs never start:** the workers and the API are on different Redis servers.
+  Cause seen on 2026-10-02: after a reboot the worker started before Docker, saw no Redis and spawned its own native
+  `redis-server.exe`; Docker's Redis then bound `127.0.0.1:6379` and the workers kept using the stray one (via `::1`).
+  Check: `Get-NetTCPConnection -LocalPort 6379 -State Listen` must show ONLY Docker (`com.docker.backend` on 127.0.0.1);
+  `Get-Process redis-server` must return nothing. Fix: `Stop-Process -Name redis-server`, then restart both worker tasks.
+  Prevention (already in place): worker `.env` has `REDIS_HOST=127.0.0.1` and `REDIS_AUTOSTART=false`, and the watchdog
+  alerts on a stray Redis or a missing course worker.
+- **Do not run the dev stack (`npm run dev`) on this PC while production is up:** its API/workers would use the same
+  Docker Redis (127.0.0.1:6379) and compete with the production workers for jobs. Stop the production tasks first, or give dev its own Redis port.
 - **Workers can't reach Redis:** the compose Redis publishes `127.0.0.1:6379` — check no other
   Redis holds the port.
 - **API health page shows Ollama/TTS offline:** the API container reaches them at

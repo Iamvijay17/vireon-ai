@@ -108,6 +108,24 @@ else {
 }
 Report 'Docker' $p
 
+# --- 4b. Workers and API on the SAME Redis ---------------------------------------
+# The workers run natively and the API in Docker. If a second (native) Redis
+# ever sits next to Docker's, workers connect to it, the API queues jobs
+# into the other one and nothing starts. The API sees only workers registered
+# on ITS Redis, so "no course worker" means exactly that split (or a dead worker).
+$p = $null
+try {
+  $ws = Invoke-RestMethod "$api/api/course-videos/worker-status" -TimeoutSec 8 -ErrorAction Stop
+  if (-not $ws.running) { $p = 'The API does not see the course worker on its Redis: the worker is down or connected to a different Redis. New jobs will not start.' }
+} catch { $p = $null }   # API unreachable is reported by the API check
+Report 'Workers' $p
+
+$p = $null
+if (Get-Process redis-server -ErrorAction SilentlyContinue) {
+  $p = 'A native redis-server.exe is running next to the Docker Redis. Workers may be using it instead of the API Redis. Stop it with: Stop-Process -Name redis-server'
+}
+Report 'Stray Redis' $p
+
 # --- 5. Tailscale -----------------------------------------------------------
 $p = $null
 try {
@@ -166,7 +184,7 @@ try {
 # --- 8. Dead-man's switch ----------------------------------------------------
 # Healthy = what users need works right now. Disk/Tailscale/backup problems
 # alert through ntfy but don't make the PC count as "dead".
-if (($state.fails['API'] -eq 0) -and ($state.fails['MinIO'] -eq 0) -and ($state.fails['Docker'] -eq 0)) {
+if (($state.fails['API'] -eq 0) -and ($state.fails['MinIO'] -eq 0) -and ($state.fails['Docker'] -eq 0) -and ($state.fails['Workers'] -eq 0)) {
   Ping-DeadMansSwitch
 } else {
   Ping-DeadMansSwitch -Fail
