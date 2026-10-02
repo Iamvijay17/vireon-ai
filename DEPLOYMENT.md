@@ -48,6 +48,16 @@ GPU apps are deliberately **not** containerized (flaky on Windows with 6 GB VRAM
 4. Install the Tailscale app on every phone/laptop you'll use, signed into the same account.
 5. Your URL will be `https://vireon.<tailnet-name>.ts.net` (shown in the admin console).
 
+### Simplest path (used on this PC): host Tailscale, no auth key, no sidecar
+If the Tailscale app is already installed on the server PC, skip the `tailscale` compose profile:
+```powershell
+& 'C:\Program Files\Tailscale	ailscale.exe' serve --bg --https=443 http://127.0.0.1:8080
+```
+First run prints a link to enable *Serve* on your tailnet (one click, your account). Then set
+`PUBLIC_URL=https://<pc-name>.<tailnet>.ts.net` in `.env` and `docker compose up -d backend`
+(the API's CORS allowlist must contain the URL users open). It is tailnet-only (private); never
+run `tailscale funnel` while the app has no login.
+
 ### Alternative: Cloudflare Tunnel
 A *named* tunnel (stable URL, Cloudflare Access login) needs a domain on Cloudflare —
 **the domain costs money** (usually a few hundred ₹/year). Without a domain only the
