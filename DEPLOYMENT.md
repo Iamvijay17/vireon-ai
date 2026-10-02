@@ -151,6 +151,25 @@ tfy-topic.txt` (gitignored; treat as a password). Subscribe in the ntfy app
 - Test: `powershell -File deploy\watchdog.ps1 -Test`. New topic: overwrite the file and resubscribe.
 - Not covered: the whole PC being off or offline (nothing on it can send an alert).
 
+## 8c. Backups and restore
+`deployackup.ps1` runs nightly at 03:00 (task `VireonBackup`; runs at next start if the PC was off) and writes to
+`E:\VireonBackups` (a different physical disk than MinIO's `D:`; the whole set is ~0.5 GB):
+- `mongoireon-<date>.archive.gz`: Atlas dump, newest 14 kept. Needs Docker running (uses the `mongo:7` image).
+- `minio\`: copy of `D:\Programs\minio-data`. Copy-only, **never deletes**, so a video deleted in the app can still be recovered here
+  (the folder only grows; clean it by hand if needed).
+Failures alert via ntfy; the watchdog also alerts if no successful backup for 36 h. Log: `.deployackup.log`. Run now: `deployackup.ps1`.
+Not covered: E:/D: are inside this one PC (fire, theft, power surge). Copy `E:\VireonBackups` to an external drive now and then.
+
+**Restore MongoDB** (into Atlas; only do this deliberately, it overwrites matching documents):
+```powershell
+$env:RESTORE_URI = '<your Atlas URI>'   # not saved anywhere
+docker run --rm -e RESTORE_URI -v "E:\VireonBackups\mongo:/backup:ro" mongo:7 sh -c 'mongorestore --uri=$RESTORE_URI --archive=/backup/<file>.archive.gz --gzip --drop'
+```
+Test a backup without touching Atlas: restore into a throwaway `docker run -d --name t mongo:7` and count documents (done on 2026-10-02: 12 video jobs matched).
+
+**Restore media:** stop MinIO (`Stop-ScheduledTask VireonMinio`, then end `minio.exe`), copy `E:\VireonBackups\minio` back over
+`D:\Programs\minio-data` with `robocopy E:\VireonBackups\minio D:\Programs\minio-data /E`, then `Start-ScheduledTask VireonMinio`.
+
 ## 9. Troubleshooting
 - **Videos/audio show 502 Bad Gateway on `/media/...`:** MinIO is not running. It is the `VireonMinio` scheduled task
   (starts at logon, ~10 s to come up). Check `Get-ScheduledTask VireonMinio`, then `Start-ScheduledTask VireonMinio`.

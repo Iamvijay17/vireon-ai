@@ -42,6 +42,13 @@ Register-ScheduledTask -TaskName 'VireonWatchdog' -Action $wdAction -Trigger $wd
   -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited) -Force | Out-Null
 Write-Host 'Registered VireonWatchdog'
 
+# Nightly backup at 03:00 (runs at next start if the PC was off).
+$bkAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `\"$PSScriptRootackup.ps1`\"" -WorkingDirectory $repo
+Register-ScheduledTask -TaskName 'VireonBackup' -Action $bkAction -Trigger (New-ScheduledTaskTrigger -Daily -At 3am) `
+  -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 2)) `
+  -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited) -Force | Out-Null
+Write-Host 'Registered VireonBackup'
+
 # Pull-based deploy poller: every 5 minutes.
 $pollAction = New-ScheduledTaskAction -Execute 'powershell.exe' `
   -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\deploy.ps1`" -Poll" -WorkingDirectory $repo
