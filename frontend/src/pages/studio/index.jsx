@@ -201,23 +201,26 @@ const StudioPage = () => {
   const canEdit = job.status === "COMPLETED" || job.status === "FAILED" || job.status === "SCRIPT_COMPLETED" || isAwaitingApproval;
   const scene = editedScenes[selectedSceneIndex];
 
+  // Fixed-height three-pane workspace only from lg up; below that the panes
+  // stack at natural height and the page itself scrolls, instead of
+  // squeezing each pane into a few rows of nested scroll.
   return (
-    <div className="flex h-[calc(100vh-8rem)] min-h-[560px] flex-col gap-3">
+    <div className="flex flex-col gap-3 lg:h-[calc(100dvh-8rem)] lg:min-h-[560px]">
       {/* TOOLBAR */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
           <Button variant="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={() => navigate("/")}>
             Back
           </Button>
-          <h1 className="flex items-center gap-2 truncate text-lg font-semibold tracking-tight text-text-primary">
-            <Pencil className="size-[18px] text-text-tertiary" /> {job.topic}
+          <h1 className="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-tight text-text-primary">
+            <Pencil className="size-[18px] shrink-0 text-text-tertiary" /> <span className="truncate">{job.topic}</span>
           </h1>
           <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
             {socketStatus === "connected" ? "Live" : "Offline"}
           </Badge>
           {hasChanges && <Badge variant="warning">Unsaved changes</Badge>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" size="sm" icon={<Save className="size-4" />} onClick={handleSave} loading={saving} disabled={!hasChanges || !canEdit}>
             Save Changes
           </Button>
@@ -272,7 +275,7 @@ const StudioPage = () => {
       {editedScenes.length === 0 ? (
         <EmptyState description="No scenes found" />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)_340px]">
+        <div className="grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[220px_minmax(0,1fr)_340px]">
           <SceneTimeline
             editedScenes={editedScenes}
             selectedSceneIndex={selectedSceneIndex}
@@ -287,8 +290,8 @@ const StudioPage = () => {
           />
 
           {/* CENTER: LIVE PREVIEW */}
-          <Card className="flex min-h-0 flex-col overflow-hidden">
-            <div className="flex flex-1 flex-col justify-center p-4">
+          <Card className="flex min-h-0 flex-col overflow-hidden max-lg:order-first">
+            <div className="flex flex-1 flex-col justify-center p-2.5 sm:p-4">
               <ScenePreview
                 scenes={editedScenes}
                 focusIndex={selectedSceneIndex}

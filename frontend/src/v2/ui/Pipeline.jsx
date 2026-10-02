@@ -20,17 +20,23 @@ export function PipelineTrack({ stages = {}, size = "md", className }) {
   const compact = size === "sm";
 
   return (
-    <div className={cx("flex items-center", compact ? "gap-1" : "gap-1.5", className)}>
+    // Detail size: below `sm` each stage stacks its label under the dot so
+    // five labelled stages fit a phone; connectors drop to dot height.
+    <div className={cx("flex", compact ? "items-center gap-1" : "items-start gap-1 sm:items-center sm:gap-1.5", className)}>
       {STAGES.map((stage, i) => {
         const state = stages[stage.id] || STATE.IDLE;
         return (
-          <div key={stage.id} className="flex items-center" style={{ flex: compact ? "0 0 auto" : "1 1 0%" }}>
+          <div
+            key={stage.id}
+            className={cx("flex", compact ? "items-center" : "min-w-0 items-start sm:items-center")}
+            style={{ flex: compact ? "0 0 auto" : "1 1 0%" }}
+          >
             <StageNode stage={stage} state={state} compact={compact} />
             {/* Connector, tinted by the stage *behind* it so a completed run
                 reads as one continuous line rather than five islands. */}
             {i < STAGES.length - 1 && (
               <span
-                className={cx("h-px shrink-0", compact ? "w-2" : "mx-1.5 flex-1")}
+                className={cx("h-px shrink-0", compact ? "w-2" : "mx-1 mt-3 flex-1 sm:mx-1.5 sm:mt-0")}
                 style={{
                   backgroundColor:
                     state === STATE.DONE
@@ -122,7 +128,7 @@ function StageNode({ stage, state, compact }) {
     // both. Without this a screen reader announces "Voice" for a stage that
     // has failed, which is worse than silence.
     <div
-      className="flex min-w-0 items-center gap-2"
+      className="flex min-w-0 flex-col items-center gap-1 sm:flex-row sm:gap-2"
       role="group"
       aria-label={`${stage.label}: ${STATE_LABEL[state] || state}`}
     >
@@ -130,7 +136,7 @@ function StageNode({ stage, state, compact }) {
       <span
         aria-hidden="true"
         className={cx(
-          "truncate text-[12px] font-medium transition-colors",
+          "max-w-full truncate text-[11px] font-medium transition-colors sm:text-[12px]",
           active ? "text-hi" : "text-lo"
         )}
       >

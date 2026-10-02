@@ -14,18 +14,18 @@ export const Card = ({ className, hoverable = false, children, ...props }) => (
 );
 
 export const CardHeader = ({ title, subtitle, extra, className, children }) => (
-  <div className={cn("flex items-center justify-between gap-3 border-b border-border-light px-5 py-4", className)}>
-    <div className="min-w-0">
+  <div className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border-light px-4 py-3.5 sm:px-5 sm:py-4", className)}>
+    <div className="min-w-0 max-w-full">
       {title && <h3 className="truncate text-[15px] font-semibold text-text-primary">{title}</h3>}
       {subtitle && <p className="mt-0.5 text-xs text-text-tertiary">{subtitle}</p>}
       {children}
     </div>
-    {extra && <div className="flex shrink-0 items-center gap-2">{extra}</div>}
+    {extra && <div className="flex flex-wrap items-center gap-2">{extra}</div>}
   </div>
 );
 
 export const CardBody = ({ className, children, ...props }) => (
-  <div className={cn("p-5", className)} {...props}>
+  <div className={cn("p-4 sm:p-5", className)} {...props}>
     {children}
   </div>
 );

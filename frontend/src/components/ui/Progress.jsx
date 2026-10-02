@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
 import { cn } from "./cn";
+import { useDisplayedProgress } from "./useDisplayedProgress";
 
 const STATUS_CLS = {
   active: "bg-accent",
@@ -21,26 +21,8 @@ const STATUS_CLS = {
  * finished/failed/cancelled job whose progress just never reached 100).
  */
 export const Progress = ({ percent = 0, status = "normal", showLabel = true, className, size = "md", trickle = false }) => {
-  const target = Math.min(100, Math.max(0, percent));
-  const [display, setDisplay] = useState(target);
-  const ceilingRef = useRef(target + 4);
-
-  useEffect(() => {
-    setDisplay((prev) => {
-      if (target > prev) ceilingRef.current = Math.min(99, target + 4);
-      return target > prev ? target : prev;
-    });
-  }, [target]);
-
-  useEffect(() => {
-    if (!trickle || target >= 100) return undefined;
-    const id = setInterval(() => {
-      setDisplay((prev) => Math.min(ceilingRef.current, prev + 0.3));
-    }, 400);
-    return () => clearInterval(id);
-  }, [trickle, target]);
-
-  const clamped = display;
+  // Display rules (forward snap, creep, real resets) live in the shared hook.
+  const clamped = useDisplayedProgress(percent, { trickle });
   return (
     <div className={cn("flex items-center gap-3", className)}>
       <div

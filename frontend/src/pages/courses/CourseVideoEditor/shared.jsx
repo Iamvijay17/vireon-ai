@@ -27,11 +27,11 @@ export const InlineSpinner = ({ label }) => (
  */
 export const StepSection = ({ number, title, state, badges, summary, actions, isOpen, onToggle, children }) => (
   <Card>
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-light px-5 py-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-light px-4 py-3.5 sm:px-5 sm:py-4">
       <button
         type="button"
         onClick={onToggle}
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+        className="flex min-w-0 flex-1 basis-56 cursor-pointer items-center gap-3 text-left"
       >
         <ChevronDown className={`size-4 shrink-0 text-text-tertiary transition-transform ${isOpen ? "" : "-rotate-90"}`} />
         <span className={`flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold ${STEP_CIRCLE_CLASSES[state]}`}>
@@ -45,8 +45,8 @@ export const StepSection = ({ number, title, state, badges, summary, actions, is
           {!isOpen && summary && <p className="mt-0.5 truncate text-xs text-text-tertiary">{summary}</p>}
         </span>
       </button>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
-    {isOpen && <div className="p-5">{children}</div>}
+    {isOpen && <div className="p-4 sm:p-5">{children}</div>}
   </Card>
 );

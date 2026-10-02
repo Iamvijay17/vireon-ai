@@ -394,14 +394,14 @@ const JobsPage = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Select value={typeFilter} onChange={setTypeFilter} options={TYPE_OPTIONS} className="w-44" />
-          <div className="flex items-center gap-1 rounded-full border border-border bg-surface-hover/50 p-1">
+          <Select value={typeFilter} onChange={setTypeFilter} options={TYPE_OPTIONS} className="w-full sm:w-44" />
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-border bg-surface-hover/50 p-1 [scrollbar-width:none]">
             {STATUS_FILTERS.map((f) => (
               <button
                 key={f.value}
                 type="button"
                 onClick={() => setStatusFilter(f.value)}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
                   statusFilter === f.value
                     ? "bg-surface text-text-primary shadow-sm"
                     : "text-text-tertiary hover:text-text-secondary"
@@ -429,7 +429,7 @@ const JobsPage = () => {
           <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
             Clear
           </Button>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
             <Button variant="secondary" size="sm" icon={<Square className="size-3.5" />} loading={bulkLoading} onClick={() => handleBulkAction("cancel")}>
               Cancel Selected
             </Button>

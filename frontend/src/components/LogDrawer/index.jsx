@@ -241,7 +241,9 @@ const scrollable = useMemo(
 
   // Edge-aware geometry derived from the current dock (right or left only).
   const isRight = edge === "right";
-  const containerStyle = { top: offset, [edge]: 0 };
+  // Clamped at render: a position saved on a tall desktop window would
+  // otherwise leave the handle off-screen (or on the navbar) on a short one.
+  const containerStyle = { top: `clamp(70px, ${offset}px, calc(100dvh - 70px))`, [edge]: 0 };
   const panelTransform = `translate(${open ? "0px" : isRight ? "calc(100% + 8px)" : "calc(-100% - 8px)"}, -50%)`;
   const panelAnchor = `top-0 ${isRight ? "right-0" : "left-0"}`;
   const handlePosition = `top-0 ${isRight ? "right-0" : "left-0"} -translate-y-1/2`;
@@ -264,7 +266,7 @@ const scrollable = useMemo(
         style={{ transform: panelTransform }}
         aria-hidden={!open}
       >
-        <div className={cn("flex h-[72vh] w-[400px] flex-col overflow-hidden border border-border bg-surface shadow-xl shadow-black/10", panelShape)}>
+        <div className={cn("flex h-[72vh] w-[min(400px,calc(100vw-3rem))] flex-col overflow-hidden border border-border bg-surface shadow-xl shadow-black/10", panelShape)}>
           {/* Header */}
           <div className="flex items-center gap-1.5 border-b border-border-light px-3 py-2">
             <span

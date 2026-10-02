@@ -180,6 +180,7 @@ export default function Jobs() {
     {
       key: "title",
       title: "Job",
+      stackLabel: false,
       render: (job) => {
         const Icon = TYPE_ICON[job.type] || Film;
         return (
@@ -265,7 +266,7 @@ export default function Jobs() {
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           onClear={() => { setSearch(""); setPage(1); }}
-          className="w-64"
+          className="w-full sm:w-64"
         />
         <Select value={type} onChange={(v) => { setType(v); setPage(1); }} options={TYPE_OPTIONS} className="w-36" />
         <Segmented
@@ -288,7 +289,7 @@ export default function Jobs() {
       {/* Bulk bar. Appears in flow rather than as a floating overlay, so it
           never covers the rows it acts on. */}
       {selectedJobs.length > 0 && (
-        <div className="flex animate-v2-pop items-center gap-2 rounded-[var(--radius-v2-md)] border border-[var(--v2-accent)] bg-accent-soft px-4 py-2.5">
+        <div className="flex animate-v2-pop flex-wrap items-center gap-2 rounded-[var(--radius-v2-md)] border border-[var(--v2-accent)] bg-accent-soft px-4 py-2.5">
           <span className="text-[13px] font-medium text-hi">
             {selectedJobs.length} selected
           </span>
@@ -302,7 +303,7 @@ export default function Jobs() {
 
       <Panel className="overflow-hidden">
         {loading ? (
-          <div className="flex flex-col gap-3 p-5">
+          <div className="flex flex-col gap-3 p-4 sm:p-5">
             {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
           </div>
         ) : (

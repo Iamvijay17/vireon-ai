@@ -360,29 +360,31 @@ const CourseVideoEditor = () => {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <Button variant="ghost" size="md" iconOnly aria-label="Back to course" onClick={() => navigate(`/courses/${courseId}`)} icon={<ArrowLeft className="size-4" />} />
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-text-primary">{video.title}</h1>
-            <p className="mt-1 text-sm text-text-secondary">{video.topic}</p>
-          </div>
-          <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
-            {socketStatus === "connected" ? "Live" : socketStatus === "reconnecting" ? "Reconnecting..." : "Offline"}
-          </Badge>
-          {workerRunning !== null && (
-            <Tooltip
-              content={
-                workerRunning
-                  ? "The course worker is running - generation jobs will process."
-                  : "The course worker is not running. Start it (npm run course-worker) before generating - otherwise generation requests will be rejected."
-              }
-            >
-              <Badge variant={workerRunning ? "success" : "danger"} dot>
-                {workerRunning ? "Worker Running" : "Worker Offline"}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <Button variant="ghost" size="md" iconOnly aria-label="Back to course" onClick={() => navigate(`/courses/${courseId}`)} icon={<ArrowLeft className="size-4" />} className="shrink-0" />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-semibold tracking-tight text-text-primary [overflow-wrap:anywhere]">{video.title}</h1>
+            <p className="mt-1 text-sm text-text-secondary [overflow-wrap:anywhere]">{video.topic}</p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
+                {socketStatus === "connected" ? "Live" : socketStatus === "reconnecting" ? "Reconnecting..." : "Offline"}
               </Badge>
-            </Tooltip>
-          )}
+              {workerRunning !== null && (
+                <Tooltip
+                  content={
+                    workerRunning
+                      ? "The course worker is running - generation jobs will process."
+                      : "The course worker is not running. Start it (npm run course-worker) before generating - otherwise generation requests will be rejected."
+                  }
+                >
+                  <Badge variant={workerRunning ? "success" : "danger"} dot>
+                    {workerRunning ? "Worker Running" : "Worker Offline"}
+                  </Badge>
+                </Tooltip>
+              )}
+            </div>
+          </div>
         </div>
         {isProcessing && (
           <Button variant="danger" icon={<Square className="size-4" />} loading={actionLoading.stop} onClick={handleStop}>
@@ -397,7 +399,7 @@ const CourseVideoEditor = () => {
       </div>
 
       {/* Progress + Video Info */}
-      <Card className="mb-4 p-6">
+      <Card className="mb-4 p-4 sm:p-6">
         <Steps items={stepItems} current={Math.max(currentStep, 0)} status={isFailed ? "error" : "process"} />
         <div className="mt-6 border-t border-border-light pt-5">
           <DescriptionList items={infoItems} columns={4} />

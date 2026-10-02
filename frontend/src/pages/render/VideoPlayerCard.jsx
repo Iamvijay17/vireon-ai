@@ -13,7 +13,7 @@ export const VideoPlayerCard = ({ job, videoRef }) => {
   const thumbnailUrl = resolveMediaUrl(job?.thumbnailUrl);
 
   return (
-    <Card className="animate-slide-up p-6" style={{ "--stagger-index": 2 }}>
+    <Card className="animate-slide-up p-4 sm:p-6" style={{ "--stagger-index": 2 }}>
       <h3 className="mb-5 flex items-center gap-2 text-[15px] font-semibold text-text-primary">
         <PlayCircle className="size-[18px] text-accent" /> Output Video
       </h3>

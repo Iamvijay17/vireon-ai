@@ -15,7 +15,7 @@ export const SceneTimeline = ({
   onDrop,
   jobId,
 }) => (
-  <Card className="flex min-h-0 flex-col">
+  <Card className="flex min-h-0 flex-col max-lg:max-h-72">
     <div className="flex items-center justify-between border-b border-border-light px-3.5 py-3">
       <h3 className="text-[13px] font-semibold text-text-primary">Scenes</h3>
       <span className="text-[11px] text-text-tertiary">{Math.round(totalSeconds)}s</span>

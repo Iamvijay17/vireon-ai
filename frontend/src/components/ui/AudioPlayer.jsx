@@ -1,44 +1,10 @@
-import { useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { Play, Pause } from "lucide-react";
 import { cn } from "./cn";
 import { installExclusiveAudio, EXCLUSIVE_AUDIO_ATTR } from "../../lib/exclusiveAudio";
+import { BAR_WIDTH, barCountFor, barPool, resampleBars } from "./audioWaveform";
 
 installExclusiveAudio();
-
-const BAR_COUNT = 46;
-
-// Deterministic pseudo-random bar heights seeded by the src URL, so the same
-// file always renders the same waveform shape. This is a visual stand-in,
-// not real decoded audio data.
-//
-// Uses Math.imul for the 32-bit multiplications (mulberry32, seeded via a
-// simple string hash) rather than plain `*` - a bare `h * <32-bit multiplier>`
-// exceeds Number.MAX_SAFE_INTEGER for most `h` values, silently losing
-// precision before the `>>> 0` truncation, which degrades the sequence's
-// randomness (some seeds produced runs of visually flat/near-empty bars).
-const seededBars = (seed, count) => {
-  const str = seed || 'audio';
-  let h = 1779033703 ^ str.length;
-  for (let i = 0; i < str.length; i++) {
-    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-    h = (h << 13) | (h >>> 19);
-  }
-  let a = (() => {
-    h = Math.imul(h ^ (h >>> 16), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    return (h ^= h >>> 16) >>> 0;
-  })();
-
-  const bars = [];
-  for (let i = 0; i < count; i++) {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    const rand = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    bars.push(0.3 + rand * 0.7);
-  }
-  return bars;
-};
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -54,7 +20,21 @@ export const AudioPlayer = ({ src, className }) => {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const bars = useMemo(() => seededBars(src || "audio", BAR_COUNT), [src]);
+  // The waveform spans the whole track: measure it and fit as many bars as the
+  // width allows (see audioWaveform.js). `src` is a dependency because the track
+  // element only exists once there is a source.
+  const trackRef = useRef(null);
+  const [barCount, setBarCount] = useState(() => barCountFor(0));
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    // observe() delivers an initial size, so no separate first measurement.
+    const observer = new ResizeObserver(([entry]) => setBarCount(barCountFor(entry.contentRect.width)));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [src]);
+  const pool = useMemo(() => barPool(src || "audio"), [src]);
+  const bars = useMemo(() => resampleBars(pool, barCount), [pool, barCount]);
 
   // Reset playback state when the src changes, without an effect - this is
   // React's documented pattern for adjusting state during render in response
@@ -82,7 +62,7 @@ export const AudioPlayer = ({ src, className }) => {
     audio.currentTime = Math.min(1, Math.max(0, ratio)) * duration;
   };
 
-  const activeBarIndex = Math.floor(progress * BAR_COUNT);
+  const activeBarIndex = Math.floor(progress * bars.length);
 
   return (
     <div className={cn("flex items-center gap-3 rounded-full bg-success-500/10 py-1.5 pr-4 pl-1.5", className)}>
@@ -118,7 +98,10 @@ export const AudioPlayer = ({ src, className }) => {
         aria-valuemax={100}
         aria-valuenow={Math.round(progress * 100)}
         tabIndex={0}
-        className="flex h-8 flex-1 cursor-pointer items-center gap-[3px]"
+        ref={trackRef}
+        // justify-between: bars are a fixed width, so any leftover pixels are
+        // spread between them and the waveform meets both ends of the track.
+        className="flex h-9 min-w-0 flex-1 cursor-pointer items-center justify-between overflow-hidden"
         onClick={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           seekToRatio((e.clientX - rect.left) / rect.width);
@@ -131,13 +114,13 @@ export const AudioPlayer = ({ src, className }) => {
         {bars.map((h, i) => (
           <span
             key={i}
-            className={cn("w-[3px] shrink-0 rounded-full transition-colors", i <= activeBarIndex ? "bg-success-500" : "bg-success-500/55")}
-            style={{ height: `${Math.round(h * 100)}%` }}
+            className={cn("shrink-0 rounded-full transition-colors", i <= activeBarIndex ? "bg-success-500" : "bg-success-500/40")}
+            style={{ width: BAR_WIDTH, height: `${Math.round(h * 100)}%` }}
           />
         ))}
       </div>
 
-      <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-text-tertiary">
+      <span className="w-10 shrink-0 text-right text-xs font-medium tabular-nums text-text-secondary">
         {formatTime(duration ? duration * (1 - progress) : 0)}
       </span>
     </div>
