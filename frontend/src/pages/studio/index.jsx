@@ -283,6 +283,7 @@ const StudioPage = () => {
             dragOverIndex={editor.dragOverIndex}
             setDragOverIndex={editor.setDragOverIndex}
             onDrop={editor.handleDrop}
+            jobId={jobId}
           />
 
           {/* CENTER: LIVE PREVIEW */}

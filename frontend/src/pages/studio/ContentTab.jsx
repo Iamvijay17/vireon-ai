@@ -10,7 +10,7 @@ import { cn } from "../../components/ui/cn";
 import { Field, SectionLabel } from "./shared";
 import { SCENE_TYPE_OPTIONS, ITEMS_EDITABLE_TEMPLATE_IDS } from "./constants";
 
-export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
+export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor, jobId }) => (
   <>
     <div>
       <SectionLabel icon={LayoutTemplate}>Template</SectionLabel>
@@ -24,7 +24,7 @@ export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
         )}
       >
         <div className="aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-black">
-          <SceneThumbnail scene={scene} />
+          <SceneThumbnail scene={scene} jobId={jobId} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-medium text-text-primary">
@@ -38,6 +38,7 @@ export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
         onClose={() => editor.setTemplatePickerOpen(false)}
         scene={scene}
         value={scene.templateId}
+        jobId={jobId}
         onSelect={(id) => editor.handleTemplateSelect(selectedSceneIndex, id)}
       />
       {editor.remappingTemplate && <p className="mt-1.5 text-[11px] text-text-tertiary">Adapting scene content to the new template...</p>}

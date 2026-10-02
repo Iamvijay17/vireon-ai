@@ -234,7 +234,7 @@ const CourseVideoStudio = () => {
                   >
                     <GripVertical className="size-3.5 shrink-0 cursor-grab text-text-tertiary" />
                     <div className="aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-black">
-                      <SceneThumbnail scene={s} />
+                      <SceneThumbnail scene={s} jobId={videoId} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className={cn("truncate text-[11px] font-medium", isActive ? "text-accent" : "text-text-primary")}>
@@ -294,7 +294,7 @@ const CourseVideoStudio = () => {
                   className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-border bg-surface p-1.5 text-left transition-colors hover:border-accent"
                 >
                   <div className="aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-black">
-                    <SceneThumbnail scene={scene} />
+                    <SceneThumbnail scene={scene} jobId={videoId} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-medium text-text-primary">
@@ -308,6 +308,7 @@ const CourseVideoStudio = () => {
                   onClose={() => setTemplatePickerOpen(false)}
                   scene={scene}
                   value={scene.templateId}
+                  jobId={videoId}
                   onSelect={(id) => handleFieldChange(selectedSceneIndex, "templateId", id)}
                 />
               </div>

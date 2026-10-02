@@ -51,7 +51,7 @@ export const InspectorPanel = ({
 
     <div className="flex-1 space-y-5 overflow-y-auto p-4">
       {inspectorTab === "content" && (
-        <ContentTab scene={scene} selectedSceneIndex={selectedSceneIndex} canEdit={canEdit} editor={editor} />
+        <ContentTab scene={scene} selectedSceneIndex={selectedSceneIndex} canEdit={canEdit} editor={editor} jobId={job?._id} />
       )}
       {inspectorTab === "style" && (
         <StyleTab scene={scene} selectedSceneIndex={selectedSceneIndex} canEdit={canEdit} editor={editor} />
