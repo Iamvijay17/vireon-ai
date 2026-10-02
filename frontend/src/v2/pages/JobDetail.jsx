@@ -1,3 +1,4 @@
+import { installExclusiveAudio } from "../../lib/exclusiveAudio";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -31,6 +32,8 @@ import { confirmDialog } from "../../components/ui/confirmBus";
  * this and what do I do next" - so the pipeline and the single most
  * relevant action sit at the top, before any metadata.
  */
+installExclusiveAudio();
+
 export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -362,6 +365,7 @@ function SceneRow({ scene, jobId }) {
           // editor.
           <audio
             controls
+            data-exclusive-audio
             preload="none"
             src={resolveSceneAudioUrl(jobId, scene.audio.file)}
             className="mt-2.5 h-8 w-full max-w-md"

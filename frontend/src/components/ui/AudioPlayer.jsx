@@ -1,6 +1,9 @@
 import { useRef, useState, useMemo } from "react";
 import { Play, Pause } from "lucide-react";
 import { cn } from "./cn";
+import { installExclusiveAudio, EXCLUSIVE_AUDIO_ATTR } from "../../lib/exclusiveAudio";
+
+installExclusiveAudio();
 
 const BAR_COUNT = 46;
 
@@ -88,6 +91,7 @@ export const AudioPlayer = ({ src, className }) => {
         src={src}
         preload="metadata"
         className="hidden"
+        {...{ [EXCLUSIVE_AUDIO_ATTR]: "" }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
