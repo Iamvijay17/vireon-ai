@@ -130,9 +130,15 @@ PC. (If you ever add one: run it only for `main`, never for pull requests/forks.
 | Start | `docker compose --profile tailscale up -d` |
 | Restart one service | `docker compose restart backend` |
 | Restart workers | `Stop-ScheduledTask VireonVideoWorker; Start-ScheduledTask VireonVideoWorker` |
+| Free Docker disk space | `deploy\deploy.ps1 -PruneOnly` (also runs after every deploy; keeps the running + previous version, `latest`, and `mongo:7` for backups) |
 | Logs | `docker compose logs -f backend` · `.deploy\deploy.log` · `backend\logs\` |
 | Health | `curl http://localhost:8080/health` → `{"status":"ok"}`; `docker compose ps` (readiness is the backend container's health) |
 | Status of tunnel | `docker compose logs tailscale` |
+
+**Disk space:** Docker keeps its data in one file (`%LOCALAPPDATA%\Docker\wsl\disk\docker_data.vhdx`, about 12 GB on this PC) that
+does not shrink by itself after cleanup, so C: free space may not change. To hand the space back: quit Docker Desktop,
+run `wsl --shutdown`, then in an elevated PowerShell `Optimize-VHD -Path "$env:LOCALAPPDATA\Docker\wsl\disk\docker_data.vhdx" -Mode Full`
+(needs the Hyper-V module), and start Docker Desktop again. Vireon is offline while Docker is stopped.
 
 ## 8. Rollback
 Every deploy keeps the previous working image tag in `.deploy\state.json`.
