@@ -76,9 +76,15 @@ export function ScenePreview({ scenes = NO_SCENES, focusIndex, onActiveSceneChan
   // identity. A fresh object literal each render (the previous code) meant
   // ANY parent re-render - selecting a scene, a socket update, typing in the
   // inspector - re-rendered the full composition even when no scene changed.
+  //
+  // `jobId` is not just a label: the generative template seeds its palette and
+  // font pairing from it (GeneratedScene `styleSeed = jobId || seed`), and the
+  // server render passes the real job/video id. A hard-coded "preview" here
+  // made the preview draw a DIFFERENT random style than the final video for
+  // the same script. Passing the real id makes the two match.
   const inputProps = useMemo(
-    () => ({ assets: { scenes: previewScenes }, jobId: "preview" }),
-    [previewScenes],
+    () => ({ assets: { scenes: previewScenes }, jobId: videoId || "preview" }),
+    [previewScenes, videoId],
   );
 
   const seekToScene = useCallback(
