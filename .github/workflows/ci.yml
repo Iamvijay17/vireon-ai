@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # main: tested on every merge (deploy.yml waits for this run).
+  # Other branches: tested once, through their pull request. Triggering on
+  # `push` for them too ran every PR commit twice.
   push:
-    branches: [main, v2]
+    branches: [main]
   pull_request:
 
 permissions:
