@@ -4,6 +4,10 @@
    - checks API health, Docker containers, Tailscale, disk space, failed or
      stuck video jobs
    - sends a phone/desktop push via ntfy.sh on problems AND on recovery
+ Dead-man's switch (optional): if .deploy\healthcheck-url.txt holds a
+ healthchecks.io ping URL, every pass pings it (or <url>/fail when the API,
+ MinIO or Docker is down). The watchdog cannot report that the PC itself is
+ off; healthchecks.io notices the pings STOPPING and alerts you instead.
  Alert channel: the topic name in .deploy\ntfy-topic.txt (treat it like a
  password: anyone who knows it can read/post). Messages never contain secrets.
    deploy\watchdog.ps1 -Test     send a test notification and exit
@@ -15,6 +19,7 @@ $repo = Split-Path -Parent $PSScriptRoot
 $stateDir = Join-Path $repo '.deploy'
 New-Item -ItemType Directory -Force $stateDir | Out-Null
 $topicFile = Join-Path $stateDir 'ntfy-topic.txt'
+$pingFile = Join-Path $stateDir 'healthcheck-url.txt'
 $stateFile = Join-Path $stateDir 'watchdog-state.json'
 $api = 'http://127.0.0.1:8080'
 
@@ -27,7 +32,21 @@ function Notify([string]$title, [string]$msg, [string]$prio = 'default', [string
   } catch { }
 }
 
-if ($Test) { Notify 'Vireon test' 'Alerts are working.' 'default' 'white_check_mark'; Write-Host 'sent'; exit 0 }
+# Pings the dead-man's switch. -Fail marks this run as "PC is up but Vireon is not".
+function Ping-DeadMansSwitch([switch]$Fail) {
+  if (-not (Test-Path $pingFile)) { return }
+  $url = (Get-Content $pingFile -Raw).Trim().TrimEnd('/')
+  if (-not $url) { return }
+  if ($Fail) { $url += '/fail' }
+  try { Invoke-RestMethod -Uri $url -TimeoutSec 10 | Out-Null } catch { }
+}
+
+if ($Test) {
+  Notify 'Vireon test' 'Alerts are working.' 'default' 'white_check_mark'
+  Ping-DeadMansSwitch
+  Write-Host ('sent (dead-man switch ping: ' + $(if (Test-Path $pingFile) { 'yes' } else { 'not configured' }) + ')')
+  exit 0
+}
 
 # --- state -----------------------------------------------------------------
 $state = @{ fails = @{}; alerted = @{}; seenFailedJobs = @(); stuckAlerted = @() }
@@ -143,5 +162,14 @@ try {
   }
   $state.stuckAlerted = @($state.stuckAlerted | Select-Object -Last 100)
 } catch { }
+
+# --- 8. Dead-man's switch ----------------------------------------------------
+# Healthy = what users need works right now. Disk/Tailscale/backup problems
+# alert through ntfy but don't make the PC count as "dead".
+if (($state.fails['API'] -eq 0) -and ($state.fails['MinIO'] -eq 0) -and ($state.fails['Docker'] -eq 0)) {
+  Ping-DeadMansSwitch
+} else {
+  Ping-DeadMansSwitch -Fail
+}
 
 $state | ConvertTo-Json -Depth 4 | Set-Content $stateFile

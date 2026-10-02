@@ -157,6 +157,14 @@ tfy-topic.txt` (gitignored; treat as a password). Subscribe in the ntfy app
 - Test: `powershell -File deploy\watchdog.ps1 -Test`. New topic: overwrite the file and resubscribe.
 - Not covered: the whole PC being off or offline (nothing on it can send an alert).
 
+**"The whole PC is off/offline" alert (dead-man's switch, optional, free).** The watchdog cannot report its own PC being down, so
+it pings a healthchecks.io URL on every pass (every 2 min) and healthchecks.io alerts you when the pings STOP. If the PC is up but
+the API, MinIO or Docker is down, it pings `<url>/fail` instead (instant alert).
+1. Create a free account at healthchecks.io -> Add Check: name `Vireon PC`, Period `5 minutes`, Grace `5 minutes`. Copy the ping URL.
+2. Integrations -> add *ntfy* (same topic as in `.deploy\ntfy-topic.txt`) so it reaches your phone like the other alerts (email works too).
+3. On the PC: `Set-Content 'C:\Programs\Video Generation\vireon-prod\.deploy\healthcheck-url.txt' '<ping URL>'` (gitignored; treat the URL like a password).
+4. Test: `powershell -File deploy\watchdog.ps1 -Test` (also pings), then check the check turned green. Remove the file to turn it off.
+
 ## 8c. Backups and restore
 `deployackup.ps1` runs nightly at 03:00 (task `VireonBackup`; runs at next start if the PC was off) and writes to
 `E:\VireonBackups` (a different physical disk than MinIO's `D:`; the whole set is ~0.5 GB):
