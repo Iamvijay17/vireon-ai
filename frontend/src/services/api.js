@@ -6,6 +6,9 @@ import axios from 'axios';
 // VITE_API_URL can still override this explicitly if needed.
 const getApiBase = () => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  // Production build is served by nginx, which proxies /api and /socket.io
+  // on the same origin - no separate :3000 port is reachable from outside.
+  if (import.meta.env.PROD) return window.location.origin;
   const { hostname, protocol } = window.location;
   return `${protocol}//${hostname}:3000`;
 };
@@ -44,6 +47,8 @@ api.interceptors.response.use(
 // MINIO_SCENES_BUCKET default (see backend/src/config/index.js).
 const getMinioBase = () => {
   if (import.meta.env.VITE_MINIO_PUBLIC_URL) return import.meta.env.VITE_MINIO_PUBLIC_URL;
+  // Production: nginx exposes MinIO read-only under /media (see frontend/nginx.conf).
+  if (import.meta.env.PROD) return `${window.location.origin}/media`;
   const { hostname, protocol } = window.location;
   return `${protocol}//${hostname}:9000`;
 };
@@ -84,6 +89,9 @@ const resolveAssetUrl = (url) => {
     // built as http(s)://host:port), and URLs without one must pass through.
     const isMinioPort = parsed.port !== '' && String(parsed.port) === String(MINIO_PORT || '9000');
     if ((isLoopback || hostname !== window.location.hostname) && isMinioPort) {
+      if (import.meta.env.PROD && !import.meta.env.VITE_MINIO_PUBLIC_URL) {
+        return `${window.location.origin}/media${parsed.pathname}${parsed.search}`;
+      }
       parsed.hostname = window.location.hostname;
       return parsed.toString();
     }

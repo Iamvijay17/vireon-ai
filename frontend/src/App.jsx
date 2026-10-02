@@ -1,4 +1,5 @@
-import { useState, useContext } from "react";
+import { useState, useContext, lazy, Suspense } from "react";
+import { Routes, Route } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { useSocketQuerySync } from "./lib/useSocketQuerySync";
@@ -10,6 +11,9 @@ import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmDialogHost } from "./components/ui/ConfirmDialog";
 import { ErrorBoundary } from "./components";
 import Structure from "./layout";
+
+// v2 mounts outside v1's layout so the two shells never nest. See src/v2/App.jsx.
+const V2App = lazy(() => import("./v2/App"));
 import "./App.css";
 
 const AppShell = () => {
@@ -26,7 +30,19 @@ const AppShell = () => {
       <ToastProvider>
         <SidebarProvider>
           <BreadcrumbProvider>
-            <Structure />
+            <Routes>
+              {/* v2 gets the whole subtree, with its own shell. Everything
+                  else falls through to v1's layout unchanged. */}
+              <Route
+                path="/v2/*"
+                element={
+                  <Suspense fallback={null}>
+                    <V2App />
+                  </Suspense>
+                }
+              />
+              <Route path="*" element={<Structure />} />
+            </Routes>
           </BreadcrumbProvider>
         </SidebarProvider>
         <ConfirmDialogHost />

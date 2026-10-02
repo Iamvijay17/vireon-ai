@@ -26,4 +26,15 @@ export default defineConfig({
     // optimize, which was causing stale optimize-deps hash 504s.
     exclude: ["vireon-remotion-templates"],
   },
+  test: {
+    // jsdom, not node: the units worth testing here are hooks and pure
+    // helpers, and the hooks need a DOM to render into.
+    environment: "jsdom",
+    globals: true,
+    include: ["src/**/*.test.{js,jsx}"],
+    // Keep the Remotion workspace source out of the test run - it has its
+    // own suite and pulling it in drags the whole player bundle into
+    // every test file's module graph.
+    exclude: ["node_modules/**", "dist/**", "**/vireon-remotion-templates/**"],
+  },
 })

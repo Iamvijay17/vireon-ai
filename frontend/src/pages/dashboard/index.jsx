@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   FolderKanban,
   CheckCircle2,
@@ -15,8 +15,9 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getVideoJobs, deleteVideoJob, bulkDeleteVideoJobs } from "../../services/api";
-import { connect, onJobCreated, onJobCompleted, onJobFailed } from "../../services/socket";
 import { LoadingState, EmptyState, StatusTag } from "../../components";
+import { useApiQuery, useInvalidate } from "../../lib/useApiQuery";
+import { queryKeys } from "../../lib/queryClient";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -41,57 +42,34 @@ const toneCls = {
   neutral: "bg-surface-hover text-text-tertiary",
 };
 
+const EMPTY_JOBS = [];
+
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 0 });
+  const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
-  const fetchJobs = async (page = 1) => {
-    try {
-      setLoading(true);
-      const res = await getVideoJobs(page);
-      setJobs(res.data.jobs);
-      setPagination(res.data.pagination);
-      setSelectedIds(new Set());
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to fetch jobs");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, loading, refetch } = useApiQuery(
+    queryKeys.videos.list(page, {}),
+    () => getVideoJobs(page),
+    { errorMessage: "Failed to fetch jobs" }
+  );
 
-  useEffect(() => {
-    fetchJobs();
-    connect();
-  }, []);
+  const invalidate = useInvalidate();
 
-  // Real-time updates via Socket.IO
-  useEffect(() => {
-    const unsubCreated = onJobCreated((data) => {
-      setJobs((prev) => [{ ...data, status: data.status || "QUEUED", progress: 0 }, ...prev]);
-    });
+  // Memoized so the derived-list useMemo below keeps a stable dependency;
+  // the React compiler cannot see through a bare `??` expression.
+  const jobs = useMemo(() => data?.jobs ?? EMPTY_JOBS, [data]);
+  const pagination = data?.pagination ?? { page, total: 0, pages: 0 };
 
-    const unsubCompleted = onJobCompleted((data) => {
-      setJobs((prev) =>
-        prev.map((j) => (j._id === data.jobId ? { ...j, status: "COMPLETED", progress: 100, videoUrl: data.videoUrl } : j))
-      );
-    });
-
-    const unsubFailed = onJobFailed((data) => {
-      setJobs((prev) => prev.map((j) => (j._id === data.jobId ? { ...j, status: "FAILED", error: data.error } : j)));
-    });
-
-    return () => {
-      unsubCreated();
-      unsubCompleted();
-      unsubFailed();
-    };
-  }, []);
+  // The jobCreated/jobCompleted/jobFailed listeners this page used to keep
+  // are gone: lib/useSocketQuerySync.js invalidates queryKeys.videos.all on
+  // those same events, app-wide. Merging them into local state here as
+  // well meant two sources of truth for one row - a partial socket payload
+  // could overwrite fields the list renders but the event doesn't carry.
 
   const handleDelete = async (job) => {
     if (!(await confirmDialog({ title: `Delete "${job.topic}"?`, content: "This can't be undone.", danger: true, confirmText: "Delete" }))) {
@@ -100,7 +78,7 @@ const Dashboard = () => {
     try {
       await deleteVideoJob(job._id);
       toast.success("Job deleted");
-      setJobs((prev) => prev.filter((j) => j._id !== job._id));
+      invalidate(queryKeys.videos.all, queryKeys.jobs.all);
     } catch {
       toast.error("Failed to delete job");
     }
@@ -132,7 +110,7 @@ const Dashboard = () => {
     try {
       const res = await bulkDeleteVideoJobs(jobIds);
       toast.success(`Deleted ${res.data.deletedCount || jobIds.length} job${(res.data.deletedCount || jobIds.length) === 1 ? "" : "s"}`);
-      setJobs((prev) => prev.filter((j) => !selectedIds.has(j._id)));
+      invalidate(queryKeys.videos.all, queryKeys.jobs.all);
       setSelectedIds(new Set());
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to delete jobs");
@@ -238,7 +216,7 @@ const Dashboard = () => {
               aria-label="Refresh jobs"
               loading={loading}
               icon={<RefreshCw className="size-4" />}
-              onClick={() => fetchJobs(pagination.page)}
+              onClick={() => refetch()}
             />
           </div>
         </div>
@@ -352,7 +330,7 @@ const Dashboard = () => {
                   size="sm"
                   iconOnly
                   disabled={pagination.page <= 1}
-                  onClick={() => fetchJobs(pagination.page - 1)}
+                  onClick={() => { setPage(pagination.page - 1); setSelectedIds(new Set()); }}
                   icon={<ChevronLeft className="size-4" />}
                 />
                 <Button
@@ -360,7 +338,7 @@ const Dashboard = () => {
                   size="sm"
                   iconOnly
                   disabled={pagination.page >= totalPages}
-                  onClick={() => fetchJobs(pagination.page + 1)}
+                  onClick={() => { setPage(pagination.page + 1); setSelectedIds(new Set()); }}
                   icon={<ChevronRight className="size-4" />}
                 />
               </div>

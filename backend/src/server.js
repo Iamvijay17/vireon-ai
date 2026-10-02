@@ -41,6 +41,11 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 const app = express();
 const server = http.createServer(app);
 
+// Behind nginx / the Tailscale or Cloudflare tunnel, req.ip is the proxy
+// unless Express is told to trust X-Forwarded-For - without this every
+// client shares one rate-limit bucket. One hop (the nginx container) only.
+if (config.isProd) app.set('trust proxy', 1);
+
 // ── Security Middleware ──────────────────────────────────────────────────────
 // Swagger UI's bundled HTML relies on inline scripts/styles, which helmet's
 // default Content-Security-Policy blocks - skip the CSP-bearing default
@@ -110,27 +115,31 @@ app.use(
 );
 LoggerService.info('Voice sample files configured', { path: voicesDir });
 
-// ── Health Check ─────────────────────────────────────────────────────────────
+// ── Health / Readiness ───────────────────────────────────────────────────────
+// /health = liveness only: the process is up and the event loop answers. It
+// deliberately reveals nothing about the host (no pid/memory/platform/paths)
+// and doesn't log, since Docker polls it every few seconds.
 app.get('/health', (req, res) => {
-  const healthData = {
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: `${Math.floor(process.uptime())}s`,
-    pid: process.pid,
-    memory: `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`,
-    platform: process.platform,
-    nodeVersion: process.version,
-    environment: config.nodeEnv,
-  };
+  res.status(200).json({ status: 'ok' });
+});
 
-  LoggerService.border('🧠 HEALTH CHECK', 'success');
-  LoggerService.success('System is running smoothly', {
-    uptime: healthData.uptime,
-    memory: healthData.memory,
-    pid: healthData.pid,
-  });
-
-  res.status(200).json(healthData);
+// /ready = can this instance actually serve requests (Mongo + Redis up)?
+// Returns only per-dependency ok/down - no hostnames, URIs or error text.
+app.get('/ready', async (req, res) => {
+  const mongoose = require('mongoose');
+  const videoQueue = require('./queues/videoQueue');
+  const checks = { mongo: mongoose.connection.readyState === 1, redis: false };
+  try {
+    const client = await videoQueue.client;
+    checks.redis = (await Promise.race([
+      client.ping(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
+    ])) === 'PONG';
+  } catch {
+    checks.redis = false;
+  }
+  const ready = checks.mongo && checks.redis;
+  res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'degraded', checks });
 });
 
 // ── API Documentation ────────────────────────────────────────────────────────
@@ -356,6 +365,29 @@ async function startServer() {
     LoggerService.error('Failed to start server', { error: err.message });
     process.exit(1);
   }
+}
+
+// Graceful shutdown: stop accepting connections, let in-flight requests and
+// socket clients drain, then exit. database.js separately closes Mongo on
+// SIGINT. Hard-exits after 10s so a hung connection can't block `docker stop`.
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  LoggerService.info(`${signal} received - shutting down API`);
+  setTimeout(() => process.exit(1), 10000).unref();
+  server.close(async () => {
+    try {
+      await require('mongoose').connection.close();
+    } catch {
+      // already closed
+    }
+    process.exit(0);
+  });
+}
+if (require.main === module) {
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 process.on('uncaughtException', (err) => {

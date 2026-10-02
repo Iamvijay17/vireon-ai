@@ -6,6 +6,7 @@ import { io } from 'socket.io-client';
 // VITE_API_URL can still override this explicitly if needed.
 const getSocketUrl = () => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (import.meta.env.PROD) return window.location.origin;
   const { hostname, protocol } = window.location;
   return `${protocol}//${hostname}:3000`;
 };
@@ -194,6 +195,38 @@ export const onCourseWorkerStatus = (callback) => {
 export const onServerLog = (callback) => {
   socket.on('serverLog', callback);
   return () => socket.off('serverLog', callback);
+};
+
+// ─── Connection Status Store ───────────────────────────────────────────────────
+// The socket's connection state is external to React, so it is exposed as a
+// snapshot + subscribe pair for useSyncExternalStore rather than mirrored
+// into component state via an effect. Mirroring it meant every live page
+// setState'd inside its subscribe effect, and each one re-derived the
+// reconnecting-vs-disconnected distinction separately.
+
+let connectionStatus = socket.connected ? 'connected' : 'disconnected';
+const statusListeners = new Set();
+
+const setConnectionStatus = (next) => {
+  if (next === connectionStatus) return; // keep snapshots referentially stable
+  connectionStatus = next;
+  statusListeners.forEach((listener) => listener());
+};
+
+socket.on('connect', () => setConnectionStatus('connected'));
+socket.on('disconnect', (reason) =>
+  // An explicit local disconnect is terminal; anything else means socket.io
+  // is still retrying, so the UI should say "reconnecting", not "offline".
+  setConnectionStatus(reason === 'io client disconnect' ? 'disconnected' : 'reconnecting')
+);
+
+/** Current status: 'connected' | 'reconnecting' | 'disconnected'. */
+export const getConnectionStatus = () => connectionStatus;
+
+/** Subscribe to status changes. Returns an unsubscribe function. */
+export const subscribeToConnectionStatus = (listener) => {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
 };
 
 // ─── Connection Status ─────────────────────────────────────────────────────────

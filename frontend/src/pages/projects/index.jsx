@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Plus, FolderKanban, Film, BookOpen, PlayCircle, CheckCircle2 } from "lucide-react";
 import { getVideoJobs, getCourses, resolveMediaUrl } from "../../services/api";
 import { PageHeader, LoadingState, EmptyState, StatusTag } from "../../components";
+import { useApiQuery } from "../../lib/useApiQuery";
+import { queryKeys } from "../../lib/queryClient";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { Badge } from "../../components/ui/Badge";
-import { toast } from "../../components/ui/toastBus";
 
 const TYPE_OPTIONS = [
   { value: "", label: "All projects" },
@@ -17,6 +18,10 @@ const TYPE_OPTIONS = [
 ];
 
 const FETCH_LIMIT = 50;
+
+// Stable reference for the not-yet-loaded case: `?? []` would allocate a
+// fresh array every render and invalidate the useMemo below each time.
+const EMPTY = [];
 
 /**
  * Unified overview across the two kinds of work this app produces: single
@@ -27,31 +32,27 @@ const FETCH_LIMIT = 50;
  */
 const Projects = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [videoJobs, setVideoJobs] = useState([]);
-  const [courses, setCourses] = useState([]);
   const [type, setType] = useState("");
   const [search, setSearch] = useState("");
 
-  const fetchAll = async () => {
-    try {
-      setLoading(true);
-      const [jobsRes, coursesRes] = await Promise.all([
-        getVideoJobs(1, FETCH_LIMIT),
-        getCourses(1, FETCH_LIMIT),
-      ]);
-      setVideoJobs(jobsRes.data.jobs || []);
-      setCourses(coursesRes.data.courses || []);
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to load projects");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Two independent queries rather than one combined fetch: they are
+  // cached (and invalidated by socket events) under their own keys, so a
+  // course event no longer forces a refetch of the video jobs beside it.
+  const jobsQuery = useApiQuery(
+    queryKeys.videos.list(1, { limit: FETCH_LIMIT }),
+    () => getVideoJobs(1, FETCH_LIMIT),
+    { select: (data) => data.jobs || [], errorMessage: "Failed to load projects" }
+  );
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  const coursesQuery = useApiQuery(
+    queryKeys.courses.list(1, { limit: FETCH_LIMIT }),
+    () => getCourses(1, FETCH_LIMIT),
+    { select: (data) => data.courses || [], errorMessage: "Failed to load projects" }
+  );
+
+  const videoJobs = jobsQuery.data ?? EMPTY;
+  const courses = coursesQuery.data ?? EMPTY;
+  const loading = jobsQuery.loading || coursesQuery.loading;
 
   const projects = useMemo(() => {
     const fromJobs = videoJobs.map((j) => ({

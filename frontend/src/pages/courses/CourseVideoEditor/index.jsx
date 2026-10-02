@@ -25,10 +25,11 @@ import {
   retryCourseVideo,
   stopCourseVideo,
   regenerateCourseVideoSceneAudio,
+  getCourseVideoActivityLogs,
 } from "../../../services/api";
 import { getCurrentStep, scriptToText } from "./constants";
 import { InlineEmpty } from "./shared";
-import { useActivityLog } from "./useActivityLog";
+import { useActivityLog } from "../../../shared/useActivityLog";
 import { useVideoSocket } from "./useVideoSocket";
 import { ScriptStepCard } from "./ScriptStepCard";
 import { AudioStepCard } from "./AudioStepCard";
@@ -52,7 +53,11 @@ const CourseVideoEditor = () => {
 
   const setStepLoading = (step, val) => setActionLoading((prev) => ({ ...prev, [step]: val }));
 
-  const { activityLog, fetchActivityLogs, addActivity } = useActivityLog(videoId);
+  // Closes over videoId so callers can keep calling fetchActivityLogs()
+  // with no arguments. useCallback keeps the reference stable, which the
+  // hook depends on.
+  const fetchVideoActivityLogs = useCallback(() => getCourseVideoActivityLogs(videoId), [videoId]);
+  const { activityLog, fetchActivityLogs, addActivity } = useActivityLog(fetchVideoActivityLogs);
 
   const fetchVideo = useCallback(async () => {
     try {

@@ -23,11 +23,69 @@ export const Modal = ({
   className,
 }) => {
   const panelRef = useRef(null);
+  // Remembered so focus can go back where it came from on close - without
+  // it, dismissing a dialog drops the caret to the top of the document and
+  // a keyboard user has to tab all the way back to where they were.
+  const previouslyFocusedRef = useRef(null);
+
   useEscapeKey(() => closable && onClose?.(), open);
   useLockBodyScroll(open);
 
   useEffect(() => {
-    if (open) panelRef.current?.focus();
+    if (!open) return undefined;
+
+    previouslyFocusedRef.current = document.activeElement;
+    panelRef.current?.focus();
+
+    return () => {
+      // Only restore if the trigger is still in the document - a dialog
+      // that deleted the row it was opened from has nothing to go back to.
+      const previous = previouslyFocusedRef.current;
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [open]);
+
+  // Focus trap. `aria-modal` tells assistive tech the rest of the page is
+  // inert, but it does nothing for Tab: without this, tabbing past the last
+  // control moves focus behind the overlay, onto controls the user can
+  // neither see nor meaningfully use.
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const onKeyDown = (e) => {
+      if (e.key !== "Tab") return;
+
+      const focusable = panelRef.current?.querySelectorAll(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable?.length) {
+        // Nothing focusable inside - keep focus on the panel rather than
+        // letting it escape to the page behind.
+        e.preventDefault();
+        panelRef.current?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      // Wrap around at both ends, and pull focus in if it somehow left the
+      // panel entirely (e.g. the focused element was just unmounted).
+      if (e.shiftKey && (active === first || active === panelRef.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (!panelRef.current?.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
   if (!open) return null;

@@ -12,6 +12,7 @@ import {
   generateVideoRender,
   regenerateVideoSceneAudio,
   getVoices,
+  getVideoJobActivityLogs,
 } from "../../services/api";
 import { LoadingState, ErrorState, JobEventTimeline } from "../../components";
 import RenderQueue from "./RenderQueue";
@@ -27,7 +28,7 @@ import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 import { STEP_ORDER, BUSY_STATUSES, FALLBACK_VOICES } from "./constants";
-import { useActivityLog } from "./useActivityLog";
+import { useActivityLog } from "../../shared/useActivityLog";
 import { useJobSocket } from "./useJobSocket";
 import { PipelineActionsCard } from "./PipelineActionsCard";
 import { ProgressCard } from "./ProgressCard";
@@ -59,7 +60,9 @@ const RenderPage = () => {
 
   const videoRef = useRef(null);
 
-  const { activityLog, fetchActivityLogs } = useActivityLog();
+  // The id is passed per call (the socket hook re-fetches for whichever
+  // job it is handling), so the fetcher takes it as an argument.
+  const { activityLog, fetchActivityLogs } = useActivityLog(getVideoJobActivityLogs);
   const { events: jobEvents, loading: eventsLoading } = useJobEvents("video", jobId);
   const [historyTab, setHistoryTab] = useState("events");
 

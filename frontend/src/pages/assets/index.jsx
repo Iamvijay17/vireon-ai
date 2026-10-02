@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, RefreshCw, Trash2, ExternalLink, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { getAssets, deleteAsset } from "../../services/api";
@@ -13,6 +13,8 @@ import { CopyButton } from "../../components/ui/CopyButton";
 import { Tooltip } from "../../components/ui/Tooltip";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
+import { useApiQuery, useInvalidate } from "../../lib/useApiQuery";
+import { queryKeys } from "../../lib/queryClient";
 
 const OWNER_TYPE_OPTIONS = [
   { value: "", label: "All owners" },
@@ -41,6 +43,8 @@ const OWNER_ROUTE = {
   "audio-studio": () => `/audio`,
 };
 
+const EMPTY = [];
+
 const PAGE_SIZE = 20;
 
 function formatBytes(bytes) {
@@ -62,37 +66,43 @@ function formatBytes(bytes) {
  */
 const AssetsPage = () => {
   const navigate = useNavigate();
-  const [assets, setAssets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 0 });
+  const [page, setPage] = useState(1);
   const [ownerType, setOwnerType] = useState("");
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
   const [orphanedOnly, setOrphanedOnly] = useState(false);
   const [rowActionId, setRowActionId] = useState(null);
 
-  const fetchAssets = async (page = 1) => {
-    try {
-      setLoading(true);
-      const res = await getAssets(page, PAGE_SIZE, {
-        ownerType: ownerType || undefined,
-        category: category || undefined,
-        search: search || undefined,
-        orphanedOnly: orphanedOnly || undefined,
-      });
-      setAssets(res.data.data || []);
-      setPagination(res.data.pagination || { page, total: 0, pages: 0 });
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to load assets");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const filters = useMemo(
+    () => ({
+      ownerType: ownerType || undefined,
+      category: category || undefined,
+      search: search || undefined,
+      orphanedOnly: orphanedOnly || undefined,
+    }),
+    [ownerType, category, search, orphanedOnly]
+  );
 
-  useEffect(() => {
-    fetchAssets(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ownerType, category, search, orphanedOnly]);
+  // The filters are part of the query key, so changing one fetches (and
+  // caches) that combination - no effect re-running a fetch by hand, and
+  // no eslint-disable over its dependency list.
+  const { data, loading, refreshing, refetch } = useApiQuery(
+    queryKeys.assets.list(page, filters),
+    () => getAssets(page, PAGE_SIZE, filters),
+    { errorMessage: "Failed to load assets" }
+  );
+
+  const invalidate = useInvalidate();
+
+  const assets = data?.data ?? EMPTY;
+  const pagination = data?.pagination ?? { page, total: 0, pages: 0 };
+
+  // Changing a filter should always land on the first page; staying on
+  // page 4 of a narrower result set shows an empty table.
+  const applyFilter = (setter) => (value) => {
+    setter(value);
+    setPage(1);
+  };
 
   const handleDelete = async (asset) => {
     const ok = await confirmDialog({
@@ -108,7 +118,7 @@ const AssetsPage = () => {
     try {
       await deleteAsset(asset._id);
       toast.success(`Deleted "${asset.fileName}"`);
-      fetchAssets(pagination.page);
+      invalidate(queryKeys.assets.all);
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to delete asset");
     } finally {
@@ -223,13 +233,13 @@ const AssetsPage = () => {
             placeholder="Search by file name..."
             className="min-w-56 flex-1"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => applyFilter(setSearch)(e.target.value)}
           />
-          <Select value={ownerType} onChange={setOwnerType} options={OWNER_TYPE_OPTIONS} className="w-44" />
-          <Select value={category} onChange={setCategory} options={CATEGORY_OPTIONS} className="w-44" />
+          <Select value={ownerType} onChange={applyFilter(setOwnerType)} options={OWNER_TYPE_OPTIONS} className="w-44" />
+          <Select value={category} onChange={applyFilter(setCategory)} options={CATEGORY_OPTIONS} className="w-44" />
           <button
             type="button"
-            onClick={() => setOrphanedOnly((v) => !v)}
+            onClick={() => applyFilter(setOrphanedOnly)(!orphanedOnly)}
             className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
               orphanedOnly
                 ? "border-warning-500/40 bg-warning-500/10 text-warning-600 dark:text-warning-500"
@@ -243,9 +253,9 @@ const AssetsPage = () => {
             size="sm"
             iconOnly
             aria-label="Refresh assets"
-            loading={loading}
+            loading={loading || refreshing}
             icon={<RefreshCw className="size-4" />}
-            onClick={() => fetchAssets(pagination.page)}
+            onClick={() => refetch()}
           />
         </div>
       </Card>
@@ -283,7 +293,7 @@ const AssetsPage = () => {
               size="sm"
               iconOnly
               disabled={pagination.page <= 1}
-              onClick={() => fetchAssets(pagination.page - 1)}
+              onClick={() => setPage(pagination.page - 1)}
               icon={<ChevronLeft className="size-4" />}
             />
             <Button
@@ -291,7 +301,7 @@ const AssetsPage = () => {
               size="sm"
               iconOnly
               disabled={pagination.page >= totalPages}
-              onClick={() => fetchAssets(pagination.page + 1)}
+              onClick={() => setPage(pagination.page + 1)}
               icon={<ChevronRight className="size-4" />}
             />
           </div>
