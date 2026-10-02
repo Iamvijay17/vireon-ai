@@ -1,113 +1,158 @@
 # Vireon AI - Backend
 
-AI-powered video generation platform backend with clean architecture.
+Express API and BullMQ workers for the Vireon AI video pipeline. The API creates and edits jobs; the workers do the heavy lifting (LLM script, TTS, avatar/images, Remotion render) against local AI services and MinIO.
 
-## Tech Stack
+For the project overview and deployment, see the [root README](../README.md).
 
-- **Runtime:** Node.js
-- **Framework:** Express.js
+## Tech stack
+
+- **Runtime / framework:** Node.js 22, Express 5
 - **Database:** MongoDB (Mongoose)
-- **Queue:** BullMQ (Redis)
+- **Queues:** BullMQ on Redis (`video-rendering`, plus a course queue)
 - **Realtime:** Socket.IO
-- **AI:** Ollama or LM Studio (`LLM_PROVIDER`) + self-hosted Qwen3-TTS
-- **Rendering:** Remotion
-- **Storage:** MinIO (local S3-compatible object storage)
-- **Validation:** Zod
-- **Logging:** Winston
+- **LLM:** Ollama (default) or LM Studio, chosen by `LLM_PROVIDER`
+- **TTS:** self-hosted Qwen3-TTS; faster-whisper forced alignment (`services/audio/alignCaptions.py`) for caption timing
+- **Avatar / images (optional):** MuseTalk, ComfyUI
+- **Rendering:** Remotion (templates live in [`remotion/`](remotion/README.md))
+- **Storage:** MinIO (the only storage backend)
+- **Validation / logging / docs:** Zod, Winston, Swagger UI (`/api-docs`)
 
-## Architecture
+## Layout
 
 ```
 src/
-├── config/         # App configuration (env, DB, Redis)
-├── constants/      # Enums & constants
-├── controllers/    # Request handlers (thin)
-├── middleware/      # Auth, error handling, rate limiting
-├── models/         # Mongoose schemas (User, VideoJob)
-├── queues/         # BullMQ queue definitions
-├── routes/         # Express route definitions
-├── services/       # Business logic (single responsibility)
-│   ├── AuthService
-│   ├── VideoService
-│   ├── PromptService
-│   ├── LLMService
-│   ├── ScriptParserService
-│   ├── AudioService (TTS)
-│   ├── RemotionService
-│   ├── StorageService      # local scratch dir helpers
-│   ├── providers/          # StorageProvider (MinIO)
-│   ├── LoggerService
-│   └── SocketService
-├── workers/        # BullMQ job processors
-├── validators/     # Zod schemas
-├── socket/         # Socket.IO handlers
-├── utils/          # Shared utilities
-└── constants/      # Enums
+├── config/        # env config + Zod validation at boot (validate.js), DB, swagger
+├── constants/     # JOB_STATUS, pipeline stages, allowed job transitions
+├── controllers/   # thin request handlers
+├── core/          # GPU lease (live) and scene-graph runner (parked) - see core/README.md
+├── ir/            # scene IR: schema, compile, template registry, toRenderProps
+├── middleware/    # auth stub, error handler, requireCourseWorker
+├── models/        # Mongoose models (VideoJob, Course, CourseVideo, Asset, ActivityLog, JobEvent, ...)
+├── queues/        # BullMQ queues (videoQueue, courseQueue)
+├── routes/        # Express routers (one per resource, Swagger-annotated)
+├── services/
+│   ├── video/     # VideoService (crud, lifecycle, resume logic), ScriptParser, RemotionService
+│   ├── course/    # courses, curricula, course videos
+│   ├── audio/     # TTS client, caption alignment
+│   ├── avatar/    # MuseTalk avatar + narration track
+│   ├── director/  # AI director: scene, visual, motion and voice planning
+│   ├── localAI/   # start/stop/health managers for Ollama, LM Studio, TTS, ComfyUI, MuseTalk + GPU slot manager
+│   ├── storage/   # StorageService + MinIO provider
+│   ├── asset/     # asset library
+│   ├── job/       # cross-type job aggregation
+│   └── common/    # LLM, prompts, cache, logger, sockets, metrics, retry policy
+├── validators/    # Zod request schemas
+├── workers/       # videoWorker/ (script, audio, avatar, render, upload steps) and courseVideoWorker.js
+└── server.js
+templates/         # LLM prompt templates per video type
+scripts/           # one-off maintenance scripts (backfills, artifact stats, ...)
+voices/            # reference .wav files for voice cloning, served at /voice-samples
+tests/             # Jest suites
 ```
 
-## Video Pipeline (8 Steps)
+## Video pipeline
 
-1. **QUEUED** → Job created, added to BullMQ queue
-2. **SCRIPT_GENERATION** (10%) → Prompt template rendered with user input
-3. **SCRIPT_COMPLETED** (20%) → the local LLM (Ollama or LM Studio) generates script, validated, saved & uploaded to MinIO
-4. **GENERATING_AUDIO** (40%) → Qwen3-TTS generates audio per scene, each uploaded to MinIO immediately
-5. **AUDIO_COMPLETED** (50%) → All scene audio generated and durably in MinIO
-6. **PREPARING_ASSETS** (60%) → `assets.json` built for Remotion (audio/avatar URLs point at MinIO) - local scratch only, never uploaded
-7. **RENDERING** (80%) → Remotion renders video + thumbnail, fetching audio/avatar straight from MinIO
-8. **UPLOADING** (90%) → Render output uploaded to MinIO
-9. **COMPLETED** (100%) → URLs saved, local scratch directory wiped
+Statuses are defined in [`src/constants/index.js`](src/constants/index.js) (`JOB_STATUS`):
 
-Storage is split across two MinIO buckets: `vireon-scenes` (audio/avatar, keyed by videoId), `vireon-video` (render output, keyed by videoId) - see `services/providers/MinioStorageProvider.js`. Script content lives in MongoDB; script.json/assets.json are local scratch files only.
+1. `QUEUED` - job created and added to the queue
+2. `SCRIPT_GENERATION` → `SCRIPT_COMPLETED` - the LLM writes the script, which is validated and saved in MongoDB
+3. `AWAITING_APPROVAL` - the script is reviewed/edited, then approved (`POST /api/videos/:id/approve`)
+4. `GENERATING_AUDIO` → `AUDIO_COMPLETED` - TTS per scene, caption timing aligned with faster-whisper, each file uploaded to MinIO as soon as it exists
+5. `GENERATING_AVATAR` / `GENERATING_IMAGES` → `IMAGE_COMPLETED` - optional steps when the job uses an avatar or generated images
+6. `PREPARING_ASSETS` - `assets.json` built for Remotion (local scratch only)
+7. `RENDERING` - Remotion renders the video and thumbnail
+8. `UPLOADING` → `COMPLETED` - output uploaded to MinIO, local scratch wiped
 
-## Quick Start
+Terminal/recovery states: `FAILED`, `CANCELLED`, `RETRY_SCHEDULED` (a step failed with retries left; the job re-enters the pipeline after a backoff). BullMQ's own retry is off (`attempts: 1`); retries are handled at the app level, see [`videoQueue.js`](src/queues/videoQueue.js).
+
+The same stages are grouped into 9 named macro-stages for reporting in [`pipelineStages.js`](src/constants/pipelineStages.js). Course videos follow a parallel flow handled by `courseVideoWorker.js`.
+
+### Storage
+
+Three MinIO buckets (names overridable via `MINIO_*_BUCKET`):
+
+| Bucket | Contents |
+|--------|----------|
+| `vireon-scenes` | per-scene audio/avatar, keyed by video id |
+| `vireon-video` | render output, keyed by video id |
+| `vireon-cache` | content-addressed cache shared across jobs (TTS etc.); disable with `SMART_CACHE_ENABLED=false` |
+
+Script content lives in MongoDB. `backend/jobs/` is scratch space only and is wiped after each job.
+
+### Scene IR
+
+`src/ir/` compiles scenes into a validated intermediate representation and converts it to Remotion render props. `IR_MODE` controls it: `shadow` (default, compile and diff without affecting output), `authoritative`, or `off`.
+
+## Running
+
+Prerequisites: MongoDB, Redis, MinIO, Ollama (or LM Studio) and the TTS server. See the root README.
 
 ```bash
-# Prerequisites: MongoDB, Redis running locally
+npm install
+cp .env.example .env     # then fill in MONGODB_URI, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, ...
 
-# Install dependencies
-cd backend && npm install
-
-# Copy and configure environment
-cp .env.example .env
-# Edit .env with your settings
-
-# Start the server (also starts local MinIO automatically - see below)
-npm start          # or: npm run dev
-
-# Start the worker (separate terminal - also starts MinIO if not already up)
-npm run worker     # or: npm run worker:dev
+npm run dev              # API with watch (also starts MinIO)
+npm run worker:dev       # video worker (separate terminal)
+npm run course-worker:dev
 ```
 
-`npm start`/`npm run dev`/`npm run worker`/`npm run worker:dev`/`npm run course-worker`/`npm run course-worker:dev` all run MinIO alongside the actual process via `concurrently` (see the `minio` script in `package.json`), so you no longer need to start it by hand first. If MinIO is already running (e.g. started by another one of these scripts, or manually), the redundant start attempt just fails to bind the port and exits - harmless, the main process keeps running. The `minio` script currently points at a fixed local path (`D:\Programs\minio\start-minio.ps1`); update that path in `package.json` if MinIO lives somewhere else on your machine. To run a process without MinIO (e.g. MinIO already managed separately), use the `:only` variants directly - e.g. `npm run server:only:dev`, `npm run worker:only`.
+`start`, `dev`, `worker*` and `course-worker*` run MinIO alongside the process through the `minio` script, which points at `D:\Programs\minio\start-minio.ps1`. Edit that path in `package.json` if MinIO is elsewhere. If MinIO is already running, the extra start attempt fails to bind the port and exits harmlessly. To skip MinIO, use the `:only` scripts (`server:only`, `server:only:dev`, `worker:only`, `worker:only:dev`, `course-worker:only`, `course-worker:only:dev`).
 
-## API Endpoints
+| Script | Purpose |
+|--------|---------|
+| `npm test` / `test:watch` / `test:coverage` | Jest |
+| `npm run lint` | ESLint over `src/` |
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/health` | No | Health check |
-| POST | `/api/auth/register` | No | Register user |
-| POST | `/api/auth/login` | No | Login |
-| GET | `/api/auth/me` | Yes | Profile |
-| POST | `/api/videos` | Yes | Create video job |
-| GET | `/api/videos` | Yes | List user's videos |
-| GET | `/api/videos/:id` | Yes | Get video job details |
-| DELETE | `/api/videos/:id` | Yes | Delete video job |
+Local AI services (Ollama, LM Studio, TTS, ComfyUI, MuseTalk) can be started on demand by the workers via the `*_AUTO_START` and `*_START_COMMAND` settings, and controlled through `/api/system/ai-services`. When more than one process uses the GPU, set `GPU_COORDINATOR=redis` (see [`src/core/README.md`](src/core/README.md)).
 
-## Environment Variables
+## API
 
-See `.env` file for all configurable variables. Key ones:
+Interactive docs: `http://localhost:3000/api-docs` (raw spec at `/api-docs.json`). Health: `GET /health` (liveness), `GET /ready` (MongoDB + Redis).
+
+| Prefix | Description |
+|--------|-------------|
+| `/api/videos` | create/list/get/update/delete videos; `approve`, `regenerate-script`, `generate-audio`, `generate-render`, `rerender`, `restart`, `stop`, `bulk-delete`; scene editing (`PUT /:id/scenes`, per-scene audio regeneration, template remap); `activity-logs` |
+| `/api/courses` | courses, curriculum generation/drafts/history, course videos, `download-all` |
+| `/api/course-videos` | course video lifecycle (script generate/approve/regenerate, audio, render, retry, stop, bulk actions, download). Generation endpoints require the course worker to be running (`GET /worker-status`) |
+| `/api/jobs` | cross-type job list, detail, events, cancel, retry, bulk actions |
+| `/api/audio` | standalone TTS: `generate`, `generate-dialogue`, history |
+| `/api/voices` | available voices and favorites |
+| `/api/assets` | asset library (list, delete) |
+| `/api/analytics` | `overview`, `videos` |
+| `/api/logs` | `recent` application logs |
+| `/api/system/ai-services` | list and start/stop/restart local AI services |
+
+### Auth
+
+There is none. `src/middleware/auth.js` is a pass-through, so every route is open. Run the API only on localhost, a trusted LAN, or a private network such as Tailscale; real authentication would have to be built from scratch before exposing it more widely.
+
+## Configuration
+
+Configuration is read from `.env` and validated with Zod at startup ([`src/config/validate.js`](src/config/validate.js)); a bad value stops the process with a readable error. Start from [`.env.example`](.env.example). Commonly used variables:
 
 ```
 PORT=3000
+HOST=127.0.0.1
+CORS_ORIGIN=http://localhost:5173
+
 MONGODB_URI=mongodb://localhost:27017/vireon-ai
-JWT_SECRET=your-secret
-LLM_PROVIDER=ollama            # or lmstudio
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+MINIO_ENDPOINT=127.0.0.1
+MINIO_PORT=9000
+MINIO_ROOT_USER=
+MINIO_ROOT_PASSWORD=
+MINIO_PUBLIC_URL=http://127.0.0.1:9000
+
+LLM_PROVIDER=ollama              # or lmstudio
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=gemma4:e4b-it-qat
 OLLAMA_NUM_CTX=16384
 LM_STUDIO_URL=http://localhost:1234/v1/chat/completions
 TTS_API_URL=http://localhost:7860
-GITHUB_TOKEN=your-token
-GITHUB_REPO_OWNER=your-username
-GITHUB_REPO_NAME=vireon-ai-storage
+
+VIDEO_WORKER_CONCURRENCY=1       # keep at 1 on a 6 GB GPU
 ```
+
+Other knobs live in [`src/config/index.js`](src/config/index.js): Remotion codec/CRF/timeout (`REMOTION_*`), TTS and LLM timeouts/retries, rate limiting (`RATE_LIMIT_*`), GPU concurrency (`GPU_MAX_CONCURRENT_AI_SERVICES`, `GPU_LEASE_TTL_MS`), `IR_MODE`, `SMART_CACHE_ENABLED`.

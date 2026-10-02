@@ -1,39 +1,108 @@
 # Vireon AI - Frontend
 
-React + Ant Design frontend for the Vireon AI video generation platform.
+React single-page app for the Vireon AI video platform: create videos, review and edit scripts, follow render progress live, manage courses, and preview scenes with the embedded Remotion player.
 
-## Tech Stack
+For the project overview and deployment, see the [root README](../README.md).
 
-- **Framework:** React 19
-- **UI Library:** Ant Design 6
+## Tech stack
+
+- **Framework:** React 19, Vite 8
+- **Styling:** Tailwind CSS 4 with in-house UI primitives (`src/components/ui`, `src/v2/ui`); icons from lucide-react
 - **Routing:** React Router 7
-- **HTTP Client:** Axios
-- **Realtime:** Socket.IO Client
-- **Build Tool:** Vite
+- **Data:** TanStack Query, Axios
+- **Realtime:** Socket.IO client. One subscription (`useSocketQuerySync`) turns server events into query-cache invalidations
+- **Video preview:** `@remotion/player` with the shared `vireon-remotion-templates` workspace package (`../backend/remotion`)
+- **Charts:** Chart.js
+- **Tests:** Vitest + Testing Library (jsdom)
 
-## Pages
+## Two UIs in one app
 
-| Route | Page | Description |
-|-------|------|-------------|
-| `/` | Dashboard | Job stats, recent jobs table, real-time updates |
-| `/wizard` | Create Video | 3-step form: topic/type → voice → resolution |
-| `/render?id=` | Render Progress | Real-time progress, pipeline steps, video download |
-| `/projects` | Projects | Placeholder |
-| `/editor/complete` | Complete | Placeholder |
-| `/analytics` | Analytics | Placeholder |
-| `/settings` | Settings | Placeholder |
+The app is mid-migration. Both shells ship in the same bundle:
 
-## Quick Start
+- **v1** (`src/layout`, `src/pages`) is the complete, working UI and handles every route except `/v2/*`.
+- **v2** (`src/v2`) is a rebuild mounted at `/v2/*` with its own shell, loaded lazily. Only some screens exist; the rest show a "Coming in v2" placeholder.
 
-```bash
-cd frontend
-npm install
-npm run dev
+### v1 routes
+
+| Route | Page |
+|-------|------|
+| `/` | Dashboard: job stats, recent jobs, live updates |
+| `/wizard` | Create video |
+| `/render?id=` | Render progress, pipeline actions, scene audio, video player |
+| `/studio` | Scene editor: content, style, timeline, inspector |
+| `/audio` | Standalone TTS: single voice and dialogue, history |
+| `/projects` | Projects |
+| `/jobs` | All jobs (videos and course videos) |
+| `/assets` | Asset library |
+| `/analytics` | Analytics |
+| `/logs` | Live logs |
+| `/settings` | Settings (stored in the browser) |
+| `/editor/complete` | Completed videos |
+| `/courses`, `/courses/:id`, `/courses/:id/curriculum` | Course list, detail, curriculum |
+| `/courses/:courseId/videos/:videoId` (and `/studio`) | Course video editor and studio |
+
+### v2 routes
+
+Built: `/v2` (overview), `/v2/new` (create video), `/v2/jobs`, `/v2/jobs/:id`.
+Placeholders: `/v2/studio`, `/v2/courses`, `/v2/audio`, `/v2/assets`, `/v2/analytics`, `/v2/logs`, `/v2/settings`.
+
+## Layout
+
+```
+src/
+├── components/   # shared components and UI primitives (Button, Modal, Toast, Table, ...)
+├── layout/       # v1 shell: sidebar, navbar, breadcrumbs, command palette, route table
+├── pages/        # v1 pages, one folder each
+├── v2/           # v2 shell, pages and UI kit
+├── shared/       # contexts (theme, sidebar, breadcrumbs) and hooks (job events, socket rooms, voices)
+├── services/     # api.js (Axios + media URL helpers), socket.js
+└── lib/          # query client, socket sync, formatters, small utilities
 ```
 
-## Environment
+## Quick start
 
-Create `.env` in frontend root (optional):
+```bash
+# From the repo root (the frontend depends on the backend/remotion workspace)
+npm install
+npm run dev:frontend      # same as: npm run dev --prefix frontend
+```
+
+Opens at <http://localhost:5173>. The dev server binds to all interfaces, so it is reachable from other devices on your LAN.
+
+The backend API and Redis/MongoDB/MinIO need to be running for most pages to do anything; `npm run dev` at the repo root starts the API, workers and frontend together.
+
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Vite dev server |
+| `npm run build` | Production build to `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | ESLint |
+| `npm test` / `npm run test:watch` | Vitest |
+
+## Configuration
+
+No `.env` is required. By default the app derives its endpoints from the page's hostname:
+
+| | Dev | Production build |
+|---|-----|------------------|
+| API and Socket.IO | `http://<hostname>:3000` | same origin (nginx proxies `/api` and `/socket.io`) |
+| Media (MinIO) | `http://<hostname>:9000` | same origin under `/media` (nginx, GET only) |
+
+Optional overrides in `frontend/.env`:
 
 ```
 VITE_API_URL=http://localhost:3000
+VITE_MINIO_PUBLIC_URL=http://localhost:9000
+VITE_MINIO_SCENES_BUCKET=vireon-scenes
+```
+
+Media URLs stored in MongoDB point at MinIO's loopback address; `src/services/api.js` re-homes them to the page's own origin so they work over LAN and through the production proxy.
+
+## Production build
+
+`Dockerfile` builds from the **repo root** context (it needs the `backend/remotion` workspace) and serves the result with nginx using [`nginx.conf`](nginx.conf), which proxies `/api`, `/socket.io` and `/voice-samples` to the backend and exposes MinIO read-only under `/media`. See [DEPLOYMENT.md](../DEPLOYMENT.md).
+
+## Notes
+
+- `vireon-remotion-templates` is unbuilt workspace source. `vite.config.js` dedupes `react`, `react-dom` and `remotion` and excludes the package from dependency pre-bundling; keep both settings or the Remotion player breaks.
+- The app has no login; see the auth note in the root README.
