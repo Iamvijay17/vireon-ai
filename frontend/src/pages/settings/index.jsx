@@ -43,9 +43,29 @@ const VIDEO_TYPE_OPTIONS = [
 const RESOLUTION_OPTIONS = [
   { value: "1920x1080", label: "1080p (1920x1080)" },
   { value: "1080x1920", label: "1080p Vertical (1080x1920)" },
+  { value: "1080x1350", label: "Instagram 4:5 (1080x1350)" },
   { value: "1280x720", label: "720p (1280x720)" },
   { value: "720x1280", label: "720p Vertical (720x1280)" },
   { value: "3840x2160", label: "4K (3840x2160)" },
+];
+
+// Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js).
+const QUALITY_OPTIONS = [
+  { value: "draft", label: "Draft (fast, lower quality)" },
+  { value: "standard", label: "Standard" },
+  { value: "hd", label: "HD (best quality, slower render)" },
+];
+
+const CAPTION_STYLE_OPTIONS = [
+  { value: "fadeInUp", label: "Fade Up" },
+  { value: "popScale", label: "Pop" },
+  { value: "slideLeft", label: "Slide Left" },
+  { value: "slideRight", label: "Slide Right" },
+  { value: "bounce", label: "Bounce" },
+  { value: "typewriter", label: "Typewriter" },
+  { value: "glowActive", label: "Glow" },
+  { value: "zoom", label: "Zoom" },
+  { value: "blurToSharp", label: "Blur to Sharp" },
 ];
 
 const COURSE_STYLE_OPTIONS = [
@@ -218,11 +238,22 @@ const SettingsPage = () => {
             <SettingsRow label="Default Resolution" hint="Used by the Wizard's resolution step - aspect ratio follows automatically">
               <Select options={RESOLUTION_OPTIONS} value={settings.defaultResolution} onChange={(v) => updateSetting("defaultResolution", v)} />
             </SettingsRow>
+            <SettingsRow label="Default Render Quality" hint="Preselected in the Wizard's output step - controls the render's encode CRF">
+              <Select options={QUALITY_OPTIONS} value={settings.defaultQuality} onChange={(v) => updateSetting("defaultQuality", v)} />
+            </SettingsRow>
+            <SettingsRow label="Default Caption Style" hint="Preselected in the Wizard's output step - podcast dialogue always uses its own highlight style">
+              <Select options={CAPTION_STYLE_OPTIONS} value={settings.defaultCaptionStyle} onChange={(v) => updateSetting("defaultCaptionStyle", v)} />
+            </SettingsRow>
             <SettingsRow label="Default Course Style" hint="Preselected when creating a course video">
               <Select options={COURSE_STYLE_OPTIONS} value={settings.defaultCourseStyle} onChange={(v) => updateSetting("defaultCourseStyle", v)} />
             </SettingsRow>
             <SettingsRow label="Default Course Duration" hint="Preselected when creating a course video">
               <Select options={COURSE_DURATION_OPTIONS} value={settings.defaultCourseDuration} onChange={(v) => updateSetting("defaultCourseDuration", v)} />
+            </SettingsRow>
+            <SettingsRow label="Fast Audio Generation" hint="Uses the smaller 0.6B TTS model by default in Audio Studio - quicker, lower quality">
+              <div className="flex justify-end">
+                <Switch checked={settings.fastAudioGeneration} onChange={(v) => updateSetting("fastAudioGeneration", v)} />
+              </div>
             </SettingsRow>
           </CardBody>
         </Card>

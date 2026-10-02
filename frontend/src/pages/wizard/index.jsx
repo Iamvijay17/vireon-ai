@@ -40,18 +40,50 @@ const VIDEO_TYPES = [
 const RESOLUTIONS = [
   { value: "1920x1080", label: "1080p (1920x1080)" },
   { value: "1080x1920", label: "1080p Vertical (1080x1920)" },
+  { value: "1080x1350", label: "Instagram 4:5 (1080x1350)" },
   { value: "1280x720", label: "720p (1280x720)" },
   { value: "720x1280", label: "720p Vertical (720x1280)" },
   { value: "3840x2160", label: "4K (3840x2160)" },
   { value: "2160x3840", label: "4K Vertical (2160x3840)" },
 ];
 
-// YouTube Shorts must be vertical - backend rejects anything else for this
-// type (see createVideoSchema's superRefine).
+// Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js)
+// - resolved to an actual encode CRF at render time (config.remotion.qualityCrf).
+const QUALITY_PRESETS = [
+  { value: "draft", label: "Draft (fast, lower quality)" },
+  { value: "standard", label: "Standard" },
+  { value: "hd", label: "HD (best quality, slower render)" },
+];
+
+// Mirrors the backend's CAPTION_STYLES enum (backend/src/constants/index.js) -
+// keys into backend/remotion/src/captions/captionAnimations.js's registry.
+const CAPTION_STYLES = [
+  { value: "fadeInUp", label: "Fade Up" },
+  { value: "popScale", label: "Pop" },
+  { value: "slideLeft", label: "Slide Left" },
+  { value: "slideRight", label: "Slide Right" },
+  { value: "bounce", label: "Bounce" },
+  { value: "typewriter", label: "Typewriter" },
+  { value: "glowActive", label: "Glow" },
+  { value: "zoom", label: "Zoom" },
+  { value: "blurToSharp", label: "Blur to Sharp" },
+];
+
+// YouTube Shorts must be exactly 9:16 - backend rejects anything else for
+// this type (see createVideoSchema's superRefine), so this can't just be
+// "any portrait resolution" now that 4:5 (also taller than wide) is an
+// option too.
 const VERTICAL_RESOLUTIONS = RESOLUTIONS.filter((r) => {
   const [width, height] = r.value.split("x").map(Number);
-  return height > width;
+  return height > width && height / width === 16 / 9;
 });
+
+const AVATAR_POSITIONS = [
+  { value: "top-left", label: "Top left" },
+  { value: "top-right", label: "Top right" },
+  { value: "bottom-left", label: "Bottom left" },
+  { value: "bottom-right", label: "Bottom right" },
+];
 
 // Shown while the real voice catalog is loading (or if it fails to load).
 const FALLBACK_VOICES = [
@@ -129,6 +161,10 @@ const SUGGESTED_NAMES = Array.from(
 );
 
 const DURATIONS = [
+  { value: 1, label: "1 minute" },
+  { value: 2, label: "2 minutes" },
+  { value: 3, label: "3 minutes" },
+  { value: 4, label: "4 minutes" },
   { value: 5, label: "5 minutes" },
   { value: 8, label: "8 minutes" },
   { value: 10, label: "10 minutes" },
@@ -157,7 +193,14 @@ const DEFAULT_VALUES = {
   hostName: "",
   guestName: "",
   resolution: "1920x1080",
+  quality: "standard",
+  captionAnimation: "fadeInUp",
   fastGeneration: false,
+  fastAudio: false,
+  // Optional talking-head overlay - no photo upload, the backend picks a
+  // bundled default portrait matching the selected voice's gender.
+  avatarEnabled: false,
+  avatarPosition: undefined,
 };
 
 const isVerticalResolution = (value) => VERTICAL_RESOLUTIONS.some((r) => r.value === value);
@@ -174,11 +217,14 @@ const buildInitialValues = () => {
     type,
     language: LANGUAGES.some((l) => l.value === prefs.defaultLanguage) ? prefs.defaultLanguage : DEFAULT_VALUES.language,
     voice: prefs.defaultVoice || DEFAULT_VALUES.voice,
+    fastAudio: prefs.fastAudioGeneration ?? DEFAULT_VALUES.fastAudio,
     // A saved default resolution/duration might not be valid for Shorts
     // (e.g. a landscape default resolution) - fall back to a Shorts-valid
     // default rather than starting the wizard in an invalid state.
     duration: isShorts ? SHORTS_DURATIONS[0].value : DEFAULT_VALUES.duration,
     resolution: isShorts && !isVerticalResolution(resolution) ? VERTICAL_RESOLUTIONS[0].value : resolution,
+    quality: QUALITY_PRESETS.some((q) => q.value === prefs.defaultQuality) ? prefs.defaultQuality : DEFAULT_VALUES.quality,
+    captionAnimation: CAPTION_STYLES.some((c) => c.value === prefs.defaultCaptionStyle) ? prefs.defaultCaptionStyle : DEFAULT_VALUES.captionAnimation,
   };
 };
 
@@ -206,7 +252,7 @@ const NameSelect = ({ value, onChange, placeholder = "Select or add a name", opt
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3",
-          "text-left text-sm text-text-primary transition-colors outline-none",
+          "text-left text-sm text-text-primary transition-colors outline-none cursor-pointer",
           "focus:border-accent focus:ring-4 focus:ring-accent/10"
         )}
       >
@@ -226,7 +272,7 @@ const NameSelect = ({ value, onChange, placeholder = "Select or add a name", opt
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                  "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer",
                   name === value
                     ? "bg-accent-subtle text-accent"
                     : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
@@ -255,7 +301,7 @@ const NameSelect = ({ value, onChange, placeholder = "Select or add a name", opt
               type="button"
               onClick={commitDraft}
               disabled={!draft.trim()}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-opacity disabled:opacity-40"
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Plus className="size-4" />
             </button>
@@ -309,6 +355,9 @@ const Wizard = () => {
   );
 
   const setField = (name, value) => setValues((prev) => ({ ...prev, [name]: value }));
+
+  const handleAvatarEnabledChange = (enabled) =>
+    setValues((prev) => ({ ...prev, avatarEnabled: enabled, avatarPosition: enabled ? prev.avatarPosition || "bottom-right" : undefined }));
 
   // Duration and resolution are each constrained to a different set of
   // valid options depending on video type (YouTube Shorts: 1-3 minutes,
@@ -411,7 +460,7 @@ const Wizard = () => {
                 <span className="text-xs font-medium text-text-tertiary">Job ID</span>
                 <button
                   onClick={copyJobId}
-                  className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-accent"
+                  className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-accent cursor-pointer"
                 >
                   {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                   {copied ? "Copied" : "Copy"}
@@ -528,7 +577,7 @@ const Wizard = () => {
                             }));
                           }}
                           className={cn(
-                            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
                             active
                               ? "border-accent bg-accent-subtle text-accent"
                               : "border-border bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
@@ -632,6 +681,51 @@ const Wizard = () => {
             </FieldHint>
           </div>
 
+          <div className="mb-6">
+            <Label>Render Quality</Label>
+            <Select
+              options={QUALITY_PRESETS}
+              value={values.quality}
+              onChange={(v) => setField("quality", v)}
+            />
+            <FieldHint>Draft renders faster for quick previews; HD takes longer but produces the cleanest result.</FieldHint>
+          </div>
+
+          <div className="mb-6">
+            <Label>Caption Style</Label>
+            <Select
+              options={CAPTION_STYLES}
+              value={values.captionAnimation}
+              onChange={(v) => setField("captionAnimation", v)}
+            />
+            <FieldHint>How narration captions animate word-by-word. Podcast dialogue always uses its own highlight style regardless of this setting.</FieldHint>
+          </div>
+
+          <div className="mb-6">
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
+              <div>
+                <Label className="mb-1">Avatar Overlay</Label>
+                <p className="text-xs text-text-secondary">
+                  {values.avatarEnabled
+                    ? "On: a talking-head overlay is generated automatically, using a default portrait matching the selected voice's gender."
+                    : "Off: no avatar is generated for this video."}
+                </p>
+              </div>
+              <Switch checked={values.avatarEnabled} onChange={handleAvatarEnabledChange} />
+            </div>
+
+            {values.avatarEnabled && (
+              <div className="mt-4">
+                <Label>Avatar position</Label>
+                <Select
+                  options={AVATAR_POSITIONS}
+                  value={values.avatarPosition || "bottom-right"}
+                  onChange={(v) => setField("avatarPosition", v)}
+                />
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
             <div>
               <Label className="mb-1">Fast Generation</Label>
@@ -642,6 +736,16 @@ const Wizard = () => {
               </p>
             </div>
             <Switch checked={values.fastGeneration} onChange={(v) => setField("fastGeneration", v)} />
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
+            <div>
+              <Label className="mb-1">Fast Audio (0.6B)</Label>
+              <p className="text-xs text-text-secondary">
+                Uses the smaller, faster Qwen3-TTS 0.6B model for narration instead of the default 1.7B - quicker, lower quality.
+              </p>
+            </div>
+            <Switch checked={values.fastAudio} onChange={(v) => setField("fastAudio", v)} />
           </div>
         </Section>
 

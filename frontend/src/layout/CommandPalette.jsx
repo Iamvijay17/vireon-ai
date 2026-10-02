@@ -141,7 +141,7 @@ const CommandPalette = () => {
                   onClick={() => runCommand(command)}
                   onMouseEnter={() => setActiveIndex(index)}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition-colors",
+                    "cursor-pointer flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition-colors",
                     index === activeIndex ? "bg-surface-active text-text-primary" : "text-text-secondary"
                   )}
                 >

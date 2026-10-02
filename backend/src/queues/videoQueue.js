@@ -1,6 +1,6 @@
 const { Queue } = require('bullmq');
 const config = require('../config');
-const LoggerService = require('../services/LoggerService');
+const LoggerService = require('../services/common/LoggerService');
 
 const connection = {
   host: config.redis.host,

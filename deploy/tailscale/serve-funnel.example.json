@@ -1,0 +1,10 @@
+{
+  "_WARNING": "Funnel makes Vireon PUBLIC on the internet. The app has no login. Do not use until auth exists. To use: copy over serve.json.",
+  "TCP": { "443": { "HTTPS": true } },
+  "Web": {
+    "${TS_CERT_DOMAIN}:443": {
+      "Handlers": { "/": { "Proxy": "http://frontend:80" } }
+    }
+  },
+  "AllowFunnel": { "${TS_CERT_DOMAIN}:443": true }
+}

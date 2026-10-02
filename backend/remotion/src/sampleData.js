@@ -1,917 +1,555 @@
 /**
  * Sample scene data for previewing templates in Remotion Studio.
- * Auto-generated for all 60 templates.
+ * One sample per template - every template variant sharing a sceneType
+ * (see SceneTypeCategories in templates/TemplateCategories.js) reads the
+ * exact same `elements` shape, they just render it differently.
  */
 
 export const sampleScenes = {
-  "template-001": {
-    "templateId": "template-001",
-    "elements": {
-      "title": "Educational Card",
-      "subtitle": "A preview of the educational card template in action.",
-      "backgroundColor": "#1a1a2e",
-      "image": "https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=800&h=600&fit=crop"
+  '001-title': {
+    templateId: '001-title',
+    elements: {
+      title: 'Educational Card',
+      subtitle: 'A preview of the title template in action.',
+      backgroundColor: '#1a1a2e',
+      image: 'https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=800&h=600&fit=crop',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-003": {
-    "templateId": "template-003",
-    "elements": {
-      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop",
-      "caption": "The Milky Way stretches across the night sky.",
-      "label": "Featured"
+  '002-title': {
+    templateId: '002-title',
+    elements: {
+      title: 'Into the Unknown',
+      subtitle: 'A preview of the parallax hero title template in action.',
+      backgroundColor: '#1a1a2e',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1920&h=1080&fit=crop',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-004": {
-    "templateId": "template-004",
-    "elements": {
-      "title": "How It Works",
-      "items": [
-        {
-          "heading": "Research & Planning",
-          "text": "We start by understanding the problem space and setting clear goals."
-        },
-        {
-          "heading": "Development Phase",
-          "text": "The team builds and iterates on the core solution."
-        },
-        {
-          "heading": "Testing & QA",
-          "text": "Every feature is validated before it ships."
-        }
-      ]
+  '003-title': {
+    templateId: '003-title',
+    elements: {
+      title: 'Simplicity',
+      subtitle: 'A preview of the modern minimal title template in action.',
+      backgroundColor: '#0d1117',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-005": {
-    "templateId": "template-005",
-    "elements": {
-      "title": "Framework Comparison",
-      "columns": [
-        {
-          "heading": "React",
-          "body": "Component-based UI library with a large ecosystem."
-        },
-        {
-          "heading": "Vue",
-          "body": "Progressive framework that's easy to adopt incrementally."
-        }
-      ]
+  '004-title': {
+    templateId: '004-title',
+    elements: {
+      title: 'Stop Scrolling',
+      subtitle: 'A preview of the hook opener title template in action.',
+      backgroundColor: '#1a1a2e',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=600&fit=crop',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-006": {
-    "templateId": "template-006",
-    "elements": {
-      "title": "The only way to do great work is to love what you do.",
-      "body": "Steve Jobs, Apple Co-founder",
-      "badge": "Final Word"
+  '005-title': {
+    templateId: '005-title',
+    elements: {
+      title: 'Quarterly Growth Report',
+      subtitle: 'A preview of the report cover title template in action.',
+      backgroundColor: '#0d1117',
+      image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=800&fit=crop',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-007": {
-    "templateId": "template-007",
-    "elements": {
-      "title": "Performance Metrics",
-      "stats": [
-        {
-          "value": "99.9%",
-          "label": "Uptime"
-        },
-        {
-          "value": "2.5M",
-          "label": "Users"
-        },
-        {
-          "value": "50ms",
-          "label": "Latency"
-        }
-      ]
+  '006-title': {
+    templateId: '006-title',
+    elements: {
+      title: 'Two Sides, One Story',
+      subtitle: 'A preview of the split screen title template in action.',
+      backgroundColor: '#16213e',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&h=1600&fit=crop',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-008": {
-    "templateId": "template-008",
-    "elements": {
-      "title": "Tech Stack",
-      "items": [
-        {
-          "text": "React",
-          "icon": "⚛️"
-        },
-        {
-          "text": "Node.js",
-          "icon": "🟢"
-        },
-        {
-          "text": "TypeScript",
-          "icon": "📘"
-        },
-        {
-          "text": "AWS",
-          "icon": "☁️"
-        }
-      ]
+  '007-title': {
+    templateId: '007-title',
+    elements: {
+      title: 'Breaking: The Future Is Here',
+      subtitle: 'A preview of the editorial banner title template in action.',
+      backgroundColor: '#0d1117',
+      image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=450&fit=crop',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-009": {
-    "templateId": "template-009",
-    "elements": {
-      "title": "Key Takeaways",
-      "items": [
-        {
-          "text": "AI is transforming every industry",
-          "icon": "🌟"
-        },
-        {
-          "text": "Data-driven decisions outperform by 85%",
-          "icon": "✅"
-        },
-        {
-          "text": "Automation reduces costs by 40%",
-          "icon": "💡"
-        }
-      ]
+  '008-title': {
+    templateId: '008-title',
+    elements: {
+      title: 'Level Up Now',
+      subtitle: 'A preview of the energetic diagonal title template in action.',
+      backgroundColor: '#1a1a2e',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&h=600&fit=crop',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-010": {
-    "templateId": "template-010",
-    "elements": {
-      "title": "Welcome to the Future",
-      "subtitle": "Innovation at scale",
-      "stats": [
-        {
-          "value": "10K+",
-          "label": "Users"
-        },
-        {
-          "value": "99%",
-          "label": "Satisfaction"
-        }
-      ]
+  '009-title': {
+    templateId: '009-title',
+    elements: {
+      title: 'Where Ideas Meet Action',
+      subtitle: 'A preview of the duotone split title template in action.',
+      backgroundColor: '#1a1a2e',
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=400&fit=crop',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-011": {
-    "templateId": "template-011",
-    "elements": {
-      "title": "Our Team",
-      "members": [
-        {
-          "name": "Alice Chen",
-          "role": "CEO",
-          "bio": "Visionary leader"
-        },
-        {
-          "name": "Bob Smith",
-          "role": "CTO",
-          "bio": "Tech architect"
-        }
-      ]
+  '010-title': {
+    templateId: '010-title',
+    elements: {
+      title: 'The Journey Begins',
+      subtitle: 'A preview of the framed poster title template in action.',
+      backgroundColor: '#0d1117',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&h=1200&fit=crop',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-012": {
-    "templateId": "template-012",
-    "elements": {
-      "title": "Get Ready for Something Amazing",
-      "subtitle": "The story you're about to see will change how you think about it.",
-      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop"
-    },
-    "duration": 8
-  },
-  "template-013": {
-    "templateId": "template-013",
-    "elements": {
-      "title": "Getting Started",
-      "emoji": "🚀",
-      "steps": [
-        {
-          "title": "Install",
-          "description": "Download the package"
-        },
-        {
-          "title": "Configure",
-          "description": "Set up your environment"
-        },
-        {
-          "title": "Deploy",
-          "description": "Launch to production"
-        }
-      ]
-    },
-    "duration": 8
-  },
-  "template-014": {
-    "templateId": "template-014",
-    "elements": {
-      "title": "Quarterly Revenue",
-      "bars": [
-        {
-          "label": "Q1",
-          "value": "45"
-        },
-        {
-          "label": "Q2",
-          "value": "68"
-        },
-        {
-          "label": "Q3",
-          "value": "82"
-        },
-        {
-          "label": "Q4",
-          "value": "95"
-        }
-      ]
-    },
-    "duration": 8
-  },
-  "template-015": {
-    "templateId": "template-015",
-    "elements": {
-      "title": "Core Features",
-      "items": [
-        {
-          "icon": "🚀",
-          "title": "Fast",
-          "description": "Lightning quick performance"
-        },
-        {
-          "icon": "🔒",
-          "title": "Secure",
-          "description": "Enterprise-grade security"
-        },
-        {
-          "icon": "☁️",
-          "title": "Cloud",
-          "description": "Fully managed cloud"
-        }
-      ]
-    },
-    "duration": 8
-  },
-  "template-016": {
-    "templateId": "template-016",
-    "elements": {
-      "images": [
-        {
-          "url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop"
-        },
-        {
-          "url": "https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=400&h=300&fit=crop"
-        },
-        {
-          "url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop"
-        },
-        {
-          "url": "https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=400&h=300&fit=crop"
-        }
+  '001-content': {
+    templateId: '001-content',
+    elements: {
+      title: 'Key Takeaways',
+      items: [
+        { heading: 'Focus:', text: 'Ship the smallest version that proves the idea.' },
+        { heading: 'Iterate:', text: 'Real usage beats speculation every time.' },
+        { heading: 'Measure:', text: 'Track outcomes, not just activity.' },
       ],
-      "caption": "Beautiful moments captured",
-      "subtitle": "Photo gallery"
+      backgroundColor: '#1a1a2e',
+      caption: 'These three principles guide every decision we make.',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-017": {
-    "templateId": "template-017",
-    "elements": {
-      "title": "Story Image Text",
-      "subtitle": "A preview of the story image text template in action.",
-      "backgroundColor": "#1a1a2e",
-      "body": "A journey through innovation and discovery.",
-      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop",
-      "badge": "Story"
-    },
-    "duration": 8
-  },
-  "template-018": {
-    "templateId": "template-018",
-    "elements": {
-      "images": [
-        {
-          "url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop"
-        },
-        {
-          "url": "https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=400&h=300&fit=crop"
-        },
-        {
-          "url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop"
-        }
+  '002-content': {
+    templateId: '002-content',
+    elements: {
+      title: 'Why It Works',
+      items: [
+        { heading: 'Fast', text: 'Ships in days, not quarters.' },
+        { heading: 'Simple', text: 'No config, no boilerplate.' },
+        { heading: 'Scalable', text: 'Grows with your team.' },
+        { heading: 'Reliable', text: 'Tested in production daily.' },
       ],
-      "caption": "Masonry gallery"
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content grid template in action.',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-019": {
-    "templateId": "template-019",
-    "elements": {
-      "title": "Parallax Hero",
-      "subtitle": "A bold opening scene with a slow-moving background image.",
-      "backgroundColor": "#1a1a2e",
-      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop"
+  '003-content': {
+    templateId: '003-content',
+    elements: {
+      title: 'How It Works',
+      items: [
+        { heading: 'Plan', text: 'Sketch the smallest version that proves the idea.' },
+        { heading: 'Build', text: 'Ship it behind a flag within days.' },
+        { heading: 'Learn', text: 'Watch real usage, not assumptions.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content timeline template in action.',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-020": {
-    "templateId": "template-020",
-    "elements": {
-      "title": "Image Card Story",
-      "subtitle": "A preview of the image card story template in action.",
-      "backgroundColor": "#1a1a2e",
-      "body": "An inspiring story of growth.",
-      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop",
-      "label": "Featured Story"
+  '004-content': {
+    templateId: '004-content',
+    elements: {
+      title: 'Launch Checklist',
+      items: [
+        { heading: 'Design:', text: 'Finalize the visual system and tokens.' },
+        { heading: 'Build:', text: 'Ship the core flow behind a flag.' },
+        { heading: 'Test:', text: 'Run through every edge case twice.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content checklist template in action.',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-021": {
-    "templateId": "template-021",
-    "elements": {
-      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop",
-      "caption": "In the heart of the city, a revolution was brewing.",
-      "label": "Chapter One"
+  '005-content': {
+    templateId: '005-content',
+    elements: {
+      title: 'Everything Included',
+      items: [
+        { heading: 'Analytics', text: 'Real-time dashboards for every metric.' },
+        { heading: 'Automation', text: 'Workflows that run themselves.' },
+        { heading: 'Security', text: 'Enterprise-grade access controls.' },
+        { heading: 'Support', text: '24/7 help from a real human.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content two-column template in action.',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-022": {
-    "templateId": "template-022",
-    "elements": {
-      "title": "Summer Memories",
-      "photos": [
+  '006-content': {
+    templateId: '006-content',
+    elements: {
+      title: 'Key Terms',
+      items: [
+        { heading: 'Latency', text: 'The delay between a request being sent and a response being received.' },
+        { heading: 'Throughput', text: 'The amount of work a system completes in a given time period.' },
+        { heading: 'Idempotency', text: 'A property where repeating an operation has the same effect as doing it once.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content definition glossary template in action.',
+    },
+    duration: 8,
+  },
+  '007-content': {
+    templateId: '007-content',
+    elements: {
+      title: 'What We Cover',
+      items: [
+        { heading: 'Strategy', text: 'Where to focus first.' },
+        { heading: 'Design', text: 'How it should feel.' },
+        { heading: 'Engineering', text: 'How it gets built.' },
+        { heading: 'Growth', text: 'How it reaches people.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content step cards template in action.',
+    },
+    duration: 8,
+  },
+  '008-content': {
+    templateId: '008-content',
+    elements: {
+      title: 'From Idea to Launch',
+      items: [
+        { heading: 'Discover', text: 'Talk to users, find the real problem.' },
+        { heading: 'Design', text: 'Sketch the smallest solution that works.' },
+        { heading: 'Build', text: 'Ship it behind a flag within days.' },
+        { heading: 'Launch', text: 'Roll out to everyone and measure.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content flow path template in action.',
+    },
+    duration: 8,
+  },
+  '009-content': {
+    templateId: '009-content',
+    elements: {
+      title: 'The Case for Simplicity',
+      items: [
+        { heading: '', text: 'Every feature you add is a feature someone has to learn, maintain, and eventually remove.' },
+        { heading: 'Fewer moving parts:', text: 'Less to break, less to debug.' },
+        { heading: 'Faster onboarding:', text: 'New users understand it in seconds.' },
+        { heading: 'Easier to maintain:', text: 'A small surface area ages well.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content magazine dek template in action.',
+    },
+    duration: 8,
+  },
+  '010-content': {
+    templateId: '010-content',
+    elements: {
+      title: 'Built On Four Pillars',
+      items: [
+        { heading: 'Speed', text: 'Every interaction feels instant.' },
+        { heading: 'Trust', text: 'Data stays private by default.' },
+        { heading: 'Clarity', text: 'No jargon, no hidden menus.' },
+        { heading: 'Craft', text: 'Every pixel is intentional.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content monogram row template in action.',
+    },
+    duration: 8,
+  },
+  '011-content': {
+    templateId: '011-content',
+    elements: {
+      title: 'What Our Users Say',
+      items: [
+        { heading: 'Maria Chen, Product Lead', text: 'This is the first tool our whole team actually enjoys using.' },
+        { heading: 'Setup', text: 'Under 5 minutes.' },
+        { heading: 'Support', text: 'Real humans, fast replies.' },
+        { heading: 'Pricing', text: 'Simple, transparent tiers.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content quote highlight template in action.',
+    },
+    duration: 8,
+  },
+  '012-content': {
+    templateId: '012-content',
+    elements: {
+      title: 'Old Way vs. New Way',
+      items: [
+        { heading: 'Manual', text: 'Hours of copy-pasting between tools.' },
+        { heading: 'Automated', text: 'One workflow runs it end to end.' },
+        { heading: 'Scattered', text: 'Data spread across five apps.' },
+        { heading: 'Unified', text: 'A single source of truth.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content versus template in action.',
+    },
+    duration: 8,
+  },
+  '013-content': {
+    templateId: '013-content',
+    elements: {
+      title: 'Table of Contents',
+      items: [
+        { heading: 'Getting Started', text: 'Install, configure, and run your first project.' },
+        { heading: 'Core Concepts', text: 'The mental model behind everything else.' },
+        { heading: 'Advanced Usage', text: 'Custom workflows and integrations.' },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content ribbon list template in action.',
+    },
+    duration: 8,
+  },
+  '014-content': {
+    templateId: '014-content',
+    elements: {
+      title: 'What We Learned',
+      items: [
         {
-          "url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=400&fit=crop",
-          "caption": "Sunset"
+          heading: 'Start smaller than feels comfortable',
+          text: 'Every team we studied that shipped something people actually used began with a version they were slightly embarrassed by. The instinct to polish before releasing almost always cost more in delay than the rough edges ever cost in credibility.',
         },
         {
-          "url": "https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=400&h=400&fit=crop",
-          "caption": "Adventure"
-        }
-      ]
-    },
-    "duration": 8
-  },
-  "template-023": {
-    "templateId": "template-023",
-    "elements": {
-      "title": "Our Journey",
-      "cards": [
-        {
-          "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop",
-          "title": "The Beginning",
-          "description": "Where it all started"
+          heading: 'Feedback beats forecasting',
+          text: 'Roadmaps built entirely from internal predictions consistently missed what users actually needed. The teams that grew fastest treated their first release as a question, not an answer, and let real usage tell them what to build next.',
         },
         {
-          "image": "https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=400&h=300&fit=crop",
-          "title": "Growth",
-          "description": "Scaling new heights"
-        }
-      ]
+          heading: 'Constraints are a feature, not a bug',
+          text: 'Limited time and limited resources forced hard prioritization that unlimited budgets never would have. Almost every team credited an early constraint with saving them from building something nobody wanted.',
+        },
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content paragraph slides template in action.',
     },
-    "duration": 8
+    duration: 15,
   },
-  "template-024": {
-    "templateId": "template-024",
-    "elements": {
-      "title": "Split Reveal",
-      "subtitle": "A preview of the split reveal template in action.",
-      "backgroundColor": "#1a1a2e",
-      "label": "Before & After",
-      "topImage": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=400&fit=crop",
-      "bottomImage": "https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=800&h=400&fit=crop"
-    },
-    "duration": 8
-  },
-  "template-025": {
-    "templateId": "template-025",
-    "elements": {
-      "title": "Curtain Reveal",
-      "subtitle": "A preview of the curtain reveal template in action.",
-      "backgroundColor": "#1a1a2e",
-      "body": "Revealing something extraordinary.",
-      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop",
-      "tag": "New"
-    },
-    "duration": 8
-  },
-  "template-026": {
-    "templateId": "template-026",
-    "elements": {
-      "term": "API",
-      "title": "Application Programming Interface",
-      "definition": "A set of protocols for building software applications.",
-      "example": "REST, GraphQL"
-    },
-    "duration": 8
-  },
-  "template-027": {
-    "templateId": "template-027",
-    "elements": {
-      "title": "Project Checklist",
-      "points": [
+  '015-content': {
+    templateId: '015-content',
+    elements: {
+      title: 'Why This Matters',
+      items: [
         {
-          "text": "Requirements gathered",
-          "icon": "✓"
+          heading: 'The problem isn’t effort, it’s clarity',
+          text: 'Most teams aren’t short on motivation — they’re short on a shared, specific picture of what "done" looks like, which is why work stalls even when everyone is busy.',
         },
         {
-          "text": "Design approved",
-          "icon": "✓"
+          heading: 'Clarity has to be written down',
+          text: 'A clear idea that only lives in one person’s head isn’t actually clear to the team. Writing it down is what turns a good intention into something other people can act on without guessing.',
         },
-        {
-          "text": "Development complete",
-          "icon": "○"
-        }
-      ]
+      ],
+      backgroundColor: '#1a1a2e',
+      caption: 'A preview of the content paragraph stack template in action.',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-028": {
-    "templateId": "template-028",
-    "elements": {
-      "title": "Basic vs Pro",
-      "items": [
-        {
-          "left": "10GB Storage",
-          "right": "100GB Storage"
-        },
-        {
-          "left": "5 Users",
-          "right": "Unlimited Users"
-        }
-      ]
+  '001-contentwithimage': {
+    templateId: '001-contentwithimage',
+    elements: {
+      title: 'Story Image Text',
+      subtitle: 'A preview of the content + image template in action.',
+      backgroundColor: '#1a1a2e',
+      body: 'A journey through innovation and discovery.',
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop',
+      badge: 'Story',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-029": {
-    "templateId": "template-029",
-    "elements": {
-      "title": "Did You Know?",
-      "body": "The Earth's oceans cover more than 70% of its surface."
+  '002-contentwithimage': {
+    templateId: '002-contentwithimage',
+    elements: {
+      title: 'Field Notes',
+      subtitle: 'A preview of the image card content + image template in action.',
+      backgroundColor: '#16213e',
+      body: 'Every great product starts with a single small observation.',
+      image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&h=600&fit=crop',
+      badge: 'Chapter 1',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-030": {
-    "templateId": "template-030",
-    "elements": {
-      "badge": "Summary",
-      "title": "Report Summary",
-      "subtitle": "A preview of the report summary template in action.",
-      "backgroundColor": "#1a1a2e",
-      "body": "Key findings from our analysis.",
-      "stats": [
-        {
-          "value": "85%",
-          "label": "Growth"
-        },
-        {
-          "value": "2.5x",
-          "label": "ROI"
-        }
-      ]
+  '003-contentwithimage': {
+    templateId: '003-contentwithimage',
+    elements: {
+      title: 'Chasing the Horizon',
+      backgroundColor: '#1a1a2e',
+      body: 'Every frontier starts with someone willing to look past the edge of the map.',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1920&h=1080&fit=crop',
+      badge: 'Cinematic',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-031": {
-    "templateId": "template-031",
-    "elements": {
-      "title": "Innovation distinguishes between a leader and a follower.",
-      "body": "Steve Jobs, Apple",
-      "badge": "Closing Thought"
+  '004-contentwithimage': {
+    templateId: '004-contentwithimage',
+    elements: {
+      title: 'A New Perspective',
+      backgroundColor: '#16213e',
+      body: 'Reframing the problem is often the fastest way to find the solution.',
+      image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1200&h=1200&fit=crop',
+      badge: 'Reveal',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-032": {
-    "templateId": "template-032",
-    "elements": {
-      "title": "Step Guide",
-      "subtitle": "A preview of the step guide template in action.",
-      "backgroundColor": "#1a1a2e",
-      "steps": [
-        {
-          "num": 1,
-          "title": "Research",
-          "description": "Understand the problem"
-        },
-        {
-          "num": 2,
-          "title": "Design",
-          "description": "Create the solution"
-        },
-        {
-          "num": 3,
-          "title": "Launch",
-          "description": "Deploy to users"
-        }
-      ]
+  '005-contentwithimage': {
+    templateId: '005-contentwithimage',
+    elements: {
+      title: 'Above the Clouds',
+      backgroundColor: '#16213e',
+      body: 'Every summit starts with a single step and a clear view of what matters.',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1600&h=900&fit=crop',
+      badge: 'Journey',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-033": {
-    "templateId": "template-033",
-    "elements": {
-      "title": "Why Teams Choose Us",
-      "backgroundColor": "#1a1a2e",
-      "items": [
-        {
-          "icon": "⚡",
-          "text": "Lightning Fast"
-        },
-        {
-          "icon": "🛡️",
-          "text": "Secure by Default"
-        },
-        {
-          "icon": "🌍",
-          "text": "Global Scale"
-        }
-      ]
+  '006-contentwithimage': {
+    templateId: '006-contentwithimage',
+    elements: {
+      title: 'Crafted With Care',
+      backgroundColor: '#0d1117',
+      body: 'Every detail is considered, tested, and refined before it ships.',
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=800&fit=crop',
+      badge: 'Craft',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-034": {
-    "templateId": "template-034",
-    "elements": {
-      "title": "Learning Path",
-      "items": [
-        {
-          "level": "Beginner",
-          "title": "Basics",
-          "description": "Core concepts",
-          "tags": [
-            "intro"
-          ]
-        },
-        {
-          "level": "Advanced",
-          "title": "Mastery",
-          "description": "Deep dive",
-          "tags": [
-            "expert"
-          ]
-        }
-      ]
+  '007-contentwithimage': {
+    templateId: '007-contentwithimage',
+    elements: {
+      title: 'Color Your World',
+      backgroundColor: '#1a1a2e',
+      body: 'A single choice can change the tone of everything that follows.',
+      image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1600&h=900&fit=crop',
+      badge: 'Vision',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-035": {
-    "templateId": "template-035",
-    "elements": {
-      "title": "Tech Tags",
-      "subtitle": "A preview of the tech tags template in action.",
-      "backgroundColor": "#1a1a2e",
-      "items": [
-        {
-          "text": "JavaScript",
-          "icon": "📜"
-        },
-        {
-          "text": "Python",
-          "icon": "🐍"
-        },
-        {
-          "text": "Go",
-          "icon": "🔷"
-        }
-      ]
+  '008-contentwithimage': {
+    templateId: '008-contentwithimage',
+    elements: {
+      title: 'Meet the Team',
+      backgroundColor: '#0d1117',
+      body: 'The people behind the product, working from three continents.',
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=600&fit=crop',
+      badge: 'People',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-036": {
-    "templateId": "template-036",
-    "elements": {
-      "label": "Case Study",
-      "title": "Case Study",
-      "subtitle": "A preview of the case study template in action.",
-      "backgroundColor": "#1a1a2e",
-      "body": "How Company X achieved 300% growth.",
-      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop",
-      "stat": "300%"
+  '009-contentwithimage': {
+    templateId: '009-contentwithimage',
+    elements: {
+      title: 'Told From the Edge',
+      backgroundColor: '#16213e',
+      body: 'The best stories come from the people willing to stand at the frontier.',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&h=1200&fit=crop',
+      badge: 'Feature',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-037": {
-    "templateId": "template-037",
-    "elements": {
-      "title": "Our Journey",
-      "items": [
-        {
-          "heading": "Founded",
-          "text": "Started with a vision to change how teams work."
-        },
-        {
-          "heading": "1M Users",
-          "text": "Reached a major adoption milestone."
-        },
-        {
-          "heading": "Global Launch",
-          "text": "Expanded to customers in over 40 countries."
-        }
-      ]
+  '001-image': {
+    templateId: '001-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop',
+      caption: 'The Milky Way stretches across the night sky.',
+      label: 'Featured',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-038": {
-    "templateId": "template-038",
-    "elements": {
-      "title": "Business Metrics",
-      "items": [
-        {
-          "icon": "📈",
-          "title": "Revenue",
-          "description": "$2.5M ARR"
-        },
-        {
-          "icon": "👥",
-          "title": "Users",
-          "description": "50K active"
-        }
-      ]
+  '002-image': {
+    templateId: '002-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1920&h=1080&fit=crop',
+      caption: 'A single moment, framed forever.',
+      label: 'Cinematic',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-039": {
-    "templateId": "template-039",
-    "elements": {
-      "name": "Dr. Sarah Johnson",
-      "role": "Chief Technology Officer",
-      "bio": "20+ years in tech innovation",
-      "image": "",
-      "stats": [
-        {
-          "value": "50+",
-          "label": "Projects"
-        },
-        {
-          "value": "15",
-          "label": "Patents"
-        }
-      ]
+  '003-image': {
+    templateId: '003-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop',
+      caption: 'Layers of light across the horizon.',
+      label: 'Gallery',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-040": {
-    "templateId": "template-040",
-    "elements": {
-      "title": "Skills Chips",
-      "subtitle": "A preview of the skills chips template in action.",
-      "backgroundColor": "#1a1a2e",
-      "items": [
-        {
-          "text": "React",
-          "icon": "⚛️"
-        },
-        {
-          "text": "Node.js",
-          "icon": "🟢"
-        },
-        {
-          "text": "TypeScript",
-          "icon": "📘"
-        }
-      ]
+  '004-image': {
+    templateId: '004-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=900&fit=crop',
+      caption: 'We found this trail just before sunset, and never forgot it.',
+      label: 'Chapter Three',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-041": {
-    "templateId": "template-041",
-    "elements": {
-      "title": "Modern Minimal",
-      "subtitle": "A preview of the modern minimal template in action.",
-      "backgroundColor": "#1a1a2e",
-      "caption": "Simplicity is the ultimate sophistication."
+  '005-image': {
+    templateId: '005-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&h=1200&fit=crop',
+      caption: 'Summer, somewhere near the coast.',
+      label: 'Snapshot',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-042": {
-    "templateId": "template-042",
-    "elements": {
-      "title": "Podcast",
-      "subtitle": "A preview of the podcast template in action.",
-      "backgroundColor": "#1a1a2e",
-      "hostName": "Alex Rivera",
-      "hostImage": "",
-      "caption": "Welcome to another episode of Tech Talks!"
+  '006-image': {
+    templateId: '006-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1600&h=1080&fit=crop',
+      caption: 'Every horizon hides another one just beyond it.',
+      label: 'Explore',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-043": {
-    "templateId": "template-043",
-    "elements": {
-      "headline": "Breaking News",
-      "body": "Major breakthrough in AI technology announced today.",
-      "badge": "Exclusive",
-      "image": ""
+  '007-image': {
+    templateId: '007-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop',
+      caption: 'See It Differently',
+      label: 'Perspective',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-044": {
-    "templateId": "template-044",
-    "elements": {
-      "title": "Social Media",
-      "subtitle": "A preview of the social media template in action.",
-      "backgroundColor": "#1a1a2e",
-      "body": "Check out our latest feature!",
-      "profileImage": "",
-      "username": "@techcompany",
-      "likes": "12.5K"
+  '008-image': {
+    templateId: '008-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&h=1200&fit=crop',
+      caption: 'A single frame, worth a thousand words.',
+      label: 'Exhibit One',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-045": {
-    "templateId": "template-045",
-    "elements": {
-      "title": "Cinematic",
-      "subtitle": "A preview of the cinematic template in action.",
-      "backgroundColor": "#1a1a2e",
-      "backgroundImage": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop"
+  '009-image': {
+    templateId: '009-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=1200&fit=crop',
+      caption: 'Where the trail meets the tide.',
+      label: 'Coastline',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-046": {
-    "templateId": "template-046",
-    "elements": {
-      "title": "Tech Review",
-      "subtitle": "A preview of the tech review template in action.",
-      "backgroundColor": "#1a1a2e",
-      "deviceImage": "",
-      "specs": [
-        "5G",
-        "AI-Powered",
-        "8K Display"
-      ]
+  '010-image': {
+    templateId: '010-image',
+    elements: {
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1920&h=1080&fit=crop',
+      caption: 'Chase the Horizon',
+      label: 'Featured',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-047": {
-    "templateId": "template-047",
-    "elements": {
-      "title": "Believe you can and you are halfway there.",
-      "body": "Now go make it happen."
+  '001-podcast': {
+    templateId: '001-podcast',
+    elements: {
+      title: 'Podcast',
+      subtitle: 'A preview of the podcast template in action.',
+      backgroundColor: '#1a0a2e',
+      hostName: 'Alex Rivera',
+      hostImage: '',
+      caption: 'Welcome to another episode of Tech Talks!',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-048": {
-    "templateId": "template-048",
-    "elements": {
-      "title": "Interview",
-      "subtitle": "A preview of the interview template in action.",
-      "backgroundColor": "#1a1a2e",
-      "guestName": "Dr. Maya Patel",
-      "guestTitle": "AI Researcher",
-      "guestImage": ""
+  '002-podcast': {
+    templateId: '002-podcast',
+    elements: {
+      title: 'The Interview',
+      subtitle: 'A preview of the interview podcast template in action.',
+      backgroundColor: '#111827',
+      hostName: 'Jamie Chen',
+      hostImage: '',
+      caption: 'Thanks for having me, excited to dig into this today!',
     },
-    "duration": 8
+    duration: 8,
   },
-  "template-049": {
-    "templateId": "template-049",
-    "elements": {
-      "title": "Tutorial",
-      "subtitle": "A preview of the tutorial template in action.",
-      "backgroundColor": "#1a1a2e",
-      "step": "Step 1",
-      "body": "Follow these simple instructions to get started."
-    },
-    "duration": 8
-  },
-  "template-050": {
-    "templateId": "template-050",
-    "elements": {
-      "title": "Gaming",
-      "subtitle": "A preview of the gaming template in action.",
-      "backgroundColor": "#1a1a2e",
-      "caption": "Level up your skills!"
-    },
-    "duration": 8
-  },
-  "template-051": {
-    "templateId": "template-051",
-    "elements": {
-      "title": "Fitness",
-      "subtitle": "A preview of the fitness template in action.",
-      "backgroundColor": "#1a1a2e",
-      "image": "",
-      "metric": "10K",
-      "metricLabel": "Calories Burned"
-    },
-    "duration": 8
-  },
-  "template-052": {
-    "templateId": "template-052",
-    "elements": {
-      "title": "Cooking",
-      "subtitle": "A preview of the cooking template in action.",
-      "backgroundColor": "#1a1a2e",
-      "image": "",
-      "ingredients": [
-        "Flour",
-        "Eggs",
-        "Sugar",
-        "Butter"
-      ]
-    },
-    "duration": 8
-  },
-  "template-053": {
-    "templateId": "template-053",
-    "elements": {
-      "title": "Travel",
-      "subtitle": "A preview of the travel template in action.",
-      "backgroundColor": "#1a1a2e",
-      "location": "Paris, France",
-      "image": ""
-    },
-    "duration": 8
-  },
-  "template-054": {
-    "templateId": "template-054",
-    "elements": {
-      "title": "Educational",
-      "subtitle": "A preview of the educational template in action.",
-      "backgroundColor": "#1a1a2e",
-      "formula": "E = mc²"
-    },
-    "duration": 8
-  },
-  "template-055": {
-    "templateId": "template-055",
-    "elements": {
-      "title": "Corporate",
-      "subtitle": "A preview of the corporate template in action.",
-      "backgroundColor": "#1a1a2e",
-      "image": "",
-      "stats": [
-        {
-          "value": "500+",
-          "label": "Clients"
-        },
-        {
-          "value": "99%",
-          "label": "Retention"
-        }
-      ]
-    },
-    "duration": 8
-  },
-  "template-056": {
-    "templateId": "template-056",
-    "elements": {
-      "title": "Music",
-      "subtitle": "A preview of the music template in action.",
-      "backgroundColor": "#1a1a2e"
-    },
-    "duration": 8
-  },
-  "template-057": {
-    "templateId": "template-057",
-    "elements": {
-      "title": "Science",
-      "subtitle": "A preview of the science template in action.",
-      "backgroundColor": "#1a1a2e",
-      "image": ""
-    },
-    "duration": 8
-  },
-  "template-058": {
-    "templateId": "template-058",
-    "elements": {
-      "image": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop",
-      "caption": "Once upon a time, in a land far away...",
-      "label": "Chapter One"
-    },
-    "duration": 8
-  },
-  "template-059": {
-    "templateId": "template-059",
-    "elements": {
-      "title": "Event",
-      "subtitle": "A preview of the event template in action.",
-      "backgroundColor": "#1a1a2e",
-      "image": "",
-      "date": "December 15, 2024"
-    },
-    "duration": 8
-  },
-  "template-060": {
-    "templateId": "template-060",
-    "elements": {
-      "title": "Comedy",
-      "subtitle": "A preview of the comedy template in action.",
-      "backgroundColor": "#1a1a2e",
-      "caption": "Why did the developer go broke?"
-    },
-    "duration": 8
-  },
-  "template-061": {
-    "templateId": "template-061",
-    "speaker": "guest",
-    "imageUrl": "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=1920&h=1080&fit=crop",
-    "elements": {
-      "speakerLabel": "Guest",
-      "caption": "Honestly, the moment I started shipping small features every week, everything clicked."
-    },
-    "duration": 8
-  }
 };

@@ -1,13 +1,17 @@
 import React, { useMemo } from 'react';
-import { useCurrentFrame } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import { captionAnimationRegistry } from './captionAnimations';
+import { typography } from '../theme';
 
 /**
  * Default caption style configuration.
  * Templates can override any of these values.
  */
 export const defaultCaptionConfig = {
-  fontFamily: 'Arial, Helvetica, sans-serif',
+  // No fontFamily here - it's a static literal that can't react to a
+  // per-video font pairing applied later (see theme.js's applyFontPairing).
+  // The live `typography.body.fontFamily` is used as the fallback instead,
+  // read at render time in the `config` useMemo below.
   fontWeight: 700,
   fontSize: 48,
   textColor: '#ffffff',
@@ -27,11 +31,15 @@ export const defaultCaptionConfig = {
   framesPerWord: 3,
   wordSpacing: '0.3em',
   letterSpacing: '0.02em',
-  // When set, only this many words are rendered at once (chunked by
-  // activeIndex) instead of the entire caption wrapping across multiple
-  // lines. Opt-in so existing templates keep their current full-text
-  // behavior unless they explicitly ask for windowing.
-  maxVisibleWords: 0,
+  // Only this many words are rendered at once (chunked by activeIndex),
+  // matching how short-form captions actually read (a few words at a
+  // time, not the whole line as one wrapped paragraph). Defaulting to 0
+  // (unbounded) rendered the ENTIRE narration line as one multi-line block
+  // regardless of length - for anything but a short line, that box grew
+  // tall enough to overlap the template's own title/body content above it.
+  // A template can still opt back into the old unbounded behavior by
+  // passing `maxVisibleWords: 0` in its styleConfig.captions.
+  maxVisibleWords: 6,
 };
 
 /**
@@ -92,12 +100,21 @@ export const CaptionRenderer = React.memo(
     fps = 30,
   }) => {
     const frame = useCurrentFrame();
+    const { width, height } = useVideoConfig();
+    // Fixed-px defaults below (fontSize, vertical offsets) were tuned for a
+    // 1920x1080 frame - scale them against the shorter canvas dimension so
+    // captions aren't disproportionately large/close-to-the-edge on a
+    // portrait or square render.
+    const scale = Math.min(width, height) / 1080;
 
     // Merge default config with overrides
     const config = useMemo(() => ({
       ...defaultCaptionConfig,
+      fontFamily: typography.body.fontFamily,
+      fontSize: 48 * scale,
       ...styleConfig,
-    }), [styleConfig]);
+      ...(styleConfig.fontSize ? { fontSize: styleConfig.fontSize * scale } : {}),
+    }), [styleConfig, scale]);
 
     // Split text into words. Em/en-dashes used as parenthetical pauses (e.g.
     // "craving—our", common in LLM-written dialogue) get typed with no
@@ -135,12 +152,16 @@ export const CaptionRenderer = React.memo(
       [words, timestamps, fps, frame, sceneStartFrame, config.framesPerWord]
     );
 
-    // Position style for the container
+    // Position style for the container. top/bottom offsets are a percentage
+    // of frame height (rather than a fixed 60px) so captions sit the same
+    // relative distance from the edge whether the frame is 1080px tall
+    // (landscape) or 1920px tall (portrait).
     const positionStyle = useMemo(() => {
+      const edgeOffset = `${(60 / 1080) * 100}%`;
       const positions = {
-        top: { top: 60, bottom: 'auto', transform: 'translateX(-50%)' },
+        top: { top: edgeOffset, bottom: 'auto', transform: 'translateX(-50%)' },
         center: { top: '50%', bottom: 'auto', transform: 'translate(-50%, -50%)' },
-        bottom: { bottom: 60, top: 'auto', transform: 'translateX(-50%)' },
+        bottom: { bottom: edgeOffset, top: 'auto', transform: 'translateX(-50%)' },
       };
       return positions[config.position] || positions.bottom;
     }, [config.position]);

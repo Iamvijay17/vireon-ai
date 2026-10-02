@@ -1,16 +1,21 @@
 const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
 const config = require('../config');
-const LoggerService = require('../services/LoggerService');
+// Same fail-fast guard server.js applies - see config/validate.js.
+require('../config/validate').assertValidOrExit(config);
+const LoggerService = require('../services/common/LoggerService');
 
 // Fire-and-forget: spawns a local redis-server if REDIS_HOST is localhost
 // and nothing's listening there yet, so the queue connection below doesn't
 // spend the next several minutes retrying against a dead port.
 require('../utils/ensureRedis')();
 
-const CourseVideoService = require('../services/CourseVideoService');
-const SocketService = require('../services/SocketService');
-const StorageService = require('../services/StorageService');
+const CourseVideoService = require('../services/course/CourseVideoService');
+const SocketService = require('../services/common/SocketService');
+const StorageService = require('../services/storage/StorageService');
+const courseQueue = require('../queues/courseQueue');
+const { decideRetry, describeRetry, retryJobId } = require('../services/common/retryPolicy');
+const ActivityLogService = require('../services/common/ActivityLogService');
 
 // See videoWorker.js's identical handlers for why this process needs them
 // (it shares the same AudioService, which is where the unhandled-rejection
@@ -76,6 +81,11 @@ const courseVideoWorker = new Worker(
     });
 
     try {
+      // A delayed automatic-retry job (see the outer catch below) can fire
+      // after the user already hit Stop while it was waiting - bail before
+      // touching the pipeline instead of re-running against a CANCELLED video.
+      await CourseVideoService.bailIfCancelled(videoId);
+
       switch (action) {
         case 'generate-script':
           await CourseVideoService.generateScript(videoId);
@@ -125,12 +135,37 @@ const courseVideoWorker = new Worker(
       // that's what retryStep()'s switch matches against. Duplicating that
       // write here with the raw action slug (e.g. 'generate-audio') would
       // silently break Retry (falls through to the switch's default case)
-      // and double-count retryCount, so this is now just a safety-net log
-      // for the case a video record couldn't be found/loaded at all.
+      // and double-count retryCount, so this stays a safety-net for a
+      // missing video record plus the one place that decides whether to
+      // automatically retry (the pipeline module already incremented
+      // error.retryCount before rethrowing, so this just reads it back).
       try {
         const video = await CourseVideoService.getById(videoId);
         if (!video) {
           LoggerService.error('Course video not found while handling job failure', { videoId, action });
+        }
+
+        // The pipeline module already incremented error.retryCount before
+        // rethrowing, so this is the attempt that just failed - no +1 here,
+        // unlike videoWorker's processor. retryStep re-runs the same failed
+        // action from a clean slate and shouldn't itself trigger another
+        // automatic retry loop, hence the `eligible` veto. Budget/backoff
+        // rules live in services/common/retryPolicy.js, shared with the
+        // video worker.
+        const attempt = video?.error?.retryCount || 0;
+        const maxRetries = video?.maxRetries || 3;
+        const retry = decideRetry({ attempt, maxRetries, eligible: !!video && action !== 'retry' });
+
+        if (retry.shouldRetry) {
+          const step = video.error?.step || action;
+          await CourseVideoService.scheduleRetry(videoId, { nextRetryAt: retry.nextRetryAt });
+          await ActivityLogService.add(
+            videoId,
+            describeRetry({ step, attempt, maxRetries, delayMs: retry.delayMs })
+          );
+          await courseQueue.add(action, { videoId, action }, { jobId: retryJobId(videoId, attempt), delay: retry.delayMs });
+          LoggerService.info('Course video job scheduled for automatic retry', { videoId, action, attempt, delay: retry.delayMs });
+          return { success: false, videoId, retryScheduled: true, attempt };
         }
       } catch (dbErr) {
         LoggerService.error('Failed to load course video after job failure', { error: dbErr.message });
@@ -181,6 +216,38 @@ courseVideoWorker.on('error', (err) => {
 courseVideoWorker.on('stalled', (jobId) => {
   LoggerService.warn(`Job ${jobId} stalled - its worker likely crashed mid-processing, reclaiming for reprocessing`);
 });
+
+// See videoWorker.js's identical handler for the rationale (stop taking new
+// jobs, let active ones finish, force-exit after 30s if that hangs).
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  LoggerService.info(`Course video worker received ${signal} - closing gracefully, waiting for active jobs...`);
+
+  const forceExit = setTimeout(() => {
+    LoggerService.warn('Course video worker graceful shutdown timed out after 30s, forcing exit');
+    process.exit(1);
+  }, 30_000);
+
+  try {
+    await courseVideoWorker.close();
+    clearTimeout(forceExit);
+    // Hand the GPU back before exiting. A process that dies holding the
+    // cross-process lease makes every other process wait out its full TTL
+    // for a card that is already free.
+    await require('../services/localAI').gpu.shutdown().catch(() => {});
+    await mongoose.connection.close();
+    LoggerService.info('Course video worker shut down gracefully');
+    process.exit(0);
+  } catch (err) {
+    clearTimeout(forceExit);
+    LoggerService.error('Error during course video worker graceful shutdown', { error: err.message });
+    process.exit(1);
+  }
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 LoggerService.border('🎥 Course Video Worker Started', 'event');
 LoggerService.info('Worker listening for jobs', {

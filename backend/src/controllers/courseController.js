@@ -1,8 +1,13 @@
-const CourseService = require('../services/CourseService');
-const CourseVideoService = require('../services/CourseVideoService');
-const LoggerService = require('../services/LoggerService');
-const SocketService = require('../services/SocketService');
+const archiver = require('archiver');
+const CourseService = require('../services/course/CourseService');
+const CourseVideoService = require('../services/course/CourseVideoService');
+const CourseCurriculumService = require('../services/course/CourseCurriculumService');
+const LoggerService = require('../services/common/LoggerService');
+const SocketService = require('../services/common/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
+const { getStorageProvider } = require('../services/storage/providers');
+const { sanitizeFilename } = require('../utils/filename');
+const { NotFoundError, ValidationError } = require('../utils/errors');
 
 class CourseController {
   /**
@@ -148,12 +153,66 @@ class CourseController {
   static async generateCurriculum(req, res, next) {
     try {
       if (!req.body.title || !req.body.topic) {
-        throw { status: 400, message: 'title and topic are required' };
+        throw new ValidationError('title and topic are required');
       }
 
-      const lessons = await CourseVideoService.previewCurriculum(req.body.title, req.body.topic);
+      const {
+        subtitle,
+        description,
+        learningObjectives,
+        requirements,
+        targetAudience,
+        welcomeMessage,
+        congratulationsMessage,
+        promo,
+        lessons,
+      } = await CourseVideoService.previewCurriculum(req.body.title, req.body.topic);
 
-      res.json({ lessons });
+      // Persist this generated structure to its own collection, separate
+      // from Course.curriculumDraft (which only ever holds the latest
+      // in-progress form state). One curriculum per course - this replaces
+      // any existing snapshot for the course (see CourseCurriculumService.save).
+      const curriculum = await CourseCurriculumService.save(req.params.id, {
+        title: req.body.title,
+        topic: req.body.topic,
+        subtitle,
+        description,
+        learningObjectives,
+        requirements,
+        targetAudience,
+        welcomeMessage,
+        congratulationsMessage,
+        promo,
+        lessons,
+      });
+
+      res.json({
+        subtitle,
+        description,
+        learningObjectives,
+        requirements,
+        targetAudience,
+        welcomeMessage,
+        congratulationsMessage,
+        promo,
+        lessons,
+        curriculum,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/courses/:id/curriculum-history - List previously generated
+   * curriculum structures for a course, most recent first.
+   */
+  static async listCurriculumHistory(req, res, next) {
+    try {
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 20;
+      const result = await CourseCurriculumService.listByCourse(req.params.id, page, limit);
+      res.json(result);
     } catch (err) {
       next(err);
     }
@@ -162,20 +221,69 @@ class CourseController {
   /**
    * POST /api/courses/:id/curriculum-videos - Create one CourseVideo per
    * lesson from an approved (possibly user-edited) lesson list, the output
-   * of generate-curriculum above.
+   * of generate-curriculum above. If `promo` is included in the body, also
+   * creates/updates the course's single course-level trailer video (not a
+   * lesson - see CourseVideoService.createPromoVideo).
    */
   static async createCurriculumVideos(req, res, next) {
     try {
-      const { lessons, voice, style, duration, additionalInstructions } = req.body;
+      const { lessons, promo, voice, style, duration, additionalInstructions, fastAudio, resolution, quality } = req.body;
+      const options = { voice, style, duration, additionalInstructions, fastAudio, resolution, quality };
 
-      const videos = await CourseVideoService.createFromLessons(req.params.id, lessons, {
-        voice,
-        style,
-        duration,
-        additionalInstructions,
-      });
+      const videos = await CourseVideoService.createFromLessons(req.params.id, lessons, options);
 
-      res.status(201).json({ videos });
+      let promoVideo = null;
+      if (promo && promo.topic) {
+        promoVideo = await CourseVideoService.createPromoVideo(req.params.id, promo, options);
+      }
+
+      res.status(201).json({ videos, promoVideo });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/courses/:id/download-all - Stream every rendered video in the
+   * course as a single zip, each entry named after its video title.
+   */
+  static async downloadAll(req, res, next) {
+    try {
+      const { course } = await CourseService.getById(req.params.id);
+      const videos = await CourseVideoService.getAllByCourse(req.params.id);
+      const rendered = videos.filter((v) => v.renderUrl);
+
+      if (rendered.length === 0) {
+        throw new NotFoundError('No rendered videos to download for this course');
+      }
+
+      const storage = getStorageProvider();
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(course.title)}.zip"`);
+
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      archive.on('error', (err) => next(err));
+      archive.pipe(res);
+
+      // Dedupe identically-titled lessons so one doesn't clobber another
+      // inside the zip.
+      const usedNames = new Set();
+      for (const video of rendered) {
+        const { bucket, key } = storage.parsePublicUrl(video.renderUrl);
+        const stream = await storage.getObjectStream(bucket, key);
+
+        const base = sanitizeFilename(video.title);
+        let name = `${base}.mp4`;
+        for (let n = 2; usedNames.has(name); n++) {
+          name = `${base} (${n}).mp4`;
+        }
+        usedNames.add(name);
+
+        archive.append(stream, { name });
+      }
+
+      await archive.finalize();
     } catch (err) {
       next(err);
     }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Check, Search } from "lucide-react";
-import { templateNames } from "vireon-remotion-templates/src/templateNames";
+import { templateNames } from "vireon-remotion-templates/src/templates/TemplateCategories";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
@@ -53,7 +53,7 @@ export function TemplatePickerModal({ open, onClose, scene, value, onSelect }) {
                   onClose?.();
                 }}
                 className={cn(
-                  "group relative overflow-hidden rounded-xl border text-left transition-colors",
+                  "group relative cursor-pointer overflow-hidden rounded-xl border text-left transition-colors",
                   isSelected ? "border-accent ring-2 ring-accent/30" : "border-border-light hover:border-border"
                 )}
               >

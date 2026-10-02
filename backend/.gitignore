@@ -9,7 +9,6 @@ dist/
 build/
 coverage/
 .nyc_output/
-package-lock.json
 
 
 # ignore all env files

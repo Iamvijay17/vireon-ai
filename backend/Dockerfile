@@ -1,52 +1,18 @@
-# Build context is the repo root (not backend/) because the Remotion render
-# process shells out to backend/remotion's own node_modules - see
-# RemotionService.getRemotionProjectRoot(). Debian (not Alpine) is required:
-# Remotion's bundled headless Chromium needs glibc + the shared libs below.
-FROM node:20-bookworm-slim
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libnss3 \
-    libdbus-1-3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libgbm1 \
-    libasound2 \
-    libxrandr2 \
-    libxkbcommon0 \
-    libxfixes3 \
-    libxcomposite1 \
-    libxdamage1 \
-    libcups2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    fonts-liberation \
-    && rm -rf /var/lib/apt/lists/*
-
+# API image only. Workers stay native on Windows (they spawn Ollama/TTS/
+# MuseTalk/ComfyUI and Remotion from local paths and need the GPU).
+FROM node:22-slim AS deps
 WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
-# Install backend deps
-COPY backend/package.json backend/package-lock.json ./backend/
-RUN cd backend && npm ci --omit=dev
-
-# Install the Remotion render project's own deps (separate from backend/,
-# see comment above - RemotionService looks for its CLI under
-# backend/remotion/node_modules specifically)
-COPY backend/remotion/package.json backend/remotion/package-lock.json ./backend/remotion/
-RUN cd backend/remotion && npm ci
-
-# Pre-download Remotion's headless browser so the first render doesn't pay
-# for it and doesn't need network access at runtime.
-RUN cd backend/remotion && npx remotion browser ensure
-
-COPY backend/src ./backend/src
-COPY backend/templates ./backend/templates
-COPY backend/remotion ./backend/remotion
-
-WORKDIR /app/backend
-
-RUN mkdir -p jobs logs voices
-
+FROM node:22-slim
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN mkdir -p jobs logs && chown -R node:node /app
+USER node
 EXPOSE 3000
-
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+  CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "src/server.js"]

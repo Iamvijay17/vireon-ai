@@ -6,6 +6,9 @@ import axios from 'axios';
 // VITE_API_URL can still override this explicitly if needed.
 const getApiBase = () => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  // Production build is served by nginx, which proxies /api and /socket.io
+  // on the same origin - no separate :3000 port is reachable from outside.
+  if (import.meta.env.PROD) return window.location.origin;
   const { hostname, protocol } = window.location;
   return `${protocol}//${hostname}:3000`;
 };
@@ -37,13 +40,86 @@ api.interceptors.response.use(
   }
 );
 
-// Backend-generated media (course audio/render output) comes back as paths
-// relative to the API origin (e.g. "/public/<id>/audio/scene1.mp3"), not the
-// frontend's own origin, so they need the API base prefixed to load.
+// MinIO serves scene audio directly (anonymous-read bucket) rather than
+// through the backend, so it needs its own origin, not API_BASE. Mirrors
+// getApiBase()'s "derive from the current hostname, allow an env override"
+// pattern so LAN access still works. Bucket name matches the backend's
+// MINIO_SCENES_BUCKET default (see backend/src/config/index.js).
+const getMinioBase = () => {
+  if (import.meta.env.VITE_MINIO_PUBLIC_URL) return import.meta.env.VITE_MINIO_PUBLIC_URL;
+  // Production: nginx exposes MinIO read-only under /media (see frontend/nginx.conf).
+  if (import.meta.env.PROD) return `${window.location.origin}/media`;
+  const { hostname, protocol } = window.location;
+  return `${protocol}//${hostname}:9000`;
+};
+const MINIO_BASE = getMinioBase();
+const MINIO_SCENES_BUCKET = import.meta.env.VITE_MINIO_SCENES_BUCKET || 'vireon-scenes';
+
+// Port the backend's MinIO instance serves object URLs on (backend/.env
+// MINIO_PUBLIC_URL, default 9000). Used to recognize MinIO object links so
+// their host can be re-homed for LAN access.
+const MINIO_PORT = (() => {
+  try {
+    return new URL(MINIO_BASE).port || '9000';
+  } catch {
+    return '9000';
+  }
+})();
+
+// The backend builds every asset URL it stores/returns (videoUrl,
+// thumbnailUrl, avatarVideoUrl, audioUrl, renderUrl, scene.audio.file) from
+// MINIO_PUBLIC_URL in backend/.env - by default http://127.0.0.1:9000. That
+// origin only works on the backend machine itself: a browser on any other LAN
+// device resolves 127.0.0.1 to its own loopback, so every <video>/<audio>/<img>
+// fails to load while the API and socket (both derived from window.location)
+// keep working. Re-home such URLs to the host the page was served from so they
+// follow the device that loaded the page, mirroring the getApiBase/getMinioBase
+// trick.
+const resolveAssetUrl = (url) => {
+  if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return url;
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const isLoopback =
+      hostname === 'localhost' || hostname === '::1' || /^127(\.\d{1,3}){3}$/.test(hostname);
+    // Loopback links (and any stale URL still pointed at the MinIO port, e.g.
+    // an old LAN IP baked in before this machine's address changed) are MinIO
+    // object links - swap in the host this page was served from. A port must
+    // be explicitly present: stored MinIO URLs always carry one (publicUrl is
+    // built as http(s)://host:port), and URLs without one must pass through.
+    const isMinioPort = parsed.port !== '' && String(parsed.port) === String(MINIO_PORT || '9000');
+    if ((isLoopback || hostname !== window.location.hostname) && isMinioPort) {
+      if (import.meta.env.PROD && !import.meta.env.VITE_MINIO_PUBLIC_URL) {
+        return `${window.location.origin}/media${parsed.pathname}${parsed.search}`;
+      }
+      parsed.hostname = window.location.hostname;
+      return parsed.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+};
+
+// Backend-generated media (course audio/render output) comes back either as
+// absolute MinIO URLs (audioUrl/renderUrl - host may be a loopback address) or
+// as paths relative to the API origin (e.g. "/public/<id>/audio/scene1.mp3").
+// Relative paths get the API base prefixed; absolute ones get LAN re-homed.
 export const resolveMediaUrl = (path) => {
   if (!path) return path;
-  if (/^https?:\/\//i.test(path)) return path;
+  if (/^https?:\/\//i.test(path)) return resolveAssetUrl(path);
   return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
+};
+
+// Resolves a scene's audio field (`scene.audio.file`) to a browser-fetchable
+// URL. The backend stores it as a bare filename (e.g. "scene1.mp3") and
+// uploads the actual bytes to MinIO the moment it's generated. Already-
+// absolute values (a leftover from an older job, or a future provider change)
+// get the same LAN re-homing as other media URLs instead of passing through.
+export const resolveSceneAudioUrl = (videoId, audioFile) => {
+  if (!audioFile) return null;
+  if (/^https?:\/\//i.test(audioFile)) return resolveAssetUrl(audioFile);
+  return `${MINIO_BASE}/${MINIO_SCENES_BUCKET}/${videoId}/audio/${audioFile}`;
 };
 
 // ─── Video Jobs ───────────────────────────────────────────────────────────────
@@ -58,6 +134,8 @@ export const getVideoJob = (id) => api.get(`/api/videos/${id}`);
 export const updateVideoJob = (id, data) => api.put(`/api/videos/${id}`, data);
 
 export const deleteVideoJob = (id) => api.delete(`/api/videos/${id}`);
+
+export const bulkDeleteVideoJobs = (jobIds) => api.post('/api/videos/bulk-delete', { jobIds });
 
 export const restartVideoJob = (id) => api.post(`/api/videos/${id}/restart`);
 
@@ -80,6 +158,17 @@ export const updateVideoScenes = (id, scenes) => api.put(`/api/videos/${id}/scen
 export const regenerateVideoSceneAudio = (id, sceneNumber) =>
   api.post(`/api/videos/${id}/scenes/${sceneNumber}/regenerate-audio`);
 
+export const remapSceneElementsForTemplate = (id, sceneNumber, templateId, currentScene) =>
+  api.post(`/api/videos/${id}/scenes/${sceneNumber}/remap-template`, {
+    templateId,
+    fromTemplateId: currentScene?.templateId,
+    title: currentScene?.title,
+    subtitle: currentScene?.subtitle,
+    audioText: currentScene?.audio?.text,
+    speaker: currentScene?.speaker,
+    elements: currentScene?.elements,
+  });
+
 export const getVideoJobActivityLogs = (id) => api.get(`/api/videos/${id}/activity-logs`);
 
 // ─── Voices ─────────────────────────────────────────────────────────────────────
@@ -92,6 +181,21 @@ export const addFavoriteVoice = (voiceId) => api.post('/api/voices/favorites', {
 
 export const removeFavoriteVoice = (voiceId) =>
   api.delete('/api/voices/favorites', { data: { voiceId } });
+
+// ─── Audio Studio ───────────────────────────────────────────────────────────────
+
+// TTS synthesis itself takes tens of seconds (see AudioService), well past
+// the default 30s timeout - same override pattern as generateCourseCurriculum.
+export const generateAudio = (data) => api.post('/api/audio/generate', data, { timeout: 120000 });
+
+// Multi-speaker ("podcast") script - one TTS call per turn, so this needs a
+// longer timeout still, scaled by how many turns a long script can produce.
+export const generateDialogueAudio = (data) => api.post('/api/audio/generate-dialogue', data, { timeout: 300000 });
+
+export const getAudioGenerations = (page = 1, limit = 20) =>
+  api.get('/api/audio', { params: { page, limit } });
+
+export const deleteAudioGeneration = (id) => api.delete(`/api/audio/${id}`);
 
 // ─── Courses ────────────────────────────────────────────────────────────────────
 
@@ -108,6 +212,11 @@ export const deleteCourse = (id) => api.delete(`/api/courses/${id}`);
 
 export const stopCourse = (id) => api.post(`/api/courses/${id}/stop`);
 
+// Plain URLs (not axios calls) - handed to an <a download> so the browser
+// streams straight from the backend instead of buffering the whole file in
+// JS first. The backend sets Content-Disposition to the video/course title.
+export const getCourseDownloadAllUrl = (courseId) => resolveMediaUrl(`/api/courses/${courseId}/download-all`);
+
 // ─── Course Videos ──────────────────────────────────────────────────────────────
 
 export const getCourseVideos = (courseId, page = 1, limit = 50) =>
@@ -117,6 +226,8 @@ export const createCourseVideo = (courseId, data) =>
   api.post(`/api/courses/${courseId}/videos`, data);
 
 export const getCourseVideo = (id) => api.get(`/api/course-videos/${id}`);
+
+export const getCourseVideoDownloadUrl = (id) => resolveMediaUrl(`/api/course-videos/${id}/download`);
 
 export const updateCourseVideo = (id, data) => api.put(`/api/course-videos/${id}`, data);
 
@@ -173,6 +284,12 @@ export const saveCourseCurriculumDraft = (courseId, draft) =>
 export const clearCourseCurriculumDraft = (courseId) =>
   api.delete(`/api/courses/${courseId}/curriculum-draft`);
 
+// Durable history of past AI-generated curriculum structures for a course
+// (separate from the single in-progress curriculumDraft above) - each
+// generate-curriculum call is saved here permanently.
+export const getCourseCurriculumHistory = (courseId, params) =>
+  api.get(`/api/courses/${courseId}/curriculum-history`, { params });
+
 export const bulkGenerateCourseVideos = (videoIds, action) =>
   api.post(`/api/course-videos/bulk-generate`, { videoIds, action });
 
@@ -182,10 +299,38 @@ export const bulkApproveCourseVideoScripts = (videoIds) =>
 export const bulkDeleteCourseVideos = (videoIds) =>
   api.post(`/api/course-videos/bulk-delete`, { videoIds });
 
+// ─── Job Management (unified video/course/audio job view) ────────────────────────
+
+export const getJobs = (page = 1, limit = 20, filters = {}) =>
+  api.get('/api/jobs', { params: { page, limit, ...filters } });
+
+export const getJob = (type, id) => api.get(`/api/jobs/${type}/${id}`);
+
+export const cancelJob = (type, id) => api.post(`/api/jobs/${type}/${id}/cancel`);
+
+export const retryJob = (type, id) => api.post(`/api/jobs/${type}/${id}/retry`);
+
+export const bulkJobAction = (jobs, action) => api.post('/api/jobs/bulk', { jobs, action });
+
+// Durable per-job event timeline (JobEvent). `since` is an exclusive seq:
+// pass the highest seq already seen to fetch only what's newer.
+export const getJobEvents = (type, id, { since = 0, limit } = {}) =>
+  api.get(`/api/jobs/${type}/${id}/events`, { params: { since, ...(limit ? { limit } : {}) } });
+
+// ─── Assets (unified registry across video/course-video/audio-studio uploads) ────
+
+export const getAssets = (page = 1, limit = 20, filters = {}) =>
+  api.get('/api/assets', { params: { page, limit, ...filters } });
+
+export const deleteAsset = (id) => api.delete(`/api/assets/${id}`);
+
 // ─── Analytics ──────────────────────────────────────────────────────────────────
 
 export const getAnalyticsOverview = (days = 30) =>
   api.get('/api/analytics/overview', { params: { days } });
+
+export const getVideoMetrics = (params = {}) =>
+  api.get('/api/analytics/videos', { params });
 
 // ─── Live Logs ──────────────────────────────────────────────────────────────────
 

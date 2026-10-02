@@ -8,6 +8,8 @@
   ],
   "scripts": {
     "dev": "concurrently -n API,WORKER,COURSE,WEB -c blue,green,yellow,magenta \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:course-worker\" \"npm:dev:frontend\"",
+    "dev:video": "concurrently -n WEB,API,WORKER -c magenta,blue,green \"npm:dev:frontend\" \"npm:dev:api\" \"npm:dev:worker\"",
+    "dev:course": "concurrently -n WEB,API,COURSE -c magenta,blue,yellow \"npm:dev:frontend\" \"npm:dev:api\" \"npm:dev:course-worker\"",
     "dev:api": "npm run dev --prefix backend",
     "dev:worker": "npm run worker:dev --prefix backend",
     "dev:course-worker": "npm run course-worker:dev --prefix backend",

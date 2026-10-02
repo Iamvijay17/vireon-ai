@@ -1,97 +1,117 @@
+# Vireon production stack. Run from this folder:  docker compose up -d
+# Native on Windows (NOT in compose): MinIO, Ollama, Qwen3-TTS, MuseTalk,
+# ComfyUI, and the two BullMQ workers (see deploy/install-workers.ps1).
+# MongoDB is Atlas (cloud). Nothing here publishes a port to the LAN: the only
+# host port is 127.0.0.1:8080 (frontend) and 127.0.0.1:6379 (Redis, for the
+# native workers).
+name: vireon
+
+x-restart: &restart
+  restart: unless-stopped
+
 services:
   redis:
+    <<: *restart
     image: redis:7-alpine
-    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 3s
       retries: 5
 
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    restart: unless-stopped
-    env_file:
-      - backend/.env
-    environment:
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      CORS_ORIGIN: http://localhost,http://localhost:5173
-      # LM Studio and the Pinokio F5-TTS server run on the host machine, not
-      # in a container - reach them through Docker Desktop's host gateway.
-      LM_STUDIO_URL: http://host.docker.internal:1234/v1/chat/completions
-      TTS_API_URL: http://host.docker.internal:7860
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./backend/jobs:/app/backend/jobs
-      - ./backend/logs:/app/backend/logs
-      - ./backend/voices:/app/backend/voices
+    <<: *restart
+    image: ghcr.io/${GHCR_OWNER:-local}/vireon-backend:${IMAGE_TAG:-latest}
+    build: ./backend
     depends_on:
-      redis:
-        condition: service_healthy
+      redis: { condition: service_healthy }
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-  worker:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    restart: unless-stopped
-    command: ["node", "src/workers/videoWorker.js"]
-    env_file:
-      - backend/.env
     environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: 0.0.0.0
+      MONGODB_URI: ${MONGODB_URI:?set MONGODB_URI in .env}
       REDIS_HOST: redis
-      REDIS_PORT: 6379
-      LM_STUDIO_URL: http://host.docker.internal:1234/v1/chat/completions
+      MINIO_ENDPOINT: host.docker.internal
+      MINIO_PORT: "9000"
+      MINIO_USE_SSL: "false"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+      # Kept as-is so URLs already stored in Mongo stay valid; the frontend
+      # re-homes them to /media on the page's own origin.
+      MINIO_PUBLIC_URL: http://127.0.0.1:9000
+      CORS_ORIGIN: ${PUBLIC_URL:-http://localhost:8080}
+      # The API container can't launch GPU apps; workers (native) do that.
+      OLLAMA_URL: http://host.docker.internal:11434
+      OLLAMA_AUTO_START: "false"
       TTS_API_URL: http://host.docker.internal:7860
+      TTS_AUTO_START: "false"
+      AVATAR_AUTO_START: "false"
+      LLM_PROVIDER: ollama
     volumes:
-      - ./backend/jobs:/app/backend/jobs
-      - ./backend/logs:/app/backend/logs
-      - ./backend/voices:/app/backend/voices
-    depends_on:
-      redis:
-        condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  course-worker:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    restart: unless-stopped
-    command: ["node", "src/workers/courseVideoWorker.js"]
-    env_file:
-      - backend/.env
-    environment:
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      LM_STUDIO_URL: http://host.docker.internal:1234/v1/chat/completions
-      TTS_API_URL: http://host.docker.internal:7860
-    volumes:
-      - ./backend/jobs:/app/backend/jobs
-      - ./backend/logs:/app/backend/logs
-      - ./backend/voices:/app/backend/voices
-    depends_on:
-      redis:
-        condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # Same scratch/log dirs the native workers use.
+      - ./backend/jobs:/app/jobs
+      - ./backend/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
 
   frontend:
+    <<: *restart
+    image: ghcr.io/${GHCR_OWNER:-local}/vireon-frontend:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    restart: unless-stopped
-    ports:
-      - "80:80"
     depends_on:
-      - backend
+      backend: { condition: service_healthy }
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:8080:80"
+    logging: *logging
+
+  # --- Remote access: pick ONE profile --------------------------------------
+  # Private (default, recommended: the app has no login):
+  #   docker compose --profile tailscale up -d
+  tailscale:
+    <<: *restart
+    profiles: ["tailscale"]
+    image: tailscale/tailscale:stable
+    hostname: vireon
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - ts-state:/var/lib/tailscale
+      - ./deploy/tailscale/serve.json:/config/serve.json:ro
+    depends_on:
+      frontend: { condition: service_healthy }
+
+  # Fallback, no account needed: random https://*.trycloudflare.com URL that
+  # changes on every restart. PUBLIC. Read the security notes in DEPLOYMENT.md.
+  #   docker compose --profile quicktunnel up -d ; docker compose logs quicktunnel
+  quicktunnel:
+    <<: *restart
+    profiles: ["quicktunnel"]
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://frontend:80
+    depends_on:
+      frontend: { condition: service_healthy }
 
 volumes:
   redis-data:
+  ts-state:

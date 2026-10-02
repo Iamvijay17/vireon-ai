@@ -50,7 +50,7 @@ export const ToastProvider = ({ children }) => {
                 <button
                   onClick={() => remove(t.id)}
                   aria-label="Dismiss"
-                  className="ml-1 shrink-0 rounded-md p-0.5 text-text-tertiary hover:bg-surface-hover"
+                  className="ml-1 shrink-0 cursor-pointer rounded-md p-0.5 text-text-tertiary hover:bg-surface-hover"
                 >
                   <X className="size-3.5" />
                 </button>

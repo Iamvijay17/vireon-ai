@@ -1,0 +1,66 @@
+import { typography, palette } from '../../theme';
+
+export const styles = {
+  container: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  imageBand: {
+    position: 'relative',
+    flex: 1.1,
+    overflow: 'hidden',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  imageFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '30%',
+    background: 'linear-gradient(180deg, transparent 0%, rgba(15,23,42,0.55) 100%)',
+  },
+  textPanel: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    padding: '40px 70px',
+    boxSizing: 'border-box',
+  },
+  badge: {
+    display: 'inline-block',
+    backgroundColor: 'rgba(96, 165, 250, 0.18)',
+    color: palette.accentSolid,
+    fontSize: 15,
+    fontWeight: 600,
+    padding: '5px 14px',
+    borderRadius: 20,
+    marginBottom: 14,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    alignSelf: 'flex-start',
+  },
+  title: {
+    ...typography.title,
+    color: palette.textOnDark,
+    fontSize: 40,
+    fontWeight: 700,
+    textAlign: 'left',
+    lineHeight: 1.18,
+    marginBottom: 12,
+  },
+  body: {
+    ...typography.body,
+    color: palette.textMuted,
+    fontSize: 20,
+    maxWidth: '90%',
+  },
+};

@@ -45,7 +45,7 @@ export const Button = forwardRef(function Button(
 ) {
   const classes = cn(
     "inline-flex items-center justify-center rounded-lg font-medium whitespace-nowrap",
-    "transition-colors duration-150 select-none",
+    "transition-colors duration-150 select-none cursor-pointer",
     "disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none",
     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]",
     VARIANTS[variant],

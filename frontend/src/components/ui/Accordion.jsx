@@ -31,7 +31,7 @@ export const AccordionItem = ({
         type="button"
         onClick={toggle}
         className={cn(
-          "flex w-full items-center justify-between gap-2 px-4 py-3 text-left",
+          "flex w-full cursor-pointer items-center justify-between gap-2 px-4 py-3 text-left",
           !ghost && "rounded-xl"
         )}
       >

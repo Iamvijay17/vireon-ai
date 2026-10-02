@@ -1,12 +1,9 @@
 import React, { Suspense } from "react";
-import {
-  AbsoluteFill,
-  Sequence,
-  interpolate,
-  useCurrentFrame,
-} from "remotion";
+import { AbsoluteFill, Sequence, Video, interpolate, useCurrentFrame } from "remotion";
 import TemplateRegistry from "./templates/TemplateRegistry";
 import DefaultTemplate from "./templates/DefaultTemplate";
+import { applyFontPairing } from "./theme";
+import { isHardCut, getTransitionStyle, resolveTransitionId } from "./transitions";
 
 const Text = ({ children, style }) => <div style={style}>{children}</div>;
 
@@ -19,24 +16,31 @@ const BackgroundLayer = ({ backgroundColor }) => (
 );
 
 /**
- * Crossfades a scene (background + content together) in from the previous
- * scene over `fadeInFrames`, instead of popping in at full opacity.
- * The outgoing scene's Sequence is extended to overlap this window (see
- * VideoComposition below), so both scenes are visible and blend smoothly
- * instead of hard-cutting - which is what previously read as a "flicker".
+ * Eases the incoming scene in over `frames` (0 -> 1), matching the interpolate
+ * clamp behavior every transition variant below shares.
  */
-const SceneTransition = ({ children, backgroundColor, fadeInFrames = 0 }) => {
+const useEntranceProgress = (frames) => {
   const frame = useCurrentFrame();
-  const opacity =
-    fadeInFrames > 0
-      ? interpolate(frame, [0, fadeInFrames], [0, 1], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        })
-      : 1;
+  return frames > 0
+    ? interpolate(frame, [0, frames], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      })
+    : 1;
+};
+
+/**
+ * Renders one scene's entrance effect. The outgoing scene's Sequence is
+ * extended to overlap this window (see VideoComposition below), so both
+ * scenes are mounted simultaneously and this only has to style the incoming
+ * one - the previous scene sits underneath, unstyled, at full opacity.
+ */
+const SceneTransition = ({ children, backgroundColor, fadeInFrames = 0, transitionType = "fade" }) => {
+  const progress = useEntranceProgress(fadeInFrames);
+  const style = getTransitionStyle(transitionType, progress);
 
   return (
-    <AbsoluteFill style={{ opacity }}>
+    <AbsoluteFill style={style}>
       <BackgroundLayer backgroundColor={backgroundColor} />
       <AbsoluteFill>{children}</AbsoluteFill>
     </AbsoluteFill>
@@ -122,7 +126,9 @@ const resolveTemplate = (templateId) => {
   const normalizedId = String(templateId).trim().toLowerCase();
   const Template = TemplateRegistry[normalizedId];
   if (!Template) {
-    console.warn(`Unknown template: "${templateId}" (normalized: "${normalizedId}") — using DefaultTemplate`);
+    console.warn(
+      `Unknown template: "${templateId}" (normalized: "${normalizedId}") — using DefaultTemplate`,
+    );
     return DefaultTemplate;
   }
 
@@ -130,15 +136,23 @@ const resolveTemplate = (templateId) => {
 };
 
 // Scene component that dynamically selects and renders the correct template
-// Each template handles its own audio rendering internally
+// Each template handles its own audio rendering internally. `jobId` is
+// passed through in addition to `scene` - every hand-coded template still
+// only destructures `{ scene }` and ignores it, but GeneratedScene
+// (templateId "generative") uses it as its Style Generator seed so every
+// scene in the same job resolves to the same palette/font pairing instead
+// of each scene picking its own (see GeneratedScene.jsx).
 const Scene = React.memo(({ scene, jobId }) => {
   const templateId = scene?.templateId;
   const Template = resolveTemplate(templateId);
 
   return (
-    <AbsoluteFill>
+    <AbsoluteFill
+      data-scene-frame="true"
+      data-scene-number={scene?.sceneNumber ?? ""}
+    >
       <Suspense fallback={<TemplateLoadingFallback />}>
-        <Template scene={scene} />
+        <Template scene={scene} jobId={jobId} />
       </Suspense>
     </AbsoluteFill>
   );
@@ -146,8 +160,60 @@ const Scene = React.memo(({ scene, jobId }) => {
 
 Scene.displayName = "Scene";
 
+// Corner placement for the optional talking-head overlay - see
+// RemotionService.prepareAssets's `avatar` field. Only reserves space when
+// assets.avatar is actually present (see AvatarOverlay below); a job with
+// no avatar renders identically to before this feature existed.
+const AVATAR_POSITION_STYLES = {
+  "top-left": { top: "4%", left: "4%" },
+  "top-right": { top: "4%", right: "4%" },
+  "bottom-left": { bottom: "4%", left: "4%" },
+  "bottom-right": { bottom: "4%", right: "4%" },
+};
+
+/**
+ * Small circular picture-in-picture clip rendered once, above every scene,
+ * for the whole video's duration (see the Sequence wrapping it below) -
+ * not per-template, since it needs to persist across scene changes and
+ * only VideoComposition has access to the top-level `assets.avatar`.
+ * Muted: the driving clip's own audio has nothing to do with this video's
+ * narration.
+ */
+const AvatarOverlay = ({ avatar }) => {
+  if (!avatar?.videoUrl || !avatar?.position) return null;
+  const positionStyle = AVATAR_POSITION_STYLES[avatar.position] || AVATAR_POSITION_STYLES["bottom-right"];
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none" }}>
+      <div
+        style={{
+          position: "absolute",
+          width: "20%",
+          aspectRatio: "1 / 1",
+          borderRadius: "50%",
+          overflow: "hidden",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
+          ...positionStyle,
+        }}
+      >
+        <Video
+          src={avatar.videoUrl}
+          loop
+          muted
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 export const VideoComposition = ({ assets, jobId }) => {
-  const { scenes } = assets || {};
+  const { scenes, avatar, fontPairing } = assets || {};
+
+  // Mutates the shared theme.js `typography` object once, before any scene
+  // below renders - see applyFontPairing's doc comment for why this is safe
+  // (one Remotion render process per video).
+  applyFontPairing(fontPairing);
 
   if (!scenes || scenes.length === 0) {
     return (
@@ -162,7 +228,7 @@ export const VideoComposition = ({ assets, jobId }) => {
   const MAX_TRANSITION_FRAMES = 15; // ~0.5s crossfade between consecutive scenes
   let currentFrame = 0;
 
-  // Precompute each scene's frame span first, so the crossfade overlap at
+  // Precompute each scene's frame span first, so the transition overlap at
   // each boundary can be sized against both neighbors' actual lengths.
   const layout = scenes.map((scene, index) => {
     const sceneDuration = scene.duration || 8; // seconds per scene, default 8
@@ -172,22 +238,26 @@ export const VideoComposition = ({ assets, jobId }) => {
     return { scene, index, sceneStart, sceneFrames };
   });
 
+  // A boundary's transition (fade/slide/wipe/zoom/cut...) is a property of
+  // the incoming scene - "how does this scene arrive". Cut/none get zero
+  // overlap so they land as a true hard cut instead of a hidden crossfade.
+  const boundaryOverlap = (index) => {
+    const incoming = layout[index]?.scene;
+    const transitionType = resolveTransitionId(incoming, index);
+    if (isHardCut(transitionType)) return 0;
+    return Math.min(
+      MAX_TRANSITION_FRAMES,
+      Math.floor(layout[index - 1].sceneFrames / 3),
+      Math.floor(layout[index].sceneFrames / 3),
+    );
+  };
+
   return (
     <>
       {layout.map(({ scene, index, sceneStart, sceneFrames }) => {
-        const prevFrames = layout[index - 1]?.sceneFrames;
-        const nextFrames = layout[index + 1]?.sceneFrames;
-
-        // Cap the overlap so a transition never eats more than a third of
-        // either adjacent scene's own length (keeps very short scenes sane).
-        const overlapWithNext =
-          index < layout.length - 1
-            ? Math.min(MAX_TRANSITION_FRAMES, Math.floor(sceneFrames / 3), Math.floor(nextFrames / 3))
-            : 0;
-        const overlapWithPrev =
-          index > 0
-            ? Math.min(MAX_TRANSITION_FRAMES, Math.floor(sceneFrames / 3), Math.floor(prevFrames / 3))
-            : 0;
+        const overlapWithNext = index < layout.length - 1 ? boundaryOverlap(index + 1) : 0;
+        const overlapWithPrev = index > 0 ? boundaryOverlap(index) : 0;
+        const transitionType = resolveTransitionId(scene, index);
 
         const bgColor = scene.backgroundColor || "#1a1a2e";
 
@@ -196,15 +266,24 @@ export const VideoComposition = ({ assets, jobId }) => {
             key={scene.sceneNumber || index}
             from={sceneStart}
             // Extended past its natural end (except the last scene) so it
-            // stays mounted underneath the next scene's fade-in.
+            // stays mounted underneath the next scene's entrance effect.
             durationInFrames={sceneFrames + overlapWithNext}
           >
-            <SceneTransition backgroundColor={bgColor} fadeInFrames={overlapWithPrev}>
+            <SceneTransition
+              backgroundColor={bgColor}
+              fadeInFrames={overlapWithPrev}
+              transitionType={transitionType}
+            >
               <Scene scene={scene} jobId={jobId} />
             </SceneTransition>
           </Sequence>
         );
       })}
+      {avatar?.videoUrl && (
+        <Sequence from={0} durationInFrames={currentFrame}>
+          <AvatarOverlay avatar={avatar} />
+        </Sequence>
+      )}
     </>
   );
 };

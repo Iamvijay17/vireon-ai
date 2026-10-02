@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { VIDEO_STATUS, STAGE_STATUS, LANGUAGES, VIDEO_DURATIONS } = require('../constants');
+const { VIDEO_STATUS, STAGE_STATUS, LANGUAGES, VIDEO_DURATIONS, QUALITY_PRESETS } = require('../constants');
 const { generateCourseVideoId } = require('../utils/id');
 const sceneSchema = require('./schemas/sceneSchema');
 
@@ -29,6 +29,13 @@ const courseVideoSchema = new mongoose.Schema(
       maxlength: 1000,
       default: '',
     },
+    // True for the one auto-generated course trailer/promo video created
+    // alongside a curriculum (see CourseCurriculum.lessons[].isPromo) -
+    // uses a promotional script prompt instead of the standard lesson one.
+    isPromo: {
+      type: Boolean,
+      default: false,
+    },
     order: {
       type: Number,
       default: 0,
@@ -48,11 +55,44 @@ const courseVideoSchema = new mongoose.Schema(
       type: String,
       default: 'educational',
     },
+    // Course videos are always landscape (16:9), so only the two landscape
+    // presets apply here - unlike VideoJob.resolution which also allows
+    // portrait for Shorts. 4K renders take substantially longer.
+    resolution: {
+      type: String,
+      enum: ['1920x1080', '3840x2160'],
+      default: '1920x1080',
+    },
+    // Render quality preset - resolved to an encode CRF at render time (see
+    // config.remotion.qualityCrf / RemotionService.renderVideo).
+    quality: {
+      type: String,
+      enum: QUALITY_PRESETS,
+      default: 'standard',
+    },
     additionalInstructions: {
       type: String,
       default: '',
       maxlength: 1000,
     },
+    // Uses the smaller/faster Qwen3-TTS 0.6B model for this video's
+    // narration instead of the default 1.7B - trades some audio quality
+    // for speed. See AudioService's fastMode param.
+    fastAudio: {
+      type: Boolean,
+      default: false,
+    },
+    // Optional talking-head overlay - same shape/pipeline as VideoJob's
+    // avatar fields (see VideoJob.js, AvatarService). Explicit on/off, no
+    // user-uploaded photo - when true, CourseVideoService.renderVideo
+    // animates a bundled default portrait matching `voice`'s gender.
+    avatarEnabled: { type: Boolean, default: false },
+    avatarPosition: {
+      type: String,
+      enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right', null],
+      default: null,
+    },
+    avatarVideoUrl: { type: String, default: '' },
     status: {
       type: String,
       enum: Object.values(VIDEO_STATUS),
@@ -145,6 +185,9 @@ const courseVideoSchema = new mongoose.Schema(
     },
     error: {
       message: { type: String, default: '' },
+      // Raw technical error text - `message` holds the friendly version
+      // (see errorMessages.js).
+      detail: { type: String, default: '' },
       step: { type: String, default: '' },
       retryCount: { type: Number, default: 0 },
     },
@@ -155,6 +198,12 @@ const courseVideoSchema = new mongoose.Schema(
     maxRetries: {
       type: Number,
       default: 3,
+    },
+    // Set while status is RETRY_SCHEDULED so the UI can show a countdown;
+    // cleared once the retry actually starts.
+    nextRetryAt: {
+      type: Date,
+      default: null,
     },
   },
   {

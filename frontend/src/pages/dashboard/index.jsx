@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   FolderKanban,
   CheckCircle2,
@@ -14,9 +14,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getVideoJobs, deleteVideoJob } from "../../services/api";
-import { connect, onJobCreated, onJobCompleted, onJobFailed } from "../../services/socket";
+import { getVideoJobs, deleteVideoJob, bulkDeleteVideoJobs } from "../../services/api";
 import { LoadingState, EmptyState, StatusTag } from "../../components";
+import { useApiQuery, useInvalidate } from "../../lib/useApiQuery";
+import { queryKeys } from "../../lib/queryClient";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -41,54 +42,34 @@ const toneCls = {
   neutral: "bg-surface-hover text-text-tertiary",
 };
 
+const EMPTY_JOBS = [];
+
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 0 });
+  const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
-  const fetchJobs = async (page = 1) => {
-    try {
-      setLoading(true);
-      const res = await getVideoJobs(page);
-      setJobs(res.data.jobs);
-      setPagination(res.data.pagination);
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to fetch jobs");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, loading, refetch } = useApiQuery(
+    queryKeys.videos.list(page, {}),
+    () => getVideoJobs(page),
+    { errorMessage: "Failed to fetch jobs" }
+  );
 
-  useEffect(() => {
-    fetchJobs();
-    connect();
-  }, []);
+  const invalidate = useInvalidate();
 
-  // Real-time updates via Socket.IO
-  useEffect(() => {
-    const unsubCreated = onJobCreated((data) => {
-      setJobs((prev) => [{ ...data, status: data.status || "QUEUED", progress: 0 }, ...prev]);
-    });
+  // Memoized so the derived-list useMemo below keeps a stable dependency;
+  // the React compiler cannot see through a bare `??` expression.
+  const jobs = useMemo(() => data?.jobs ?? EMPTY_JOBS, [data]);
+  const pagination = data?.pagination ?? { page, total: 0, pages: 0 };
 
-    const unsubCompleted = onJobCompleted((data) => {
-      setJobs((prev) =>
-        prev.map((j) => (j._id === data.jobId ? { ...j, status: "COMPLETED", progress: 100, videoUrl: data.videoUrl } : j))
-      );
-    });
-
-    const unsubFailed = onJobFailed((data) => {
-      setJobs((prev) => prev.map((j) => (j._id === data.jobId ? { ...j, status: "FAILED", error: data.error } : j)));
-    });
-
-    return () => {
-      unsubCreated();
-      unsubCompleted();
-      unsubFailed();
-    };
-  }, []);
+  // The jobCreated/jobCompleted/jobFailed listeners this page used to keep
+  // are gone: lib/useSocketQuerySync.js invalidates queryKeys.videos.all on
+  // those same events, app-wide. Merging them into local state here as
+  // well meant two sources of truth for one row - a partial socket payload
+  // could overwrite fields the list renders but the event doesn't carry.
 
   const handleDelete = async (job) => {
     if (!(await confirmDialog({ title: `Delete "${job.topic}"?`, content: "This can't be undone.", danger: true, confirmText: "Delete" }))) {
@@ -97,9 +78,44 @@ const Dashboard = () => {
     try {
       await deleteVideoJob(job._id);
       toast.success("Job deleted");
-      setJobs((prev) => prev.filter((j) => j._id !== job._id));
+      invalidate(queryKeys.videos.all, queryKeys.jobs.all);
     } catch {
       toast.error("Failed to delete job");
+    }
+  };
+
+  const toggleSelect = (jobId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(jobId)) next.delete(jobId);
+      else next.add(jobId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => (prev.size === filtered.length ? new Set() : new Set(filtered.map((j) => j._id))));
+  };
+
+  const handleBulkDelete = async () => {
+    const jobIds = Array.from(selectedIds);
+    const ok = await confirmDialog({
+      title: "Delete Jobs",
+      content: `Are you sure you want to delete ${jobIds.length} selected job${jobIds.length === 1 ? "" : "s"}? This can't be undone.`,
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    setBulkDeleteLoading(true);
+    try {
+      const res = await bulkDeleteVideoJobs(jobIds);
+      toast.success(`Deleted ${res.data.deletedCount || jobIds.length} job${(res.data.deletedCount || jobIds.length) === 1 ? "" : "s"}`);
+      invalidate(queryKeys.videos.all, queryKeys.jobs.all);
+      setSelectedIds(new Set());
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to delete jobs");
+    } finally {
+      setBulkDeleteLoading(false);
     }
   };
 
@@ -155,6 +171,15 @@ const Dashboard = () => {
       {/* Job List */}
       <Card className="mt-6 animate-slide-up overflow-hidden" style={{ "--stagger-index": 4 }}>
         <div className="flex flex-wrap items-center gap-3 border-b border-border-light px-5 py-4">
+          {filtered.length > 0 && (
+            <input
+              type="checkbox"
+              className="size-4 shrink-0 cursor-pointer accent-accent"
+              aria-label="Select all jobs"
+              checked={selectedIds.size === filtered.length}
+              onChange={toggleSelectAll}
+            />
+          )}
           <div>
             <h3 className="text-[15px] font-semibold text-text-primary">Recent Jobs</h3>
             <p className="mt-0.5 text-xs text-text-tertiary">{pagination.total} total</p>
@@ -167,7 +192,7 @@ const Dashboard = () => {
                   key={f.value}
                   type="button"
                   onClick={() => setStatusFilter(f.value)}
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                     statusFilter === f.value
                       ? "bg-surface text-text-primary shadow-sm"
                       : "text-text-tertiary hover:text-text-secondary"
@@ -191,10 +216,30 @@ const Dashboard = () => {
               aria-label="Refresh jobs"
               loading={loading}
               icon={<RefreshCw className="size-4" />}
-              onClick={() => fetchJobs(pagination.page)}
+              onClick={() => refetch()}
             />
           </div>
         </div>
+
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center gap-3 border-b border-border-light bg-surface-hover/40 px-5 py-2.5">
+            <span className="text-[13px] font-semibold text-text-primary">{selectedIds.size} selected</span>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+              Clear
+            </Button>
+            <div className="ml-auto">
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Trash2 className="size-3.5" />}
+                loading={bulkDeleteLoading}
+                onClick={handleBulkDelete}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        )}
 
         {loading && jobs.length === 0 ? (
           <LoadingState label="Loading jobs..." />
@@ -219,6 +264,14 @@ const Dashboard = () => {
                   tone === "success" ? "success" : tone === "error" ? "danger" : tone === "processing" ? "accent" : "neutral";
                 return (
                   <div key={job._id} className="group flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-surface-hover">
+                    <input
+                      type="checkbox"
+                      className="size-4 shrink-0 cursor-pointer accent-accent"
+                      aria-label={`Select ${job.topic}`}
+                      checked={selectedIds.has(job._id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleSelect(job._id)}
+                    />
                     <div className={`flex size-9 shrink-0 items-center justify-center rounded-[10px] ${toneCls[iconTone]}`}>
                       {isActive ? <Sparkles className="size-4" /> : <Video className="size-4" />}
                     </div>
@@ -226,7 +279,7 @@ const Dashboard = () => {
                     <div className="min-w-0 flex-1">
                       <button
                         onClick={() => navigate(`/render?id=${job._id}`)}
-                        className="max-w-full truncate text-left text-[13.5px] font-medium text-text-primary hover:text-accent"
+                        className="cursor-pointer max-w-full truncate text-left text-[13.5px] font-medium text-text-primary hover:text-accent"
                       >
                         {job.topic}
                       </button>
@@ -237,7 +290,7 @@ const Dashboard = () => {
 
                     {isActive && (
                       <div className="hidden w-32 shrink-0 sm:block">
-                        <Progress percent={job.progress || 0} size="sm" status="active" />
+                        <Progress percent={job.progress || 0} size="sm" status="active" trickle />
                       </div>
                     )}
 
@@ -277,7 +330,7 @@ const Dashboard = () => {
                   size="sm"
                   iconOnly
                   disabled={pagination.page <= 1}
-                  onClick={() => fetchJobs(pagination.page - 1)}
+                  onClick={() => { setPage(pagination.page - 1); setSelectedIds(new Set()); }}
                   icon={<ChevronLeft className="size-4" />}
                 />
                 <Button
@@ -285,7 +338,7 @@ const Dashboard = () => {
                   size="sm"
                   iconOnly
                   disabled={pagination.page >= totalPages}
-                  onClick={() => fetchJobs(pagination.page + 1)}
+                  onClick={() => { setPage(pagination.page + 1); setSelectedIds(new Set()); }}
                   icon={<ChevronRight className="size-4" />}
                 />
               </div>

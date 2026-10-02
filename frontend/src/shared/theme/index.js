@@ -7,10 +7,10 @@
  */
 
 export const lightColors = {
-  primary: "#6D56F9",
-  primaryHover: "#5B3FEF",
-  primaryActive: "#4C30D6",
-  primaryBg: "#F2F1FF",
+  primary: "#0BA5EC",
+  primaryHover: "#0284C7",
+  primaryActive: "#036AA3",
+  primaryBg: "#EAFAFF",
 
   surface: "#FFFFFF",
   surfaceHover: "#F4F4F5",
@@ -43,10 +43,10 @@ export const lightColors = {
 };
 
 export const darkColors = {
-  primary: "#9478FF",
-  primaryHover: "#B3A6FF",
-  primaryActive: "#6D56F9",
-  primaryBg: "rgba(148, 120, 255, 0.12)",
+  primary: "#22BEFF",
+  primaryHover: "#62D7FF",
+  primaryActive: "#0BA5EC",
+  primaryBg: "rgba(34, 190, 255, 0.14)",
 
   surface: "#18181B",
   surfaceHover: "#1C1C1F",

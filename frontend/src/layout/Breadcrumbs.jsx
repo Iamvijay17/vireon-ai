@@ -59,7 +59,7 @@ const Breadcrumbs = () => {
               <button
                 type="button"
                 onClick={item.onClick}
-                className="text-text-secondary transition-colors hover:text-text-primary"
+                className="cursor-pointer text-text-secondary transition-colors hover:text-text-primary"
               >
                 {item.title}
               </button>

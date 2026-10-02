@@ -1,1 +1,12 @@
 node_modules/
+.claude
+.redis-data
+
+# Secrets / local deploy state - never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.deploy/
+deploy/tailscale/state/

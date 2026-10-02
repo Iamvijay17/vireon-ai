@@ -1,36 +1,23 @@
-# Build context is the repo root: frontend depends on the
-# "vireon-remotion-templates" workspace package (backend/remotion), which
-# only resolves via the root npm workspace install (see root node_modules/
-# vireon-remotion-templates symlink) - `npm ci` inside frontend/ alone
-# would fail to find it.
-FROM node:20-bookworm-slim AS build
-
+# Build context is the REPO ROOT (the frontend imports the shared
+# vireon-remotion-templates workspace package from backend/remotion):
+#   docker build -f frontend/Dockerfile .
+FROM node:22-slim AS build
 WORKDIR /app
-
-# package-lock.json is intentionally NOT copied here: it was generated on
-# Windows and only has a resolved package entry for
-# @rolldown/binding-win32-x64-msvc (vite 8's rolldown bundler ships
-# per-platform native binaries as optionalDependencies). Both `npm ci` and
-# `npm install` refuse to add the missing linux-x64-gnu binding while that
-# lockfile is present - a known npm bug (npm/cli#4828) where optional
-# platform deps not already in the lock aren't re-resolved. Installing
-# without a lockfile lets npm resolve fresh for the container's platform.
-COPY package.json ./
-COPY frontend/package.json ./frontend/
-COPY backend/remotion/package.json ./backend/remotion/
-
-RUN npm install
-
-COPY frontend ./frontend
-COPY backend/remotion ./backend/remotion
-
+COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/
+COPY backend/remotion/package.json backend/remotion/
+# Full workspace install: the frontend also needs backend/remotion's deps (gsap, fonts...)
+RUN npm ci
+COPY deploy/install-linux-natives.cjs deploy/
+RUN node deploy/install-linux-natives.cjs
+COPY frontend frontend
+COPY backend/remotion backend/remotion
+# No VITE_* needed: the production build uses same-origin /api, /socket.io, /media.
 RUN npm run build --workspace=frontend
 
 FROM nginx:1.27-alpine
-
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
-
 EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+HEALTHCHECK --interval=15s --timeout=3s --retries=5 \
+  CMD wget -qO- http://127.0.0.1/nginx-health || exit 1

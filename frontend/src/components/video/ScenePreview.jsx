@@ -2,21 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Player } from "@remotion/player";
 import { VideoComposition } from "vireon-remotion-templates/src/VideoComposition";
 import { calculateTotalDurationInFrames, FPS } from "vireon-remotion-templates/src/calculateVideoMetadata";
-import { resolveMediaUrl } from "../../services/api";
+import { resolveMediaUrl, resolveSceneAudioUrl } from "../../services/api";
 
 // Live, in-browser preview of a course video's scenes using the same
 // Remotion composition/templates the backend renders with — no server
 // render, but scene audio still plays: each scene's narration file is
 // resolved to a browser-fetchable URL (same rule the per-scene audio
-// list in CourseVideoEditor uses - absolute URL as-is, otherwise served
-// from /public/<videoId>/audio/<file>).
-const resolveScenesMedia = (scenes, audioBaseUrl) =>
+// list in CourseVideoEditor uses - see resolveSceneAudioUrl).
+const resolveScenesMedia = (scenes, videoId) =>
   (scenes || []).map((scene) => {
     const elements = scene.elements || {};
-    const audioFile = scene.audio?.file;
-    const resolvedAudioFile = audioFile
-      ? (/^https?:\/\//i.test(audioFile) ? audioFile : `${audioBaseUrl}/${audioFile}`)
-      : undefined;
+    const resolvedAudioFile = resolveSceneAudioUrl(videoId, scene.audio?.file) || undefined;
     return {
       ...scene,
       audio: resolvedAudioFile ? { ...scene.audio, file: resolvedAudioFile } : undefined,
@@ -37,6 +33,17 @@ const getSceneStartFrames = (scenes) => {
   });
 };
 
+// Most templates fade/slide their title and subtitle in over their first
+// ~20-35 frames. Seeking to a scene's exact first frame (frame 0 of its
+// Sequence) freezes the preview mid fade-in - title/subtitle can render at
+// near-zero opacity, reading as "the text isn't showing" even though it's
+// there. Landing a little further in shows the settled, fully-visible state.
+const SETTLE_FRAMES = 40;
+const settleOffsetFor = (sceneDurationSeconds) => {
+  const sceneDurationFrames = Math.round((sceneDurationSeconds || 8) * FPS);
+  return Math.min(SETTLE_FRAMES, Math.floor(sceneDurationFrames / 2));
+};
+
 // `focusIndex` / `onActiveSceneChange` let a parent editor stay in sync with
 // the preview: clicking a scene in an edit form seeks the player there, and
 // scrubbing/playing the player updates which scene the editor highlights.
@@ -45,8 +52,7 @@ export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hid
   const [activeIndex, setActiveIndex] = useState(0);
   const lastFocusRef = useRef(focusIndex);
 
-  const audioBaseUrl = videoId ? resolveMediaUrl(`/public/${videoId}/audio`) : null;
-  const previewScenes = useMemo(() => resolveScenesMedia(scenes, audioBaseUrl), [scenes, audioBaseUrl]);
+  const previewScenes = useMemo(() => resolveScenesMedia(scenes, videoId), [scenes, videoId]);
   const sceneStarts = useMemo(() => getSceneStartFrames(scenes), [scenes]);
   const durationInFrames = useMemo(() => calculateTotalDurationInFrames(scenes), [scenes]);
 
@@ -55,11 +61,30 @@ export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hid
       const player = playerRef.current;
       if (!player) return;
       player.pause();
-      player.seekTo(sceneStarts[index] || 0);
+      player.seekTo((sceneStarts[index] || 0) + settleOffsetFor(scenes[index]?.duration));
       setActiveIndex(index);
     },
-    [sceneStarts],
+    [sceneStarts, scenes],
   );
+
+  // Land on the settled frame of the first scene once scenes actually
+  // arrive - without this, the initial view is stuck at frame 0 of the
+  // whole timeline. This can't be a mount-only effect: the caller (Studio)
+  // fetches job data asynchronously, so `scenes` is typically still `[]` on
+  // this component's first mount and only becomes populated a render or two
+  // later - a `[]`-deps effect would see the empty array, no-op, and never
+  // run again once the real data shows up.
+  const hasSettledInitialRef = useRef(false);
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player || scenes.length === 0 || hasSettledInitialRef.current) return;
+    hasSettledInitialRef.current = true;
+    player.seekTo(settleOffsetFor(scenes[0]?.duration));
+    // Deliberately keyed on `scenes.length` (not `scenes`) plus the ref
+    // guard above: this should fire exactly once, the first time scenes
+    // goes from empty to populated - not on every subsequent scenes edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenes.length]);
 
   useEffect(() => {
     const player = playerRef.current;
@@ -113,7 +138,7 @@ export function ScenePreview({ scenes = [], focusIndex, onActiveSceneChange, hid
               key={i}
               type="button"
               onClick={() => seekToScene(i)}
-              className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`shrink-0 cursor-pointer rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
                 i === activeIndex
                   ? "border-accent bg-accent-subtle text-accent"
                   : "border-border-light text-text-tertiary hover:text-text-primary"

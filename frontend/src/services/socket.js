@@ -6,6 +6,7 @@ import { io } from 'socket.io-client';
 // VITE_API_URL can still override this explicitly if needed.
 const getSocketUrl = () => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (import.meta.env.PROD) return window.location.origin;
   const { hostname, protocol } = window.location;
   return `${protocol}//${hostname}:3000`;
 };
@@ -35,13 +36,45 @@ export const disconnect = () => {
   }
 };
 
+// ─── Event Replay ──────────────────────────────────────────────────────────────
+// Every job event the backend emits carries the `seq` it was stored under
+// (see JobEventService). Remembering the highest seq seen per job means a
+// re-join after a dropped connection can ask for everything that happened
+// while the socket was down, instead of silently resuming from whatever
+// fires next. Callers don't opt in - joinJobRoom passes it automatically.
+
+const lastSeqByJob = new Map();
+
+const JOB_EVENT_NAMES = [
+  'jobCreated',
+  'jobProgress',
+  'jobCompleted',
+  'jobFailed',
+  'sceneAudioReady',
+];
+
+JOB_EVENT_NAMES.forEach((name) => {
+  socket.on(name, (data) => {
+    if (!data?.jobId || typeof data.seq !== 'number') return;
+    const jobId = String(data.jobId);
+    if (data.seq > (lastSeqByJob.get(jobId) ?? 0)) {
+      lastSeqByJob.set(jobId, data.seq);
+    }
+  });
+});
+
 // ─── Room Management ───────────────────────────────────────────────────────────
 
 export const joinJobRoom = (jobId) => {
-  socket.emit('join', jobId);
+  const sinceSeq = lastSeqByJob.get(String(jobId));
+  // No seq yet means this client hasn't seen any of this job's events, so
+  // there's nothing to catch up on - a fresh page load gets current state
+  // from REST plus the jobStatus snapshot the server sends on join.
+  socket.emit('join', sinceSeq == null ? jobId : { jobId, sinceSeq });
 };
 
 export const leaveJobRoom = (jobId) => {
+  lastSeqByJob.delete(String(jobId));
   socket.emit('leave', jobId);
 };
 
@@ -78,6 +111,31 @@ export const onJobFailed = (callback) => {
 export const onSceneAudioReady = (callback) => {
   socket.on('sceneAudioReady', callback);
   return () => socket.off('sceneAudioReady', callback);
+};
+
+// ─── Audio Studio (standalone TTS) Progressive Generation ──────────────────────
+// Fired as each dialogue turn / chunk finishes, ahead of the whole request
+// completing (rooms are joined via the generation's own id - joinJobRoom
+// works for any entity id, not just video jobs, see SocketService.emitToJob).
+
+export const onAudioStudioTurnReady = (callback) => {
+  socket.on('audioStudioTurnReady', callback);
+  return () => socket.off('audioStudioTurnReady', callback);
+};
+
+export const onAudioStudioChunkReady = (callback) => {
+  socket.on('audioStudioChunkReady', callback);
+  return () => socket.off('audioStudioChunkReady', callback);
+};
+
+export const onAudioStudioCompleted = (callback) => {
+  socket.on('audioStudioCompleted', callback);
+  return () => socket.off('audioStudioCompleted', callback);
+};
+
+export const onAudioStudioFailed = (callback) => {
+  socket.on('audioStudioFailed', callback);
+  return () => socket.off('audioStudioFailed', callback);
 };
 
 // ─── Course Video Event Listeners ────────────────────────────────────────────────
@@ -137,6 +195,38 @@ export const onCourseWorkerStatus = (callback) => {
 export const onServerLog = (callback) => {
   socket.on('serverLog', callback);
   return () => socket.off('serverLog', callback);
+};
+
+// ─── Connection Status Store ───────────────────────────────────────────────────
+// The socket's connection state is external to React, so it is exposed as a
+// snapshot + subscribe pair for useSyncExternalStore rather than mirrored
+// into component state via an effect. Mirroring it meant every live page
+// setState'd inside its subscribe effect, and each one re-derived the
+// reconnecting-vs-disconnected distinction separately.
+
+let connectionStatus = socket.connected ? 'connected' : 'disconnected';
+const statusListeners = new Set();
+
+const setConnectionStatus = (next) => {
+  if (next === connectionStatus) return; // keep snapshots referentially stable
+  connectionStatus = next;
+  statusListeners.forEach((listener) => listener());
+};
+
+socket.on('connect', () => setConnectionStatus('connected'));
+socket.on('disconnect', (reason) =>
+  // An explicit local disconnect is terminal; anything else means socket.io
+  // is still retrying, so the UI should say "reconnecting", not "offline".
+  setConnectionStatus(reason === 'io client disconnect' ? 'disconnected' : 'reconnecting')
+);
+
+/** Current status: 'connected' | 'reconnecting' | 'disconnected'. */
+export const getConnectionStatus = () => connectionStatus;
+
+/** Subscribe to status changes. Returns an unsubscribe function. */
+export const subscribeToConnectionStatus = (listener) => {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
 };
 
 // ─── Connection Status ─────────────────────────────────────────────────────────

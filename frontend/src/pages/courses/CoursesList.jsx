@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import {
   Plus,
   Search,
@@ -25,6 +25,8 @@ import { Progress } from "../../components/ui/Progress";
 import { Modal } from "../../components/ui/Modal";
 import { Label, Textarea } from "../../components/ui/Input";
 import { toast } from "../../components/ui/toastBus";
+import { useApiQuery, useInvalidate } from "../../lib/useApiQuery";
+import { queryKeys } from "../../lib/queryClient";
 import { confirmDialog } from "../../components/ui/confirmBus";
 import { getCourses, createCourse, updateCourse, deleteCourse } from "../../services/api";
 import { timeAgo } from "../../lib/timeAgo";
@@ -77,6 +79,11 @@ const STATUS_OPTIONS = [
   { value: "Completed", label: "Completed" },
   { value: "Archived", label: "Archived" },
 ];
+
+// Stable empty reference so consumers of `courses` do not see a new array
+// identity on every render before the first load resolves.
+const EMPTY_COURSES = [];
+const PAGE_LIMIT = 20;
 
 const EMPTY_FORM = { title: "", description: "", category: "Other", difficulty: "Beginner", language: "english" };
 
@@ -191,36 +198,31 @@ const CourseCard = ({ course, onOpen, onEdit, onDelete }) => {
 const CoursesList = () => {
   const navigate = useNavigate();
 
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
-  const [filters, setFilters] = useState({ search: "", status: undefined, category: undefined });
+  const [page, setPage] = useState(1);
+  const [filters, setFiltersState] = useState({ search: "", status: undefined, category: undefined });
   const [modalVisible, setModalVisible] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [formValues, setFormValues] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchCourses = useCallback(
-    async (page = 1) => {
-      setLoading(true);
-      try {
-        const res = await getCourses(page, pagination.limit, filters);
-        setCourses(res.data.courses);
-        setPagination(res.data.pagination);
-      } catch (err) {
-        toast.error(err.friendlyMessage || "Failed to load courses");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [filters, pagination.limit]
+  const { data, loading } = useApiQuery(
+    queryKeys.courses.list(page, filters),
+    () => getCourses(page, PAGE_LIMIT, filters),
+    { errorMessage: "Failed to load courses" }
   );
 
-  useEffect(() => {
-    fetchCourses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  const invalidate = useInvalidate();
+
+  const courses = data?.courses ?? EMPTY_COURSES;
+  const pagination = data?.pagination ?? { page, limit: PAGE_LIMIT, total: 0, pages: 0 };
+
+  // Narrowing the filters should return to page 1 - otherwise a filter
+  // applied while on page 3 lands on an empty table.
+  const setFilters = (next) => {
+    setFiltersState(next);
+    setPage(1);
+  };
 
   const showCreateModal = () => {
     setEditingCourse(null);
@@ -251,7 +253,7 @@ const CoursesList = () => {
         toast.success("Course created successfully");
       }
       setModalVisible(false);
-      fetchCourses(pagination.page);
+      invalidate(queryKeys.courses.all);
     } catch (err) {
       toast.error(err.response?.data?.message || "Operation failed");
     } finally {
@@ -270,7 +272,7 @@ const CoursesList = () => {
     try {
       await deleteCourse(course._id);
       toast.success("Course deleted");
-      fetchCourses(pagination.page);
+      invalidate(queryKeys.courses.all);
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to delete course");
     }
@@ -364,8 +366,8 @@ const CoursesList = () => {
               <span className="mr-2 text-xs text-text-tertiary">
                 Page {pagination.page} of {totalPages}
               </span>
-              <Button variant="secondary" size="sm" iconOnly disabled={pagination.page <= 1} onClick={() => fetchCourses(pagination.page - 1)} icon={<ChevronLeft className="size-4" />} />
-              <Button variant="secondary" size="sm" iconOnly disabled={pagination.page >= totalPages} onClick={() => fetchCourses(pagination.page + 1)} icon={<ChevronRight className="size-4" />} />
+              <Button variant="secondary" size="sm" iconOnly disabled={pagination.page <= 1} onClick={() => setPage(pagination.page - 1)} icon={<ChevronLeft className="size-4" />} />
+              <Button variant="secondary" size="sm" iconOnly disabled={pagination.page >= totalPages} onClick={() => setPage(pagination.page + 1)} icon={<ChevronRight className="size-4" />} />
             </div>
           )}
         </>

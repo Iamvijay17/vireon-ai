@@ -5,6 +5,7 @@ const JOB_STATUS = Object.freeze({
   AWAITING_APPROVAL: 'AWAITING_APPROVAL',
   GENERATING_AUDIO: 'GENERATING_AUDIO',
   AUDIO_COMPLETED: 'AUDIO_COMPLETED',
+  GENERATING_AVATAR: 'GENERATING_AVATAR',
   GENERATING_IMAGES: 'GENERATING_IMAGES',
   IMAGE_COMPLETED: 'IMAGE_COMPLETED',
   PREPARING_ASSETS: 'PREPARING_ASSETS',
@@ -13,6 +14,10 @@ const JOB_STATUS = Object.freeze({
   COMPLETED: 'COMPLETED',
   FAILED: 'FAILED',
   CANCELLED: 'CANCELLED',
+  // A step failed but retries remain (< maxRetries) - the job will
+  // automatically re-enter the pipeline after a backoff delay instead of
+  // requiring a manual Restart click. See videoWorker/processor.js.
+  RETRY_SCHEDULED: 'RETRY_SCHEDULED',
 });
 
 const COURSE_STATUS = Object.freeze({
@@ -39,6 +44,9 @@ const VIDEO_STATUS = Object.freeze({
   COMPLETED: 'Completed',
   FAILED: 'Failed',
   CANCELLED: 'Cancelled',
+  // See JOB_STATUS.RETRY_SCHEDULED - same meaning, course video's
+  // human-readable status scale.
+  RETRY_SCHEDULED: 'Retry Scheduled',
 });
 
 // Independent per-stage status for the Script/Audio/Video pipeline, tracked
@@ -59,12 +67,14 @@ const JOB_STEPS = Object.freeze({
   [JOB_STATUS.AWAITING_APPROVAL]: { progress: 20, order: 3 },
   [JOB_STATUS.GENERATING_AUDIO]: { progress: 40, order: 4 },
   [JOB_STATUS.AUDIO_COMPLETED]: { progress: 50, order: 5 },
+  [JOB_STATUS.GENERATING_AVATAR]: { progress: 55, order: 5.5 },
   [JOB_STATUS.GENERATING_IMAGES]: { progress: 55, order: 6 },
   [JOB_STATUS.IMAGE_COMPLETED]: { progress: 60, order: 7 },
   [JOB_STATUS.PREPARING_ASSETS]: { progress: 70, order: 8 },
   [JOB_STATUS.RENDERING]: { progress: 85, order: 9 },
   [JOB_STATUS.UPLOADING]: { progress: 95, order: 10 },
   [JOB_STATUS.COMPLETED]: { progress: 100, order: 11 },
+  [JOB_STATUS.RETRY_SCHEDULED]: { progress: 0, order: 98 },
   [JOB_STATUS.FAILED]: { progress: 0, order: 99 },
   [JOB_STATUS.CANCELLED]: { progress: 0, order: 99 },
 });
@@ -92,28 +102,81 @@ const VIDEO_TYPES_LABEL = Object.freeze({
 const RESOLUTIONS = Object.freeze([
   '1920x1080',
   '1080x1920',
+  '1080x1080',
+  '1080x1350',
   '1280x720',
   '720x1280',
   '3840x2160',
   '2160x3840',
 ]);
 
-// RESOLUTIONS only ever pairs a landscape/portrait 16:9-or-9:16 size (no
-// square/ultrawide presets), so aspect ratio is fully implied by resolution
-// - it's never independently chosen. See getAspectRatioForResolution below.
+// Render quality preset - maps to a CRF value at render time (see
+// config.remotion.qualityCrf / RemotionService.renderVideo). 'draft' trades
+// quality for a fast, cheap preview render; 'hd' is the highest-quality,
+// slowest/largest encode.
+const QUALITY_PRESETS = Object.freeze(['draft', 'standard', 'hd']);
+
+// Aspect ratio is derived from resolution (see getAspectRatioForResolution)
+// rather than chosen independently - this list documents the values that
+// function can return.
 const ASPECT_RATIOS = Object.freeze([
   '16:9',
   '9:16',
+  '1:1',
+  '4:5',
 ]);
 
 // Derives aspect ratio from a "WIDTHxHEIGHT" resolution string - the single
-// source of truth for a job's actual output dimensions. Landscape (width >=
-// height) is 16:9, portrait is 9:16, matching every entry in RESOLUTIONS.
+// source of truth for a job's actual output dimensions. Reduces the
+// resolution to its simplest ratio (e.g. 1080x1350 -> 4:5) and matches it
+// against the named presets above; a resolution whose reduced ratio isn't
+// one of those presets still falls back to the old landscape/portrait/square
+// bucketing so it never returns something the rest of the app doesn't expect.
+const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+
 const getAspectRatioForResolution = (resolution) => {
   const [width, height] = String(resolution || '').split('x').map(Number);
   if (!width || !height) return '16:9';
-  return width >= height ? '16:9' : '9:16';
+
+  const divisor = gcd(width, height);
+  const reduced = `${width / divisor}:${height / divisor}`;
+  if (ASPECT_RATIOS.includes(reduced)) return reduced;
+
+  if (width === height) return '1:1';
+  return width > height ? '16:9' : '9:16';
 };
+
+// Curated title/body Google Font pairing ids - mirrored in
+// backend/remotion/src/fonts.js (a separate app/package, so the pairing
+// definitions themselves live there; this is just the id enum for job
+// validation/storage). 'default' keeps the legacy system-font look.
+// Caption animation style ids - mirrored in
+// backend/remotion/src/captions/captionAnimations.js's captionAnimationRegistry
+// (a separate app/package, so the animation hooks themselves live there;
+// this is just the id enum for job validation/storage). Dialogue/podcast
+// scenes keep their own hardcoded 'highlightCurrent' style regardless of
+// this setting - it's tuned specifically for multi-speaker captions.
+const CAPTION_STYLES = Object.freeze([
+  'fadeInUp',
+  'popScale',
+  'slideLeft',
+  'slideRight',
+  'bounce',
+  'typewriter',
+  'glowActive',
+  'zoom',
+  'blurToSharp',
+]);
+
+const FONT_PAIRINGS = Object.freeze([
+  'default',
+  'modern-sans',
+  'elegant-serif',
+  'friendly-rounded',
+  'clean-mono',
+  'bold-impact',
+  'editorial',
+]);
 
 const VOICES = Object.freeze([
   'male-1',
@@ -175,11 +238,24 @@ const SOCKET_EVENTS = Object.freeze({
   COURSE_VIDEO_RENDER_READY: 'courseVideoRenderReady',
   // Live server log stream
   SERVER_LOG: 'serverLog',
+  // Audio Studio (standalone TTS) progressive generation events - fired as
+  // each dialogue turn / chunk finishes, ahead of the whole request
+  // completing, so the frontend can play pieces as they're ready instead of
+  // waiting for the full (possibly multi-minute) generation.
+  AUDIO_STUDIO_TURN_READY: 'audioStudioTurnReady',
+  AUDIO_STUDIO_CHUNK_READY: 'audioStudioChunkReady',
+  AUDIO_STUDIO_COMPLETED: 'audioStudioCompleted',
+  AUDIO_STUDIO_FAILED: 'audioStudioFailed',
 });
 
 // Redis pub/sub channel used to bridge events (job progress, server logs)
 // from worker processes to the main server process's Socket.IO instance.
 const REDIS_CHANNEL = 'vireon:job-events';
+
+// Redis list key persisting the recent-server-log ring buffer, so the Live
+// Logs page's history survives a server restart instead of resetting to
+// empty until new lines stream in.
+const REDIS_LOG_BUFFER_KEY = 'vireon:log-buffer';
 
 const DEFAULT_SCENE_DURATION = 8;
 
@@ -187,7 +263,7 @@ const VIDEO_DURATIONS = Object.freeze([5, 10, 15]);
 
 // Standalone (Wizard) video duration options in minutes - a separate scale
 // from course videos' VIDEO_DURATIONS since it's a distinct pipeline.
-const STANDALONE_VIDEO_DURATIONS = Object.freeze([5, 8, 10, 15, 20, 25, 30]);
+const STANDALONE_VIDEO_DURATIONS = Object.freeze([1, 2, 3, 4, 5, 8, 10, 15, 20, 25, 30]);
 
 // YouTube Shorts have their own duration scale (YouTube caps Shorts at 3
 // minutes) - validated separately from STANDALONE_VIDEO_DURATIONS in
@@ -221,14 +297,18 @@ module.exports = {
   VIDEO_TYPES,
   VIDEO_TYPES_LABEL,
   RESOLUTIONS,
+  QUALITY_PRESETS,
   ASPECT_RATIOS,
   getAspectRatioForResolution,
+  FONT_PAIRINGS,
+  CAPTION_STYLES,
   VOICES,
   LANGUAGES,
   TRANSITIONS,
   CAMERA_MOTIONS,
   SOCKET_EVENTS,
   REDIS_CHANNEL,
+  REDIS_LOG_BUFFER_KEY,
   DEFAULT_SCENE_DURATION,
   VIDEO_DURATIONS,
   STANDALONE_VIDEO_DURATIONS,
