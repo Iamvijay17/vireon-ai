@@ -200,6 +200,12 @@ class RemotionService {
         }
        return {
            sceneNumber: scene.sceneNumber,
+           // The generative template seeds its layout/motion/background from
+           // this id (GeneratedScene `seed = scene.sceneId || ...`), and the
+           // browser preview and thumbnails use the script's real id. Leaving
+           // it out made the final render fall back to a different seed, so
+           // the video looked different from the Studio preview.
+           sceneId: scene.sceneId,
            sceneType,
            title: scene.title,
            subtitle: scene.subtitle,
@@ -238,7 +244,7 @@ class RemotionService {
        }),
       output: {
         video: `./render/video.mp4`,
-        thumbnail: `./render/thumbnail.png`,
+        thumbnail: `./render/thumbnail.jpg`,
       },
     };
 
@@ -396,7 +402,7 @@ class RemotionService {
   }
 
   /**
-   * Renders render/thumbnail.png via Remotion's `still` command (a single
+   * Renders render/thumbnail.jpg (960x540 JPEG) via Remotion's `still` command (a single
    * frame, not the full video encode `render` already did). Picks a frame
    * partway into the second scene rather than frame 0 - the first scene is
    * usually a title card still fading/animating in at its very first frame,
@@ -416,7 +422,12 @@ class RemotionService {
       thumbnailFrame = Math.round((scenes[0].duration || 0) * fps * 0.5);
     }
 
-    const thumbnailPath = path.join(renderDir, 'thumbnail.png');
+    // Half-scale JPEG, not full-size PNG. Gradient-heavy frames compress very
+    // badly as PNG (about 570 KB at 960x540, roughly 2 MB at 1080p) and the
+    // thumbnail is only ever shown as a card image or video poster. `--scale`
+    // keeps the layout identical (unlike shrinking --width/--height, which
+    // would re-layout the composition).
+    const thumbnailPath = path.join(renderDir, 'thumbnail.jpg');
     await execFileAsync(process.execPath, [
       binaryPath,
       'still',
@@ -426,6 +437,9 @@ class RemotionService {
       '--frame', String(thumbnailFrame),
       '--width', String(width),
       '--height', String(height),
+      '--scale', '0.5',
+      '--image-format', 'jpeg',
+      '--jpeg-quality', '80',
     ], {
       cwd: remotionRoot,
       timeout: config.remotion.timeout,
@@ -638,7 +652,7 @@ class RemotionService {
 
         return {
           video: 'render/video.mp4',
-          thumbnail: 'render/thumbnail.png',
+          thumbnail: 'render/thumbnail.jpg',
           path: renderDir,
         };
       } catch (err) {

@@ -53,10 +53,9 @@ jobs:
       - run: npm ci
       # Windows-generated lockfile lacks Linux native binaries (npm bug #4828)
       - run: node deploy/install-linux-natives.cjs
-      # 19 pre-existing lint errors (react-hooks/static-components etc.): reported,
-      # not blocking, until they're cleaned up. Remove continue-on-error then.
+      # Errors fail CI. react-hooks/set-state-in-effect is a warning (see
+      # frontend/eslint.config.js for why).
       - run: npm run lint --workspace=frontend
-        continue-on-error: true
       - run: npm test --workspace=frontend
       - run: npm run build --workspace=frontend
 

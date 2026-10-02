@@ -59,6 +59,11 @@ const MINIO_SCENES_BUCKET = import.meta.env.VITE_MINIO_SCENES_BUCKET || 'vireon-
 // MINIO_PUBLIC_URL, default 9000). Used to recognize MinIO object links so
 // their host can be re-homed for LAN access.
 const MINIO_PORT = (() => {
+  // Production serves MinIO under same-origin /media, so MINIO_BASE's port is the
+  // PAGE's port (8080 on localhost, empty on https), not MinIO's. Stored object
+  // URLs always carry MinIO's real port, so reading it from the page broke the
+  // re-homing to /media whenever the site was opened on a non-default port.
+  if (import.meta.env.PROD && !import.meta.env.VITE_MINIO_PUBLIC_URL) return '9000';
   try {
     return new URL(MINIO_BASE).port || '9000';
   } catch {

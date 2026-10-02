@@ -1,5 +1,5 @@
-import React, { Suspense } from "react";
-import { AbsoluteFill, Sequence, Video, interpolate, useCurrentFrame } from "remotion";
+import React, { Suspense, useEffect, useState } from "react";
+import { AbsoluteFill, Sequence, Video, continueRender, delayRender, interpolate, useCurrentFrame } from "remotion";
 import TemplateRegistry from "./templates/TemplateRegistry";
 import DefaultTemplate from "./templates/DefaultTemplate";
 import { applyFontPairing } from "./theme";
@@ -101,13 +101,25 @@ const getAudioSrc = (audioFile, jobId, sceneNumber) => {
 /**
  * Loading fallback component shown while a template is being lazy-loaded
  */
-const TemplateLoadingFallback = () => (
-  <AbsoluteFill
-    style={{
-      backgroundColor: "#1a1a2e",
-    }}
-  />
-);
+//
+// Templates are React.lazy chunks, so the first frame of a scene can be taken
+// before its template has loaded. A video render never noticed (later frames
+// are fine), but `remotion still` - the job thumbnail - captures one frame
+// right away and got THIS placeholder: every new job's thumbnail was a flat
+// #1a1a2e square. The fallback therefore holds the render open
+// (delayRender) until it unmounts, i.e. until the real template has appeared.
+const TemplateLoadingFallback = () => {
+  const [handle] = useState(() => delayRender("Loading scene template"));
+  useEffect(() => () => continueRender(handle), [handle]);
+
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundColor: "#1a1a2e",
+      }}
+    />
+  );
+};
 
 /**
  * Resolves the correct template component from the registry based on templateId.
