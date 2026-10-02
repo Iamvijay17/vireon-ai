@@ -63,7 +63,49 @@ async function create(data) {
 }
 
 /**
- * Get all jobs with pagination.
+ * Aggregation pipeline for the list endpoint. A job's `script` (every scene's
+ * narration/visual prompts) is ~90% of its size and `statusHistory` another
+ * ~7%, but list pages only need whether scenes exist and which have audio
+ * (see frontend v2/lib/pipelineStages.js, render/RenderQueue.jsx). Trimming it
+ * here, inside the query, also cuts the Atlas -> server transfer, not just the
+ * response to the browser. The full document is still served by getById.
+ */
+function buildListPipeline(query, skip, limit) {
+  return [
+    { $match: query },
+    { $sort: { createdAt: -1 } },
+    { $skip: skip },
+    { $limit: limit },
+    {
+      $addFields: {
+        script: {
+          $cond: [
+            { $ifNull: ['$script', false] },
+            {
+              $mergeObjects: [
+                '$script',
+                {
+                  scenes: {
+                    $map: {
+                      input: { $ifNull: ['$script.scenes', []] },
+                      as: 'scene',
+                      in: { sceneNumber: '$$scene.sceneNumber', audio: { file: '$$scene.audio.file' } },
+                    },
+                  },
+                },
+              ],
+            },
+            '$$REMOVE',
+          ],
+        },
+      },
+    },
+    { $project: { statusHistory: 0 } },
+  ];
+}
+
+/**
+ * Get all jobs with pagination (slimmed list items - see buildListPipeline).
  */
 async function getAllJobs(page = 1, limit = 20, filters = {}) {
   const skip = (page - 1) * limit;
@@ -80,11 +122,7 @@ async function getAllJobs(page = 1, limit = 20, filters = {}) {
   }
 
   const [jobs, total] = await Promise.all([
-    VideoJob.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
+    VideoJob.aggregate(buildListPipeline(query, skip, limit)),
     VideoJob.countDocuments(query),
   ]);
 
@@ -217,6 +255,7 @@ module.exports = {
   BUSY_STATUSES,
   create,
   getAllJobs,
+  buildListPipeline,
   getById,
   delete: deleteJob,
   bulkDelete,
