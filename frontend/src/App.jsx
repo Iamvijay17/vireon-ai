@@ -11,6 +11,7 @@ import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmDialogHost } from "./components/ui/ConfirmDialog";
 import { ErrorBoundary } from "./components";
 import Structure from "./layout";
+import PageTitle from "./components/PageTitle";
 
 // v2 mounts outside v1's layout so the two shells never nest. See src/v2/App.jsx.
 const V2App = lazy(() => import("./v2/App"));
@@ -30,6 +31,7 @@ const AppShell = () => {
       <ToastProvider>
         <SidebarProvider>
           <BreadcrumbProvider>
+            <PageTitle />
             <Routes>
               {/* v2 gets the whole subtree, with its own shell. Everything
                   else falls through to v1's layout unchanged. */}

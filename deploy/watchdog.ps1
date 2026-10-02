@@ -108,6 +108,15 @@ foreach ($d in 'C', 'D') {
   }
 }
 
+# --- 6b. Backup freshness ---------------------------------------------------
+$lb = Join-Path $stateDir 'last-backup.txt'
+$p = $null
+if (Test-Path $lb) {
+  $age = (New-TimeSpan -Start ([datetime](Get-Content $lb -Raw).Trim()) -End (Get-Date)).TotalHours
+  if ($age -gt 36) { $p = "Last successful backup was $([int]$age) hours ago." }
+} else { $p = 'No successful backup recorded yet.' }
+Report 'Backup' $p
+
 # --- 7. Failed / stuck video jobs ------------------------------------------
 try {
   $jobs = (Invoke-RestMethod "$api/api/videos?limit=30" -TimeoutSec 15 -ErrorAction Stop).jobs
