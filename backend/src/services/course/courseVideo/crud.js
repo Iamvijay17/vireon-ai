@@ -228,6 +228,36 @@ const STAGE_FIELD_FOR_ACTION = {
 };
 
 /**
+ * The status a CANCELLED video had before it was stopped, inferred from its
+ * completed stages. stop() only flips in-flight stages to Cancelled, so any
+ * stage that already finished still reads Completed.
+ */
+function statusBeforeCancel(video) {
+  if (video.videoStatus === STAGE_STATUS.COMPLETED) return VIDEO_STATUS.COMPLETED;
+  if (video.audioStatus === STAGE_STATUS.COMPLETED) return VIDEO_STATUS.AUDIO_GENERATED;
+  if (video.approved) return VIDEO_STATUS.APPROVED;
+  if (video.script?.scenes?.length) return VIDEO_STATUS.WAITING_FOR_APPROVAL;
+  return VIDEO_STATUS.DRAFT;
+}
+
+/**
+ * Re-queueing a stopped lesson must also lift its overall CANCELLED status.
+ * The worker's bailIfCancelled checkpoint (see shared.js) keys off
+ * `status`, so a re-queued job against a still-CANCELLED video exits at once
+ * without touching the stage - leaving the lesson stuck as Cancelled with
+ * its stage Queued forever.
+ */
+async function liftCancelled(videoId) {
+  const video = await CourseVideo.findById(videoId).select('status scriptStatus audioStatus videoStatus approved script.scenes');
+  if (!video || video.status !== VIDEO_STATUS.CANCELLED) return;
+
+  await CourseVideo.updateOne(
+    { _id: videoId, status: VIDEO_STATUS.CANCELLED },
+    { $set: { status: statusBeforeCancel(video), error: { message: '', step: '', retryCount: 0 } } }
+  );
+}
+
+/**
  * Guard against double-dispatching the same generation action - e.g. a
  * double-clicked "Generate Script" button, or a retried frontend request,
  * queueing two BullMQ jobs for the same video/stage. With the worker at
@@ -255,6 +285,10 @@ async function claimStage(videoId, action) {
     const current = video[field];
     if (current === STAGE_STATUS.QUEUED || current === STAGE_STATUS.PROCESSING) {
       throw new ConflictError(`${action} is already ${current} for this video`);
+    }
+    if (video.status === VIDEO_STATUS.CANCELLED) {
+      video.status = statusBeforeCancel(video);
+      video.error = { message: '', step: '', retryCount: 0 };
     }
     video[field] = STAGE_STATUS.QUEUED;
     await video.save();
@@ -491,6 +525,7 @@ async function prepareBulkJobs(videoIds, action) {
       updateData[stageField[a]] = STAGE_STATUS.QUEUED;
       jobs.push({ videoId, action: a });
     }
+    await liftCancelled(videoId);
     await CourseVideo.findByIdAndUpdate(videoId, { $set: updateData });
   }
 

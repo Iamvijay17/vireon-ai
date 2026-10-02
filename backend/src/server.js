@@ -329,6 +329,28 @@ async function reapStuckCourseVideoJobs() {
   }
 }
 
+// Lessons stopped by the user whose stage was later re-queued used to keep
+// their overall CANCELLED status (see liftCancelled in
+// courseVideo/crud.js), so the worker bailed immediately and the stage sat
+// at Queued/Processing forever. Normalise those leftovers to Cancelled so
+// the Pipeline column agrees with the Status badge and the stage can be
+// re-run.
+async function healCancelledStageStatuses() {
+  const CourseVideo = require('./models/CourseVideo');
+  const inFlight = [STAGE_STATUS.QUEUED, STAGE_STATUS.PROCESSING];
+  let healed = 0;
+  for (const field of ['scriptStatus', 'audioStatus', 'videoStatus']) {
+    const res = await CourseVideo.updateMany(
+      { status: VIDEO_STATUS.CANCELLED, [field]: { $in: inFlight } },
+      { $set: { [field]: STAGE_STATUS.CANCELLED } }
+    );
+    healed += res.modifiedCount || 0;
+  }
+  if (healed > 0) {
+    LoggerService.warn(`Reset ${healed} stale in-flight stage(s) on cancelled course videos`);
+  }
+}
+
 async function startServer() {
   try {
     const { connectDatabase } = require('./config/database');
@@ -338,6 +360,7 @@ async function startServer() {
     await reapOrphanedAudioGenerations();
     await reapStuckVideoJobs();
     await reapStuckCourseVideoJobs();
+    await healCancelledStageStatuses();
 
     // Bound explicitly rather than relying on listen(port)'s implicit
     // all-interfaces default, so the exposure is a visible decision.
