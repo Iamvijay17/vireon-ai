@@ -1,0 +1,8 @@
+node_modules
+remotion/node_modules
+jobs
+logs
+.env
+.env.*
+tests
+*.md

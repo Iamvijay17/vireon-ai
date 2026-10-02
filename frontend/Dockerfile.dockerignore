@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/dist
+.env
+.env.*
+.redis-data
+docs
+backend/jobs
+backend/logs
+backend/src
+backend/tests
+backend/voices
+backend/assets
+backend/scripts
+backend/templates
