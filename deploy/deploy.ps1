@@ -23,6 +23,11 @@ $stateFile = Join-Path $stateDir 'state.json'
 $logFile = Join-Path $stateDir 'deploy.log'
 $workers = @('VireonVideoWorker', 'VireonCourseWorker')
 
+function Notify([string]$title, [string]$msg, [string]$prio = 'default', [string]$tags = '') {
+  $tf = Join-Path $stateDir 'ntfy-topic.txt'
+  if (-not (Test-Path $tf)) { return }
+  try { Invoke-RestMethod -Method Post -Uri "https://ntfy.sh/$((Get-Content $tf -Raw).Trim())" -Body ([Text.Encoding]::UTF8.GetBytes($msg)) -Headers @{ Title = $title; Priority = $prio; Tags = $tags } -TimeoutSec 15 | Out-Null } catch { }
+}
 function Log($m) { $l = "$(Get-Date -Format s) $m"; Write-Host $l; Add-Content $logFile $l }
 function Load-State { if (Test-Path $stateFile) { Get-Content $stateFile -Raw | ConvertFrom-Json } else { [pscustomobject]@{ current = ''; previous = ''; bad = @() } } }
 function Save-State($s) { $s | ConvertTo-Json | Set-Content $stateFile }
@@ -97,13 +102,14 @@ try {
   try {
     Apply $Tag $sha
     $state.previous = $prev; $state.current = $Tag
-    Save-State $state; Log "Deploy OK: $Tag"
+    Save-State $state; Log "Deploy OK: $Tag"; Notify 'Vireon deployed' "Now running $($Tag.Substring(0,[Math]::Min(14,$Tag.Length)))" 'low' 'rocket'
   } catch {
     Log "DEPLOY FAILED ($($_.Exception.Message)) - rolling back to '$prev'"
     $state.bad = @($state.bad) + $Tag
     if ($prev) {
       try { Apply $prev ($prev -replace '^sha-', ''); Log "Rolled back to $prev" } catch { Log "ROLLBACK ALSO FAILED: $($_.Exception.Message)" }
     }
+    Notify 'Vireon deploy FAILED' "Deploy of $($Tag.Substring(0,[Math]::Min(14,$Tag.Length))) failed: $($_.Exception.Message). Rolled back to previous version if one existed." 'high' 'warning'
     Save-State $state; exit 1
   }
 } catch { Log "ERROR: $($_.Exception.Message)"; exit 1 }

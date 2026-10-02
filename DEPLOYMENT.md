@@ -141,6 +141,16 @@ Every deploy keeps the previous working image tag in `.deploy\state.json`.
 - Specific version: `powershell -File deploy\deploy.ps1 -Tag sha-<commit> -Force`
 A failed commit is remembered and not retried until a newer commit lands.
 
+## 8b. Alerts (ntfy, free)
+`deploy\watchdog.ps1` runs every 2 minutes (task `VireonWatchdog`). It restarts a stopped MinIO/worker task,
+and sends a push when API, MinIO, Docker, Tailscale or disk (<10 GB) fail (after 2 checks) and when they recover,
+when a video job fails, or when a job shows no progress for 45 min. `deploy.ps1` also reports success/failure.
+- Channel: the topic in `.deploy
+tfy-topic.txt` (gitignored; treat as a password). Subscribe in the ntfy app
+  (iOS/Android) or at `https://ntfy.sh/<topic>` in a browser. Messages contain no secrets.
+- Test: `powershell -File deploy\watchdog.ps1 -Test`. New topic: overwrite the file and resubscribe.
+- Not covered: the whole PC being off or offline (nothing on it can send an alert).
+
 ## 9. Troubleshooting
 - **Videos/audio show 502 Bad Gateway on `/media/...`:** MinIO is not running. It is the `VireonMinio` scheduled task
   (starts at logon, ~10 s to come up). Check `Get-ScheduledTask VireonMinio`, then `Start-ScheduledTask VireonMinio`.

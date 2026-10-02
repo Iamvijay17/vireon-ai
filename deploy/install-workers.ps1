@@ -34,6 +34,14 @@ if (Test-Path $minioScript) {
   Write-Host 'Registered VireonMinio'
 }
 
+# Watchdog: every 2 minutes - restarts stopped services, sends ntfy alerts.
+$wdAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSScriptRoot\watchdog.ps1`"" -WorkingDirectory $repo
+$wdTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)
+Register-ScheduledTask -TaskName 'VireonWatchdog' -Action $wdAction -Trigger $wdTrigger `
+  -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries) `
+  -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited) -Force | Out-Null
+Write-Host 'Registered VireonWatchdog'
+
 # Pull-based deploy poller: every 5 minutes.
 $pollAction = New-ScheduledTaskAction -Execute 'powershell.exe' `
   -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\deploy.ps1`" -Poll" -WorkingDirectory $repo
