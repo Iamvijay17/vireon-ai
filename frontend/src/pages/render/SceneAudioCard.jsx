@@ -47,8 +47,10 @@ export const SceneAudioCard = ({ job, isActive, regeneratingScene, onRegenerateS
             const sceneAudioUrl = resolveSceneAudioUrl(job._id, scene.audio.file);
             const isRegenerating = regeneratingScene === scene.sceneNumber;
             return (
-              <div key={scene.sceneNumber} className="flex items-center gap-3">
-                <span className="w-16 shrink-0 text-[13px] font-medium text-text-secondary">Scene {scene.sceneNumber}</span>
+              // Below `sm` the label gets its own line so the player (whose waveform
+              // spans the whole track) is not squeezed to nothing beside it.
+              <div key={scene.sceneNumber} className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap">
+                <span className="w-full shrink-0 text-[13px] font-medium text-text-secondary sm:w-16">Scene {scene.sceneNumber}</span>
                 {isRegenerating ? (
                   <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-dashed border-border-light px-3 py-2 text-xs text-text-tertiary">
                     <Spinner size="sm" />
