@@ -32,6 +32,9 @@ jobs:
         run: npm test -- --ci
         env:
           NODE_ENV: test
+          # validate.test.js boots the real config; CI has no .env, so dummy values
+          MINIO_ROOT_USER: ci-user
+          MINIO_ROOT_PASSWORD: ci-password-1234
 
   frontend:
     # Workspace install at the repo root: the frontend imports the shared
