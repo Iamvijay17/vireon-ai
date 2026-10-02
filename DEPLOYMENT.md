@@ -142,6 +142,8 @@ Every deploy keeps the previous working image tag in `.deploy\state.json`.
 A failed commit is remembered and not retried until a newer commit lands.
 
 ## 9. Troubleshooting
+- **Videos/audio show 502 Bad Gateway on `/media/...`:** MinIO is not running. It is the `VireonMinio` scheduled task
+  (starts at logon, ~10 s to come up). Check `Get-ScheduledTask VireonMinio`, then `Start-ScheduledTask VireonMinio`.
 - **Images not loading / 404 on `/media`:** MinIO must be running on `:9000`; the object path
   must be in `vireon-scenes|video|cache`. Windows Firewall may block Docker→host:9000 — allow
   inbound TCP 9000 for the Docker (vEthernet) profile only.

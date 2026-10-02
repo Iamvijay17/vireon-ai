@@ -25,6 +25,15 @@ foreach ($name in $tasks.Keys) {
   Write-Host "Registered $name"
 }
 
+# MinIO (native, holds all generated media): start at logon, auto-restart. Takes ~10s to come up.
+$minioScript = 'D:\Programs\minio\start-minio.ps1'
+if (Test-Path $minioScript) {
+  $mAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$minioScript`"" -WorkingDirectory (Split-Path $minioScript)
+  $mSettings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+  Register-ScheduledTask -TaskName 'VireonMinio' -Action $mAction -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $user) -Settings $mSettings -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited) -Force | Out-Null
+  Write-Host 'Registered VireonMinio'
+}
+
 # Pull-based deploy poller: every 5 minutes.
 $pollAction = New-ScheduledTaskAction -Execute 'powershell.exe' `
   -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\deploy.ps1`" -Poll" -WorkingDirectory $repo
