@@ -563,31 +563,33 @@ const CourseDetail = () => {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <Button variant="ghost" size="md" iconOnly aria-label="Back to courses" onClick={() => navigate("/courses")} icon={<ArrowLeft className="size-4" />} />
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-text-primary">{course?.title}</h1>
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <Button variant="ghost" size="md" iconOnly aria-label="Back to courses" onClick={() => navigate("/courses")} icon={<ArrowLeft className="size-4" />} className="shrink-0" />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-semibold tracking-tight text-text-primary [overflow-wrap:anywhere]">{course?.title}</h1>
             <p className="mt-1 text-sm text-text-secondary">{course?.description || "No description"}</p>
-          </div>
-          <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
-            {socketStatus === "connected" ? "Live" : socketStatus === "reconnecting" ? "Reconnecting..." : "Offline"}
-          </Badge>
-          {workerRunning !== null && (
-            <Tooltip
-              content={
-                workerRunning
-                  ? "The course worker is running - generation jobs will process."
-                  : "The course worker is not running. Start it (npm run course-worker) before generating scripts, audio, or video - otherwise generation requests will be rejected."
-              }
-            >
-              <Badge variant={workerRunning ? "success" : "danger"} dot>
-                {workerRunning ? "Worker Running" : "Worker Offline"}
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
+                {socketStatus === "connected" ? "Live" : socketStatus === "reconnecting" ? "Reconnecting..." : "Offline"}
               </Badge>
-            </Tooltip>
-          )}
+              {workerRunning !== null && (
+                <Tooltip
+                  content={
+                    workerRunning
+                      ? "The course worker is running - generation jobs will process."
+                      : "The course worker is not running. Start it (npm run course-worker) before generating scripts, audio, or video - otherwise generation requests will be rejected."
+                  }
+                >
+                  <Badge variant={workerRunning ? "success" : "danger"} dot>
+                    {workerRunning ? "Worker Running" : "Worker Offline"}
+                  </Badge>
+                </Tooltip>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {videos.some((v) => v.status !== "Draft" && !["Completed", "Failed", "Cancelled"].includes(v.status)) && (
             <Button
               variant="danger"
@@ -635,17 +637,17 @@ const CourseDetail = () => {
       </div>
 
       {/* Course Info */}
-      <Card className="mb-4 p-6">
+      <Card className="mb-4 p-4 sm:p-6">
         <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-2">
           <DescriptionList items={infoItems} columns={2} />
-          <div className="flex items-center gap-6 justify-self-center">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-4 md:justify-self-center">
             <div className="flex flex-col items-center gap-2">
               <CircularProgress percent={progressPercent} size={80} stroke={7} label={`${completedVideos}/${totalVideos}`} />
               <p className="text-[13px] text-text-secondary">
                 {completedVideos} of {totalVideos} videos completed
               </p>
             </div>
-            <div className="flex w-44 flex-col gap-3">
+            <div className="flex w-full max-w-44 min-w-36 flex-col gap-3">
               <div>
                 <div className="mb-1 flex items-center justify-between text-[13px] text-text-secondary">
                   <span className="flex items-center gap-1.5">

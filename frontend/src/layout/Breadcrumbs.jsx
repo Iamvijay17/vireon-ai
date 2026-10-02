@@ -50,10 +50,10 @@ const Breadcrumbs = () => {
   if (items.length <= 1) return null;
 
   return (
-    <div className="border-b border-border-light bg-surface px-6 py-2.5">
-      <nav className="flex items-center gap-1.5 text-[13px]">
+    <div className="border-b border-border-light bg-surface px-4 py-2.5 sm:px-6">
+      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap text-[13px] [scrollbar-width:none]">
         {items.map((item, i) => (
-          <span key={i} className="flex items-center gap-1.5">
+          <span key={i} className="flex shrink-0 items-center gap-1.5">
             {i > 0 && <ChevronRight className="size-3.5 text-text-tertiary" />}
             {item.onClick ? (
               <button

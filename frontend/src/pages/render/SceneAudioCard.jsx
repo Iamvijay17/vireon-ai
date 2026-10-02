@@ -11,7 +11,7 @@ export const SceneAudioCard = ({ job, isActive, regeneratingScene, onRegenerateS
   const readyScenes = scenes.filter((s) => s.audio?.file);
 
   return (
-    <Card className="animate-slide-up p-6" style={{ "--stagger-index": 1 }}>
+    <Card className="animate-slide-up p-4 sm:p-6" style={{ "--stagger-index": 1 }}>
       <div className="mb-4 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-[15px] font-semibold text-text-primary">
           <AudioLines className="size-[18px] text-accent" /> Scene Audio

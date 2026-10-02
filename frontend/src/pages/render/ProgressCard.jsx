@@ -14,7 +14,7 @@ export const ProgressCard = ({ job, currentStepIndex, isComplete, isFailed, isCa
   // spinning icon.
   const running = isJobRunning(job?.status);
   return (
-  <Card className="animate-slide-up p-6">
+  <Card className="animate-slide-up p-4 sm:p-6">
     <div className="flex flex-col items-center gap-3 border-b border-border-light pb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
       <div className="flex items-center gap-4">
         <CircularProgress percent={job?.progress || 0} error={isFailed} trickle={running} />

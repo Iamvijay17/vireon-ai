@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Check, X } from "lucide-react";
 import { cn } from "./cn";
 
@@ -8,8 +9,21 @@ import { cn } from "./cn";
  * status: status of the *current* step only ('process' | 'finish' | 'error')
  * onStepClick: optional (index) => void, for navigable wizards
  */
-export const Steps = ({ items = [], current = 0, status = "process", onStepClick, className }) => (
-  <div className={cn("flex w-full items-start", className)}>
+export const Steps = ({ items = [], current = 0, status = "process", onStepClick, className }) => {
+  const scrollerRef = useRef(null);
+
+  // Long pipelines (the render page has 9 steps) can't fit a phone, so the
+  // row scrolls sideways instead of crushing the labels together; keep the
+  // current step in view so the user isn't dropped at step 1 of 9.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const step = scroller?.children[current];
+    if (!scroller || !step || scroller.scrollWidth <= scroller.clientWidth) return;
+    scroller.scrollLeft = step.offsetLeft - (scroller.clientWidth - step.offsetWidth) / 2;
+  }, [current, items.length]);
+
+  return (
+  <div ref={scrollerRef} className={cn("flex w-full items-start overflow-x-auto pb-1 [scrollbar-width:none]", className)}>
     {items.map((item, i) => {
       const isDone = i < current || (i === current && status === "finish");
       const isError = i === current && status === "error";
@@ -17,7 +31,7 @@ export const Steps = ({ items = [], current = 0, status = "process", onStepClick
       const clickable = typeof onStepClick === "function" && i <= current;
 
       return (
-        <div key={item.title ?? i} className="flex flex-1 items-start last:flex-none">
+        <div key={item.title ?? i} className="flex min-w-[3.75rem] flex-1 items-start last:min-w-0 last:flex-none">
           <div className="flex flex-col items-center">
             <button
               type="button"
@@ -64,6 +78,7 @@ export const Steps = ({ items = [], current = 0, status = "process", onStepClick
       );
     })}
   </div>
-);
+  );
+};
 
 export default Steps;

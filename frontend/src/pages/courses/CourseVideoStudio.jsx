@@ -180,15 +180,17 @@ const CourseVideoStudio = () => {
 
   const scene = editedScenes[selectedSceneIndex];
 
+  // Fixed-height three-pane workspace only from lg up; below that the panes
+  // stack at natural height and the page scrolls (see pages/studio/index.jsx).
   return (
-    <div className="flex h-[calc(100vh-13rem)] min-h-[520px] flex-col gap-3">
+    <div className="flex flex-col gap-3 lg:h-[calc(100dvh-13rem)] lg:min-h-[520px]">
       {/* TOOLBAR */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
           <Button variant="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={() => navigate(`/courses/${courseId}/videos/${videoId}`)}>
             Back
           </Button>
-          <h1 className="truncate text-lg font-semibold tracking-tight text-text-primary">{video.title}</h1>
+          <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-text-primary">{video.title}</h1>
           {hasChanges && <Badge variant="warning">Unsaved changes</Badge>}
         </div>
         <Button variant="primary" size="sm" icon={<Save className="size-4" />} onClick={handleSave} loading={saving} disabled={!hasChanges}>
@@ -199,9 +201,9 @@ const CourseVideoStudio = () => {
       {editedScenes.length === 0 ? (
         <EmptyState description="No scenes found" />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)_340px]">
+        <div className="grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[220px_minmax(0,1fr)_340px]">
           {/* LEFT: VERTICAL TIMELINE WITH THUMBNAILS */}
-          <Card className="flex min-h-0 flex-col">
+          <Card className="flex min-h-0 flex-col max-lg:max-h-72">
             <div className="flex items-center justify-between border-b border-border-light px-3.5 py-3">
               <h3 className="text-[13px] font-semibold text-text-primary">Scenes</h3>
               <span className="text-[11px] text-text-tertiary">{Math.round(totalSeconds)}s</span>
@@ -249,7 +251,7 @@ const CourseVideoStudio = () => {
           </Card>
 
           {/* CENTER: CANVAS */}
-          <Card className="flex min-h-0 flex-col overflow-hidden">
+          <Card className="flex min-h-0 flex-col overflow-hidden max-lg:order-first">
             <div className="flex flex-1 flex-col justify-center p-4">
               <ScenePreview
                 scenes={editedScenes}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext, Suspense, lazy } from "react";
+import { useState, useCallback, useContext, Suspense, lazy } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import AppSidebar from "./sidebar";
 import AppNavbar from "./navbar";
@@ -8,6 +8,8 @@ import LogDrawer from "../components/LogDrawer";
 import { LoadingState, ErrorBoundary } from "../components";
 import { cn } from "../components/ui/cn";
 import { SidebarContext } from "../shared/sidebarContextValue";
+import { useMediaQuery } from "../lib/useMediaQuery";
+import { useEscapeKey, useLockBodyScroll } from "../components/ui/hooks";
 
 const Dashboard = lazy(() => import("../pages/dashboard"));
 const Wizard = lazy(() => import("../pages/wizard"));
@@ -27,42 +29,50 @@ const Jobs = lazy(() => import("../pages/jobs"));
 const Assets = lazy(() => import("../pages/assets"));
 const LiveLogs = lazy(() => import("../pages/logs"));
 
-const LARGE_BREAKPOINT = 992;
+// Matches Tailwind's `lg`. At and above it the sidebar is a persistent,
+// collapsible rail; below it the sidebar is an off-canvas drawer so phones
+// and portrait tablets get the full width for content.
+const LARGE_QUERY = "(min-width: 1024px)";
 
 const AppLayout = () => {
   const location = useLocation();
   const { forceCollapsed } = useContext(SidebarContext);
+  const isDesktop = useMediaQuery(LARGE_QUERY);
 
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window !== "undefined") return window.innerWidth < LARGE_BREAKPOINT;
-    return false;
-  });
+  const [collapsed, setCollapsed] = useState(false);
+  // The drawer is remembered as "opened at <pathname>", so navigating
+  // anywhere (or growing past the breakpoint) closes it without an effect.
+  const [drawerPath, setDrawerPath] = useState(null);
+  const drawerOpen = !isDesktop && drawerPath === location.pathname;
 
-  const handleResize = useCallback(() => {
-    if (window.innerWidth < LARGE_BREAKPOINT) setCollapsed(true);
-  }, []);
+  const toggleSidebar = useCallback(() => {
+    if (isDesktop) setCollapsed((prev) => !prev);
+    else setDrawerPath((prev) => (prev === location.pathname ? null : location.pathname));
+  }, [isDesktop, location.pathname]);
 
-  useEffect(() => {
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [handleResize]);
+  const closeDrawer = useCallback(() => setDrawerPath(null), []);
 
-  const toggleCollapsed = useCallback(() => setCollapsed((prev) => !prev), []);
+  useEscapeKey(closeDrawer, drawerOpen);
+  useLockBodyScroll(drawerOpen);
 
-  const effectiveCollapsed = forceCollapsed ?? collapsed;
+  // The drawer always shows full labels; collapse only applies to the rail.
+  const effectiveCollapsed = isDesktop ? (forceCollapsed ?? collapsed) : false;
 
   return (
     <div className="min-h-screen bg-bg">
-      <AppSidebar collapsed={effectiveCollapsed} onCollapse={setCollapsed} />
+      <AppSidebar collapsed={effectiveCollapsed} isDrawer={!isDesktop} open={drawerOpen} onClose={closeDrawer} />
 
       <div
-        className={cn("flex min-h-screen flex-col transition-[margin-left] duration-200", effectiveCollapsed ? "ml-16" : "ml-60")}
+        className={cn(
+          "flex min-h-screen min-w-0 flex-col transition-[margin-left] duration-200",
+          effectiveCollapsed ? "lg:ml-16" : "lg:ml-60"
+        )}
       >
-        <AppNavbar collapsed={effectiveCollapsed} onToggle={toggleCollapsed} />
+        <AppNavbar collapsed={isDesktop ? effectiveCollapsed : !drawerOpen} onToggle={toggleSidebar} isDrawer={!isDesktop} />
         <Breadcrumbs />
         <CommandPalette />
 
-        <main className="flex-1 p-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-6">
           <div key={location.pathname} className="animate-fade-in">
             {/* Inside the layout, not around it: a page crash keeps the
                 sidebar, navbar and log drawer alive so the user can
@@ -95,7 +105,7 @@ const AppLayout = () => {
           </div>
         </main>
 
-        <footer className="border-t border-border-light bg-surface px-6 py-4 text-center text-[13px] text-text-tertiary">
+        <footer className="border-t border-border-light bg-surface px-4 py-4 sm:px-6 text-center text-[13px] text-text-tertiary">
           Vireon AI &copy; {new Date().getFullYear()} &mdash; Built with precision
         </footer>
       </div>

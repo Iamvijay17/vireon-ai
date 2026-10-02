@@ -85,7 +85,7 @@ export function Segmented({ value, onChange, options = [], className }) {
     <div
       role="tablist"
       className={cx(
-        "inline-flex h-9 items-center gap-0.5 rounded-[var(--radius-v2-sm)] border border-line bg-surface-2 p-0.5",
+        "inline-flex h-9 max-w-full items-center gap-0.5 overflow-x-auto rounded-[var(--radius-v2-sm)] border border-line bg-surface-2 p-0.5 [scrollbar-width:none]",
         className
       )}
     >
@@ -99,7 +99,7 @@ export function Segmented({ value, onChange, options = [], className }) {
             aria-selected={active}
             onClick={() => onChange?.(opt.value)}
             className={cx(
-              "flex h-full items-center gap-1.5 rounded-[6px] px-2.5 text-[12.5px] font-medium whitespace-nowrap",
+              "flex h-full shrink-0 items-center gap-1.5 rounded-[6px] px-2.5 text-[12.5px] font-medium whitespace-nowrap",
               "transition-colors duration-140",
               active ? "bg-[var(--v2-active)] text-hi" : "text-mid hover:text-hi"
             )}
@@ -253,13 +253,24 @@ export function Menu({ trigger, items = [], align = "right" }) {
    actually an onRowClick, so read-only tables don't fill the tab order.
    ============================================================================ */
 
-export function Table({ columns = [], rows = [], rowKey = "id", onRowClick, empty, className }) {
+/**
+ * Below `md` (unless `stack={false}`) rows collapse into cards instead of
+ * scrolling sideways: the header row is hidden and each cell shows its
+ * column title inline. Pure CSS, so callers are unchanged. Columns whose
+ * title isn't plain text (a select-all checkbox, an empty actions header)
+ * render unlabelled and share the card's first line; set
+ * `stackLabel: false` on a column that should lead the card without a
+ * label (e.g. the row's name).
+ */
+const hasTitleText = (col) => typeof col.title === "string" && col.title.length > 0;
+
+export function Table({ columns = [], rows = [], rowKey = "id", onRowClick, empty, className, stack = true }) {
   if (rows.length === 0 && empty) return empty;
 
   return (
     <div className={cx("w-full overflow-x-auto", className)}>
-      <table className="w-full border-collapse">
-        <thead>
+      <table className={cx("w-full border-collapse", stack && "max-md:block")}>
+        <thead className={cx(stack && "max-md:hidden")}>
           <tr>
             {columns.map((col) => (
               <th
@@ -275,7 +286,7 @@ export function Table({ columns = [], rows = [], rowKey = "id", onRowClick, empt
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className={cx(stack && "max-md:block")}>
           {rows.map((row) => (
             <tr
               key={row[rowKey]}
@@ -293,21 +304,43 @@ export function Table({ columns = [], rows = [], rowKey = "id", onRowClick, empt
               })}
               className={cx(
                 "border-b border-line-soft last:border-0",
+                stack && "max-md:flex max-md:flex-wrap max-md:items-center max-md:px-4 max-md:py-3",
                 onRowClick &&
                   "interactive cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--v2-focus)]"
               )}
             >
-              {columns.map((col) => (
-                <td
-                  key={col.key}
-                  className={cx(
-                    "px-4 py-3 text-[13px] text-mid align-middle",
-                    col.align === "right" && "text-right"
-                  )}
-                >
-                  {col.render ? col.render(row) : row[col.key]}
-                </td>
-              ))}
+              {columns.map((col) => {
+                const titled = hasTitleText(col);
+                const labelled = titled && col.stackLabel !== false;
+                // Stacked card roles: "labelled" cells are key/value rows,
+                // "leading" cells (titled, stackLabel:false) headline the
+                // card, "control" cells (checkbox, menu) share its first line.
+                const leading = titled && !labelled;
+                const control = !titled;
+                return (
+                  <td
+                    key={col.key}
+                    className={cx(
+                      "px-4 py-3 text-[13px] text-mid align-middle",
+                      col.align === "right" && "text-right",
+                      stack && "max-md:min-w-0 max-md:px-0",
+                      stack && labelled && "max-md:flex max-md:w-full max-md:items-center max-md:justify-between max-md:gap-3 max-md:py-1.5",
+                      stack && leading && "max-md:-order-1 max-md:w-full max-md:py-1",
+                      stack && control && "max-md:order-first max-md:py-1",
+                      stack && control && col.align === "right" && "max-md:ml-auto"
+                    )}
+                  >
+                    {stack && labelled && <span className="label-xs shrink-0 md:hidden">{col.title}</span>}
+                    {stack && labelled ? (
+                      <div className="min-w-0 max-md:text-right md:contents">{col.render ? col.render(row) : row[col.key]}</div>
+                    ) : col.render ? (
+                      col.render(row)
+                    ) : (
+                      row[col.key]
+                    )}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>

@@ -93,10 +93,10 @@ function Hero({ counts, courses, onCreate }) {
         className="pointer-events-none absolute -top-24 -right-16 size-[340px] rounded-full opacity-[0.16] blur-3xl"
         style={{ background: "radial-gradient(circle, var(--color-signal-400), transparent 68%)" }}
       />
-      <div className="relative flex flex-wrap items-end justify-between gap-6 p-6">
-        <div>
+      <div className="relative flex flex-wrap items-end justify-between gap-6 p-5 sm:p-6">
+        <div className="min-w-0">
           <p className="label-xs mb-2">Workspace</p>
-          <h2 className="display-lg text-[26px] text-hi">
+          <h2 className="display-lg text-[22px] text-hi sm:text-[26px]">
             {counts.running > 0 ? (
               <>
                 {counts.running} {counts.running === 1 ? "video" : "videos"} rendering
@@ -120,7 +120,7 @@ function Hero({ counts, courses, onCreate }) {
           </div>
         </div>
 
-        <div className="flex gap-2.5">
+        <div className="grid w-full grid-cols-2 gap-2.5 sm:flex sm:w-auto">
           <Stat label="Videos" value={counts.total} icon={Film} />
           <Stat label="Completed" value={counts.done} icon={CheckCircle2} tone="var(--color-state-done)" />
           <Stat label="Failed" value={counts.failed} icon={AlertTriangle} tone="var(--color-state-fail)" />
@@ -133,7 +133,7 @@ function Hero({ counts, courses, onCreate }) {
 
 function Stat({ label, value, icon: Icon, tone }) {
   return (
-    <div className="min-w-[104px] rounded-[var(--radius-v2-md)] border border-line-soft bg-surface-2 px-3.5 py-3">
+    <div className="min-w-0 rounded-[var(--radius-v2-md)] sm:min-w-[104px] border border-line-soft bg-surface-2 px-3.5 py-3">
       <div className="mb-2 flex items-center gap-1.5">
         <Icon className="size-3.5" style={{ color: tone || "var(--v2-text-3)" }} strokeWidth={2.2} />
         <span className="label-xs">{label}</span>

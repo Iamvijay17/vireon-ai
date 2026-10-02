@@ -15,6 +15,7 @@ import {
   AudioLines,
   ListChecks,
   Boxes,
+  X,
 } from "lucide-react";
 import { cn } from "../../components/ui/cn";
 
@@ -55,7 +56,7 @@ const NavRow = ({ icon: Icon, label, active, collapsed, onClick, indent = false,
     onClick={onClick}
     title={collapsed ? label : undefined}
     className={cn(
-      "relative flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors cursor-pointer",
+      "relative flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-[13px] lg:py-2 font-medium transition-colors cursor-pointer",
       collapsed && "justify-center px-0",
       indent && !collapsed && "pl-9",
       active
@@ -80,24 +81,42 @@ const NavRow = ({ icon: Icon, label, active, collapsed, onClick, indent = false,
   </button>
 );
 
-const AppSidebar = ({ collapsed }) => {
+const AppSidebar = ({ collapsed, isDrawer = false, open = false, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [openGroups, setOpenGroups] = useState({ editor: true });
 
+  const hidden = isDrawer && !open;
+
   return (
+    <>
+      {isDrawer && (
+        <div
+          aria-hidden="true"
+          onClick={onClose}
+          className={cn(
+            "fixed inset-0 z-[45] bg-black/50 backdrop-blur-[2px] transition-opacity duration-200",
+            open ? "opacity-100" : "pointer-events-none opacity-0"
+          )}
+        />
+      )}
     <aside
+      aria-hidden={hidden || undefined}
+      inert={hidden || undefined}
       className={cn(
-        "fixed inset-y-0 left-0 z-40 flex flex-col bg-sidebar transition-[width] duration-200",
-        collapsed ? "w-16" : "w-60"
+        "fixed inset-y-0 left-0 flex flex-col bg-sidebar transition-[width,transform] duration-200",
+        isDrawer ? "z-50 w-64 max-w-[85vw]" : collapsed ? "z-40 w-16" : "z-40 w-60",
+        hidden ? "-translate-x-full" : "translate-x-0",
+        isDrawer && open && "shadow-2xl shadow-black/40"
       )}
     >
       {/* Logo */}
+      <div className="flex h-16 shrink-0 items-center border-b border-white/[0.06]">
       <button
         type="button"
         onClick={() => navigate("/")}
         className={cn(
-          "flex h-16 shrink-0 items-center gap-3 border-b border-white/[0.06] px-5 cursor-pointer",
+          "flex h-full min-w-0 flex-1 items-center gap-3 px-5 cursor-pointer",
           collapsed && "justify-center px-0"
         )}
       >
@@ -108,6 +127,17 @@ const AppSidebar = ({ collapsed }) => {
           <span className="truncate text-[15px] font-semibold tracking-tight text-white">Vireon AI</span>
         )}
       </button>
+      {isDrawer && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close navigation"
+          className="mr-3 flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-sidebar-text transition-colors hover:bg-sidebar-hover hover:text-sidebar-text-active"
+        >
+          <X className="size-[18px]" />
+        </button>
+      )}
+      </div>
 
       {/* Nav */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
@@ -162,6 +192,7 @@ const AppSidebar = ({ collapsed }) => {
         })}
       </nav>
     </aside>
+    </>
   );
 };
 

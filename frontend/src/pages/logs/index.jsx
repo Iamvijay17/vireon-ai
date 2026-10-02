@@ -47,20 +47,20 @@ const LogRow = ({ entry, expanded, onToggle, hour12 }) => {
   return (
     <div className="border-b border-border-light px-4 py-1.5 font-mono text-[12.5px] leading-5 hover:bg-surface-hover">
       <div
-        className={cn("flex items-start gap-3", hasMeta && "cursor-pointer")}
+        className={cn("flex flex-wrap items-start gap-x-3 sm:flex-nowrap", hasMeta && "cursor-pointer")}
         onClick={hasMeta ? onToggle : undefined}
       >
         <span className="shrink-0 text-neutral-400 dark:text-neutral-500">{formatTime(entry.timestamp, hour12)}</span>
-        <span className={cn("shrink-0 w-[74px] font-semibold uppercase tracking-wide", meta.text)}>
+        <span className={cn("shrink-0 w-[60px] font-semibold uppercase tracking-wide sm:w-[74px]", meta.text)}>
           {meta.label}
         </span>
-        <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-neutral-700 dark:text-neutral-200">{entry.message}</span>
+        <span className="order-last min-w-0 basis-full whitespace-pre-wrap break-words text-neutral-700 sm:order-none sm:basis-0 sm:flex-1 dark:text-neutral-200">{entry.message}</span>
         {hasMeta && (
-          <ChevronDown className={cn("size-3.5 shrink-0 text-neutral-400 dark:text-neutral-500 transition-transform", expanded && "rotate-180")} />
+          <ChevronDown className={cn("ml-auto size-3.5 shrink-0 self-center text-neutral-400 transition-transform sm:ml-0 dark:text-neutral-500", expanded && "rotate-180")} />
         )}
       </div>
       {hasMeta && expanded && (
-        <pre className="mt-1.5 ml-[104px] overflow-x-auto rounded-md bg-surface-active p-2 text-[11.5px] text-neutral-600 dark:text-neutral-400">
+        <pre className="mt-1.5 overflow-x-auto sm:ml-[104px] rounded-md bg-surface-active p-2 text-[11.5px] text-neutral-600 dark:text-neutral-400">
           {JSON.stringify(entry.meta, null, 2)}
         </pre>
       )}
@@ -194,7 +194,7 @@ const LiveLogs = () => {
         </Badge>
       </div>
 
-      <Card className="flex h-[calc(100vh-16rem)] min-h-[380px] animate-slide-up flex-col overflow-hidden">
+      <Card className="flex h-[calc(100dvh-12rem)] min-h-[420px] animate-slide-up sm:h-[calc(100dvh-16rem)] sm:min-h-[380px] flex-col overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-border-light px-4 py-3">
           <div className="flex flex-wrap items-center gap-1.5">
             {LEVELS.map((level) => {
@@ -223,7 +223,7 @@ const LiveLogs = () => {
             placeholder="Search logs..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="ml-auto w-56"
+            className="w-full sm:ml-auto sm:w-56"
           />
 
           <div className="flex items-center gap-2 text-xs text-text-secondary">
