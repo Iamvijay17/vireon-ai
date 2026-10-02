@@ -6,12 +6,13 @@
    deploy.ps1 -Poll              deploy origin/main if CI built images for it
    deploy.ps1 -Tag sha-abc123    deploy a specific image tag
    deploy.ps1 -Rollback          return to the previous good version
+   deploy.ps1 -PruneOnly         just clean up old Docker images/cache (also runs after every deploy)
 
  Safety: images only exist for commits that passed CI (deploy.yml pushes them
  after ci.yml succeeds), so "no image yet" simply means "not ready - skip".
  A failed health check automatically rolls back to the previous version.
 #>
-param([switch]$Poll, [switch]$Rollback, [string]$Tag, [switch]$Force)
+param([switch]$Poll, [switch]$Rollback, [string]$Tag, [switch]$Force, [switch]$PruneOnly)
 # Continue: native tools (docker, git, npm) write progress to stderr, which 'Stop' would treat as failure.
 # Failures are detected via $LASTEXITCODE below.
 $ErrorActionPreference = 'Continue'
@@ -31,6 +32,32 @@ function Notify([string]$title, [string]$msg, [string]$prio = 'default', [string
 function Log($m) { $l = "$(Get-Date -Format s) $m"; Write-Host $l; Add-Content $logFile $l }
 function Load-State { if (Test-Path $stateFile) { Get-Content $stateFile -Raw | ConvertFrom-Json } else { [pscustomobject]@{ current = ''; previous = ''; bad = @() } } }
 function Save-State($s) { $s | ConvertTo-Json | Set-Content $stateFile }
+
+# Every deploy pulls a new pair of images and leaves the previous ones behind;
+# on a PC whose C: drive is small that adds up. Keep only the version running
+# now, the previous one (the rollback target) and `latest`; remove the other
+# Vireon sha-tagged images, dangling layers and week-old build cache. Targeted
+# on purpose: never `docker image prune -a`, which would also delete mongo:7
+# (needed by the nightly backup) and other images that are merely idle.
+function Prune-Docker([string[]]$keepTags) {
+  # Housekeeping must never fail a deploy (it runs inside the deploy's try/catch).
+  try {
+  $keep = @($keepTags | Where-Object { $_ }) + 'latest'
+  $before = (Get-PSDrive C).Free
+  $refs = @(docker image ls --format '{{.Repository}}:{{.Tag}}' 2>$null | Where-Object { $_ -match '/vireon-(backend|frontend):sha-' })
+  foreach ($ref in $refs) {
+    $tag = $ref.Substring($ref.LastIndexOf(':') + 1)
+    if ($keep -notcontains $tag) {
+      docker image rm $ref 2>&1 | Out-Null   # refuses (harmlessly) if a container still uses it
+      if ($LASTEXITCODE -eq 0) { Log "pruned image $ref" }
+    }
+  }
+  docker image prune -f 2>&1 | Out-Null
+  docker builder prune -f --filter 'until=168h' 2>&1 | Out-Null
+  $freed = [math]::Round(((Get-PSDrive C).Free - $before) / 1MB)
+  Log "Docker cleanup done (C: free changed by $freed MB; Docker may release its disk file lazily)"
+  } catch { Log "Docker cleanup skipped: $($_.Exception.Message)" }
+}
 
 function Wait-Healthy([int]$seconds = 120) {
   $end = (Get-Date).AddSeconds($seconds)
@@ -74,6 +101,8 @@ function Apply([string]$tag, [string]$sha) {
 
 $state = Load-State
 try {
+  if ($PruneOnly) { Prune-Docker @($state.current, $state.previous); exit 0 }
+
   if ($Rollback) {
     if (-not $state.previous) { throw 'no previous version recorded' }
     Log "Manual rollback to $($state.previous)"
@@ -102,7 +131,7 @@ try {
   try {
     Apply $Tag $sha
     $state.previous = $prev; $state.current = $Tag
-    Save-State $state; Log "Deploy OK: $Tag"; Notify 'Vireon deployed' "Now running $($Tag.Substring(0,[Math]::Min(14,$Tag.Length)))" 'low' 'rocket'
+    Save-State $state; Log "Deploy OK: $Tag"; Prune-Docker @($Tag, $prev); Notify 'Vireon deployed' "Now running $($Tag.Substring(0,[Math]::Min(14,$Tag.Length)))" 'low' 'rocket'
   } catch {
     Log "DEPLOY FAILED ($($_.Exception.Message)) - rolling back to '$prev'"
     $state.bad = @($state.bad) + $Tag
