@@ -60,8 +60,8 @@ const Dashboard = () => {
 
   const invalidate = useInvalidate();
 
-  // Memoized so the derived-list useMemo below keeps a stable dependency;
-  // the React compiler cannot see through a bare `??` expression.
+  // Memoized so `jobs` keeps a stable identity between renders; the React
+  // compiler cannot see through a bare `??` expression.
   const jobs = useMemo(() => data?.jobs ?? EMPTY_JOBS, [data]);
   const pagination = data?.pagination ?? { page, total: 0, pages: 0 };
 
@@ -131,14 +131,14 @@ const Dashboard = () => {
     { title: "Failed", value: jobs.filter((j) => j.status === "FAILED").length, icon: XCircle, tone: "danger" },
   ];
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return jobs.filter((j) => {
-      if (statusFilter !== "all" && classifyStatus(j.status) !== statusFilter) return false;
-      if (!q) return true;
-      return j.topic?.toLowerCase().includes(q) || j.type?.toLowerCase().includes(q);
-    });
-  }, [jobs, query, statusFilter]);
+  // Not memoized: at most one page of jobs, and the React Compiler rule
+  // (preserve-manual-memoization) could not preserve a hand-written useMemo here.
+  const q = query.trim().toLowerCase();
+  const filtered = jobs.filter((j) => {
+    if (statusFilter !== "all" && classifyStatus(j.status) !== statusFilter) return false;
+    if (!q) return true;
+    return j.topic?.toLowerCase().includes(q) || j.type?.toLowerCase().includes(q);
+  });
 
   const pageSize = 20;
   const totalPages = pagination.pages || Math.ceil(pagination.total / pageSize) || 1;

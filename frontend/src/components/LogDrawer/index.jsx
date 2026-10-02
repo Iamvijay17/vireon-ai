@@ -152,7 +152,6 @@ const LogDrawer = () => {
     const minY = 70;
     const maxY = H - 70;
     let nextEdge = dragRef.current.edge;
-    let nextOffset = dragRef.current.offset;
 
     // Switch sides when the pointer crosses the screen's horizontal middle.
     if (dragRef.current.edge === "right" && px < W / 2) {
@@ -161,7 +160,7 @@ const LogDrawer = () => {
       nextEdge = "right";
     }
     // Stay docked on the current side edge, following the pointer vertically.
-    nextOffset = Math.min(Math.max(py, minY), maxY);
+    const nextOffset = Math.min(Math.max(py, minY), maxY);
 
     setEdge(nextEdge);
     setOffset(nextOffset);

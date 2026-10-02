@@ -31,7 +31,6 @@ const PendingPieces = ({ pieces, label }) => {
 
 const HistoryItem = ({ item, deletingId, onDelete }) => {
   const isDialogue = item.mode === "dialogue";
-  const pending = item.status === "PENDING";
   const pieces = isDialogue ? item.turns : item.chunks;
 
   return (

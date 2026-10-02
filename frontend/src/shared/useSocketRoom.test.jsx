@@ -1,5 +1,7 @@
 // Explicit React import: the test transform here does not apply the
-// automatic JSX runtime the app build uses.
+// automatic JSX runtime the app build uses. The JSX below compiles to React.*
+// calls, which the linter cannot see.
+// eslint-disable-next-line no-unused-vars
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, act } from "@testing-library/react";
