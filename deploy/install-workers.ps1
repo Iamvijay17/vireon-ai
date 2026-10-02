@@ -1,60 +1,75 @@
 <#
- Registers the two BullMQ workers as Windows scheduled tasks that start at
- logon and auto-restart on crash. Run once, in an elevated PowerShell, from
- the production checkout:   powershell -ExecutionPolicy Bypass -File deploy\install-workers.ps1
+ Registers every Vireon background job as a Windows scheduled task:
+   VireonVideoWorker / VireonCourseWorker  BullMQ workers (start at logon, restart on crash)
+   VireonMinio                              MinIO object storage (start at logon)
+   VireonWatchdog                           every 2 min: health checks, auto-restart, alerts
+   VireonBackup                             nightly 03:00
+   VireonDeployPoll                         every 5 min: pull-based deploy
+ Safe to re-run: existing tasks are replaced. Run from the production checkout:
+   powershell -ExecutionPolicy Bypass -File deploy\install-workers.ps1
  Workers stay native (not Docker): they launch Ollama / Qwen3-TTS / MuseTalk /
  ComfyUI / Remotion from local paths and need the GPU.
+
+ Every task is launched through deploy\run-hidden.vbs so no terminal window ever
+ appears (see that file for why plain powershell.exe / node.exe do not work).
 #>
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $backend = Join-Path $repo 'backend'
 $node = (Get-Command node).Source
 $user = "$env:USERDOMAIN\$env:USERNAME"
+$wscript = Join-Path $env:WINDIR 'System32\wscript.exe'
+$runHidden = Join-Path $PSScriptRoot 'run-hidden.vbs'
+$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 
-$tasks = @{
+# An action that runs `$Program $ProgramArgs` with no visible window.
+function New-HiddenAction([string]$Program, [string]$ProgramArgs, [string]$WorkDir) {
+  $argLine = "//B //Nologo `"$runHidden`" `"$Program`" $ProgramArgs"
+  New-ScheduledTaskAction -Execute $wscript -Argument $argLine -WorkingDirectory $WorkDir
+}
+
+# Settings for long-running tasks that must come back after a crash.
+function New-ServiceSettings {
+  New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `
+    -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+}
+
+function Register([string]$Name, $Action, $Trigger, $Settings) {
+  Register-ScheduledTask -TaskName $Name -Action $Action -Trigger $Trigger -Settings $Settings -Principal $principal -Force | Out-Null
+  Write-Host "Registered $Name"
+}
+
+$psArgs = '-NoProfile -ExecutionPolicy Bypass'
+
+# Workers
+$workers = @{
   'VireonVideoWorker'  = 'src\workers\videoWorker.js'
   'VireonCourseWorker' = 'src\workers\courseVideoWorker.js'
 }
-foreach ($name in $tasks.Keys) {
-  $action   = New-ScheduledTaskAction -Execute $node -Argument $tasks[$name] -WorkingDirectory $backend
-  $trigger  = New-ScheduledTaskTrigger -AtLogOn -User $user
-  $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `
-    -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-  $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
-  Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
-  Write-Host "Registered $name"
+foreach ($name in $workers.Keys) {
+  Register $name (New-HiddenAction $node $workers[$name] $backend) (New-ScheduledTaskTrigger -AtLogOn -User $user) (New-ServiceSettings)
 }
 
-# MinIO (native, holds all generated media): start at logon, auto-restart. Takes ~10s to come up.
+# MinIO (native, holds all generated media). Takes ~10 s to come up after logon.
 $minioScript = 'D:\Programs\minio\start-minio.ps1'
 if (Test-Path $minioScript) {
-  $mAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$minioScript`"" -WorkingDirectory (Split-Path $minioScript)
-  $mSettings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-  Register-ScheduledTask -TaskName 'VireonMinio' -Action $mAction -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $user) -Settings $mSettings -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited) -Force | Out-Null
-  Write-Host 'Registered VireonMinio'
+  Register 'VireonMinio' (New-HiddenAction 'powershell.exe' "$psArgs -File `"$minioScript`"" (Split-Path $minioScript)) `
+    (New-ScheduledTaskTrigger -AtLogOn -User $user) (New-ServiceSettings)
 }
 
-# Watchdog: every 2 minutes - restarts stopped services, sends ntfy alerts.
-$wdAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSScriptRoot\watchdog.ps1`"" -WorkingDirectory $repo
-$wdTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)
-Register-ScheduledTask -TaskName 'VireonWatchdog' -Action $wdAction -Trigger $wdTrigger `
-  -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries) `
-  -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited) -Force | Out-Null
-Write-Host 'Registered VireonWatchdog'
+# Watchdog: every 2 minutes.
+Register 'VireonWatchdog' (New-HiddenAction 'powershell.exe' "$psArgs -File `"$PSScriptRoot\watchdog.ps1`"" $repo) `
+  (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)) `
+  (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries)
 
 # Nightly backup at 03:00 (runs at next start if the PC was off).
-$bkAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `\"$PSScriptRootackup.ps1`\"" -WorkingDirectory $repo
-Register-ScheduledTask -TaskName 'VireonBackup' -Action $bkAction -Trigger (New-ScheduledTaskTrigger -Daily -At 3am) `
-  -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 2)) `
-  -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited) -Force | Out-Null
-Write-Host 'Registered VireonBackup'
+Register 'VireonBackup' (New-HiddenAction 'powershell.exe' "$psArgs -File `"$PSScriptRoot\backup.ps1`"" $repo) `
+  (New-ScheduledTaskTrigger -Daily -At 3am) `
+  (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 2))
 
 # Pull-based deploy poller: every 5 minutes.
-$pollAction = New-ScheduledTaskAction -Execute 'powershell.exe' `
-  -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\deploy.ps1`" -Poll" -WorkingDirectory $repo
-$pollTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5)
-Register-ScheduledTask -TaskName 'VireonDeployPoll' -Action $pollAction -Trigger $pollTrigger `
-  -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew) `
-  -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited) -Force | Out-Null
-Write-Host 'Registered VireonDeployPoll'
+Register 'VireonDeployPoll' (New-HiddenAction 'powershell.exe' "$psArgs -File `"$PSScriptRoot\deploy.ps1`" -Poll" $repo) `
+  (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5)) `
+  (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew)
+
 Write-Host 'Start workers now:  Start-ScheduledTask VireonVideoWorker; Start-ScheduledTask VireonCourseWorker'

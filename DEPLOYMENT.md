@@ -193,6 +193,11 @@ Test a backup without touching Atlas: restore into a throwaway `docker run -d --
 - **Backend unhealthy:** `docker compose logs backend`. Usual causes: Atlas IP allow-list
   (add your home IP or 0.0.0.0/0 for free tier), wrong `MONGODB_URI`, Redis not up.
 - **Rate-limit hits for everyone:** `trust proxy` is set in production; ensure `NODE_ENV=production`.
+- **Terminal windows pop up / flash on Windows:** Task Scheduler starting `powershell.exe` or `node.exe` opens a console, which on
+  Windows 11 (Windows Terminal as default terminal) is a visible window - a flash every 2/5 minutes for the watchdog and deploy poller,
+  and a permanent window for each worker. `-WindowStyle Hidden` does not help (it hides the window only after it appeared). All Vireon
+  tasks therefore launch through `deployun-hidden.vbs` (`wscript.exe //B`, window style 0). Re-run `deploy\install-workers.ps1`
+  to re-register them; a plain `powershell.exe`/`node.exe` action in Task Scheduler brings the windows back.
 - **UI warns "course worker not running" / new jobs never start:** the workers and the API are on different Redis servers.
   Cause seen on 2026-10-02: after a reboot the worker started before Docker, saw no Redis and spawned its own native
   `redis-server.exe`; Docker's Redis then bound `127.0.0.1:6379` and the workers kept using the stray one (via `::1`).
