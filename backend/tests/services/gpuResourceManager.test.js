@@ -250,7 +250,7 @@ describe('GPUResourceManager with a lease (two processes, one GPU)', () => {
 
   it('does not strand the card when a service fails to start', async () => {
     const failing = {
-      ensureRunning: jest.fn(async () => { throw new Error('LM Studio refused to start'); }),
+      ensureRunning: jest.fn(async () => { throw new Error('Ollama refused to start'); }),
       unload: jest.fn(async () => {}),
     };
     a.register('broken', failing, { autoStop: false });

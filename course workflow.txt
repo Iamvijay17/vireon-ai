@@ -103,9 +103,9 @@ Explain React from scratch for beginners.
 
 Generate Script
 
-Backend sends the topic to the existing LM Studio integration.
+Backend sends the topic to the existing Ollama integration.
 
-LM Studio generates
+Ollama generates
 
 * Full narration
 * Introduction
@@ -431,7 +431,7 @@ The Video page should include
 
 # Technical Requirements
 
-* Existing LM Studio integration must be reused for script generation.
+* Existing Ollama integration must be reused for script generation.
 * Existing TTS pipeline must be reused for audio generation.
 * All generation steps should be asynchronous using background jobs.
 * Every step should be resumable if interrupted.

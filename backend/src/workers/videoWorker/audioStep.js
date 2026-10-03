@@ -52,7 +52,7 @@ async function run(jobId, videoJob, script, ctx) {
 
   // GPU-sequential: claim the GPU for TTS across the whole batch of scenes
   // (not per-scene) - releasing between scenes would just thrash
-  // start/stop against LM Studio/ComfyUI for no benefit, since this stage
+  // start/stop against Ollama/ComfyUI for no benefit, since this stage
   // owns TTS work start-to-finish anyway.
   try {
     await LocalAIService.gpu.withGPU('tts', () =>

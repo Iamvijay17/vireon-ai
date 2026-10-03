@@ -10,8 +10,7 @@ const validConfig = () => ({
   nodeEnv: 'development',
   mongodb: { uri: 'mongodb://localhost:27017/vireon-ai' },
   redis: { host: 'localhost', port: 6379 },
-  llm: { provider: 'lmstudio', timeout: 60000, maxRetries: 3 },
-  lmStudio: { url: 'http://localhost:1234/v1/chat/completions', model: 'gemma' },
+  llm: { timeout: 60000, maxRetries: 3 },
   ollama: { url: 'http://localhost:11434', model: 'gemma', numCtx: 16384 },
   gpu: { mode: 'sequential', maxConcurrent: 1, idleTimeoutMs: 60000, coordinator: 'in-process', leaseTtlMs: 30000 },
   avatar: { url: 'http://127.0.0.1:8890', maxRetries: 3, timeout: 120000 },
@@ -83,11 +82,6 @@ describe('validateConfig', () => {
     // parseInt(...) || default collapses NaN, so a 0 here means someone
     // explicitly set the env var to 0 - which disables the guard entirely.
     expect(issuesFor((c) => { c.minio.uploadTimeoutMs = 0; })[0].path).toBe('minio.uploadTimeoutMs');
-  });
-
-  it('rejects an unknown LLM provider', () => {
-    const issues = issuesFor((c) => { c.llm.provider = 'openai'; });
-    expect(issues[0].message).toContain('LLM_PROVIDER');
   });
 
   it('rejects an unknown IR mode and GPU coordinator', () => {

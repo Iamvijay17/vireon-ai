@@ -12,7 +12,7 @@ function classifyError(err, step) {
   const detail = err?.message || String(err);
   const lower = detail.toLowerCase();
 
-  if (/(lm studio|ollama|llm) failed/i.test(detail)) {
+  if (/(ollama|llm) failed/i.test(detail)) {
     return { friendly: 'Script generation failed - the AI model server did not respond in time. This is usually temporary.', detail };
   }
   if (/tts failed/i.test(detail)) {

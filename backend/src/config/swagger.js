@@ -37,7 +37,7 @@ const definition = {
     { name: 'Audio', description: 'Standalone text-to-speech generation (Audio Studio)' },
     { name: 'Analytics', description: 'Dashboard/overview statistics' },
     { name: 'Logs', description: 'Live server log stream (recent buffer)' },
-    { name: 'System', description: 'Local AI Service Manager - LM Studio/Qwen3-TTS status and control' },
+    { name: 'System', description: 'Local AI Service Manager - Ollama/Qwen3-TTS status and control' },
   ],
   components: {
     schemas: {

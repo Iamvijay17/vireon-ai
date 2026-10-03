@@ -4,35 +4,13 @@ const LoggerService = require('./LoggerService');
 const JsonRepairService = require('./JsonRepairService');
 const LocalAIService = require('../localAI');
 
-const PROVIDER_LABEL = { lmstudio: 'LM Studio', ollama: 'Ollama' };
-
 /**
- * Service for interacting with the local LLM - LM Studio or Ollama, picked
- * by LLM_PROVIDER (config.llm.provider).
+ * Service for interacting with the local LLM (Ollama).
  * Single Responsibility: AI text generation via the local LLM server.
  */
 class LLMService {
-  static get providerLabel() {
-    return PROVIDER_LABEL[config.llm.provider] || config.llm.provider;
-  }
-
   static get model() {
-    return config.llm.provider === 'ollama' ? config.ollama.model : config.lmStudio.model;
-  }
-
-  /** LM Studio: OpenAI-compatible chat-completions. Returns the raw text. */
-  static async _requestLMStudio(prompt, { maxTokens, timeout }) {
-    const response = await axios.post(
-      config.lmStudio.url,
-      {
-        model: config.lmStudio.model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: maxTokens,
-      },
-      { headers: { 'Content-Type': 'application/json' }, timeout }
-    );
-    return response.data?.choices?.[0]?.message?.content;
+    return config.ollama.model;
   }
 
   /**
@@ -96,18 +74,17 @@ class LLMService {
     // every request - it's just a health check once the server is already up.
     await LocalAIService.llm.ensureRunning();
 
-    const label = this.providerLabel;
-    const request = config.llm.provider === 'ollama' ? this._requestOllama : this._requestLMStudio;
+    const label = 'Ollama';
     let lastError = null;
 
     for (let attempt = 1; attempt <= config.llm.maxRetries; attempt++) {
       try {
-        LoggerService.lmstudio(`Attempt ${attempt}/${config.llm.maxRetries}`, {
-          provider: config.llm.provider,
+        LoggerService.llm(`Attempt ${attempt}/${config.llm.maxRetries}`, {
+          provider: 'ollama',
           model: this.model,
         });
 
-        const content = await request.call(this, prompt, { maxTokens, timeout });
+        const content = await this._requestOllama(prompt, { maxTokens, timeout });
         if (!content) {
           throw new Error(`Empty response from ${label}`);
         }
@@ -140,9 +117,8 @@ class LLMService {
         LoggerService.warn(
           `${label} attempt ${attempt} failed${isLastAttempt ? ' (final)' : ''}`,
           {
-            // LM Studio nests the message under error.message, Ollama
-            // returns { error: "..." } directly.
-            error: err.response?.data?.error?.message || err.response?.data?.error || err.message,
+            // Ollama returns { error: "..." } directly.
+            error: err.response?.data?.error || err.message,
             status: err.response?.status,
           }
         );
@@ -170,7 +146,7 @@ class LLMService {
   static async generateScript(prompt, options = {}) {
     const parsed = await this._callLLM(prompt, options);
 
-    LoggerService.lmstudio(`Script generated successfully`, {
+    LoggerService.llm(`Script generated successfully`, {
       title: parsed.title,
       scenes: parsed.scenes?.length,
     });
@@ -223,7 +199,7 @@ Rules:
 
     const lessons = Array.isArray(parsed?.lessons) ? parsed.lessons : [];
     if (lessons.length === 0) {
-      throw new Error(`${this.providerLabel} returned no lessons for curriculum`);
+      throw new Error(`Ollama returned no lessons for curriculum`);
     }
 
     const subtitle = typeof parsed?.subtitle === 'string' ? parsed.subtitle : '';
@@ -251,7 +227,7 @@ Rules:
           description: 'Course promo/trailer video',
         };
 
-    LoggerService.lmstudio('Curriculum generated successfully', {
+    LoggerService.llm('Curriculum generated successfully', {
       courseTitle,
       lessons: lessons.length,
     });

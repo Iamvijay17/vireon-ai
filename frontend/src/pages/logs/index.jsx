@@ -20,7 +20,7 @@ const LEVELS = [
   { value: "error", label: "Error", dot: "bg-red-500 dark:bg-red-400", text: "text-red-600 dark:text-red-400" },
   { value: "warn", label: "Warn", dot: "bg-amber-500 dark:bg-amber-400", text: "text-amber-600 dark:text-amber-400" },
   { value: "info", label: "Info", dot: "bg-sky-500 dark:bg-sky-400", text: "text-sky-600 dark:text-sky-400" },
-  { value: "lmstudio", label: "LLM", dot: "bg-violet-500 dark:bg-violet-400", text: "text-violet-600 dark:text-violet-400" },
+  { value: "llm", label: "LLM", dot: "bg-violet-500 dark:bg-violet-400", text: "text-violet-600 dark:text-violet-400" },
   { value: "tts", label: "TTS", dot: "bg-emerald-500 dark:bg-emerald-400", text: "text-emerald-600 dark:text-emerald-400" },
   { value: "render", label: "Render", dot: "bg-slate-500 dark:bg-slate-400", text: "text-slate-600 dark:text-slate-400" },
   { value: "upload", label: "Upload", dot: "bg-orange-500 dark:bg-orange-400", text: "text-orange-600 dark:text-orange-400" },

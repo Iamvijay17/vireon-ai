@@ -123,7 +123,7 @@ async function regenerateScript(jobId) {
  * Stop a running job. Marks it CANCELLED immediately - if the job hasn't
  * started processing yet, the caller (VideoController.stop) also removes
  * it from the BullMQ queue so it never starts. If it's already mid-flight,
- * there's no general way to kill an in-progress external call (LM Studio/
+ * there's no general way to kill an in-progress external call (Ollama/
  * upload) directly, so the worker itself checks for CANCELLED at each step
  * boundary and between per-scene iterations, and bails out as soon as it
  * notices - see videoWorker/shared.js's `bailIfCancelled`. The TTS and

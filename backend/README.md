@@ -10,7 +10,7 @@ For the project overview and deployment, see the [root README](../README.md).
 - **Database:** MongoDB (Mongoose)
 - **Queues:** BullMQ on Redis (`video-rendering`, plus a course queue)
 - **Realtime:** Socket.IO
-- **LLM:** Ollama (default) or LM Studio, chosen by `LLM_PROVIDER`
+- **LLM:** Ollama
 - **TTS:** self-hosted Qwen3-TTS; faster-whisper forced alignment (`services/audio/alignCaptions.py`) for caption timing
 - **Avatar / images (optional):** MuseTalk, ComfyUI
 - **Rendering:** Remotion (templates live in [`remotion/`](remotion/README.md))
@@ -36,7 +36,7 @@ src/
 │   ├── audio/     # TTS client, caption alignment
 │   ├── avatar/    # MuseTalk avatar + narration track
 │   ├── director/  # AI director: scene, visual, motion and voice planning
-│   ├── localAI/   # start/stop/health managers for Ollama, LM Studio, TTS, ComfyUI, MuseTalk + GPU slot manager
+│   ├── localAI/   # start/stop/health managers for Ollama, TTS, ComfyUI, MuseTalk + GPU slot manager
 │   ├── storage/   # StorageService + MinIO provider
 │   ├── asset/     # asset library
 │   ├── job/       # cross-type job aggregation
@@ -85,7 +85,7 @@ Script content lives in MongoDB. `backend/jobs/` is scratch space only and is wi
 
 ## Running
 
-Prerequisites: MongoDB, Redis, MinIO, Ollama (or LM Studio) and the TTS server. See the root README.
+Prerequisites: MongoDB, Redis, MinIO, Ollama and the TTS server. See the root README.
 
 ```bash
 npm install
@@ -103,7 +103,7 @@ npm run course-worker:dev
 | `npm test` / `test:watch` / `test:coverage` | Jest |
 | `npm run lint` | ESLint over `src/` |
 
-Local AI services (Ollama, LM Studio, TTS, ComfyUI, MuseTalk) can be started on demand by the workers via the `*_AUTO_START` and `*_START_COMMAND` settings, and controlled through `/api/system/ai-services`. When more than one process uses the GPU, set `GPU_COORDINATOR=redis` (see [`src/core/README.md`](src/core/README.md)).
+Local AI services (Ollama, TTS, ComfyUI, MuseTalk) can be started on demand by the workers via the `*_AUTO_START` and `*_START_COMMAND` settings, and controlled through `/api/system/ai-services`. When more than one process uses the GPU, set `GPU_COORDINATOR=redis` (see [`src/core/README.md`](src/core/README.md)).
 
 ## API
 
@@ -145,11 +145,9 @@ MINIO_ROOT_USER=
 MINIO_ROOT_PASSWORD=
 MINIO_PUBLIC_URL=http://127.0.0.1:9000
 
-LLM_PROVIDER=ollama              # or lmstudio
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=gemma4:e4b-it-qat
 OLLAMA_NUM_CTX=16384
-LM_STUDIO_URL=http://localhost:1234/v1/chat/completions
 TTS_API_URL=http://localhost:7860
 
 VIDEO_WORKER_CONCURRENCY=1       # keep at 1 on a 6 GB GPU

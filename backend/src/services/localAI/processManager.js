@@ -4,7 +4,7 @@ const LoggerService = require('../common/LoggerService');
 
 /**
  * Splits a single command-line string (as stored in e.g.
- * LM_STUDIO_START_COMMAND/TTS_START_COMMAND) into a { command, args } pair
+ * OLLAMA_START_COMMAND/TTS_START_COMMAND) into a { command, args } pair
  * suitable for child_process.spawn(command, args) - i.e. WITHOUT shell:true,
  * so a value coming from a .env file is never interpreted by a shell.
  * Supports double/single-quoted segments so a Windows path with spaces
@@ -22,7 +22,7 @@ function parseCommand(commandString) {
 }
 
 /**
- * Tracks and controls exactly one long-running local process (LM Studio's
+ * Tracks and controls exactly one long-running local process (Ollama's
  * server, the Qwen3-TTS Gradio app, ...). One instance per service - never
  * shared - so stop()/isAlive() can only ever act on a PID this instance
  * itself spawned, never an unrelated process that happens to occupy the
@@ -132,7 +132,7 @@ class ManagedProcess extends EventEmitter {
    *
    * Originally tried a graceful `child.kill('SIGTERM')` first, only falling
    * back to `taskkill /T` after a timeout. That's wrong on Windows for
-   * these specific services: LM Studio/Qwen3-TTS/LivePortrait's venv
+   * these specific services: Qwen3-TTS/LivePortrait's venv
    * python.exe re-execs itself as a CHILD process under a different
    * interpreter (e.g. Qwen3-TTS's venv python.exe launches
    * `...\miniforge\python.exe app.py` as a child, which is the one that
