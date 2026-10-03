@@ -29,6 +29,10 @@ const VIDEO_JOB_TRANSITIONS = Object.freeze({
   generateAudio: [JOB_STATUS.SCRIPT_COMPLETED],
   // Manual-mode only: rendering requires completed audio.
   generateRender: [JOB_STATUS.AUDIO_COMPLETED],
+  // A finished (or failed, or audio-complete manual-mode) job can have one scene's
+  // picture re-rolled. Earlier states have no images yet - they get made when the
+  // pipeline reaches the image step anyway.
+  regenerateImage: [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.AUDIO_COMPLETED],
   // Anything short of a full success can be restarted/resumed.
   restart: ALL_STATUSES.filter((s) => s !== JOB_STATUS.COMPLETED),
 });

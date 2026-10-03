@@ -325,4 +325,24 @@ router.get('/:id/activity-logs', authenticate, CourseVideoController.getActivity
  */
 router.get('/:id/download', authenticate, CourseVideoController.download);
 
+/**
+ * @swagger
+ * /api/course-videos/{id}/captions:
+ *   get:
+ *     summary: Download the captions as SRT or WebVTT
+ *     description: >
+ *       The lesson's narration as a subtitle file. Timed from the word-level forced alignment, with scene starts laid out the way the
+ *       renderer does. A scene without alignment gets its narration spread evenly over its audio.
+ *       404 until the script has narration.
+ *     tags: [Course Videos]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/EntityId' }
+ *       - { in: query, name: format, schema: { type: string, enum: [srt, vtt], default: srt } }
+ *     responses:
+ *       200: { description: Subtitle file }
+ *       400: { description: Unknown format }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.get('/:id/captions', authenticate, CourseVideoController.captions);
+
 module.exports = router;

@@ -41,16 +41,8 @@ const configSchema = z.object({
   }),
 
   llm: z.object({
-    provider: z.enum(['lmstudio', 'ollama'], {
-      errorMap: () => ({ message: 'LLM_PROVIDER must be "lmstudio" or "ollama"' }),
-    }),
     timeout: positiveInt('LLM_TIMEOUT'),
     maxRetries: z.number().int().min(0).max(10),
-  }),
-
-  lmStudio: z.object({
-    url: z.string().url('LM_STUDIO_URL must be a valid URL'),
-    model: z.string().min(1),
   }),
 
   ollama: z.object({

@@ -6,7 +6,7 @@ const { SERVICE_STATE, checkHealth, waitUntilHealthy } = require('./serviceHealt
 
 const managed = new ManagedProcess('Qwen3-TTS');
 
-// Same in-flight-promise concurrency guard as lmStudioManager - see there
+// Same in-flight-promise concurrency guard as ollamaManager - see there
 // for why (#11 in the spec: only one caller actually starts the process).
 let inFlightEnsure = null;
 
@@ -75,7 +75,7 @@ async function stop() {
 
 /**
  * A Gradio app has no "unload model, keep server up" operation the way
- * LM Studio's CLI does - the only way to actually free its VRAM is to kill
+ * Ollama's API does - the only way to actually free its VRAM is to kill
  * the process. Aliased so GPUResourceManager can call unload() uniformly
  * across every registered service.
  */

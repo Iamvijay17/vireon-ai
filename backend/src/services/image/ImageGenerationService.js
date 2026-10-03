@@ -32,10 +32,13 @@ class ImageGenerationService {
 
   /**
    * Seed derived from the prompt, so the same prompt always makes the same image
-   * (which is what lets the cache key below mean something across jobs).
+   * (which is what lets the cache key below mean something across jobs). A
+   * `variant` above 0 is a "try again": same prompt, a different seed, so a
+   * regenerate gives a new picture instead of the cached one.
    */
-  static seedFor(prompt) {
-    return crypto.createHash('sha256').update(String(prompt)).digest().readUIntBE(0, 6);
+  static seedFor(prompt, variant = 0) {
+    const input = variant > 0 ? `${prompt}#variant-${variant}` : String(prompt);
+    return crypto.createHash('sha256').update(input).digest().readUIntBE(0, 6);
   }
 
   static async _loadWorkflow() {
@@ -50,13 +53,13 @@ class ImageGenerationService {
   }
 
   /** Everything that decides what the image looks like - the cache key's inputs. */
-  static _params(prompt, aspectRatio) {
+  static _params(prompt, aspectRatio, variant = 0) {
     const { width, height } = this.sizeFor(aspectRatio);
     const g = config.imageGen;
     return {
       prompt,
       negative: g.negativePrompt,
-      seed: this.seedFor(prompt),
+      seed: this.seedFor(prompt, variant),
       width,
       height,
       steps: g.steps,
@@ -71,9 +74,9 @@ class ImageGenerationService {
    * Generate (or fetch from cache) the image for `prompt` and return its public URL.
    * @returns {Promise<{ url, fileName, cacheKey, fromCache, durationMs }>}
    */
-  static async generate({ jobId, prompt, aspectRatio, signal }) {
+  static async generate({ jobId, prompt, aspectRatio, variant = 0, signal }) {
     const { template, raw } = await this._loadWorkflow();
-    const params = this._params(prompt, aspectRatio);
+    const params = this._params(prompt, aspectRatio, variant);
 
     if (placeholdersIn(template).has('checkpoint') && !params.checkpoint) {
       throw configError('COMFYUI_CHECKPOINT is not set - name the checkpoint file ComfyUI should generate with (see backend/workflows/README.md)');

@@ -110,6 +110,11 @@ const updateVideoJobSchema = z
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No fields provided to update' });
 
+// Optional replacement prompt when re-rolling one scene's image.
+const regenerateImageSchema = z.object({
+  prompt: z.string().trim().max(400).optional(),
+});
+
 const jobIdSchema = z.object({
   id: z.string().regex(/^job-[0-9A-Z]{8}$/, 'Invalid video job id'),
 });
@@ -181,6 +186,7 @@ const validate = (schema) => (data) => {
 module.exports = {
   createVideoSchema,
   updateVideoJobSchema,
+  regenerateImageSchema,
   jobIdSchema,
   idSchema,
   idArraySchema,

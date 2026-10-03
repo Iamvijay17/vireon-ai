@@ -184,6 +184,7 @@ export const CaptionRenderer = React.memo(
 
     return (
       <div
+        data-qc="caption"
         style={{
           position: 'absolute',
           left: '50%',

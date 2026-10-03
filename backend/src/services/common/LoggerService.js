@@ -18,7 +18,7 @@ const customLevels = {
   http: 3,
   debug: 4,
   tts: 5,
-  lmstudio: 6,
+  llm: 6,
   render: 7,
   upload: 8,
 };
@@ -30,7 +30,7 @@ const customColors = {
   http: 'blue',
   debug: 'magenta',
   tts: 'green',
-  lmstudio: 'white',
+  llm: 'white',
   render: 'gray',
   upload: 'yellow',
 };
@@ -42,7 +42,7 @@ winston.addColors(customColors);
 // the main server process) picks up and pushes to connected browser clients.
 // Reuses the same channel/envelope as job-progress events. http/debug are
 // excluded - too noisy to be useful in a pipeline-activity console.
-const BROADCAST_LEVELS = new Set(['error', 'warn', 'info', 'tts', 'lmstudio', 'render', 'upload']);
+const BROADCAST_LEVELS = new Set(['error', 'warn', 'info', 'tts', 'llm', 'render', 'upload']);
 
 let logPublisher = null;
 function getLogPublisher() {
@@ -111,8 +111,8 @@ const logger = winston.createLogger({
       maxFiles: 10,
     }),
     new winston.transports.File({
-      filename: path.join(logDir, 'lmstudio.log'),
-      level: 'lmstudio',
+      filename: path.join(logDir, 'llm.log'),
+      level: 'llm',
       maxsize: 10 * 1024 * 1024,
       maxFiles: 5,
     }),
@@ -180,8 +180,8 @@ class LoggerService {
     logger.log('tts', message, meta);
   }
 
-  static lmstudio(message, meta = {}) {
-    logger.log('lmstudio', message, meta);
+  static llm(message, meta = {}) {
+    logger.log('llm', message, meta);
   }
 
   static render(message, meta = {}) {

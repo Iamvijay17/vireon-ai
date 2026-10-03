@@ -47,7 +47,7 @@ async function run(jobId, videoJob, currentStatus, ctx) {
 
   await bailIfCancelled(jobId);
 
-  // Call LM Studio via the AI Director pipeline: it plans the narrative
+  // Call Ollama via the AI Director pipeline: it plans the narrative
   // arc/style guide first (StoryStructureService), then writes scene
   // narration anchored to that plan in bounded chunks (ScenePlanningService)
   // - each chunk a small independent call the model can actually complete,
@@ -55,8 +55,8 @@ async function run(jobId, videoJob, currentStatus, ctx) {
   // video can ask for far more scenes than a single local-model response
   // reliably finishes generating before it stops mid-JSON. Short scripts
   // still resolve in one call.
-  // GPU-sequential: this dev machine's 6GB card can't hold LM Studio and
-  // Qwen3-TTS/ComfyUI loaded at once, so claim the GPU for LM Studio here
+  // GPU-sequential: this dev machine's 6GB card can't hold Ollama and
+  // Qwen3-TTS/ComfyUI loaded at once, so claim the GPU for Ollama here
   // and hold it across every call the Director makes, releasing only once
   // the whole script is generated - the audio step right after this one
   // will then need to wait/evict to get its turn.
@@ -118,7 +118,7 @@ async function run(jobId, videoJob, currentStatus, ctx) {
     scenes: validatedScript.scenes.length,
   });
 
-  // A stop request that arrived while the LM Studio call was in flight
+  // A stop request that arrived while the Ollama call was in flight
   // wouldn't have been caught by the checkpoint before that call - check
   // again now, before writing AWAITING_APPROVAL, so a cancellation can't
   // get silently overwritten by this step's own success path.

@@ -38,7 +38,7 @@ const describeVisual = (storyboard) => {
   return "The storyboard gave this scene no image.";
 };
 
-export const ImageTab = ({ scene, selectedSceneIndex, canEdit, editor }) => {
+export const ImageTab = ({ scene, selectedSceneIndex, canEdit, editor, canRegenerateImage, regeneratingImage, onRegenerateImage }) => {
   const visualNote = describeVisual(scene.storyboard);
   // The renderer reads the image from the scene's elements; imageUrl is what the
   // pipeline checks. Keep both in step, the way generated images are applied.
@@ -47,14 +47,43 @@ export const ImageTab = ({ scene, selectedSceneIndex, canEdit, editor }) => {
     editor.handleElementDirectFieldChange(selectedSceneIndex, scene.sceneType === "podcast" ? "hostImage" : "image", value);
   };
 
+  // Editing the prompt of a generated picture retires it, so the next render draws
+  // the new description. A pasted (manual) image is left alone.
+  const setPrompt = (value) => {
+    editor.handleFieldChange(selectedSceneIndex, "imagePrompt", value);
+    if (scene.storyboard?.visual?.status === "generated" && value !== scene.imagePrompt) {
+      setImageUrl("");
+    }
+  };
+  const hasPrompt = Boolean((scene.imagePrompt || "").trim());
+
   return (
   <div>
     <SectionLabel icon={ImageIcon}>Image</SectionLabel>
     <div className="space-y-3">
       {visualNote && <p className="text-[13px] text-text-secondary">{visualNote}</p>}
       <Field label="Image Prompt">
-        <Textarea rows={2} value={scene.imagePrompt || ""} onChange={(e) => editor.handleFieldChange(selectedSceneIndex, "imagePrompt", e.target.value)} disabled={!canEdit} placeholder="AI image generation prompt (only for image scenes)" />
+        <Textarea rows={2} value={scene.imagePrompt || ""} onChange={(e) => setPrompt(e.target.value)} disabled={!canEdit} placeholder="AI image generation prompt (only for image scenes)" />
       </Field>
+      {scene.storyboard?.visual?.status === "generated" && (
+        <p className="text-xs text-text-tertiary">Changing the prompt draws a new picture the next time the video is rendered.</p>
+      )}
+      {onRegenerateImage && (
+        <Tooltip content={canRegenerateImage ? "Draw a different picture from this prompt, then render again" : "Available on a finished video with no unsaved edits"}>
+          <span className="inline-block">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<RotateCw className="size-3.5" />}
+              loading={regeneratingImage}
+              disabled={!canRegenerateImage || !hasPrompt}
+              onClick={() => onRegenerateImage(scene.sceneNumber, scene.imagePrompt)}
+            >
+              Regenerate image
+            </Button>
+          </span>
+        </Tooltip>
+      )}
       <Field label="Image URL (manual override)">
         <Input
           value={scene.imageUrl || ""}

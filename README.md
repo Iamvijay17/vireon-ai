@@ -5,7 +5,7 @@ Self-hosted AI video generation. Give it a topic (or a course outline) and it wr
 ## How it works
 
 ```
-Topic ──► Script (Ollama / LM Studio) ──► Narration (Qwen3-TTS) ──► Caption alignment (faster-whisper)
+Topic ──► Script (Ollama) ──► Narration (Qwen3-TTS) ──► Caption alignment (faster-whisper)
                                                  │
                               optional avatar (MuseTalk) / images (ComfyUI)
                                                  ▼
@@ -35,7 +35,7 @@ The root `package.json` is an npm workspace (`frontend`, `backend/remotion`) wit
 - **API:** Node.js 22, Express 5, Zod, Winston, Swagger UI at `/api-docs`
 - **Data:** MongoDB (Atlas or local), Redis + BullMQ for queues
 - **Storage:** MinIO (S3-compatible) — buckets `vireon-scenes` (audio/avatar) and `vireon-video` (renders)
-- **LLM:** Ollama (default, `gemma4:e4b-it-qat`) or LM Studio, selected by `LLM_PROVIDER`
+- **LLM:** Ollama (`gemma4:e4b-it-qat`)
 - **TTS:** Qwen3-TTS, with forced alignment via faster-whisper for caption timing
 - **Render:** Remotion 4
 - **Frontend:** React 19, Vite, Tailwind CSS 4, TanStack Query, Socket.IO client
@@ -98,7 +98,6 @@ Key variables (see [`backend/.env.example`](backend/.env.example) and [`.env.exa
 | `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | Object storage |
 | `MINIO_PUBLIC_URL` | URL stored in Mongo for media; the frontend re-homes it to `/media` in production |
 | `CORS_ORIGIN` | Must match the URL users open |
-| `LLM_PROVIDER` | `ollama` or `lmstudio` |
 | `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_NUM_CTX` | Ollama settings |
 | `TTS_API_URL` | Qwen3-TTS server |
 | `VIDEO_WORKER_CONCURRENCY` | Parallel video jobs (keep at 1 on a 6 GB GPU) |

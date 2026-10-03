@@ -8,6 +8,7 @@ const { validate, idSchema, idArraySchema } = require('../validators');
 const { getStorageProvider } = require('../services/storage/providers');
 const { sanitizeFilename } = require('../utils/filename');
 const { NotFoundError, ValidationError } = require('../utils/errors');
+const { sendSubtitles } = require('../utils/subtitleResponse');
 
 const VALID_BULK_ACTIONS = ['generate-script', 'generate-audio', 'render', 'generate-full'];
 
@@ -354,6 +355,20 @@ class CourseVideoController {
       res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(video.title)}.mp4"`);
       stream.on('error', next);
       stream.pipe(res);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/course-videos/:id/captions?format=srt|vtt - The lesson's narration
+   * as a subtitle file, timed from the word-level alignment.
+   */
+  static async captions(req, res, next) {
+    try {
+      const { id } = validate(idSchema)({ id: req.params.id });
+      const video = await CourseVideoService.getById(id);
+      sendSubtitles(req, res, { scenes: video.script?.scenes, title: video.title });
     } catch (err) {
       next(err);
     }

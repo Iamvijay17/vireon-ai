@@ -44,7 +44,7 @@ reason is specific:
 > so those N nodes would serialize on the GPU lease anyway. Worse,
 > `audioStep.js` deliberately holds the GPU **once across the whole batch**;
 > a per-scene graph node would acquire and release per scene, thrashing
-> start/stop against LM Studio and ComfyUI for no throughput gain.
+> start/stop against Ollama and ComfyUI for no throughput gain.
 
 So switching today trades a real regression for a theoretical win.
 

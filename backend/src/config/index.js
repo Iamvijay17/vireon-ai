@@ -35,20 +35,11 @@ const config = Object.freeze({
     port: parseInt(process.env.REDIS_PORT, 10) || 6379,
   },
 
-  // Which local LLM server backs script/curriculum generation. Both are
-  // driven through the same LLMService + GPU 'llm' slot; only the process
-  // manager (localAI/lmStudioManager vs ollamaManager) and the request shape
-  // differ. timeout/maxRetries are provider-neutral - LLM_* wins, the older
-  // LM_STUDIO_* names still work so an existing .env keeps its tuning.
+  // timeout/maxRetries apply to every script/curriculum generation call
+  // (LLMService), which talks to Ollama - see config.ollama below.
   llm: {
-    provider: (process.env.LLM_PROVIDER || 'lmstudio').toLowerCase(),
-    timeout: parseInt(process.env.LLM_TIMEOUT || process.env.LM_STUDIO_TIMEOUT, 10) || 60000,
-    maxRetries: parseInt(process.env.LLM_MAX_RETRIES || process.env.LM_STUDIO_MAX_RETRIES, 10) || 3,
-  },
-
-  lmStudio: {
-    url: process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/chat/completions',
-    model: process.env.LM_STUDIO_MODEL || 'google/gemma-4-e4b',
+    timeout: parseInt(process.env.LLM_TIMEOUT, 10) || 60000,
+    maxRetries: parseInt(process.env.LLM_MAX_RETRIES, 10) || 3,
   },
 
   // Ollama is called through its native /api/chat (not the OpenAI-compat
@@ -83,42 +74,12 @@ const config = Object.freeze({
   },
 
   // Local AI Service Manager (backend/src/services/localAI): auto-starts
-  // LM Studio and the Qwen3-TTS Gradio server (normally launched by hand)
+  // Ollama and the Qwen3-TTS Gradio server (normally launched by hand)
   // so a job never fails just because the user forgot to open them first.
   // Health-check URLs default to derivations of
-  // the existing lmStudio.url/tts.url above rather than separate hardcoded
+  // the existing ollama.url/tts.url above rather than separate hardcoded
   // host/port literals, so the two stay in sync.
   localAI: {
-    lmStudio: {
-      enabled: process.env.LM_STUDIO_ENABLED !== 'false',
-      // ENABLED is the master on/off switch for the whole integration;
-      // AUTO_START/AUTO_STOP separately govern the GPU-sequential lifecycle
-      // (GPUResourceManager) - AUTO_START gates whether ensureRunning() may
-      // spawn it at all (false = health-check only, error if not already
-      // up), AUTO_STOP gates whether releasing the GPU actively
-      // unloads/stops it or leaves it warm indefinitely.
-      autoStart: process.env.LM_STUDIO_AUTO_START !== 'false',
-      autoStop: process.env.LM_STUDIO_AUTO_STOP !== 'false',
-      // Where LM Studio's CLI (`lms`, ships on PATH with LM Studio's
-      // desktop app - see https://lmstudio.ai/docs/cli) lives. Used both to
-      // start the server and to JIT-load the configured model afterward.
-      cliPath: process.env.LM_STUDIO_CLI_PATH || 'lms',
-      // "lms server start" reuses whatever port the server last ran on if
-      // none is given - pass the configured one explicitly so a first-ever
-      // start also lands on the port lmStudio.url above expects.
-      startCommand:
-        process.env.LM_STUDIO_START_COMMAND ||
-        `lms server start --port ${new URL(process.env.LM_STUDIO_URL || 'http://localhost:1234').port || 1234}`,
-      healthUrl:
-        process.env.LM_STUDIO_HEALTH_URL ||
-        (process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/chat/completions').replace(
-          /\/v1\/chat\/completions\/?$/,
-          '/v1/models'
-        ),
-      startupTimeoutMs: parseInt(process.env.LM_STUDIO_STARTUP_TIMEOUT_MS, 10) || 60000,
-      healthCheckIntervalMs: parseInt(process.env.LM_STUDIO_HEALTH_CHECK_INTERVAL_MS, 10) || 2000,
-      healthCheckTimeoutMs: parseInt(process.env.LM_STUDIO_HEALTH_CHECK_TIMEOUT_MS, 10) || 3000,
-    },
     ollama: {
       enabled: process.env.OLLAMA_ENABLED !== 'false',
       autoStart: process.env.OLLAMA_AUTO_START !== 'false',
@@ -156,7 +117,7 @@ const config = Object.freeze({
       // leave unset if they're already globally on PATH.
       ffmpegPath: process.env.TTS_FFMPEG_PATH || '',
       healthUrl: process.env.TTS_HEALTH_URL || `${(process.env.TTS_API_URL || 'http://localhost:7860').replace(/\/$/, '')}/`,
-      // Loading the TTS model onto the GPU is slower than LM Studio's model
+      // Loading the TTS model onto the GPU is slower than Ollama's model
       // load, hence the longer default startup budget.
       startupTimeoutMs: parseInt(process.env.TTS_STARTUP_TIMEOUT_MS, 10) || 180000,
       healthCheckIntervalMs: parseInt(process.env.TTS_HEALTH_CHECK_INTERVAL_MS, 10) || 3000,
@@ -199,7 +160,7 @@ const config = Object.freeze({
   },
 
   // GPU Resource Manager (backend/src/services/localAI/gpuResourceManager):
-  // this dev machine has a single 6GB RTX 2060, so LM Studio + Qwen3-TTS +
+  // this dev machine has a single 6GB RTX 2060, so Ollama + Qwen3-TTS +
   // ComfyUI running their models at the same time reliably freezes/OOMs it.
   // maxConcurrent defaults to 1 - only one GPU-heavy local AI service is
   // allowed to hold its model loaded at a time; everything else either
@@ -214,7 +175,7 @@ const config = Object.freeze({
     // instead stays warm indefinitely until another service's acquire()
     // forces it out (GPU capacity is a hard limit either way).
     idleTimeoutMs: (parseInt(process.env.AI_SERVICE_IDLE_TIMEOUT, 10) || 60) * 1000,
-    // Coordination backend for LocalAIService.gpu (LM Studio/TTS/ComfyUI/
+    // Coordination backend for LocalAIService.gpu (Ollama/TTS/ComfyUI/
     // avatar sequencing). 'in-process' (default) is today's
     // GPUResourceManager, correct only because exactly one worker process
     // runs. 'redis' additionally backs it with core/leases/RedisLease, so a
@@ -324,6 +285,11 @@ const config = Object.freeze({
   // debugging. See CacheService.
   cache: {
     enabled: process.env.SMART_CACHE_ENABLED !== 'false',
+    // Cached objects older than this many days are expired by MinIO. 0 (the
+    // default) keeps them forever. Age counts from creation, so a popular
+    // entry is regenerated once after it expires - costs a re-run, never a
+    // broken video. See services/storage/cacheRetention.js.
+    retentionDays: Math.max(0, parseInt(process.env.CACHE_RETENTION_DAYS, 10) || 0),
   },
 
   cors: {
@@ -370,6 +336,16 @@ const config = Object.freeze({
     squareSize: process.env.IMAGE_SIZE_SQUARE || '768x768',
     timeoutMs: parseInt(process.env.IMAGE_TIMEOUT_MS, 10) || 300000,
     maxRetries: parseInt(process.env.IMAGE_MAX_RETRIES, 10) || 2,
+  },
+
+  // Layout QC (services/qc/): renders each scene in headless Chromium just before the
+  // video render and reports text that is cut off or off-frame, overlapping text,
+  // images that did not load. Off by default - it adds a Remotion bundle + a few
+  // seconds per video. It only reports; QC_FAIL_ON_ERROR=true makes errors stop the render.
+  qc: {
+    enabled: process.env.QC_ENABLED === 'true',
+    failOnError: process.env.QC_FAIL_ON_ERROR === 'true',
+    timeoutMs: parseInt(process.env.QC_TIMEOUT_MS, 10) || 300000,
   },
 
   security: {

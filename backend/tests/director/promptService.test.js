@@ -1,6 +1,6 @@
 jest.mock('../../src/services/common/LoggerService', () => ({
   info: jest.fn(), warn: jest.fn(), debug: jest.fn(), error: jest.fn(), success: jest.fn(),
-  lmstudio: jest.fn(), tts: jest.fn(), render: jest.fn(), upload: jest.fn(),
+  llm: jest.fn(), tts: jest.fn(), render: jest.fn(), upload: jest.fn(),
 }));
 const PromptService = require('../../src/services/common/PromptService');
 

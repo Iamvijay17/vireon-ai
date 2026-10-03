@@ -5,18 +5,17 @@ const { ManagedProcess, parseCommand } = require('./processManager');
 const { SERVICE_STATE, checkHealth, waitUntilHealthy } = require('./serviceHealth');
 
 /**
- * Ollama counterpart to lmStudioManager.js - same exported surface, so
- * localAI/index.js can register whichever one LLM_PROVIDER selects as the
- * GPU 'llm' slot. Differences from LM Studio:
+ * Process manager for the local Ollama server, registered as the GPU 'llm'
+ * slot by localAI/index.js.
  * - Model load/unload goes through the HTTP API (/api/ps, /api/generate
- *   with keep_alive) instead of a CLI.
+ *   with keep_alive).
  * - On Windows the tray app usually has `ollama serve` running already, so
  *   start() is only a fallback for when nothing answers the health check.
  */
 const managed = new ManagedProcess('Ollama');
 
-// Same concurrency guard as lmStudioManager: concurrent ensureRunning()
-// calls while Ollama is cold share one start instead of racing.
+// Concurrent ensureRunning() calls while Ollama is cold share one start
+// instead of racing.
 let inFlightEnsure = null;
 
 function cfg() {
@@ -49,14 +48,14 @@ async function ensureModelLoaded() {
     // /api/ps failed - fall through and let the load surface the real error.
   }
 
-  LoggerService.lmstudio(`[AI SERVICE] Loading Ollama model ${model}`);
+  LoggerService.llm(`[AI SERVICE] Loading Ollama model ${model}`);
   try {
     await axios.post(
       `${url}/api/generate`,
       { model, keep_alive: keepAlive, options: { num_ctx: numCtx } },
       { timeout: cfg().modelLoadTimeoutMs }
     );
-    LoggerService.lmstudio(`[AI SERVICE] Ollama model ${model} loaded`);
+    LoggerService.llm(`[AI SERVICE] Ollama model ${model} loaded`);
   } catch (err) {
     const detail = err.response?.data?.error || err.message;
     throw new Error(`Failed to load Ollama model "${model}": ${detail}`);
@@ -66,12 +65,12 @@ async function ensureModelLoaded() {
 async function start() {
   const { startCommand } = cfg();
   const { command, args } = parseCommand(startCommand);
-  LoggerService.lmstudio('[AI SERVICE] Starting Ollama', { command: startCommand });
+  LoggerService.llm('[AI SERVICE] Starting Ollama', { command: startCommand });
   managed.spawn({ command, args });
 }
 
 async function stop() {
-  LoggerService.lmstudio('[AI SERVICE] Stopping Ollama');
+  LoggerService.llm('[AI SERVICE] Stopping Ollama');
   // Only kills a server this backend spawned itself - a tray-app-owned
   // server is left alone, so unload first to free VRAM either way.
   await unload();
@@ -85,7 +84,7 @@ async function stop() {
  * other way (e.g. `ollama run` in a terminal) doesn't starve TTS/ComfyUI.
  */
 async function unload() {
-  LoggerService.lmstudio('[AI SERVICE] Unloading Ollama model(s) to free GPU');
+  LoggerService.llm('[AI SERVICE] Unloading Ollama model(s) to free GPU');
   try {
     const loaded = await listLoadedModels();
     await Promise.all(
@@ -106,7 +105,7 @@ async function restart() {
 
 async function waitUntilReady() {
   const { healthUrl, startupTimeoutMs, healthCheckIntervalMs, healthCheckTimeoutMs } = cfg();
-  LoggerService.lmstudio('[AI SERVICE] Waiting for Ollama');
+  LoggerService.llm('[AI SERVICE] Waiting for Ollama');
 
   const ready = await waitUntilHealthy(healthUrl, {
     timeoutMs: startupTimeoutMs,
@@ -119,7 +118,7 @@ async function waitUntilReady() {
   }
 
   await ensureModelLoaded();
-  LoggerService.lmstudio('[AI SERVICE] Ollama ready', { pid: managed.pid });
+  LoggerService.llm('[AI SERVICE] Ollama ready', { pid: managed.pid });
   return true;
 }
 
@@ -128,10 +127,10 @@ async function ensureRunning() {
     return true;
   }
 
-  LoggerService.lmstudio('[AI SERVICE] Checking Ollama');
+  LoggerService.llm('[AI SERVICE] Checking Ollama');
 
   if (await isRunning()) {
-    LoggerService.lmstudio('[AI SERVICE] Ollama already running');
+    LoggerService.llm('[AI SERVICE] Ollama already running');
     await ensureModelLoaded();
     return true;
   }
@@ -149,7 +148,7 @@ async function ensureRunning() {
     try {
       await start();
       await waitUntilReady();
-      LoggerService.lmstudio('[AI SERVICE] Ollama startup complete', {
+      LoggerService.llm('[AI SERVICE] Ollama startup complete', {
         durationMs: Date.now() - startedAt,
         pid: managed.pid,
       });

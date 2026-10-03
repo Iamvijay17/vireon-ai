@@ -13,7 +13,7 @@ describe('classifyError', () => {
    * otherwise, with nothing to notice it.
    */
   it.each([
-    ['LM Studio failed after 3 attempts: socket hang up', 'AI model server'],
+    ['Ollama failed after 3 attempts: socket hang up', 'AI model server'],
     ['Ollama failed after 3 attempts: timeout', 'AI model server'],
     ['TTS failed after 3 attempts: connection reset', 'text-to-speech'],
     ['Avatar generation failed after 2 attempts', 'animation service'],

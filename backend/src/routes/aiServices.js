@@ -8,7 +8,7 @@ const router = Router();
  * @swagger
  * /api/system/ai-services:
  *   get:
- *     summary: Status of the local AI services (LM Studio, Qwen3-TTS) the Local AI Service Manager controls
+ *     summary: Status of the local AI services (Ollama, Qwen3-TTS) the Local AI Service Manager controls
  *     tags: [System]
  *     responses:
  *       200:

@@ -2,7 +2,7 @@ const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
 
 /**
- * Enforces sequential (or capped-concurrent) GPU usage across LM Studio,
+ * Enforces sequential (or capped-concurrent) GPU usage across Ollama,
  * Qwen3-TTS, ComfyUI, etc. on hardware too small to run them all loaded at
  * once (this project's target: an RTX 2060 6GB). Registered services move
  * through: stopped -> starting -> busy -> ready -> (idle timeout or

@@ -156,6 +156,10 @@ export const generateVideoRender = (id) => api.post(`/api/videos/${id}/generate-
 
 export const rerenderVideoJob = (id) => api.post(`/api/videos/${id}/rerender`);
 
+// Re-roll one scene's generated image (optionally from a new prompt), then render again.
+export const regenerateVideoSceneImage = (id, sceneNumber, prompt) =>
+  api.post(`/api/videos/${id}/scenes/${sceneNumber}/regenerate-image`, prompt ? { prompt } : {});
+
 export const stopVideoJob = (id) => api.post(`/api/videos/${id}/stop`);
 
 export const updateVideoScenes = (id, scenes) => api.put(`/api/videos/${id}/scenes`, { scenes });

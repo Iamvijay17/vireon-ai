@@ -53,7 +53,6 @@ services:
       TTS_API_URL: http://host.docker.internal:7860
       TTS_AUTO_START: "false"
       AVATAR_AUTO_START: "false"
-      LLM_PROVIDER: ollama
     volumes:
       # Same scratch/log dirs the native workers use.
       - ./backend/jobs:/app/jobs

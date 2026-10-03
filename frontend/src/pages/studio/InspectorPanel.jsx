@@ -23,6 +23,9 @@ export const InspectorPanel = ({
   onVoiceChange,
   regeneratingScene,
   onRegenerateScene,
+  canRegenerateImage,
+  regeneratingImage,
+  onRegenerateImage,
 }) => (
   <Card className="flex min-h-0 flex-col">
     <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
@@ -60,7 +63,15 @@ export const InspectorPanel = ({
         <AnimationTab scene={scene} selectedSceneIndex={selectedSceneIndex} canEdit={canEdit} editor={editor} />
       )}
       {inspectorTab === "image" && (
-        <ImageTab scene={scene} selectedSceneIndex={selectedSceneIndex} canEdit={canEdit} editor={editor} />
+        <ImageTab
+          scene={scene}
+          selectedSceneIndex={selectedSceneIndex}
+          canEdit={canEdit}
+          editor={editor}
+          canRegenerateImage={canRegenerateImage}
+          regeneratingImage={regeneratingImage}
+          onRegenerateImage={onRegenerateImage}
+        />
       )}
       {inspectorTab === "audio" && (
         <AudioTab

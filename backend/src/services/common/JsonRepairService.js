@@ -1,7 +1,7 @@
 /**
  * Best-effort repair for near-valid JSON from a local LLM.
  * Single Responsibility: turn the two recurring failure shapes we actually
- * see from LM Studio into parseable JSON before giving up:
+ * see from Ollama into parseable JSON before giving up:
  *   - "Expected property name or '}'" etc. - the model wrote a literal
  *     newline/tab inside a narration string instead of escaping it, or left
  *     a trailing comma before a closing brace/bracket.
