@@ -285,6 +285,11 @@ const config = Object.freeze({
   // debugging. See CacheService.
   cache: {
     enabled: process.env.SMART_CACHE_ENABLED !== 'false',
+    // Cached objects older than this many days are expired by MinIO. 0 (the
+    // default) keeps them forever. Age counts from creation, so a popular
+    // entry is regenerated once after it expires - costs a re-run, never a
+    // broken video. See services/storage/cacheRetention.js.
+    retentionDays: Math.max(0, parseInt(process.env.CACHE_RETENTION_DAYS, 10) || 0),
   },
 
   cors: {

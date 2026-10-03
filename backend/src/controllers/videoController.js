@@ -5,6 +5,7 @@ const LoggerService = require('../services/common/LoggerService');
 const SocketService = require('../services/common/SocketService');
 const { validate, createVideoSchema, updateVideoJobSchema, regenerateImageSchema, jobIdSchema, jobIdArraySchema } = require('../validators');
 const { ValidationError } = require('../utils/errors');
+const { sendSubtitles } = require('../utils/subtitleResponse');
 
 /**
  * (Re-)enqueue a job for the worker, always under a BullMQ jobId matching
@@ -310,6 +311,20 @@ class VideoController {
         status: job.status,
         progress: job.progress,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/videos/:id/captions?format=srt|vtt - The narration as a subtitle
+   * file, timed from the word-level alignment (see utils/subtitles.js).
+   */
+  static async captions(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const job = await VideoService.getById(id);
+      sendSubtitles(req, res, { scenes: job.script?.scenes, title: job.script?.title || job.topic });
     } catch (err) {
       next(err);
     }

@@ -108,7 +108,7 @@ BullMQ 'video-rendering'    one job = whole pipeline in one processor (workers/v
 Preview/download   <video> from MinIO public URL (frontend re-homes to /media); Socket.IO progress
 ```
 
-The image step now exists (`workers/videoWorker/imageStep.js`) and sets `GENERATING_IMAGES` (56 to 59 percent). It is skipped when no scene needs an image, and only the scenes still missing one are processed on resume. With `COMFYUI_ENABLED=false`, which is the default and what prod has, every image scene falls back to text-only, so a render never fails over a missing picture unless `IMAGE_GEN_REQUIRED=true`. The Studio also has a per-scene image regenerate button and a `POST /api/videos/:id/scenes/:n/regenerate-image` route, but that work is uncommitted in the working tree.
+The image step now exists (`workers/videoWorker/imageStep.js`) and sets `GENERATING_IMAGES` (56 to 59 percent). It is skipped when no scene needs an image, and only the scenes still missing one are processed on resume. With `COMFYUI_ENABLED=false`, which is the default and what prod has, every image scene falls back to text-only, so a render never fails over a missing picture unless `IMAGE_GEN_REQUIRED=true`. The Studio also has a per-scene image regenerate button and a `POST /api/videos/:id/scenes/:n/regenerate-image` route, and both are committed (`5573303`).
 
 ---
 
@@ -222,7 +222,7 @@ Motion is a mix of **template-based**, **hardcoded** and **seeded-random**, plus
 | Styles | 🟢 4 named presets: `minimalClean`, `boldKaraoke`, `popPunch`, `neonGlow` |
 | Position, font | 🟡 top/center/bottom in `styleConfig`. Fonts follow the job's font pairing. |
 | Burn-in | 🟢 rendered by Remotion into the MP4 |
-| Export (SRT/VTT) | 🔴 none found by search |
+| Export (SRT/VTT) | 🟢 `GET /api/videos/:id/captions?format=srt|vtt` and the same for `/api/course-videos/:id`, built by `utils/subtitles.js` from the word alignment. No button in the UI yet. |
 | Multiple languages | 🟡 7 languages in UI and prompt. TTS `language:"Auto"`. Quality UNKNOWN. |
 
 Captions default **on for podcast scenes only**. Other scene types show narration as on-screen text instead.
@@ -251,7 +251,7 @@ Actual flow: `storyboard visual prompt (+ palette suffix) → ensureSceneImages 
 | URLs | `MINIO_PUBLIC_URL` + `/bucket/key`, stored in Mongo. The frontend re-homes them to `/media`. |
 | Local | `backend/jobs/{id}/` is scratch (script, assets.json, render). Wiped on completion by `StorageService.cleanupJob`. |
 | Cleanup | `deleteJob` removes scenes and video prefixes. The cache bucket is untouched. |
-| Expiration / lifecycle | 🔴 none found. The cache bucket grows without bound. |
+| Expiration / lifecycle | 🟡 `CACHE_RETENTION_DAYS` sets a MinIO expiry rule on the cache bucket (`services/storage/cacheRetention.js`). Default 0 keeps everything, and prod does not set it, so the bucket still grows without bound. |
 | Dedup | `Asset.contentHash` is recorded. Reuse relies on the TTS cache key, not byte dedup. |
 
 ---
@@ -343,7 +343,7 @@ Avatar clips are explicitly not cached, because they depend on the narration. Th
 | Settings | 🟡 | Mostly client-side `localStorage` preferences plus service status |
 | Captions UI | 🟡 | Animation chosen in wizard. No caption editor or export. |
 | Background music UI | 🔴 | |
-| AI image generation UI | 🟡 | Prompt field, manual URL override and a per-scene regenerate button (the last is uncommitted). Nothing shows whether generation is enabled. |
+| AI image generation UI | 🟡 | Prompt field, manual URL override and a per-scene regenerate button. Nothing shows whether generation is enabled. |
 | `/v2/*` shell | 🟡 | CreateVideo, Jobs, JobDetail, Overview |
 | Auth / login | 🔴 | none |
 
@@ -401,7 +401,7 @@ No placeholder charts found. `Metric.recordDuration` swallows errors by design.
 | Path traversal | 🟢 ids are regex-validated before becoming file or storage paths. Not every route verified. |
 | Command injection | 🟢 `execFile` / `spawn` with argv arrays, no shell. `startCommand` env values are operator-controlled. |
 | Remotion props | 🟢 | `utils/assetUrlGuard.js` runs in `RemotionService.validateAssets`. It refuses non-http(s) schemes and any host that is or resolves to a loopback, private, link-local or reserved address, except MinIO's public URL and `IMAGE_URL_ALLOWED_HOSTS`. Known limit: DNS rebinding between the check and Chromium's fetch. |
-| Secrets | 🟢 `.env` not committed. A `backup-before-remove-secret` branch exists, so a secret was once committed. History cleanup and rotation: UNKNOWN. |
+| Secrets | 🔴 `backend/.env` was committed on 2026-07-15 (`4260d1a`, `62a1c77`) with `MONGODB_URI` and `GITHUB_TOKEN` in it. Those commits are reachable from `main` and `v2` and from `origin`. Rotation: UNKNOWN. The file is untracked now. |
 | Dependencies | `UNKNOWN` — no audit run. |
 
 ---
@@ -436,6 +436,7 @@ All routes use `authenticate`, which is a no-op.
 | PUT | `/api/videos/:id/scenes` | Studio save |
 | POST | `/api/videos/:id/scenes/:n/{regenerate-audio, remap-template}` | Scene ops |
 | GET | `/api/videos/:id/activity-logs` | Activity |
+| GET | `/api/videos/:id/captions`, `/api/course-videos/:id/captions` | SRT or WebVTT download (`?format=`) |
 | POST/GET | `/api/courses` | Create, list |
 | GET/PUT/DELETE | `/api/courses/:id` | CRUD |
 | POST | `/api/courses/:id/{stop, generate-curriculum, curriculum-videos}` | Course ops |
@@ -565,7 +566,7 @@ Config is validated at boot by `config/validate.js`.
 | Feature | Implemented | Partial | Backend | Frontend | Engine | Quality |
 |---|---|---|---|---|---|---|
 | Script generation (video) | ✔ | | ✔ | ✔ | Ollama/gemma4 | Chunked, JSON-repaired, Director-planned |
-| Script generation (course) | ✔ |  | ✔ | ✔ | Ollama | Same Director pipeline as video |
+| Script generation (course) | ✔ | | ✔ | ✔ | Ollama | Same Director pipeline as video |
 | Curriculum | ✔ | | ✔ | ✔ | Ollama | Rich output (objectives, messages) |
 | Manual script approval | ✔ | | ✔ | ✔ | — | Solid |
 | Scene editing (Studio) | ✔ | | ✔ | ✔ | Remotion Player | Good |
@@ -574,16 +575,16 @@ Config is validated at boot by `config/validate.js`.
 | Word-synced captions | ✔ | | ✔ | ✔ | faster-whisper, Remotion | Strong |
 | Avatar overlay | ✔ | | ✔ | ✔ | MuseTalk | Optional, limited (2 stock faces) |
 | Procedural scene engine | ✔ | | — | ✔ | Remotion | Deterministic, varied |
-| Image generation |  | ✔ opt-in | ✔ | prompt, URL override, regenerate | ComfyUI | Off by default, never run on this machine |
+| Image generation | | ✔ opt-in | ✔ | prompt, URL override, regenerate | ComfyUI | Off by default, never run on this machine |
 | Background music / SFX | | | ✘ | ✘ | none | Missing |
-| Camera motion | ✔ |  | ✔ | dropdown | Remotion `camera.js` | Rendered, 4 primitive moves |
+| Camera motion | ✔ | | ✔ | dropdown | Remotion `camera.js` | Rendered, 4 primitive moves |
 | Charts / diagrams | | | ✘ | ✘ | none | Missing |
-| Export formats | | MP4 only | ✔ | ✔ | Remotion | Basic |
+| Export formats | | MP4 video, SRT/VTT captions | ✔ | API only | Remotion | Basic |
 | Retry / recovery / cancel | ✔ | | ✔ | ✔ | BullMQ | Strong |
 | GPU sequencing | ✔ | cross-process opt-in | ✔ | status UI | custom | Strong for one card |
 | Analytics | ✔ | no GPU/model/template metrics | ✔ | ✔ | Mongo | Good |
 | Auth / multi-user | | | ✘ | ✘ | — | Missing |
-| Tests |  | partial | 25 backend files (incl. worker processor and steps), 1 engine, 14 frontend |  | Jest/Vitest | Core logic and worker steps covered. Remotion rendering and the Director are not. |
+| Tests | | partial | 27 backend files (incl. worker processor and steps, subtitles, cache retention), 1 engine, 14 frontend | | Jest/Vitest | Core logic and worker steps covered. Remotion rendering and the Director are not. |
 
 ---
 
@@ -618,7 +619,7 @@ Target: "an AI Video Director that uses Remotion as its rendering engine."
 | **Audio planning** | Voice per speaker, emotion | No music, SFX, ducking, loudness or pacing marks |
 | **Timeline planning** | Duration equals audio duration, fixed 0.5 s crossfade | No holds, beats or word-level cues. Transition choice is a seeded pick. |
 | **Asset planning** | Image budget and prompt per scene, prompt-hash image cache | No stock search, no reuse index across jobs beyond the cache. |
-| **Quality control** | IR compile (shadow), `validateAssets` | No visual QC (blank frames, text overflow, caption overlap). No LLM review of the script. Overflow handled only by `textFit`. |
+| **Quality control** | IR compile (shadow), `validateAssets` | Visual layout QC exists (`services/qc/`, `remotion/src/qc/`: clipped or off-frame text, failed images, overlap, small text, empty scenes) but is off by default (`QC_ENABLED`), and not enabled in prod. No LLM review of the script. Overflow handled only by `textFit`. |
 | **Regeneration** | Per-scene audio, whole-script, re-render | No per-scene script or visual regeneration with feedback. No record of why a scene looks as it does. |
 
 Two structural facts matter for ordering: the IR is the natural contract to extend, because it already validates scenes against template schemas, and the Director has no home in the course path today.
@@ -646,10 +647,10 @@ Director (script and storyboard only), image generation (built, off, unproven), 
 The step graph, `Project` and `Render`, `animation`, `thumbnailPrompt`, 46 legacy templates. ComfyUI is no longer dead but is not installed here.
 
 ### G. Missing capabilities
-A working image setup (install, checkpoint, first end-to-end run), video generation, charts and diagrams, music, SFX, ducking, loudness, auth, SRT/VTT export, WebM, variable FPS, retention policy for buckets, visual QC, VRAM awareness.
+A working image setup (install, checkpoint, first end-to-end run), video generation, charts and diagrams, music, SFX, ducking, loudness, auth, WebM, variable FPS, retention turned on for the cache bucket, layout QC enabled in prod, a download button for captions, secret rotation, VRAM awareness.
 
 ### H. AI Director gap
-The storyboard now exists, is stored per scene and reaches the renderer for layout, image and camera motion. What is missing: the storyboard is not editable in the UI, there is no audio plan (music, SFX, ducking), no chart or diagram scene types, and no visual QC of what the planner asked for. The course path goes through the same Director now.
+The storyboard now exists, is stored per scene and reaches the renderer for layout, image and camera motion. What is missing: the storyboard is not editable in the UI, there is no audio plan (music, SFX, ducking), no chart or diagram scene types, and layout QC is off by default. The course path goes through the same Director now.
 
 ### I. Architecture risks
 1. No auth. Safety relies on the network edge (Tailscale).
@@ -660,7 +661,7 @@ The storyboard now exists, is stored per scene and reaches the renderer for layo
 6. Output quality depends on one local 4B-class model.
 7. Preview (Player) and final render (CLI) are separate paths. The IR shadow diff only monitors it, and I did not see its results.
 8. Tests now cover the infrastructure core and the worker processor and steps, but not Remotion rendering or the Director.
-9. A secret was committed once, per the `backup-before-remove-secret` branch name, which still exists locally. `UNKNOWN` whether it was rotated.
+9. `backend/.env` with the Atlas connection string and a GitHub token is in git history on `main`, `v2` and `origin`. Whether either was rotated is `UNKNOWN`. Rotate both, since removing the file does not remove them from history.
 
 ### J. Recommended development order (by dependency, not by score)
 
@@ -670,9 +671,9 @@ The storyboard now exists, is stored per scene and reaches the renderer for layo
    *Done since the first pass: course path through `AIDirectorService`, camera motion rendered, planner-proposed layouts.*
 3. **Integration (open):** install ComfyUI, pick a checkpoint that fits 6GB and run the image path end to end. Add music and SFX mixing, which is where FFmpeg earns a place. Add chart and diagram scene types.
    *Done since the first pass: the image path itself, as opt-in code.*
-4. **Quality:** pipeline-step and Director tests, visual QC (overflow, blank frames, caption overlap), IR switched to authoritative once the shadow diff is clean, per-scene regeneration with feedback.
+4. **Quality:** pipeline-step and Director tests, turning layout QC on (`QC_ENABLED=true`), IR switched to authoritative once the shadow diff is clean, per-scene regeneration with feedback.
 5. **Advanced:** wire the step graph if non-GPU work comes to dominate, split workers by capability, unify `VideoJob` and `CourseVideo` onto `Project` and `Render`, VRAM awareness.
-6. **Optional:** WebM or other exports, SRT/VTT, auth if it leaves a trusted network, retention policy for buckets, remove legacy templates.
+6. **Optional:** WebM or other exports, auth if it leaves a trusted network, turn on `CACHE_RETENTION_DAYS`, remove legacy templates.
    *Done since the first pass: unused `multer` and `uuid` and `pages/placeholder` removed.*
 
 ---
@@ -692,7 +693,7 @@ TTS Engine:         Qwen3-TTS (1.7B / 0.6B) via Gradio: 9 presets, ~70 clone ref
 Audio Engine:       TTS plus faster-whisper alignment only; no music, SFX, ducking, normalization or volume control
 Video Engine:       Remotion 4.0.489 (headless Chromium), MP4 h264 only, 8 resolutions, 4 aspect ratios, 30 fps fixed
 Animation Engine:   Remotion interpolate/spring, seeded-random choreography; 10 motions, 9 transitions, 8 backgrounds, 8 decorations; camera motion rendered; GSAP in one file; animation field unread
-Caption Engine:     Word-level forced alignment, 9 animations, 4 named styles, burned in; default on for podcast only; no SRT/VTT
+Caption Engine:     Word-level forced alignment, 9 animations, 4 named styles, burned in; default on for podcast only; SRT/VTT through the captions API
 Course Engine:      Curriculum LLM prompt, lessons and trailer, per-lesson script through the AI Director, then audio, images and render stages
 Analytics:          Real Mongo aggregates plus Metric counters (stage times, cache hit rate, storage, retries); no GPU, model or template metrics
 Caching:            TTS audio and reference transcripts (MinIO), render fingerprint skip; nothing else cached

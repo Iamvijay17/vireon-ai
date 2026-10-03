@@ -298,6 +298,26 @@ router.post('/:id/scenes/:sceneNumber/regenerate-audio', authenticate, SceneCont
 
 /**
  * @swagger
+ * /api/videos/{id}/captions:
+ *   get:
+ *     summary: Download the captions as SRT or WebVTT
+ *     description: >
+ *       The video's narration as a subtitle file. Timed from the word-level forced alignment, with scene starts laid out the way the
+ *       renderer does. A scene without alignment gets its narration spread evenly over its audio.
+ *       404 until the script has narration.
+ *     tags: [Videos]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/VideoJobId' }
+ *       - { in: query, name: format, schema: { type: string, enum: [srt, vtt], default: srt } }
+ *     responses:
+ *       200: { description: Subtitle file }
+ *       400: { description: Unknown format }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.get('/:id/captions', authenticate, VideoController.captions);
+
+/**
+ * @swagger
  * /api/videos/{id}/scenes/{sceneNumber}/regenerate-image:
  *   post:
  *     summary: Re-roll one scene's generated image

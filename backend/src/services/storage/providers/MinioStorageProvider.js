@@ -7,6 +7,7 @@ const StorageProvider = require('./StorageProvider');
 const Asset = require('../../../models/Asset');
 const AssetService = require('../../asset/AssetService');
 const withTimeout = require('../../../utils/withTimeout');
+const { applyCacheRetention } = require('../cacheRetention');
 
 // Which bucket a category lives in, and what subfolder (if any) its files
 // sit under within a video's own prefix. script.json/assets.json are local
@@ -79,6 +80,7 @@ class MinioStorageProvider extends StorageProvider {
       }
       await this.client.setBucketPolicy(bucket, publicReadPolicy(bucket));
     }
+    await applyCacheRetention(this.client, config.minio.cacheBucket, config.cache.retentionDays);
   }
 
   /**
