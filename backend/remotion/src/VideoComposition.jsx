@@ -1,9 +1,10 @@
 import React, { Suspense, useEffect, useState } from "react";
-import { AbsoluteFill, Sequence, Video, continueRender, delayRender, interpolate, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Sequence, Video, continueRender, delayRender, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import TemplateRegistry from "./templates/TemplateRegistry";
 import DefaultTemplate from "./templates/DefaultTemplate";
 import { applyFontPairing } from "./theme";
 import { isHardCut, getTransitionStyle, resolveTransitionId } from "./transitions";
+import { computeCameraTransform, cameraTransformToCss } from "./camera";
 
 const Text = ({ children, style }) => <div style={style}>{children}</div>;
 
@@ -147,6 +148,24 @@ const resolveTemplate = (templateId) => {
   return Template;
 };
 
+/**
+ * Slow whole-scene zoom/pan driven by `scene.cameraMotion` (see camera.js).
+ * Inside a Sequence, useCurrentFrame/useVideoConfig are relative to that
+ * scene's own span, so progress runs 0 -> 1 across the scene regardless of
+ * where it sits in the video. A static/unknown motion adds no transform, so
+ * those scenes render exactly as before.
+ */
+const CameraMotion = ({ motion, children }) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+  const transform = cameraTransformToCss(
+    computeCameraTransform(motion, durationInFrames > 1 ? frame / (durationInFrames - 1) : 0),
+  );
+  if (!transform) return <>{children}</>;
+
+  return <AbsoluteFill style={{ transform, transformOrigin: "center center" }}>{children}</AbsoluteFill>;
+};
+
 // Scene component that dynamically selects and renders the correct template
 // Each template handles its own audio rendering internally. `jobId` is
 // passed through in addition to `scene` - every hand-coded template still
@@ -162,10 +181,13 @@ const Scene = React.memo(({ scene, jobId }) => {
     <AbsoluteFill
       data-scene-frame="true"
       data-scene-number={scene?.sceneNumber ?? ""}
+      style={{ overflow: "hidden" }}
     >
-      <Suspense fallback={<TemplateLoadingFallback />}>
-        <Template scene={scene} jobId={jobId} />
-      </Suspense>
+      <CameraMotion motion={scene?.cameraMotion}>
+        <Suspense fallback={<TemplateLoadingFallback />}>
+          <Template scene={scene} jobId={jobId} />
+        </Suspense>
+      </CameraMotion>
     </AbsoluteFill>
   );
 });

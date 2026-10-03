@@ -123,7 +123,7 @@ async function createFromLessons(courseId, lessons, options) {
  * curriculum (see LLMService.generateCurriculum). This is
  * course-level, not a lesson: exactly one per course, given order -1 so
  * it always sorts before every numbered lesson without shifting their
- * order values, and flagged isPromo so buildScriptPrompt uses the
+ * order values, and flagged isPromo so buildDirectorBrief uses the
  * promotional prompt instead of the standard lesson one. Calling this
  * again (e.g. curriculum regenerated) replaces the existing promo video's
  * title/topic rather than creating a duplicate.

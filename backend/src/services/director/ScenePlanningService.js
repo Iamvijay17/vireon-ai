@@ -52,7 +52,7 @@ class ScenePlanningService {
    * budget. `structure` is the output of StoryStructureService.plan().
    * Returns `{ scenes }`, ready for VisualPlanningService.
    */
-  static async generate({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, hostName, guestName, jobId, structure, checkCancelled, onProgress }) {
+  static async generate({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, hostName, guestName, jobId, structure, extraInstructions, checkCancelled, onProgress }) {
     const narrationMultiplier = videoType === 'podcast' ? 1 : 2;
     const tokensPerScene = 80 + wordsPerScene * 1.4 * narrationMultiplier;
     const chunkSceneCount = Math.min(
@@ -66,7 +66,7 @@ class ScenePlanningService {
     const resolvedGuestName = guestName || 'Guest';
 
     if (sceneCount <= chunkSceneCount) {
-      const parsed = await this._generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier, hostName: resolvedHostName, guestName: resolvedGuestName, structure });
+      const parsed = await this._generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier, hostName: resolvedHostName, guestName: resolvedGuestName, structure, extraInstructions });
       return { scenes: parsed.scenes };
     }
 
@@ -108,7 +108,7 @@ class ScenePlanningService {
           toneNote: beat?.toneNote || structure.styleGuide.voiceTone,
           motionVocabulary: structure.styleGuide.motionVocabulary,
         });
-        const parsed = await this._callChunk(prompt, thisChunkSceneCount, thisChunkWordCount, narrationMultiplier);
+        const parsed = await this._callChunk(prompt, thisChunkSceneCount, thisChunkWordCount, narrationMultiplier, extraInstructions);
         chunkScenes = parsed.scenes;
       } else {
         const templateName = videoType === 'podcast' ? 'podcast-continuation' : 'generic-continuation';
@@ -127,7 +127,7 @@ class ScenePlanningService {
           toneNote: beat?.toneNote || structure.styleGuide.voiceTone,
           motionVocabulary: structure.styleGuide.motionVocabulary,
         });
-        const parsed = await this._callChunk(prompt, thisChunkSceneCount, thisChunkWordCount, narrationMultiplier);
+        const parsed = await this._callChunk(prompt, thisChunkSceneCount, thisChunkWordCount, narrationMultiplier, extraInstructions);
         chunkScenes = parsed.scenes;
       }
 
@@ -157,7 +157,7 @@ class ScenePlanningService {
     return { scenes: allScenes };
   }
 
-  static async _generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier, hostName, guestName, structure }) {
+  static async _generateSingleShot({ videoType, topic, language, sceneCount, wordCount, wordsPerScene, narrationMultiplier, hostName, guestName, structure, extraInstructions }) {
     const closingTemplate = CLOSING_INSTRUCTIONS[videoType] || CLOSING_INSTRUCTIONS.educational;
     const beat = StoryStructureService.beatForScene(structure.beats, 1);
     const prompt = PromptService.render(videoType, {
@@ -173,7 +173,7 @@ class ScenePlanningService {
       toneNote: beat?.toneNote || structure.styleGuide.voiceTone,
       motionVocabulary: structure.styleGuide.motionVocabulary,
     });
-    return this._callChunk(prompt, sceneCount, wordCount, narrationMultiplier);
+    return this._callChunk(prompt, sceneCount, wordCount, narrationMultiplier, extraInstructions);
   }
 
   /**
@@ -203,12 +203,12 @@ class ScenePlanningService {
    * in scene_meta, 25% buffer), just scoped to one chunk's smaller budget
    * instead of the whole script's.
    */
-  static async _callChunk(prompt, chunkSceneCount, chunkWordCount, narrationMultiplier) {
+  static async _callChunk(prompt, chunkSceneCount, chunkWordCount, narrationMultiplier, extraInstructions = '') {
     const estimatedTokens = Math.round((chunkSceneCount * 80 + chunkWordCount * 1.4 * narrationMultiplier) * 1.25);
     const maxTokens = Math.min(32000, Math.max(3000, estimatedTokens));
     const timeout = Math.max(config.llm.timeout, Math.min(600000, maxTokens * 50));
 
-    return LLMService.generateScript(prompt, { maxTokens, timeout });
+    return LLMService.generateScript(PromptService.withExtraInstructions(prompt, extraInstructions), { maxTokens, timeout });
   }
 }
 

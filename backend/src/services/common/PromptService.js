@@ -46,11 +46,30 @@ class PromptService {
 
     for (const [key, value] of Object.entries(variables)) {
       const placeholder = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-      prompt = prompt.replace(placeholder, value);
+      // Function replacement: a string replacement would treat "$&" / "$1" inside a
+      // value (narration, topics) as special patterns and corrupt the prompt.
+      prompt = prompt.replace(placeholder, () => String(value));
     }
 
     LoggerService.debug('Prompt rendered', { type, variables });
     return prompt;
+  }
+
+  /**
+   * Add per-video requirements (e.g. "this is one lesson of a larger course")
+   * to an already-rendered prompt without editing the shared template. Placed
+   * ahead of the template's "Required JSON format" block when it has one, so
+   * the instructions read as rules rather than trailing the output spec.
+   */
+  static withExtraInstructions(prompt, extraInstructions) {
+    const extra = String(extraInstructions || '').trim();
+    if (!extra) return prompt;
+
+    const block = `Additional requirements for this video (follow these in addition to the rules above):\n${extra}`;
+    const marker = prompt.lastIndexOf('\n\nRequired JSON format');
+    return marker >= 0
+      ? `${prompt.slice(0, marker)}\n${block}${prompt.slice(marker)}`
+      : `${prompt}\n\n${block}`;
   }
 
   /**

@@ -187,6 +187,9 @@ class ScriptParserService {
         imagePrompt,
         cameraMotion: scene.cameraMotion || 'static',
         animation: scene.animation || '',
+        // The Director's per-scene plan (layout, image, motion intent). Carried through
+        // untouched; null for scripts that were never storyboarded.
+        storyboard: scene.storyboard && typeof scene.storyboard === 'object' ? scene.storyboard : null,
         // Template-based rendering fields
         templateId,
         elements,
@@ -207,6 +210,8 @@ class ScriptParserService {
       type: resolvedType,
       tags: Array.isArray(scriptData.tags) ? scriptData.tags : [],
       thumbnailPrompt: scriptData.thumbnailPrompt || '',
+      // The Director's video-level brief (beats, style guide, image budget).
+      brief: scriptData.brief && typeof scriptData.brief === 'object' ? scriptData.brief : null,
       scenes: scriptData.scenes,
     };
   }

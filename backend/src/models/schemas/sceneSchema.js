@@ -22,6 +22,12 @@ const sceneSchema = new mongoose.Schema(
     imagePrompt: { type: String, default: '' },
     cameraMotion: { type: String, default: 'static' },
     animation: { type: String, default: '' },
+    // The Director's storyboard entry for this scene - why it exists and what it
+    // should look like: { beat, intent, layout, visual: { kind, prompt, status },
+    // cameraMotion, transition }. Planning metadata the pipeline reads (layout
+    // reaches the renderer; visual drives image generation); null for scripts
+    // written before the storyboard existed. See services/director/.
+    storyboard: { type: mongoose.Schema.Types.Mixed, default: null },
     imageUrl: { type: String, default: '' },
     templateId: { type: String, default: '' },
     elements: { type: mongoose.Schema.Types.Mixed, default: null },

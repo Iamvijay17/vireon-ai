@@ -78,5 +78,10 @@ export const analyzeContent = (scene) => {
       ? analyzePodcastScene(elements)
       : analyzeStandardScene(elements);
 
-  return { sceneType, ...shape };
+  // Director's per-scene layout choice (render props carry it as scene.layout;
+  // the Studio preview passes the raw scene, so storyboard is read too). Only a
+  // hint - solveLayout checks it against this profile before using it.
+  const layoutHint = String(scene?.layout || scene?.storyboard?.layout || '');
+
+  return { sceneType, layoutHint, ...shape };
 };

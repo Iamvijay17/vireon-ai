@@ -27,24 +27,46 @@ export const AnimationTab = ({ scene, selectedSceneIndex, canEdit, editor }) => 
   </div>
 );
 
-export const ImageTab = ({ scene, selectedSceneIndex, canEdit, editor }) => (
+// What the Director's storyboard decided about this scene's picture, so the
+// reason a scene has (or has no) image is visible rather than a mystery.
+const describeVisual = (storyboard) => {
+  const visual = storyboard?.visual;
+  if (!visual) return null;
+  if (visual.status === "generated") return "Generated from the storyboard prompt.";
+  if (visual.status === "pending") return "Planned by the storyboard - generated when the video renders.";
+  if (visual.status === "degraded") return `No image: this scene was rendered as text. ${visual.reason || ""}`.trim();
+  return "The storyboard gave this scene no image.";
+};
+
+export const ImageTab = ({ scene, selectedSceneIndex, canEdit, editor }) => {
+  const visualNote = describeVisual(scene.storyboard);
+  // The renderer reads the image from the scene's elements; imageUrl is what the
+  // pipeline checks. Keep both in step, the way generated images are applied.
+  const setImageUrl = (value) => {
+    editor.handleFieldChange(selectedSceneIndex, "imageUrl", value);
+    editor.handleElementDirectFieldChange(selectedSceneIndex, scene.sceneType === "podcast" ? "hostImage" : "image", value);
+  };
+
+  return (
   <div>
     <SectionLabel icon={ImageIcon}>Image</SectionLabel>
     <div className="space-y-3">
+      {visualNote && <p className="text-[13px] text-text-secondary">{visualNote}</p>}
       <Field label="Image Prompt">
         <Textarea rows={2} value={scene.imagePrompt || ""} onChange={(e) => editor.handleFieldChange(selectedSceneIndex, "imagePrompt", e.target.value)} disabled={!canEdit} placeholder="AI image generation prompt (only for image scenes)" />
       </Field>
       <Field label="Image URL (manual override)">
         <Input
           value={scene.imageUrl || ""}
-          onChange={(e) => editor.handleFieldChange(selectedSceneIndex, "imageUrl", e.target.value)}
+          onChange={(e) => setImageUrl(e.target.value)}
           disabled={!canEdit}
           placeholder="https://... - skips AI image generation for this scene"
         />
       </Field>
     </div>
   </div>
-);
+  );
+};
 
 export const AudioTab = ({
   scene,

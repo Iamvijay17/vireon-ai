@@ -100,3 +100,22 @@ describe('getStepForResume (unstick a job sitting in a processing state)', () =>
     expect(getStepForResume(job)).toMatchObject({ status: JOB_STATUS.PREPARING_ASSETS });
   });
 });
+
+describe('image generation step', () => {
+  it('retries a failure in GENERATING_IMAGES at the same step (finished images are already saved)', () => {
+    expect(getResumeStep(jobWith({ error: { step: JOB_STATUS.GENERATING_IMAGES } })))
+      .toMatchObject({ status: JOB_STATUS.GENERATING_IMAGES, progress: 56 });
+  });
+
+  it('moves past IMAGE_COMPLETED rather than re-running it', () => {
+    expect(getResumeStep(jobWith({ error: { step: JOB_STATUS.IMAGE_COMPLETED } })))
+      .toMatchObject({ status: JOB_STATUS.PREPARING_ASSETS });
+    expect(getStepForResume(jobWith({ status: JOB_STATUS.IMAGE_COMPLETED })))
+      .toMatchObject({ status: JOB_STATUS.PREPARING_ASSETS });
+  });
+
+  it('resumes a job interrupted mid-image-generation at the image step', () => {
+    expect(getStepForResume(jobWith({ status: JOB_STATUS.GENERATING_IMAGES })))
+      .toMatchObject({ status: JOB_STATUS.GENERATING_IMAGES, progress: 56 });
+  });
+});

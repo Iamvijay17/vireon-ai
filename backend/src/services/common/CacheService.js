@@ -85,6 +85,51 @@ class CacheService {
     }
   }
 
+  // ---- Generated scene images: keyed by a content hash of (prompt, seed,
+  // size, model, sampler settings, workflow). Same shape as TTS audio above.
+
+  /** Same stable hash as hashTtsInputs; named for what it is when the inputs aren't TTS. */
+  static hashInputs(inputs) {
+    return this.hashTtsInputs(inputs);
+  }
+
+  /**
+   * On a hit, copies the cached image into the job's own `{jobId}/images/{fileName}`
+   * path (where scene URLs point) and returns the sidecar metadata. Null on a miss.
+   */
+  static async getImage(hash, jobId, fileName) {
+    if (!config.cache.enabled) return null;
+    const imageKey = `image/${hash}.png`;
+    const metaKey = `image/${hash}.json`;
+
+    try {
+      const metaChunks = [];
+      const metaStream = await this.#client().getObject(config.minio.cacheBucket, metaKey);
+      for await (const chunk of metaStream) metaChunks.push(chunk);
+      const metadata = JSON.parse(Buffer.concat(metaChunks).toString('utf8'));
+
+      await getStorageProvider().copyObject(config.minio.scenesBucket, `${jobId}/images/${fileName}`, config.minio.cacheBucket, imageKey);
+
+      LoggerService.info('Smart Cache hit: scene image', { hash, jobId, fileName });
+      MetricsService.increment('cache.hits');
+      return metadata;
+    } catch {
+      MetricsService.increment('cache.misses');
+      return null;
+    }
+  }
+
+  static async putImage(hash, localFilePath, metadata) {
+    if (!config.cache.enabled) return;
+    try {
+      await this.#client().fPutObject(config.minio.cacheBucket, `image/${hash}.png`, localFilePath);
+      await this.#client().putObject(config.minio.cacheBucket, `image/${hash}.json`, Buffer.from(JSON.stringify(metadata)));
+      LoggerService.info('Smart Cache stored: scene image', { hash });
+    } catch (err) {
+      LoggerService.warn('Smart Cache failed to store scene image', { hash, error: err.message });
+    }
+  }
+
   // ---- Voice-clone reference transcripts: keyed by the (bundled, fixed)
   // reference audio filename - same "small fixed set of files" shape as
   // avatar clips above, not user-uploaded content. ----

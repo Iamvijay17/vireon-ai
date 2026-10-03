@@ -10,6 +10,7 @@ const MetricsService = require('../common/MetricsService');
 const { abortableDelay, makeAbortError } = require('../../utils/abortableDelay');
 const { toRenderProps, diffRenderProps } = require('../../ir');
 const { checkSceneGraph } = require('./sceneGraphCheck');
+const { checkImageUrl, buildAllowedHosts } = require('../../utils/assetUrlGuard');
 
 const execFileAsync = promisify(execFile);
 
@@ -218,6 +219,9 @@ class RemotionService {
            cameraMotion: scene.cameraMotion,
            animation: scene.animation,
            imageUrl: scene.imageUrl || '',
+           // Storyboard's composition choice - kept in step with ir/toRenderProps.js
+           // so the shadow diff stays clean.
+           layout: typeof scene.storyboard?.layout === 'string' ? scene.storyboard.layout : '',
             // Template-based rendering fields
             templateId: scene.templateId || '',
             elements: scene.elements || null,
@@ -344,6 +348,7 @@ class RemotionService {
 
     const provider = getStorageProvider();
     const seenSceneNumbers = new Set();
+    const imageRefs = [];
 
     for (const scene of scenes) {
       const sceneNum = scene.sceneNumber;
@@ -384,6 +389,29 @@ class RemotionService {
       if (scene.imagePrompt && !scene.imageUrl) {
         issues.push(`${label}: image prompt set but no image was generated`);
       }
+
+      for (const [field, url] of [
+        ['imageUrl', scene.imageUrl],
+        ['elements.image', scene.elements?.image],
+        ['elements.hostImage', scene.elements?.hostImage],
+      ]) {
+        if (typeof url === 'string' && url.trim()) imageRefs.push({ label, field, url });
+      }
+    }
+
+    // The render machine's Chromium fetches these - refuse private/internal
+    // targets before spending a multi-minute render on them. Each distinct URL
+    // is resolved once however many scenes share it (podcast turns all share
+    // one cover image).
+    const allowedHosts = buildAllowedHosts(config);
+    const verdicts = new Map();
+    for (const { url } of imageRefs) {
+      if (!verdicts.has(url)) verdicts.set(url, checkImageUrl(url, { allowedHosts }));
+    }
+    await Promise.all(verdicts.values());
+    for (const { label, field, url } of imageRefs) {
+      const problem = await verdicts.get(url);
+      if (problem) issues.push(`${label}: ${field} ${problem}`);
     }
 
     if (issues.length > 0) {

@@ -161,6 +161,9 @@ const videoJobSchema = new mongoose.Schema(
       description: { type: String, default: '' },
       tags: [String],
       thumbnailPrompt: { type: String, default: '' },
+      // Director's creative brief for the whole video: { beats[], styleGuide,
+      // imageBudget }. null for scripts written before the Director kept it.
+      brief: { type: mongoose.Schema.Types.Mixed, default: null },
       scenes: [sceneSchema],
     },
     videoUrl: { type: String, default: '' },

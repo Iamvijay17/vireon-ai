@@ -2,137 +2,50 @@ const CourseVideo = require('../../../models/CourseVideo');
 const LoggerService = require('../../common/LoggerService');
 const SocketService = require('../../common/SocketService');
 const ActivityLogService = require('../../common/ActivityLogService');
-const LLMService = require('../../common/LLMService');
+const AIDirectorService = require('../../director/AIDirectorService');
+const { planScriptBudget } = require('../../director/scriptBudget');
 const LocalAIService = require('../../localAI');
+const Course = require('../../../models/Course');
+const { bailIfCancelled } = require('./shared');
 const ScriptParserService = require('../../video/ScriptParserService');
-const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
+const { VIDEO_STATUS, STAGE_STATUS, VIDEO_TYPES } = require('../../../constants');
 const { classifyError } = require('../../../utils/errorMessages');
 const { NotFoundError, ValidationError } = require('../../../utils/errors');
 
 /**
- * Build the prompt for a course's promotional trailer video (the
- * isPromo lesson auto-generated alongside the curriculum) - a short sales
- * pitch for the whole course rather than a teaching lesson. Reuses the
- * same scene-type/JSON contract as buildScriptPrompt so it flows through
- * the identical ScriptParserService validation and render pipeline.
+ * What the Director needs to write one course lesson, or the course's
+ * promotional trailer (the isPromo lesson auto-generated alongside the
+ * curriculum - a short sales pitch for the whole course, not a teaching
+ * lesson). Returns the video type the shared prompt templates know plus the
+ * lesson-specific rules those templates can't express, passed to the Director
+ * as `extraInstructions`.
  */
-function buildPromoScriptPrompt(video, { sceneCount, contentSceneCount, contentWithImageCount, avgSceneSeconds, wordsPerScene, wordCount }) {
-  return `Create a ${video.duration}min promotional trailer video script for a course titled "${video.title}", about "${video.topic}".
+function buildDirectorBrief(video) {
+  const requested = String(video.style || 'educational');
+  // Course videos are never podcasts (that type needs host/guest voices), and the
+  // trailer is marketing copy whatever style the lessons use.
+  const videoType = video.isPromo
+    ? 'marketing'
+    : (VIDEO_TYPES.includes(requested) && requested !== 'podcast' ? requested : 'educational');
 
-Return ONLY valid JSON with this structure:
-{
-  "title": "${video.title}",
-  "description": "Brief description",
-  "tags": ["tag1", "tag2"],
-  "thumbnailPrompt": "image generation prompt",
-  "scenes": [
-    {
-      "sceneNumber": 1,
-      "sceneType": "title|content|contentwithimage",
-      "title": "Scene title",
-      "subtitle": "Supporting text",
-      "backgroundColor": "#1a1a2e",
-      "transition": "fade",
-      "cameraMotion": "static",
-      "animation": "",
-      "imagePrompt": "",
-      "scene_meta": { "content": ["", "", ""] },
-      "audio": { "text": "Narration text here (~${wordsPerScene} words per scene)" }
-    }
-  ]
-}
+  const rules = video.isPromo
+    ? [
+        `This is a PROMOTIONAL TRAILER for the whole course "${video.title}", not a teaching lesson - sell the course, do not teach its content. Hook the viewer, say who the course is for and what they will be able to do after finishing it. Do not teach any technical concept in depth.`,
+        'Energetic, confident tone - this is marketing copy, not a lecture.',
+        'End with a strong, direct call to action to enroll in the course.',
+      ]
+    : [
+        'This is ONE lesson video from a larger course, not a full-course summary. Cover ONLY the specific topic given - do not introduce, preview, or teach content that belongs to other lessons.',
+        'Make it beginner-friendly with concrete examples, and end with a call to action.',
+      ];
+  if (video.additionalInstructions) rules.push(`Additional: ${video.additionalInstructions}`);
 
-Rules:
-- This is a PROMOTIONAL TRAILER for the whole course, not a teaching lesson - sell the course, don't teach its content. Hook the viewer, describe who the course is for, what they'll be able to do after finishing, and why they should enroll now. Do NOT teach actual technical material.
-- Total narration: ~${wordCount} words across all scenes
-- Exactly ${sceneCount} scenes total: 1 title, ${contentSceneCount} content, ${contentWithImageCount} contentwithimage
-- Scene duration: about ${avgSceneSeconds} seconds each
-- sceneType must be one of: "title", "content", or "contentwithimage"
-- Use "title" ONLY for scene 1, the opening title card
-- Use "content" for most of the remaining scenes - main promotional narration, text only
-- Use "contentwithimage" sparingly (only ${contentWithImageCount} scene${contentWithImageCount === 1 ? '' : 's'} total) - the most exciting/visual moments, paired with a supporting AI-generated image
-- Only include "imagePrompt" when sceneType is "contentwithimage"; leave it as empty string for other scene types
-- For every scene with sceneType "content" or "contentwithimage", include a scene_meta object with a "content" array containing the narration text split into individual sentences
-- Energetic, confident tone - this is marketing copy, not a lecture
-- End with a strong, direct call to action to enroll in the course
-- ${video.additionalInstructions ? `Additional: ${video.additionalInstructions}` : ''}
-- Return ONLY valid JSON, no markdown, no code blocks`;
+  return { videoType, extraInstructions: rules.map((rule) => `- ${rule}`).join('\n') };
 }
 
 /**
- * Build the prompt for LM Studio script generation.
- * Uses a concise prompt to reduce generation time on slower models.
- */
-function buildScriptPrompt(video) {
-  const durationMinutes = video.duration;
-  const wordCount = durationMinutes * 130;
-  // Scale scene count with video length - roughly 2 scenes per minute
-  // (5min -> 10 scenes, 15min -> 30 scenes) so there's enough scenes to
-  // cycle through many different templates instead of repeating a few,
-  // with a floor of 3 so short videos still get an intro/content/summary
-  // shape.
-  const sceneCount = Math.max(3, Math.round(durationMinutes * 2));
-  // Scene 1 is always the title card. Of the remaining scenes, only a
-  // sparing number get "contentwithimage" - roughly 1 per 8 scenes (5
-  // scenes -> 1, 10 scenes -> 2, 20 scenes -> 3), not a flat percentage,
-  // so most of the video stays plain "content" and images are used
-  // sparingly rather than on every other scene.
-  const remainingSceneCount = sceneCount - 1;
-  const contentWithImageCount = Math.min(remainingSceneCount, Math.max(1, Math.ceil(sceneCount / 8)));
-  const contentSceneCount = remainingSceneCount - contentWithImageCount;
-  const avgSceneSeconds = Math.round((durationMinutes * 60) / sceneCount);
-  const wordsPerScene = Math.round(wordCount / sceneCount);
-
-  if (video.isPromo) {
-    return buildPromoScriptPrompt(video, {
-      sceneCount, contentSceneCount, contentWithImageCount, avgSceneSeconds, wordsPerScene, wordCount,
-    });
-  }
-
-  return `Create a ${durationMinutes}min educational video script about "${video.topic}".
-
-Return ONLY valid JSON with this structure:
-{
-  "title": "${video.title}",
-  "description": "Brief description",
-  "tags": ["tag1", "tag2"],
-  "thumbnailPrompt": "image generation prompt",
-  "scenes": [
-    {
-      "sceneNumber": 1,
-      "sceneType": "title|content|contentwithimage",
-      "title": "Scene title",
-      "subtitle": "Supporting text",
-      "backgroundColor": "#1a1a2e",
-      "transition": "fade",
-      "cameraMotion": "static",
-      "animation": "",
-      "imagePrompt": "",
-      "scene_meta": { "content": ["", "", ""] },
-      "audio": { "text": "Narration text here (~${wordsPerScene} words per scene)" }
-    }
-  ]
-}
-
-Rules:
-- This is ONE lesson video from a larger course, not a full-course summary. Cover ONLY the specific topic given above - do not introduce, preview, or teach content that belongs to other lessons in the course.
-- Total narration: ~${wordCount} words across all scenes
-- Exactly ${sceneCount} scenes total: 1 title, ${contentSceneCount} content, ${contentWithImageCount} contentwithimage
-- Scene duration: about ${avgSceneSeconds} seconds each
-- sceneType must be one of: "title", "content", or "contentwithimage"
-- Use "title" ONLY for scene 1, the opening title card
-- Use "content" for most of the remaining scenes - main educational content, text only
-- Use "contentwithimage" sparingly (only ${contentWithImageCount} scene${contentWithImageCount === 1 ? '' : 's'} total) - main content paired with a supporting AI-generated image, reserved for the most visual moments
-- Only include "imagePrompt" when sceneType is "contentwithimage"; leave it as empty string for other scene types
-- For every scene with sceneType "content" or "contentwithimage", include a scene_meta object with a "content" array containing the narration text split into individual sentences
-- Make it beginner-friendly with examples
-- End with a call to action
-- ${video.additionalInstructions ? `Additional: ${video.additionalInstructions}` : ''}
-- Return ONLY valid JSON, no markdown, no code blocks`;
-}
-
-/**
- * Generate script for a video using LM Studio.
+ * Generate a lesson's script through the AI Director - the same story plan,
+ * chunked scene writing and storyboard pass standalone videos get.
  */
 async function generateScript(videoId) {
   const video = await CourseVideo.findById(videoId);
@@ -149,16 +62,30 @@ async function generateScript(videoId) {
   SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_SCRIPT, 10, 'Generating script...');
 
   try {
-    // Build prompt for LM Studio
-    const prompt = buildScriptPrompt(video);
+    const course = await Course.findById(video.courseId).select('language').lean();
+    const { videoType, extraInstructions } = buildDirectorBrief(video);
+    const budget = planScriptBudget({ type: videoType, durationMinutes: video.duration });
 
-    // Call LM Studio - GPU-sequential, same as the standalone video pipeline's scriptStep.js
-    const rawScriptData = await LocalAIService.gpu.withGPU('llm', () => LLMService.generateScript(prompt));
+    // GPU-sequential, same as the standalone video pipeline's scriptStep.js. The
+    // lesson keeps its curriculum title (titleOverride) rather than a
+    // model-invented one.
+    const rawScriptData = await LocalAIService.gpu.withGPU('llm', () =>
+      AIDirectorService.direct({
+        videoType,
+        topic: video.topic,
+        language: course?.language || 'english',
+        ...budget,
+        extraInstructions,
+        titleOverride: video.title,
+        jobId: String(video._id),
+        checkCancelled: () => bailIfCancelled(videoId),
+      })
+    );
 
     // Parse and validate script to ensure scene_meta is generated and scene types are normalized.
     // Seed the template rotation with the video id so different lessons
     // in the same course don't all draw the identical template sequence.
-    const scriptData = ScriptParserService.validate(rawScriptData, video.style || 'educational', {
+    const scriptData = ScriptParserService.validate(rawScriptData, videoType, {
       seed: video._id.toString(),
       disableCaptions: true,
     });
@@ -323,7 +250,7 @@ async function regenerateScript(videoId) {
     throw new NotFoundError('Video not found');
   }
 
-  video.script = { title: '', description: '', tags: [], thumbnailPrompt: '', scenes: [] };
+  video.script = { title: '', description: '', tags: [], thumbnailPrompt: '', brief: null, scenes: [] };
   video.scriptGeneratedAt = null;
   video.approved = false;
   video.approvedAt = null;
@@ -335,8 +262,7 @@ async function regenerateScript(videoId) {
 }
 
 module.exports = {
-  buildScriptPrompt,
-  buildPromoScriptPrompt,
+  buildDirectorBrief,
   generateScript,
   approveScript,
   bulkApproveScripts,

@@ -162,13 +162,10 @@ const config = Object.freeze({
       healthCheckIntervalMs: parseInt(process.env.TTS_HEALTH_CHECK_INTERVAL_MS, 10) || 3000,
       healthCheckTimeoutMs: parseInt(process.env.TTS_HEALTH_CHECK_TIMEOUT_MS, 10) || 5000,
     },
-    // NOT wired to any real process on this machine - no ComfyUI install
-    // was found here (checked C:\pinokio\api and C:\, D:\ top-level) and
-    // nothing in this codebase currently generates images via ComfyUI (no
-    // ComfyUI references exist anywhere in the repo). This block exists so
-    // GPUResourceManager has a slot to sequence against once you do install
-    // it and point COMFYUI_START_COMMAND/COMFYUI_WORKDIR at it - until then
-    // `enabled` defaults to false and nothing will try to start it.
+    // ComfyUI, the scene-image generator (see config.imageGen below and
+    // services/image/). No install was found on this machine, so `enabled`
+    // defaults to false and nothing will try to start it; install it and point
+    // COMFYUI_START_COMMAND/COMFYUI_WORKDIR at it to turn image generation on.
     comfyUI: {
       enabled: process.env.COMFYUI_ENABLED === 'true',
       autoStart: process.env.COMFYUI_AUTO_START !== 'false',
@@ -334,6 +331,55 @@ const config = Object.freeze({
     origins: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://172.24.0.1:5173,http://192.168.1.7:5173')
       .split(',')
       .map((origin) => origin.trim())
+      .filter(Boolean),
+  },
+
+  // Scene image generation through ComfyUI (services/image/). Off unless
+  // ComfyUI itself is enabled (COMFYUI_ENABLED=true) - with it off, scenes the
+  // Director wanted an image for are rendered as text-only scenes instead of
+  // failing the job (see services/image/sceneImages.js).
+  imageGen: {
+    enabled: process.env.COMFYUI_ENABLED === 'true' && process.env.IMAGE_GEN_ENABLED !== 'false',
+    // true: a scene whose image can't be generated fails the job instead of
+    // quietly falling back to a text-only scene.
+    required: process.env.IMAGE_GEN_REQUIRED === 'true',
+    // Cap on generated images per video. A 6GB card renders one image in tens of
+    // seconds, and the Director is told this budget so it spends it where a
+    // picture matters.
+    maxPerVideo: parseInt(process.env.IMAGE_MAX_PER_VIDEO, 10) || 6,
+    apiUrl: (process.env.COMFYUI_API_URL || 'http://127.0.0.1:8188').replace(/\/+$/, ''),
+    // ComfyUI "API format" workflow with {{placeholders}} - see
+    // backend/workflows/README.md. Swap it to change model or pipeline.
+    workflowPath: process.env.IMAGE_WORKFLOW_PATH || path.resolve(__dirname, '../../workflows/txt2img.api.json'),
+    // Checkpoint filename as ComfyUI lists it (models/checkpoints/). No default:
+    // which model fits your card is your call, and a wrong name only fails at
+    // generation time.
+    checkpoint: process.env.COMFYUI_CHECKPOINT || '',
+    steps: parseInt(process.env.IMAGE_STEPS, 10) || 25,
+    cfg: parseFloat(process.env.IMAGE_CFG) || 7,
+    sampler: process.env.IMAGE_SAMPLER || 'euler',
+    scheduler: process.env.IMAGE_SCHEDULER || 'normal',
+    negativePrompt:
+      process.env.IMAGE_NEGATIVE_PROMPT ||
+      'text, letters, words, watermark, logo, signature, blurry, low quality, deformed, extra fingers',
+    // Native generation size by orientation. The image is cover-fitted into its
+    // slot, so these only need the right aspect, not the render's resolution -
+    // keep them inside what the model was trained for.
+    landscapeSize: process.env.IMAGE_SIZE_LANDSCAPE || '1024x576',
+    portraitSize: process.env.IMAGE_SIZE_PORTRAIT || '576x1024',
+    squareSize: process.env.IMAGE_SIZE_SQUARE || '768x768',
+    timeoutMs: parseInt(process.env.IMAGE_TIMEOUT_MS, 10) || 300000,
+    maxRetries: parseInt(process.env.IMAGE_MAX_RETRIES, 10) || 2,
+  },
+
+  security: {
+    // Extra hosts a scene image URL may point at even though they are (or
+    // resolve to) a private address - comma-separated hostnames or host:port.
+    // MinIO's own public URL is always allowed (see utils/assetUrlGuard.js),
+    // so this is only needed for e.g. an internal image server on the LAN.
+    imageAllowedHosts: (process.env.IMAGE_URL_ALLOWED_HOSTS || '')
+      .split(',')
+      .map((host) => host.trim())
       .filter(Boolean),
   },
 

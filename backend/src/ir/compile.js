@@ -111,6 +111,8 @@ function compile({ jobId, script, jobConfig = {}, stage = 'render', audioUrlFor 
       animation: scene.animation || '',
       imagePrompt,
       imageUrl,
+      layout: typeof scene.storyboard?.layout === 'string' ? scene.storyboard.layout : '',
+      storyboard: scene.storyboard && typeof scene.storyboard === 'object' ? scene.storyboard : null,
       timing: {
         durationSeconds,
         durationFrames: Math.round(durationSeconds * FPS),

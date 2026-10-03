@@ -4,14 +4,13 @@ const { ManagedProcess, parseCommand } = require('./processManager');
 const { SERVICE_STATE, checkHealth, waitUntilHealthy } = require('./serviceHealth');
 
 /**
- * NOT wired to a real install - no ComfyUI was found on this machine and
- * nothing in this codebase generates images via ComfyUI yet (see the
- * comment on config.localAI.comfyUI). This manager exists so
- * GPUResourceManager has a slot to sequence image generation against the
- * moment you do install ComfyUI and set COMFYUI_ENABLED=true plus
- * COMFYUI_START_COMMAND/COMFYUI_WORKDIR - until then `enabled` is false and
- * ensureRunning() below is a no-op, same as it would be for any other
- * disabled service.
+ * Process manager for ComfyUI, the scene-image generator (services/image/
+ * does the actual generating over its HTTP API). No ComfyUI install ships
+ * with this project: until you install it and set COMFYUI_ENABLED=true (plus
+ * COMFYUI_START_COMMAND/COMFYUI_WORKDIR if Vireon should launch it, and
+ * COMFYUI_CHECKPOINT - see backend/workflows/README.md), `enabled` is false
+ * and ensureRunning() below is a no-op, same as for any other disabled
+ * service. With it off, scenes that wanted an image render as text-only.
  */
 const managed = new ManagedProcess('ComfyUI');
 let inFlightEnsure = null;
@@ -42,7 +41,25 @@ async function stop() {
   return managed.stop();
 }
 
+/**
+ * Hand the card back. ComfyUI keeps checkpoints resident between jobs, and it is
+ * often started by hand rather than by us (so stop() below would do nothing) -
+ * asking it to free its models first is what actually returns the VRAM before TTS
+ * loads. Best effort: an unreachable server has nothing loaded anyway.
+ */
+async function freeModels() {
+  const apiUrl = config.imageGen.apiUrl;
+  try {
+    const axios = require('axios');
+    await axios.post(`${apiUrl}/free`, { unload_models: true, free_memory: true }, { timeout: 10000 });
+    LoggerService.info('[AI SERVICE] ComfyUI models freed');
+  } catch (err) {
+    LoggerService.warn('[AI SERVICE] Could not ask ComfyUI to free its models', { error: err.message });
+  }
+}
+
 async function unload() {
+  await freeModels();
   return stop();
 }
 

@@ -1,6 +1,7 @@
 const VideoJob = require('../../../models/VideoJob');
 const { JOB_STATUS, JOB_STEPS } = require('../../../constants');
 const { NotFoundError } = require('../../../utils/errors');
+const { IMAGE_SCENE_FIELDS } = require('../../image/fields');
 
 /**
  * Update job status with progress.
@@ -56,15 +57,20 @@ async function updateScript(jobId, script) {
 }
 
 /**
- * Update scene image URL.
+ * Persist the scenes the image step changed. Matches by sceneNumber and copies
+ * only IMAGE_SCENE_FIELDS, so it can run per image as they land without
+ * clobbering audio the job already wrote.
  */
-async function updateSceneImage(jobId, sceneNumber, imageData) {
+async function updateSceneImages(jobId, changedScenes) {
   const job = await VideoJob.findById(jobId);
   if (!job) throw new NotFoundError('Job not found');
 
-  const scene = job.script.scenes.find((s) => s.sceneNumber === sceneNumber);
-  if (scene) {
-    scene.imageUrl = imageData.imageUrl;
+  for (const changed of changedScenes) {
+    const scene = job.script.scenes.find((s) => s.sceneNumber === changed.sceneNumber);
+    if (!scene) continue;
+    for (const field of IMAGE_SCENE_FIELDS) {
+      if (field in changed) scene[field] = changed[field];
+    }
   }
 
   await job.save();
@@ -189,7 +195,7 @@ async function scheduleRetry(jobId, { message, detail, step, retryCount, nextRet
 module.exports = {
   updateStatus,
   updateScript,
-  updateSceneImage,
+  updateSceneImages,
   updateSceneAudio,
   updateAvatar,
   complete,
