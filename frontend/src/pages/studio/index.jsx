@@ -4,6 +4,7 @@ import { ArrowLeft, Save, Redo2, CheckCircle2, Pencil, AudioLines, Video } from 
 import {
   updateVideoScenes,
   rerenderVideoJob,
+  regenerateVideoSceneImage,
   approveVideoJob,
   generateVideoAudio,
   generateVideoRender,
@@ -46,6 +47,7 @@ const StudioPage = () => {
   const [inspectorTab, setInspectorTab] = useState("content");
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
   const [regeneratingScene, setRegeneratingScene] = useState(null);
+  const [regeneratingImage, setRegeneratingImage] = useState(false);
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
   const { editedScenes, hasChanges, setHasChanges, selectedSceneIndex, setSelectedSceneIndex } = editor;
@@ -97,6 +99,22 @@ const StudioPage = () => {
       toast.error(err.friendlyMessage || `Failed to regenerate scene ${sceneNumber}`);
     } finally {
       setRegeneratingScene(null);
+    }
+  };
+
+  // Re-rolls the selected scene's picture on the server (queued, then re-rendered).
+  // Uses the scene's current prompt, so a prompt edited here is what gets drawn.
+  const handleRegenerateImage = async (sceneNumber, prompt) => {
+    if (!jobId) return;
+    setRegeneratingImage(true);
+    try {
+      await regenerateVideoSceneImage(jobId, sceneNumber, prompt);
+      toast.success(`Regenerating the image for scene ${sceneNumber}`);
+      navigate(`/render?id=${jobId}`);
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to regenerate the image");
+    } finally {
+      setRegeneratingImage(false);
     }
   };
 
@@ -318,6 +336,11 @@ const StudioPage = () => {
             onVoiceChange={handleVoiceChange}
             regeneratingScene={regeneratingScene}
             onRegenerateScene={handleRegenerateScene}
+            // Only a finished job can re-roll a picture, and only from what is saved -
+            // unsaved edits would be silently left behind when the page moves on.
+            canRegenerateImage={["COMPLETED", "FAILED", "AUDIO_COMPLETED"].includes(job.status) && !hasChanges}
+            regeneratingImage={regeneratingImage}
+            onRegenerateImage={handleRegenerateImage}
           />
         </div>
       )}

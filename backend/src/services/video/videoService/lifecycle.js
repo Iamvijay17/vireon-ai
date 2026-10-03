@@ -7,6 +7,8 @@ const { assertTransitionAllowed } = require('../../../constants/jobTransitions')
 const { NotFoundError, ValidationError } = require('../../../utils/errors');
 const { getStepForResume, getResumeStep } = require('./resumeLogic');
 const cancellationBus = require('../../common/cancellationBus');
+const { prepareSceneForImage } = require('../../image/sceneImages');
+const { IMAGE_SCENE_FIELDS } = require('../../image/fields');
 
 /**
  * Re-render a completed job - resets to PREPARING_ASSETS state
@@ -66,6 +68,75 @@ async function rerender(jobId) {
     resumeStep: JOB_STATUS.PREPARING_ASSETS,
   });
 
+  return updatedJob;
+}
+
+/**
+ * Re-roll one scene's picture - optionally from a new prompt. The scene's old
+ * image is cleared and its variant bumped (so the generator makes a different
+ * picture rather than serving the cached one), then the job resumes at the image
+ * step, which only has this scene to do before the video is rendered again.
+ *
+ * A podcast's turns share one cover image, so re-rolling it re-rolls it for every
+ * turn that shares that prompt.
+ */
+async function regenerateSceneImage(jobId, sceneNumber, { prompt } = {}) {
+  const job = await VideoJob.findById(jobId);
+  if (!job) {
+    throw new NotFoundError('Job not found');
+  }
+
+  assertTransitionAllowed(job, 'regenerateImage', (status) => `Job is in ${status} state. Images can be regenerated once the video has been rendered.`);
+
+  const scenes = job.script.scenes;
+  const target = scenes.find((s) => s.sceneNumber === sceneNumber);
+  if (!target) {
+    throw new NotFoundError(`Scene ${sceneNumber} not found`);
+  }
+
+  const targetPlain = target.toObject();
+  const prepared = prepareSceneForImage(targetPlain, prompt);
+  if (!prepared) {
+    throw new ValidationError('This scene has no image prompt. Send a "prompt" describing the image to generate.');
+  }
+
+  // Which scenes change: just this one, or every podcast turn sharing its cover.
+  const sharedPrompt = targetPlain.sceneType === 'podcast' ? targetPlain.imagePrompt : null;
+  for (const scene of scenes) {
+    const isTarget = scene.sceneNumber === sceneNumber;
+    const sharesCover = sharedPrompt && scene.sceneType === 'podcast' && scene.imagePrompt === sharedPrompt;
+    if (!isTarget && !sharesCover) continue;
+
+    const next = isTarget ? prepared : prepareSceneForImage(scene.toObject(), prepared.imagePrompt);
+    for (const field of IMAGE_SCENE_FIELDS) {
+      if (field in next) scene[field] = next[field];
+    }
+  }
+  await job.save();
+
+  // Same cleanup as a re-render: stale props must not be reused. render/ is left
+  // for renderStep, which decides by fingerprint whether it really must re-render.
+  const jobDir = path.resolve(__dirname, '../../../../jobs', jobId);
+  try { await fs.unlink(path.join(jobDir, 'assets.json')); } catch {}
+  try { await fs.unlink(path.join(jobDir, 'render-props.json')); } catch {}
+
+  const updatedJob = await VideoJob.findByIdAndUpdate(
+    jobId,
+    {
+      $set: {
+        status: JOB_STATUS.GENERATING_IMAGES,
+        progress: 56,
+        currentStep: JOB_STATUS.GENERATING_IMAGES,
+        videoUrl: '',
+        thumbnailUrl: '',
+        audioUrls: [],
+      },
+      $unset: { error: '' },
+    },
+    { new: true }
+  );
+
+  LoggerService.info('Video job regenerating a scene image', { jobId, sceneNumber, newPrompt: Boolean(prompt) });
   return updatedJob;
 }
 
@@ -282,6 +353,7 @@ async function restart(jobId) {
 
 module.exports = {
   rerender,
+  regenerateSceneImage,
   regenerateScript,
   stop,
   approve,

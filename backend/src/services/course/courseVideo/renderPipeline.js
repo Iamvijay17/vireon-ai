@@ -12,6 +12,7 @@ const RemotionStatus = require('../../localAI/remotionStatus');
 const LocalAIService = require('../../localAI');
 const config = require('../../../config');
 const { ensureSceneImages, needsImage } = require('../../image/sceneImages');
+const { runLayoutQc } = require('../../qc/runLayoutQc');
 const { IMAGE_SCENE_FIELDS } = require('../../image/fields');
 const StorageService = require('../../storage/StorageService');
 const { getStorageProvider } = require('../../storage/providers');
@@ -182,13 +183,16 @@ async function renderVideo(videoId) {
     // Prepare assets for Remotion
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 65, 'Preparing assets...');
 
-    await RemotionService.prepareAssets(jobId, remotionScript, jobConfig);
+    const preparedAssets = await RemotionService.prepareAssets(jobId, remotionScript, jobConfig);
 
     // Cheap structural/asset checks before committing to a render - see
     // RemotionService.validateAssets. Checked against scenesWithAudio (has
     // scene.audio.text and imagePrompt) rather than the assets.json shape,
     // which strips audio.text.
     await RemotionService.validateAssets(jobId, scenesWithAudio);
+
+    // Optional layout check (QC_ENABLED) - see services/qc/runLayoutQc.js.
+    await runLayoutQc({ id: jobId, assets: preparedAssets });
 
     // Update progress
     video.renderProgress = 70;

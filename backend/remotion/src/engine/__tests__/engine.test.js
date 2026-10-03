@@ -21,6 +21,7 @@ import { VISUAL_STYLE_IDS, VISUAL_STYLES, resolveVisualStyle } from '../visualSt
 import { chooseBackground, chooseDecoration } from '../chooseVisuals';
 import { LAYOUT_IDS, isLayoutCompatible, resolveLayoutHint } from '../layoutHint';
 import { computeCameraTransform, cameraTransformToCss, resolveCameraMotion } from '../../camera';
+import { analyzeLayout, sortIssues } from '../../qc/analyzeLayout';
 
 // ---------------------------------------------------------------------------
 // Scene routing - representative ContentProfiles should route through
@@ -538,4 +539,140 @@ test('layout hints: scenes without a hint resolve exactly as before', () => {
   const before = solveLayout({ ...analyzeContent(scene), layoutHint: undefined }, 'seed');
   const after = solveLayout(analyzeContent(scene), 'seed');
   assert.equal(before.strategy, after.strategy);
+});
+
+// ---------------------------------------------------------------------------
+// Motion rest state - every entrance animation must END at identity. The layout
+// engine sizes each slot for scale 1 / no offset, so an animation that settles
+// anywhere else leaves text permanently larger, shifted or clipped. (bounceIn
+// used to settle at scale 1.2: a full-width title ran 48px off the frame.)
+// ---------------------------------------------------------------------------
+
+const numbersIn = (text) => (String(text).match(/-?\d+(\.\d+)?/g) || []).map(Number);
+
+test('motion rest state: every entrance animation settles at identity', () => {
+  for (const type of MOTION_IDS) {
+    for (const spec of [{ type, delay: 0, duration: 20 }, { type, delay: 40, duration: 28 }]) {
+      const style = computeMotionStyle(400, spec);
+      const label = `${type} (delay ${spec.delay})`;
+
+      if ('opacity' in style) assert.ok(Math.abs(style.opacity - 1) < 0.001, `${label}: opacity ${style.opacity}`);
+
+      if (style.transform) {
+        for (const part of style.transform.match(/[a-zA-Z]+\([^)]*\)/g) || []) {
+          const expected = part.startsWith('scale') ? 1 : 0;
+          for (const n of numbersIn(part)) {
+            assert.ok(Math.abs(n - expected) < 0.001, `${label}: ${part} should rest at ${expected}`);
+          }
+        }
+      }
+      if (style.filter) {
+        for (const n of numbersIn(style.filter)) assert.ok(Math.abs(n) < 0.001, `${label}: ${style.filter} should rest at 0`);
+      }
+      if (style.clipPath) {
+        // fully revealed: an inset with nothing cut, or a circle covering the box
+        const revealed = style.clipPath.startsWith('circle')
+          ? numbersIn(style.clipPath)[0] >= 100
+          : numbersIn(style.clipPath).every((n) => Math.abs(n) < 0.001);
+        assert.ok(revealed, `${label}: ${style.clipPath} should be fully revealed`);
+      }
+    }
+  }
+});
+
+test('motion rest state: bounceIn still overshoots on the way in', () => {
+  let peak = 0;
+  for (let frame = 0; frame < 60; frame += 1) {
+    const scale = numbersIn(computeMotionStyle(frame, { type: 'bounceIn', delay: 0 }).transform)[0];
+    peak = Math.max(peak, scale);
+  }
+  assert.ok(peak > 1.02, `expected an overshoot above 1, peaked at ${peak}`);
+});
+
+// ---------------------------------------------------------------------------
+// Layout QC analysis
+// ---------------------------------------------------------------------------
+
+const CANVAS_1080 = { width: 1920, height: 1080 };
+const textBlock = (over = {}) => ({ role: 'title', text: 'A title', rect: { x: 120, y: 90, w: 800, h: 100 }, clippedLines: 0, totalLines: 1, fontPx: 64, ...over });
+const typesOf = (issues) => issues.map((i) => i.type);
+
+test('layout QC: a well-laid-out scene reports nothing', () => {
+  const issues = analyzeLayout({
+    canvas: CANVAS_1080,
+    texts: [textBlock(), textBlock({ role: 'listItem', text: 'point', rect: { x: 120, y: 300, w: 800, h: 60 }, fontPx: 32 })],
+  });
+  assert.deepEqual(issues, []);
+});
+
+test('layout QC: clipped lines are an error and say how many', () => {
+  const [issue] = analyzeLayout({ canvas: CANVAS_1080, texts: [textBlock({ clippedLines: 3, totalLines: 8 })] });
+  assert.equal(issue.type, 'clipped');
+  assert.equal(issue.severity, 'error');
+  assert.match(issue.message, /3 of its 8 lines/);
+});
+
+test('layout QC: text past the frame edge is an error naming the side; a few px of slack is tolerated', () => {
+  const past = analyzeLayout({ canvas: CANVAS_1080, texts: [textBlock({ rect: { x: -48, y: 90, w: 2016, h: 100 } })] });
+  assert.equal(past[0].type, 'offscreen');
+  assert.equal(past[0].detail.side, 'left');
+  const slack = analyzeLayout({ canvas: CANVAS_1080, texts: [textBlock({ rect: { x: -3, y: 90, w: 800, h: 100 } })] });
+  assert.deepEqual(typesOf(slack), []);
+});
+
+test('layout QC: overlap needs a real share of the smaller block; touching edges is fine', () => {
+  const a = textBlock({ rect: { x: 100, y: 100, w: 400, h: 100 } });
+  const touching = textBlock({ role: 'body', rect: { x: 100, y: 200, w: 400, h: 100 } });
+  assert.deepEqual(typesOf(analyzeLayout({ canvas: CANVAS_1080, texts: [a, touching] })), []);
+
+  const slight = textBlock({ role: 'body', rect: { x: 100, y: 180, w: 400, h: 100 } }); // 20%
+  const [warn] = analyzeLayout({ canvas: CANVAS_1080, texts: [a, slight] });
+  assert.equal(warn.type, 'overlap');
+  assert.equal(warn.severity, 'warn');
+
+  const heavy = textBlock({ role: 'body', rect: { x: 100, y: 120, w: 400, h: 100 } }); // 80%
+  assert.equal(analyzeLayout({ canvas: CANVAS_1080, texts: [a, heavy] })[0].severity, 'error');
+});
+
+test('layout QC: any overlap with the captions is an error', () => {
+  const content = textBlock({ rect: { x: 100, y: 900, w: 800, h: 100 } });
+  const issues = analyzeLayout({ canvas: CANVAS_1080, texts: [content], captions: [{ text: 'caption', rect: { x: 100, y: 880, w: 800, h: 100 } }] });
+  assert.equal(issues[0].type, 'overlap');
+  assert.equal(issues[0].severity, 'error');
+});
+
+test('layout QC: a crowded list is summarised as one overlap issue, not one per pair', () => {
+  const rows = Array.from({ length: 12 }, (_, i) =>
+    textBlock({ role: 'listItem', text: `row ${i}`, rect: { x: 100, y: 100 + i * 20, w: 800, h: 60 }, fontPx: 32 }));
+  const overlaps = analyzeLayout({ canvas: CANVAS_1080, texts: rows }).filter((i) => i.type === 'overlap');
+  assert.equal(overlaps.length, 1);
+  assert.match(overlaps[0].message, /overlapping pairs \(listItem \+ listItem\)/);
+  assert.ok(overlaps[0].detail.pairs > 3);
+});
+
+test('layout QC: small text warns (labels excepted), and thresholds scale with the canvas', () => {
+  assert.deepEqual(typesOf(analyzeLayout({ canvas: CANVAS_1080, texts: [textBlock({ fontPx: 16 })] })), ['small-text']);
+  assert.deepEqual(typesOf(analyzeLayout({ canvas: CANVAS_1080, texts: [textBlock({ role: 'label', fontPx: 16 })] })), []);
+  // 12px on a 540px-tall canvas is the same proportion as 24px at 1080
+  assert.deepEqual(typesOf(analyzeLayout({ canvas: { width: 960, height: 540 }, texts: [textBlock({ fontPx: 12 })] })), []);
+});
+
+test('layout QC: many small blocks are one warning that names the smallest', () => {
+  const rows = Array.from({ length: 10 }, (_, i) =>
+    textBlock({ role: 'listItem', text: `row ${i}`, rect: { x: 100, y: 100 + i * 80, w: 800, h: 60 }, fontPx: i === 4 ? 14 : 20 }));
+  const small = analyzeLayout({ canvas: CANVAS_1080, texts: rows }).filter((i) => i.type === 'small-text');
+  assert.equal(small.length, 1);
+  assert.match(small[0].message, /10 text blocks are small - the smallest is listItem "row 4" at 14px/);
+  assert.equal(small[0].detail.count, 10);
+});
+
+test('layout QC: failed images and empty scenes', () => {
+  assert.deepEqual(typesOf(analyzeLayout({ canvas: CANVAS_1080, texts: [textBlock()], images: [{ src: 'http://x/a.png', loaded: false }] })), ['image-failed']);
+  assert.deepEqual(typesOf(analyzeLayout({ canvas: CANVAS_1080 })), ['empty']);
+  assert.deepEqual(typesOf(analyzeLayout({ canvas: CANVAS_1080, images: [{ loaded: true }] })), []);
+});
+
+test('layout QC: sortIssues puts errors first', () => {
+  const sorted = sortIssues([{ type: 'small-text', severity: 'warn' }, { type: 'clipped', severity: 'error' }]);
+  assert.deepEqual(sorted.map((i) => i.type), ['clipped', 'small-text']);
 });

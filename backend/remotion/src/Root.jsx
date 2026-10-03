@@ -6,6 +6,7 @@ import { VideoComposition } from "./VideoComposition";
 import { sampleScenes } from "./sampleData";
 import { sampleGenerativeScenes } from "./engine/sampleGenerativeScenes";
 import { calculateVideoMetadata } from "./calculateVideoMetadata";
+import { LayoutQc, calculateQcMetadata } from "./qc/LayoutQc";
 
 // Each <Composition> is an entry in the sidebar!
 
@@ -290,6 +291,19 @@ export const RemotionRoot = () => {
         fps={30}
         width={1920}
         height={1080}
+      />
+
+      {/* Layout QC: one frame per scene, measured in the real DOM (see qc/LayoutQc.jsx).
+          Rendered by services/qc/LayoutQcService.js - never part of a delivered video. */}
+      <Composition
+        id="LayoutQc"
+        component={LayoutQc}
+        calculateMetadata={calculateQcMetadata}
+        durationInFrames={1}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{ assets: { title: "", scenes: [] }, jobId: "qc" }}
       />
 
       {/* Video Composition for Vireon AI (used for rendering) */}

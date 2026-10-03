@@ -3,7 +3,7 @@ const ActivityLogService = require('../services/common/ActivityLogService');
 const videoQueue = require('../queues/videoQueue');
 const LoggerService = require('../services/common/LoggerService');
 const SocketService = require('../services/common/SocketService');
-const { validate, createVideoSchema, updateVideoJobSchema, jobIdSchema, jobIdArraySchema } = require('../validators');
+const { validate, createVideoSchema, updateVideoJobSchema, regenerateImageSchema, jobIdSchema, jobIdArraySchema } = require('../validators');
 const { ValidationError } = require('../utils/errors');
 
 /**
@@ -310,6 +310,32 @@ class VideoController {
         status: job.status,
         progress: job.progress,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/videos/:id/scenes/:sceneNumber/regenerate-image - Re-roll one
+   * scene's picture (optionally from a new prompt), then render again.
+   * Queued like a re-render: the worker owns the GPU, not the API process.
+   */
+  static async regenerateImage(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const sceneNumber = parseInt(req.params.sceneNumber, 10);
+      if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
+        throw new ValidationError('sceneNumber must be a positive integer');
+      }
+      const { prompt } = validate(regenerateImageSchema)(req.body || {});
+
+      const job = await VideoService.regenerateSceneImage(id, sceneNumber, { prompt });
+      await ActivityLogService.add(id, `Regenerating the image for scene ${sceneNumber}${prompt ? ' with a new prompt' : ''}`);
+
+      SocketService.emitJobCreated(job);
+      await enqueueJob(job._id.toString());
+
+      res.json({ jobId: job._id, status: job.status, progress: job.progress, sceneNumber });
     } catch (err) {
       next(err);
     }

@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import { AbsoluteFill, Sequence, Video, continueRender, delayRender, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import TemplateRegistry from "./templates/TemplateRegistry";
 import DefaultTemplate from "./templates/DefaultTemplate";
@@ -173,7 +173,21 @@ const CameraMotion = ({ motion, children }) => {
 // (templateId "generative") uses it as its Style Generator seed so every
 // scene in the same job resolves to the same palette/font pairing instead
 // of each scene picking its own (see GeneratedScene.jsx).
-const Scene = React.memo(({ scene, jobId }) => {
+/**
+ * Layout QC only (see qc/LayoutQc.jsx): marks the probe around a scene as ready
+ * once the lazily-loaded template has actually mounted. It sits inside the
+ * template's Suspense boundary, so its effect cannot run until the template has
+ * resolved - which is exactly the signal the probe needs before measuring.
+ */
+const QcReadyMarker = () => {
+  const ref = useRef(null);
+  useEffect(() => {
+    ref.current?.closest("[data-qc-probe]")?.setAttribute("data-qc-ready", "1");
+  }, []);
+  return <span ref={ref} style={{ display: "none" }} />;
+};
+
+const Scene = React.memo(({ scene, jobId, qc = false }) => {
   const templateId = scene?.templateId;
   const Template = resolveTemplate(templateId);
 
@@ -186,6 +200,7 @@ const Scene = React.memo(({ scene, jobId }) => {
       <CameraMotion motion={scene?.cameraMotion}>
         <Suspense fallback={<TemplateLoadingFallback />}>
           <Template scene={scene} jobId={jobId} />
+          {qc && <QcReadyMarker />}
         </Suspense>
       </CameraMotion>
     </AbsoluteFill>
@@ -193,6 +208,8 @@ const Scene = React.memo(({ scene, jobId }) => {
 });
 
 Scene.displayName = "Scene";
+
+export { Scene };
 
 // Corner placement for the optional talking-head overlay - see
 // RemotionService.prepareAssets's `avatar` field. Only reserves space when

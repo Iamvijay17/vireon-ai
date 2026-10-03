@@ -7,6 +7,7 @@ const RemotionStatus = require('../../services/localAI/remotionStatus');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS, JOB_STEPS } = require('../../constants');
+const { runLayoutQc } = require('../../services/qc/runLayoutQc');
 const { JobCancelledError, renderConfigFor } = require('./shared');
 
 /**
@@ -49,6 +50,16 @@ async function render(jobId, assets, ctx, script) {
   // "narration text but 0-duration audio" check needs.
   ctx.currentStep = 'Validation';
   await RemotionService.validateAssets(jobId, script.scenes);
+
+  // Optional layout check (QC_ENABLED) - reports text that is cut off or off-frame
+  // before a multi-minute render is spent on it. Cancellation passes through.
+  ctx.currentStep = 'Layout check';
+  try {
+    await runLayoutQc({ id: jobId, assets, signal: ctx.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new JobCancelledError(jobId);
+    throw err;
+  }
 
   ctx.currentStep = JOB_STATUS.RENDERING;
   await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING);

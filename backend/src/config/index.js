@@ -333,6 +333,16 @@ const config = Object.freeze({
     maxRetries: parseInt(process.env.IMAGE_MAX_RETRIES, 10) || 2,
   },
 
+  // Layout QC (services/qc/): renders each scene in headless Chromium just before the
+  // video render and reports text that is cut off or off-frame, overlapping text,
+  // images that did not load. Off by default - it adds a Remotion bundle + a few
+  // seconds per video. It only reports; QC_FAIL_ON_ERROR=true makes errors stop the render.
+  qc: {
+    enabled: process.env.QC_ENABLED === 'true',
+    failOnError: process.env.QC_FAIL_ON_ERROR === 'true',
+    timeoutMs: parseInt(process.env.QC_TIMEOUT_MS, 10) || 300000,
+  },
+
   security: {
     // Extra hosts a scene image URL may point at even though they are (or
     // resolve to) a private address - comma-separated hostnames or host:port.

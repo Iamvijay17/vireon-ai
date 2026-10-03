@@ -2,6 +2,7 @@ const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
 const { abortableDelay } = require('../../utils/abortableDelay');
 const ScriptParserService = require('../video/ScriptParserService');
+const StoryboardPlanningService = require('../director/StoryboardPlanningService');
 const ImageGenerationService = require('./ImageGenerationService');
 
 /**
@@ -16,6 +17,9 @@ const ImageGenerationService = require('./ImageGenerationService');
 
 const isCancel = (err) => err?.name === 'AbortError' || err?.cancelled === true;
 const hasText = (v) => typeof v === 'string' && v.trim().length > 0;
+
+/** How many times this scene's picture has been re-rolled (0 = the original). */
+const variantOf = (scene) => Number(scene.storyboard?.visual?.variant) || 0;
 
 /** A scene that asked for an image and has none yet. */
 const needsImage = (scene) => hasText(scene.imagePrompt) && !hasText(scene.imageUrl);
@@ -88,12 +92,12 @@ function degradeScene(scene, reason) {
   };
 }
 
-async function generateWithRetry({ id, prompt, aspectRatio, signal, generator }) {
+async function generateWithRetry({ id, prompt, aspectRatio, variant, signal, generator }) {
   const attempts = Math.max(1, config.imageGen.maxRetries);
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      return await generator.generate({ jobId: id, prompt, aspectRatio, signal });
+      return await generator.generate({ jobId: id, prompt, aspectRatio, variant, signal });
     } catch (err) {
       if (isCancel(err) || err.permanent) throw err;
       lastError = err;
@@ -120,10 +124,12 @@ async function ensureSceneImages({
   id, scenes, aspectRatio, signal, checkCancelled, onProgress, persist, generator = ImageGenerationService,
 }) {
   const result = [...scenes];
-  const groups = new Map(); // prompt -> scene indices
+  // One generation per distinct (prompt, variant): scenes sharing both (a podcast's
+  // cover) share the picture, while a re-rolled scene gets its own.
+  const groups = new Map(); // "prompt\u0000variant" -> scene indices
   result.forEach((scene, index) => {
     if (!needsImage(scene)) return;
-    const key = scene.imagePrompt.trim();
+    const key = `${scene.imagePrompt.trim()}\u0000${variantOf(scene)}`;
     groups.set(key, [...(groups.get(key) || []), index]);
   });
 
@@ -147,11 +153,13 @@ async function ensureSceneImages({
   }
 
   let done = 0;
-  for (const [prompt, indices] of groups) {
+  for (const [key, indices] of groups) {
     if (checkCancelled) await checkCancelled();
+    const [prompt] = key.split('\u0000');
+    const variant = variantOf(result[indices[0]]);
 
     try {
-      const image = await generateWithRetry({ id, prompt, aspectRatio, signal, generator });
+      const image = await generateWithRetry({ id, prompt, aspectRatio, variant, signal, generator });
       indices.forEach((i) => { result[i] = applyImage(result[i], image.url); });
       if (image.fromCache) summary.cached += 1; else summary.generated += 1;
       if (persist) await persist(indices.map((i) => result[i]));
@@ -169,4 +177,53 @@ async function ensureSceneImages({
   return summary;
 }
 
-module.exports = { ensureSceneImages, needsImage, applyImage, degradeScene, imageFieldFor };
+/**
+ * A scene set up to have its picture (re)generated: the prompt (a new one, or the
+ * scene's own), the old image cleared, and the variant bumped so the next
+ * generation is a different picture. A text scene given a prompt becomes an
+ * image scene. Returns null when there is no prompt to work from.
+ */
+function prepareSceneForImage(scene, promptOverride = '') {
+  const prompt = [promptOverride, scene.imagePrompt, scene.storyboard?.visual?.prompt].find(hasText)?.trim();
+  if (!prompt) return null;
+
+  const field = imageFieldFor(scene);
+  let next = { ...scene };
+
+  if (scene.sceneType === 'content') {
+    // A bulleted text scene has nowhere to show a picture; make it the image-and-text
+    // kind, with the narration's first sentence as its body.
+    const elements = scene.elements || {};
+    next = {
+      ...scene,
+      sceneType: 'contentwithimage',
+      subtitle: scene.subtitle || StoryboardPlanningService._leadSentence(scene.audio?.text),
+      elements: {
+        ...(elements.backgroundColor ? { backgroundColor: elements.backgroundColor } : {}),
+        ...(elements.styleConfig ? { styleConfig: elements.styleConfig } : {}),
+        title: elements.title || scene.title || '',
+        body: scene.subtitle || StoryboardPlanningService._leadSentence(scene.audio?.text),
+        image: '',
+        badge: '',
+      },
+    };
+    if (scene.templateId !== ScriptParserService.GENERATIVE_TEMPLATE_ID) {
+      next.templateId = ScriptParserService._getDefaultTemplateForType('contentwithimage');
+    }
+  }
+
+  const previous = next.storyboard?.visual || {};
+  const { reason: _dropped, ...visual } = previous;
+  return {
+    ...next,
+    imagePrompt: prompt,
+    imageUrl: '',
+    elements: { ...(next.elements || {}), [field]: '' },
+    storyboard: {
+      ...(next.storyboard || {}),
+      visual: { ...visual, kind: 'image', prompt, status: 'pending', variant: variantOf(scene) + 1 },
+    },
+  };
+}
+
+module.exports = { ensureSceneImages, needsImage, applyImage, degradeScene, imageFieldFor, prepareSceneForImage, variantOf };

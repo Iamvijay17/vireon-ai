@@ -298,6 +298,34 @@ router.post('/:id/scenes/:sceneNumber/regenerate-audio', authenticate, SceneCont
 
 /**
  * @swagger
+ * /api/videos/{id}/scenes/{sceneNumber}/regenerate-image:
+ *   post:
+ *     summary: Re-roll one scene's generated image
+ *     description: >
+ *       Clears the scene's image, picks a new seed (so it is a different picture, not the cached one),
+ *       optionally from a new prompt, and re-queues the job at the image step followed by a re-render.
+ *       Only COMPLETED, FAILED or AUDIO_COMPLETED jobs. A scene with no image prompt needs one in the body.
+ *     tags: [Scenes]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/VideoJobId' }
+ *       - { $ref: '#/components/parameters/SceneNumber' }
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               prompt: { type: string, maxLength: 400 }
+ *     responses:
+ *       200: { description: Job re-queued }
+ *       400: { description: Invalid scene number, wrong job state, or no prompt available }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.post('/:id/scenes/:sceneNumber/regenerate-image', authenticate, VideoController.regenerateImage);
+
+/**
+ * @swagger
  * /api/videos/{id}/scenes/{sceneNumber}/remap-template:
  *   post:
  *     summary: Compute a fresh `elements` shape for a scene switching to a different template

@@ -1,14 +1,14 @@
 # Vireon AI: Complete System Audit
 
-Audit date: 2026-10-03. Branch: `v2`. Method: read-only. I read source, config and prompt files, and ran no code, installed nothing, and opened no `.env`. Versions are the ranges declared in `package.json`, not installed versions. Remotion is pinned exactly at 4.0.489. Anything I couldn't confirm from source is marked `UNKNOWN — NOT VERIFIED`.
+Audit date: 2026-10-03, refreshed the same day after commits `8cb8718` (image generation, Director storyboard), `05702b4` (camera motion, image URL guard), the LM Studio removal and `5e4e34e` (worker tests). Branch: `v2`. Method: read-only. I read source, config and prompt files, ran only the worker test suite (28 tests pass), and installed nothing. The refresh read four single keys from the prod `.env` (`GPU_COORDINATOR`, `COMFYUI_ENABLED`, `IR_MODE`, `LLM_PROVIDER`) and nothing else from it. Versions are the ranges declared in `package.json`, not installed versions. Remotion is pinned exactly at 4.0.489. Anything I couldn't confirm from source is marked `UNKNOWN — NOT VERIFIED`.
 
 **Not read in depth:** the 46 hand-coded Remotion template bodies, the frontend UI primitives, `JsonRepairService`, `RedisLease` internals, the Swagger annotations, and the Audio Studio panels. I read their headers or grepped them.
 
 **Four findings that change planning:**
-1. There is no image generation anywhere. `imagePrompt` is written but nothing consumes it.
-2. A partial AI Director already exists, but only the video-job script path uses it.
-3. The LLM's `cameraMotion` and `animation` fields are saved but never read by the renderer.
-4. There is no background music, SFX, ducking or loudness normalization.
+1. Image generation now exists (ComfyUI through `imageStep`, with a Director image budget and a text-only fallback) but it is switched off. No ComfyUI install was found on this machine and prod has `COMFYUI_ENABLED=false`, so it has not run end to end here.
+2. The AI Director now serves video jobs and course lessons, and has a storyboard layer that proposes layout, image, camera motion and transition per scene. It is still script-time only.
+3. Camera motion is now rendered (`camera.js`). The LLM `animation` field is still saved and passed to render props, but no scene renderer I found reads it.
+4. There is still no background music, SFX, ducking or loudness normalization. Prod also does not set `GPU_COORDINATOR=redis`, so the two workers can still overload the GPU.
 
 Legend: 🟢 implemented, 🟡 partial, 🔵 configured but unused, 🔴 missing, ⚪ dead/unused.
 
@@ -34,12 +34,11 @@ Legend: 🟢 implemented, 🟡 partial, 🔵 configured but unused, 🔴 missing
 | Backend | Socket.IO | ^4.8.1 | `services/common/socketService/*` | Realtime, bridged across processes via Redis pub/sub | 🟢 |
 | Backend | Zod | ^3.24.1 | `validators/`, `ir/`, `config/validate.js` | Validation | 🟢 |
 | Backend | helmet, cors, express-rate-limit, morgan | ^8 / ^2.8 / ^7.5 / ^1.11 | `server.js` | Security and request logging | 🟢 |
-| Backend | winston | ^3.17.0 | `LoggerService.js` | Logging, custom levels `tts`, `lmstudio`, `render`, `upload` | 🟢 |
+| Backend | winston | ^3.17.0 | `LoggerService.js` | Logging, custom levels `tts`, `llm`, `render`, `upload` | 🟢 |
 | Backend | swagger-jsdoc, swagger-ui-express | — | `config/swagger.js`, `/api-docs` | OpenAPI | 🟢 |
 | Backend | minio | ^8.0.7 | `MinioStorageProvider.js` | Object storage | 🟢 |
 | Backend | @gradio/client | ^2.3.1 | TTS and avatar clients | Calls the Gradio apps | 🟢 |
 | Backend | archiver, audio-decode | — | `courseController.js`, `getAudioDuration.mjs` | Course zip, audio duration | 🟢 |
-| Backend | **multer, uuid** | ^1.4.5 / ^11 | nothing | Declared, never imported | ⚪ |
 | Video | **Remotion** | 4.0.489 | `backend/remotion/` | Only renderer. CLI `render` and `still` via `RemotionService` | 🟢 |
 | Video | Headless Chromium (via Remotion) | — | `RemotionService.js` | Remotion drives it itself. No direct Puppeteer/Playwright | 🟢 |
 | Video | **GSAP** | ^3.13.0 | one file, `templates/003-title/index.jsx` | Single title template | 🟡 |
@@ -59,15 +58,14 @@ Legend: 🟢 implemented, 🟡 partial, 🔵 configured but unused, 🔴 missing
 
 | Engine/Model | Version | Purpose | Input | Output | Local/API | GPU | Used by | Status |
 |---|---|---|---|---|---|---|---|---|
-| **Ollama + `gemma4:e4b-it-qat`** | model default in config | Script, curriculum, story plan | Prompt | JSON | Local, `/api/chat`, `format:json`, `num_ctx` 16384 | Yes (6GB) | `LLMService` | 🟢 default |
-| **LM Studio** | `google/gemma-4-e4b` | Alternate LLM, OpenAI-compatible | same | same | Local | Yes | `LLMService`, `LLM_PROVIDER=lmstudio` | 🟡 alternate |
+| **Ollama + `gemma4:e4b-it-qat`** | model default in config | Script, curriculum, story plan, storyboard | Prompt | JSON | Local, `/api/chat`, `format:json`, `num_ctx` 16384 | Yes (6GB) | `LLMService` | 🟢 only LLM backend |
 | **Qwen3-TTS** (Gradio) | 1.7B default, 0.6B "fast" | TTS: custom speaker (9 presets), voice clone (~70 reference files in `backend/voices/`), voice design | Text, voice, seed, instruct | MP3 | Local (`:7860`) | Yes | `ttsClient`, `sceneSynthesis` | 🟢 |
 | **faster-whisper** | model `base`, CPU int8 | Forced alignment, per-word caption timestamps | MP3 | `[{word,start,end}]` | Local Python subprocess | No | `alignCaptions.py` | 🟢 |
 | **MuseTalk** (Gradio) | UNKNOWN | Lip-synced avatar overlay | Bundled portrait + narration WAV | MP4 | Local (`:8890`) | Yes | `AvatarService` | 🟢 optional |
-| **ComfyUI** | none installed | GPU slot only | — | — | — | — | `comfyUIManager` | 🔵 |
-| Image gen, video gen, music gen, OCR, embeddings, vision | none | — | — | — | — | — | — | 🔴 |
+| **ComfyUI** | none installed here | Scene images (txt2img through an API-format workflow, `backend/workflows/txt2img.api.json`) | Prompt, seed, size, checkpoint | PNG | Local (`:8188`) | Yes | `ImageGenerationService`, `ComfyUIClient`, `comfyUIManager` | 🟡 opt-in, off by default |
+| Video gen, music gen, OCR, embeddings, vision | none | — | — | — | — | — | — | 🔴 |
 
-- **ComfyUI:** `comfyUIManager.js` starts and stops a process, and nothing sends it a prompt. Its own header comment says so.
+- **ComfyUI:** `comfyUIManager.js` starts and stops the process and `services/image/` sends it the prompts. It only runs when `COMFYUI_ENABLED=true`, and it needs `COMFYUI_CHECKPOINT` (no default) and a start command. No install was found under `C:\Programs\Video Generation\local-ai\` or `C:\pinokio\api\`.
 - **Lip sync:** MuseTalk is the only path, and it only drives a small circular overlay.
 - **Model weights, tokenizer and TTS server version:** `UNKNOWN — NOT VERIFIED`. They live outside this repo, in `C:\Programs\Video Generation\local-ai\qwen3-tts` and Ollama.
 
@@ -87,7 +85,9 @@ BullMQ 'video-rendering'    one job = whole pipeline in one processor (workers/v
                  gpu.withGPU('llm') → AIDirectorService.direct()
                    StoryStructureService.plan   (1 LLM call: beats, styleGuide, title, tags)
                    ScenePlanningService.generate (chunked LLM calls, ≤30 scenes/chunk)
-                   VisualPlanningService / VoicePlanningService / MotionPlanningService (deterministic)
+                   StoryboardPlanningService    (LLM per 12 scenes: layout, image prompt, camera, transition;
+                                                 every proposal validated against what the renderer has)
+                   VoicePlanningService / MotionPlanningService (deterministic)
                  ScriptParserService.validate → picks templateId, builds `elements`
                  checkSceneGraph (IR compile, shadow mode)
                  → saves script, status AWAITING_APPROVAL, PAUSES for manual approval
@@ -98,6 +98,8 @@ BullMQ 'video-rendering'    one job = whole pipeline in one processor (workers/v
                  → upload to MinIO immediately; Smart Cache by content hash
         ▼  (manual mode fastGeneration=false pauses here)
 [3] avatarStep   optional: concat narration WAV → MuseTalk → MP4 → MinIO
+[3b] imageStep   scenes with a storyboard image: gpu.withGPU('comfyui') → ComfyUI → PNG → MinIO → scene.imageUrl
+                 (prompt-hash cache; image generation off or failing → the scene is rewritten as text-only)
 [4] prepareAssets  RemotionService.prepareAssets → assets.json (IR reconciled against legacy builder)
 [5] render       validateAssets → `remotion render VideoComposition` (h264, CRF by quality, yuv420p)
                  → `remotion still` thumbnail (jpeg, half scale); fingerprint skips redundant re-render
@@ -106,13 +108,13 @@ BullMQ 'video-rendering'    one job = whole pipeline in one processor (workers/v
 Preview/download   <video> from MinIO public URL (frontend re-homes to /media); Socket.IO progress
 ```
 
-There is no image-generation step. Statuses `GENERATING_IMAGES` and `IMAGE_COMPLETED` exist, but nothing in the worker sets them. `updateSceneImage()` has zero callers. `RemotionService.validateAssets` still fails a job when `imagePrompt` is set and `imageUrl` is empty, so the only way past it is pasting a URL by hand in the Studio.
+The image step now exists (`workers/videoWorker/imageStep.js`) and sets `GENERATING_IMAGES` (56 to 59 percent). It is skipped when no scene needs an image, and only the scenes still missing one are processed on resume. With `COMFYUI_ENABLED=false`, which is the default and what prod has, every image scene falls back to text-only, so a render never fails over a missing picture unless `IMAGE_GEN_REQUIRED=true`. The Studio also has a per-scene image regenerate button and a `POST /api/videos/:id/scenes/:n/regenerate-image` route, but that work is uncommitted in the working tree.
 
 ---
 
 ## 4. AI Director capabilities
 
-An AI Director layer exists in `backend/src/services/director/`. It is script-time only.
+An AI Director layer exists in `backend/src/services/director/`. It is script-time only, serves video jobs and course lessons, and now ends in a storyboard step.
 
 | Capability | Status | Evidence |
 |---|---|---|
@@ -121,11 +123,11 @@ An AI Director layer exists in `backend/src/services/director/`. It is script-ti
 | Scene count | 🟡 | Computed by formula from duration, not decided by AI |
 | Scene types | 🟡 | LLM picks `title/content/image/contentwithimage/podcast` via the prompt. The educational prompt offers only title, content, image. |
 | Scene duration | 🔴 | Always derived from TTS audio length |
-| Visual style | 🟡 | `visualPalette` text is appended to image prompts that never render. The real look comes from a seeded `generateStyle(jobId)`, not AI. |
-| Motion | 🔴 | LLM `cameraMotion` is saved and ignored by the renderer (see §6) |
-| Transitions | 🟡 | LLM may emit `fade`/`slide`. The renderer honors it, otherwise a seeded random pick. |
-| Layout / template choice | 🔴 | Deterministic: `chooseStrategy` routes by content shape with seeded tie-breaks |
-| Assets / images | 🔴 | No generation or selection |
+| Visual style | 🟡 | `visualPalette` text is appended to image prompts, which are now consumed when image generation is on. The real look still comes from a seeded `generateStyle(jobId)`, not AI. |
+| Motion | 🟡 | The storyboard picks `cameraMotion` per scene from a fixed list and the renderer applies it (`camera.js`). Entrance motions are still seeded. |
+| Transitions | 🟡 | The storyboard picks from the 9 ids the renderer registry has. Unset scenes get a seeded pick. |
+| Layout / template choice | 🟡 | The storyboard proposes a layout. `layoutHint.js` honours it only when the scene content fits, otherwise `chooseStrategy` heuristics decide. |
+| Assets / images | 🟡 | Per-scene image prompt within a budget (`min(IMAGE_MAX_PER_VIDEO, scenes/3)`, 0 when generation is off). No stock search or asset reuse index. |
 | Charts / diagrams | 🔴 | None. `stat-highlight` renders a single number. |
 | Narration and emotion | 🟢 | `audio.emotion` written per line and fed to TTS `instruct` |
 | Captions | 🟡 | Style and animation are user-chosen. Spoken captions default on for podcast only. |
@@ -133,7 +135,7 @@ An AI Director layer exists in `backend/src/services/director/`. It is script-ti
 | Pacing | 🟡 | Word budget only |
 | Audience / tone | 🟡 | `voiceTone` and `toneNote` per beat, prompt-level |
 | Aspect ratio | 🔴 | User picks resolution. Aspect is derived. |
-| Course path | 🔴 | `scriptPipeline.js` calls `LLMService.generateScript` directly and does not use `AIDirectorService` |
+| Course path | 🟢 | `scriptPipeline.js` now calls `AIDirectorService.direct` with a brief and the curriculum title. The course still does not have a per-scene review step. |
 
 ---
 
@@ -148,8 +150,8 @@ All 12 scene names exist, as the generative engine's "Scene Components" in `back
 | grid | `grid.js` | Item grid | items (≥4) | stagger | none | 🟢 |
 | timeline | `timeline.js` | Numbered sequence | items | stagger | none | 🟢 |
 | paragraphStack | `paragraphStack.js` | ≤3 long paragraphs | items | stagger | none | 🟢 |
-| splitImage | `splitImage.js` | Text plus image | body, image | mask or scale | image URL only | 🟡 image never auto-generated |
-| imageFullbleed | `imageFullbleed.js` | Image with scrim and headline | image, caption, label | scale or fade | image URL only | 🟡 same |
+| splitImage | `splitImage.js` | Text plus image | body, image | mask or scale | image URL | 🟡 generated image when ComfyUI is on, else text-only fallback |
+| imageFullbleed | `imageFullbleed.js` | Image with scrim and headline | image, caption, label | scale or fade | image URL | 🟡 same |
 | podcastSplit | `podcastSplit.js` | Host card, waveform | hostName, hostImage | stagger | image URL | 🟢 |
 | podcastCentered | `podcastCentered.js` | Centered variant | same | stagger | image URL | 🟢 |
 | quoteFeature | `quoteFeature.js` | Long body as a quote | body ≥60 chars | stagger | none | 🟢 |
@@ -161,7 +163,7 @@ All 12 scene names exist, as the generative engine's "Scene Components" in `back
 - **Registry:** `engine/scenes/index.js` (`SCENE_REGISTRY`), `templates/TemplateRegistry.js`, `templates/TemplateCategories.js`, and a mirrored backend registry in `ir/templateRegistry.js`. That is three copies to keep in sync.
 - **Schema and validation:** Zod `ELEMENTS_SCHEMAS` per family in `ir/templateRegistry.js`, plus `ir/compile.js`. The IR runs in `shadow` mode (log only) by default. `IR_MODE=authoritative` would fail jobs at script time.
 - **Fallback:** `VideoComposition.resolveTemplate` falls back to `DefaultTemplate` on an unknown id. An unknown strategy falls back to `stack-list`.
-- **Limit:** the LLM never names a scene layout. Quote, stat, comparison and timeline are reachable only by content-shape heuristics.
+- **Limit:** the storyboard can name a layout, but it is advisory. `layoutHint.js` ignores it when the content does not fit (comparison needs exactly two items, split-image needs an image), so quote, stat, comparison and timeline still depend on content shape.
 
 ---
 
@@ -176,10 +178,10 @@ All 12 scene names exist, as the generative engine's "Scene Components" in `back
 | 8 backgrounds, 8 decorations | Remotion / SVG / CSS | `engine/backgrounds/*`, `decorations/*` | generative | Via `visualStyle` | No |
 | Legacy hook library | Remotion | `animations/*` | hand-coded templates | No | No |
 | GSAP timeline | GSAP | `003-title` | one template | No | No |
-| **Camera motion** (zoom, pan) | none | — | **nothing reads it** | UI dropdown exists | LLM emits it, `MotionPlanningService` cycles it, **renderer ignores it** (`cameraMotion` appears only in a test file) |
+| **Camera motion** (zoom, pan) | Remotion | `remotion/src/camera.js`, `VideoComposition.jsx` | every scene | Studio dropdown | Yes: storyboard and `MotionPlanningService` set it. `slide`, `pan`, `tracking` render as pans. |
 | Parallax, masks as camera, 3D | none | — | — | — | — |
 
-Motion is a mix of **template-based**, **hardcoded** and **seeded-random**, plus limited **user-controlled** overrides in the Studio. It is not AI-selected or AI-generated.
+Motion is a mix of **template-based**, **hardcoded** and **seeded-random**, plus limited **user-controlled** overrides in the Studio. Camera motion and transition are now AI-proposed (storyboard). Entrance animation is not. The `animation` field is still saved and passed to render props but unread by any scene renderer I found.
 
 ---
 
@@ -229,13 +231,13 @@ Captions default **on for podcast scenes only**. Other scene types show narratio
 
 ## 9. Image / visual asset engine
 
-- **AI image generation:** 🔴 none. ComfyUI is a GPU slot that never receives a request.
+- **AI image generation:** 🟡 implemented and off by default. `ImageGenerationService` fills a ComfyUI API workflow, runs it on the `comfyui` GPU slot and stores the PNG in MinIO. Size follows the aspect ratio (1024x576, 576x1024 or square). Never exercised on this machine.
 - **Stock assets, icons:** 🔴. The `unsplash` hits are sample data only.
 - **SVG / charts / diagrams:** 🔴 for content. Only decorative SVG shapes exist.
 - **Backgrounds:** 🟢 8 procedural backgrounds plus gradient palettes.
-- **Asset caching and reuse:** 🟡 the `Asset` model records uploads with `contentHash` and `cacheKey`, but only audio and avatar assets exist.
+- **Asset caching and reuse:** 🟡 the `Asset` model records uploads with `contentHash` and `cacheKey` and now has an `image` category. Generated images are cached in `vireon-cache` under `image/{hash}.png`, keyed by prompt, seed, size, model, sampler and workflow. Same prompt, same seed, so a cache hit is meaningful across jobs. A regenerate uses a variant seed.
 
-Actual flow: `LLM imagePrompt → (palette suffix) → saved on the scene → dead end`. The image only appears if the user pastes a URL into the Studio's "Image URL (manual override)". That field's placeholder says "skips AI image generation", which does not exist.
+Actual flow: `storyboard visual prompt (+ palette suffix) → ensureSceneImages → cache check → ComfyUI → PNG → MinIO → scene.imageUrl`, or a text-only rewrite of the scene when it cannot be made. The Studio field "Image URL (manual override)" now does what its placeholder says: a pasted URL skips generation for that scene.
 
 ---
 
@@ -281,7 +283,7 @@ A real implementation, slot-based, not VRAM-aware.
 - **Remotion is not GPU-managed.** `RemotionStatus` is only a status flag.
 
 **Overload points:**
-1. With the default in-process coordinator, the video worker and course worker are separate processes that can each load a model onto the same 6GB card. The fix exists (`GPU_COORDINATOR=redis`) but is off by default. Production `.env` not verified.
+1. With the default in-process coordinator, the video worker and course worker are separate processes that can each load a model onto the same 6GB card. The fix exists (`GPU_COORDINATOR=redis`) and `backend/.env.example` now sets it, but the prod `.env` has no `GPU_COORDINATOR` line, so prod runs in-process. Image generation adds a fourth service to that contention once ComfyUI is on.
 2. With video worker concurrency above 1, two jobs run CPU-heavy Remotion renders at once.
 3. MuseTalk and Qwen3-TTS contend for the single GPU slot, so avatar jobs serialize behind TTS.
 4. Remotion render runs while another job's TTS may hold the GPU.
@@ -298,7 +300,8 @@ A real implementation, slot-based, not VRAM-aware.
 | Render skip | `.render-fingerprint`, SHA-256 of assets.json | Changes when assets change. Lives in scratch, wiped on completion. | 🟡 |
 | `PromptService` template cache | File mtime | Automatic | 🟢 |
 | LLM responses | — | — | 🔴 deliberately not cached |
-| Images, scenes, assets | — | — | 🔴 |
+| Images | SHA-256 of prompt, seed, size, model, sampler, workflow | None. A regenerate changes the seed. | 🟢 code in place, no hits possible while generation is off |
+| Scenes, assets | — | — | 🔴 |
 | Redis as cache | — | — | 🔴 used for queues, pub/sub, log buffer, lease only |
 
 Avatar clips are explicitly not cached, because they depend on the narration. The cache hit rate is real: `cache.hits` / `cache.misses` counters feed Analytics.
@@ -329,7 +332,7 @@ Avatar clips are explicitly not cached, because they depend on the narration. Th
 | Dashboard | 🟢 | |
 | Create video (wizard) | 🟢 | 763 lines, all job options |
 | Render page (progress, queue) | 🟢 | |
-| Studio editor (scene edit, template remap, preview) | 🟢 | Remotion Player preview. Image tab is prompt plus manual URL. |
+| Studio editor (scene edit, template remap, preview) | 🟢 | Remotion Player preview. Image tab is prompt, manual URL and regenerate. |
 | Voice / Audio Studio | 🟢 | Single and dialogue, history, favorites |
 | Courses, curriculum, course videos, course studio | 🟢 | Draft autosave, bulk actions |
 | Jobs (unified) | 🟢 | Bulk cancel, retry, delete |
@@ -340,9 +343,8 @@ Avatar clips are explicitly not cached, because they depend on the narration. Th
 | Settings | 🟡 | Mostly client-side `localStorage` preferences plus service status |
 | Captions UI | 🟡 | Animation chosen in wizard. No caption editor or export. |
 | Background music UI | 🔴 | |
-| AI image generation UI | 🔵 | Prompt field exists, no backend |
+| AI image generation UI | 🟡 | Prompt field, manual URL override and a per-scene regenerate button (the last is uncommitted). Nothing shows whether generation is enabled. |
 | `/v2/*` shell | 🟡 | CreateVideo, Jobs, JobDetail, Overview |
-| `pages/placeholder` | ⚪ | Imported nowhere |
 | Auth / login | 🔴 | none |
 
 ---
@@ -354,12 +356,12 @@ Course (title, category, difficulty, language)
  → generate-curriculum        LLMService.generateCurriculum (one prompt: 12–20 lessons + promo trailer +
                               objectives, requirements, welcome/congrats messages) → CourseCurriculum (history, draft)
  → curriculum-videos          creates CourseVideo rows (lessons + isPromo trailer)
- → per lesson, 3 stages:      script → [approval] → audio → render
+ → per lesson, 3 stages:      script (AIDirectorService) → [approval] → audio → images → render
      courseVideoWorker (concurrency 1) → courseVideo/{scriptPipeline, audioPipeline, renderPipeline}
  → stored per stage (scriptStatus / audioStatus / videoStatus), MinIO, download single or zip (archiver)
 ```
 
-- **Does not use the AI Director.** It uses its own inline prompt with a fixed scene mix (1 title, mostly content, ~1 in 8 contentwithimage), the same dead-end image path, and one LLM call with no chunking. A long lesson depends on one response.
+- **Uses the AI Director.** `scriptPipeline.js` builds a brief from the lesson and calls `AIDirectorService.direct`, so lessons get the same chunked planning, storyboard and image budget as standalone videos. The inline prompt with a fixed scene mix is gone. The image step runs in `renderPipeline.js` (`ensureSceneImages`, `comfyui` GPU slot).
 - **Duplication:** `VideoJob` and `CourseVideo` duplicate the pipeline end to end. `Project` and `Render` are unused scaffolding for unifying them.
 - **Extras:** `ActivityLog` per lesson, bulk generate and approve, `requireCourseWorker` guard, worker-status socket event.
 
@@ -398,7 +400,7 @@ No placeholder charts found. `Metric.recordDuration` swallows errors by design.
 | Public storage | 🟡 all three buckets are public-read. Anyone who can reach MinIO can read all audio and video. |
 | Path traversal | 🟢 ids are regex-validated before becoming file or storage paths. Not every route verified. |
 | Command injection | 🟢 `execFile` / `spawn` with argv arrays, no shell. `startCommand` env values are operator-controlled. |
-| Remotion props | 🟡 a user-supplied `imageUrl` is fetched by headless Chromium during render (SSRF-shaped), since scene URLs aren't allowlisted. |
+| Remotion props | 🟢 | `utils/assetUrlGuard.js` runs in `RemotionService.validateAssets`. It refuses non-http(s) schemes and any host that is or resolves to a loopback, private, link-local or reserved address, except MinIO's public URL and `IMAGE_URL_ALLOWED_HOSTS`. Known limit: DNS rebinding between the check and Chromium's fetch. |
 | Secrets | 🟢 `.env` not committed. A `backup-before-remove-secret` branch exists, so a secret was once committed. History cleanup and rotation: UNKNOWN. |
 | Dependencies | `UNKNOWN` — no audit run. |
 
@@ -481,7 +483,7 @@ All routes use `authenticate`, which is a no-op.
 | **FavoriteVoice** | voiceId | none | Favorites | voices |
 | **Project / Render** | unified job and attempt schema | Render → Project | scaffolding, no production caller | `projectRenderMigrationPreview.js` only (🔵) |
 
-Shared `sceneSchema`: `sceneId`, `sceneNumber`, `sceneType`, `speaker`, `title`, `subtitle`, `duration`, `backgroundColor`, `transition`, `imagePrompt`, `cameraMotion`, `animation`, `imageUrl`, `templateId`, `elements`, `scene_meta`, `audio{text, file, duration, voice, emotion, captionTimestamps}`.
+Shared `sceneSchema`: `sceneId`, `sceneNumber`, `sceneType`, `speaker`, `title`, `subtitle`, `duration`, `backgroundColor`, `transition`, `imagePrompt`, `cameraMotion`, `animation`, `imageUrl`, `templateId`, `elements`, `scene_meta`, `storyboard{beat, intent, layout, visual{kind, prompt, status}, cameraMotion, transition}`, `audio{text, file, duration, voice, emotion, captionTimestamps}`.
 
 ---
 
@@ -489,14 +491,15 @@ Shared `sceneSchema`: `sceneId`, `sceneNumber`, `sceneType`, `speaker`, `title`,
 
 | Area | Detail |
 |---|---|
-| Ports | API 3000, frontend 8080 (nginx, 127.0.0.1), Redis 6379 (127.0.0.1), MinIO 9000, TTS 7860, Ollama 11434, MuseTalk 8890, LM Studio 1234, ComfyUI 8188 |
+| Ports | API 3000, frontend 8080 (nginx, 127.0.0.1), Redis 6379 (127.0.0.1), MinIO 9000, TTS 7860, Ollama 11434, MuseTalk 8890, ComfyUI 8188 |
 | MongoDB | `MONGODB_URI`, required in prod compose |
 | Redis | `REDIS_HOST`, `REDIS_PORT`, `REDIS_AUTOSTART` (`ensureRedis` can spawn a local Redis, which can split the queue if Docker isn't up. `.env.example` warns and sets false.) |
 | MinIO | `MINIO_*` incl. three bucket names, `MINIO_PUBLIC_URL`, upload retries and timeout |
-| LLM | `LLM_PROVIDER`, `OLLAMA_*` (URL, model, `NUM_CTX`, `THINK`, `KEEP_ALIVE`), `LM_STUDIO_*`, `LLM_TIMEOUT`, `LLM_MAX_RETRIES` |
+| LLM | `OLLAMA_*` (URL, model, `NUM_CTX`, `THINK`, `KEEP_ALIVE`), `LLM_TIMEOUT`, `LLM_MAX_RETRIES`. `LLM_PROVIDER` is no longer read, though prod `.env` still sets it to `ollama`. |
 | TTS | `TTS_API_URL`, `TTS_MODEL_SIZE`, `TTS_FAST_MODEL_SIZE`, `TTS_START_COMMAND`, `TTS_WORKDIR`, `TTS_FFMPEG_PATH`, timeouts |
 | Remotion | `REMOTION_BINARY`, `TIMEOUT` (5 min), `MAX_RETRIES`, `CODEC`, `PIXEL_FORMAT`, `CRF_*` |
 | Engine flags | `GENERATIVE_ENGINE_ENABLED`, `IR_MODE`, `SMART_CACHE_ENABLED` |
+| Images | `COMFYUI_ENABLED`, `COMFYUI_CHECKPOINT`, `COMFYUI_API_URL`, `COMFYUI_START_COMMAND`, `COMFYUI_WORKDIR`, `IMAGE_MAX_PER_VIDEO`, `IMAGE_GEN_REQUIRED`, `IMAGE_WORKFLOW_PATH`, `IMAGE_STEPS`, `IMAGE_URL_ALLOWED_HOSTS` |
 | GPU | `AI_SERVICE_MODE`, `GPU_MAX_CONCURRENT_AI_SERVICES`, `AI_SERVICE_IDLE_TIMEOUT`, `GPU_COORDINATOR`, `GPU_LEASE_TTL_MS` |
 | Workers | `VIDEO_WORKER_CONCURRENCY` |
 | Security | `CORS_ORIGIN`, `RATE_LIMIT_*`, `HOST` |
@@ -512,19 +515,14 @@ Config is validated at boot by `config/validate.js`.
 |---|---|
 | `core/graph/` (`DagRunner`, `videoStepGraph`) | Complete and tested but deliberately parked, not wired in |
 | `models/Project.js`, `Render.js` | Scaffolding, no caller |
-| ComfyUI manager, GPU slot, `/api/system/ai-services/comfyui` | Configured, nothing to run |
-| `GENERATING_IMAGES` / `IMAGE_COMPLETED` and the "Scene Build" analytics bucket | Never set |
-| `imagePrompt`, `thumbnailPrompt`, `visualPalette` | Written, never consumed |
-| `cameraMotion`, `animation`, `MotionPlanningService` | Computed and saved, ignored by renderer |
+| ComfyUI manager, GPU slot, `/api/system/ai-services/comfyui` | Wired to image generation now, but no ComfyUI install or checkpoint on this machine and off in prod |
+| `thumbnailPrompt` | Written by the Director and saved, no consumer found (`imagePrompt` and `visualPalette` are now used) |
+| `animation` | Computed and saved, passed into render props, read by no scene renderer I found (`cameraMotion` is now rendered) |
 | 46 legacy templates | Reachable only with `GENERATIVE_ENGINE_ENABLED=false`, plus old jobs |
-| `multer`, `uuid` | Unused dependencies |
-| `pages/placeholder` | Unused |
 | `HelloWorld` composition, `sampleData`, 5+ "check" compositions in `Root.jsx` | Dev only |
-| `lmStudio` provider | Kept as alternate |
 | `v2` frontend | Parallel shell alongside v1 |
 | **Duplicate pipelines** | `VideoJob` and `CourseVideo`, duplicated retry/audio/render logic. `retryPolicy` was extracted to share one piece. |
 | **Duplicate template registries** | Three copies (Remotion registry, `TemplateCategories`, backend `ir/templateRegistry`) |
-| **Duplicate script paths** | Video jobs use `AIDirectorService`. Course videos use inline prompts. |
 | Two preview pipelines | Browser Player vs CLI render. The IR shadow diff exists to catch drift. |
 | Scene-type wording | Educational prompt offers only title/content/image. The parser also supports contentwithimage. |
 | Frontend transition list | Studio dropdown vs engine ids only spot-checked |
@@ -545,16 +543,18 @@ Config is validated at boot by `config/validate.js`.
         ▲
  Native Windows workers (scheduled tasks)
    videoWorker ───────────────┐     courseVideoWorker (concurrency 1)
-     script → AIDirector        │       script → inline LLM prompt (no Director)
+     script → AIDirector        │       script → AIDirector (brief + title)
        Story → ScenePlan →      │       audio  → TTS
-       Visual/Voice/Motion      │       render → Remotion
+       Storyboard → Voice/      │       images → ComfyUI (opt-in)
+       Motion                   │       render → Remotion
      audio  → Qwen3-TTS         │
      avatar → MuseTalk          │
+     images → ComfyUI (opt-in)  │
      assets → IR compile        │
      render → Remotion CLI ─────┘── headless Chromium → MP4 + JPEG still
      upload → MinIO
         │
- GPUResourceManager (1 slot): llm(Ollama) | tts(Qwen3-TTS) | comfyui(unused) | avatar(MuseTalk)
+ GPUResourceManager (1 slot): llm(Ollama) | tts(Qwen3-TTS) | comfyui(images, opt-in) | avatar(MuseTalk)
  faster-whisper (CPU, python subprocess)        FFmpeg: dependency only, no stage
 ```
 
@@ -565,7 +565,7 @@ Config is validated at boot by `config/validate.js`.
 | Feature | Implemented | Partial | Backend | Frontend | Engine | Quality |
 |---|---|---|---|---|---|---|
 | Script generation (video) | ✔ | | ✔ | ✔ | Ollama/gemma4 | Chunked, JSON-repaired, Director-planned |
-| Script generation (course) | ✔ | | ✔ | ✔ | Ollama | Single-shot, no Director |
+| Script generation (course) | ✔ |  | ✔ | ✔ | Ollama | Same Director pipeline as video |
 | Curriculum | ✔ | | ✔ | ✔ | Ollama | Rich output (objectives, messages) |
 | Manual script approval | ✔ | | ✔ | ✔ | — | Solid |
 | Scene editing (Studio) | ✔ | | ✔ | ✔ | Remotion Player | Good |
@@ -574,16 +574,16 @@ Config is validated at boot by `config/validate.js`.
 | Word-synced captions | ✔ | | ✔ | ✔ | faster-whisper, Remotion | Strong |
 | Avatar overlay | ✔ | | ✔ | ✔ | MuseTalk | Optional, limited (2 stock faces) |
 | Procedural scene engine | ✔ | | — | ✔ | Remotion | Deterministic, varied |
-| Image generation | | | ✘ | prompt-only UI | none | Missing |
+| Image generation |  | ✔ opt-in | ✔ | prompt, URL override, regenerate | ComfyUI | Off by default, never run on this machine |
 | Background music / SFX | | | ✘ | ✘ | none | Missing |
-| Camera motion | | UI and data only | ✘ | dropdown | none | Not rendered |
+| Camera motion | ✔ |  | ✔ | dropdown | Remotion `camera.js` | Rendered, 4 primitive moves |
 | Charts / diagrams | | | ✘ | ✘ | none | Missing |
 | Export formats | | MP4 only | ✔ | ✔ | Remotion | Basic |
 | Retry / recovery / cancel | ✔ | | ✔ | ✔ | BullMQ | Strong |
 | GPU sequencing | ✔ | cross-process opt-in | ✔ | status UI | custom | Strong for one card |
 | Analytics | ✔ | no GPU/model/template metrics | ✔ | ✔ | Mongo | Good |
 | Auth / multi-user | | | ✘ | ✘ | — | Missing |
-| Tests | | thin | 11 backend, 1 engine, 16 frontend | | Jest/Vitest | Core logic covered. Pipeline steps are not. |
+| Tests |  | partial | 25 backend files (incl. worker processor and steps), 1 engine, 14 frontend |  | Jest/Vitest | Core logic and worker steps covered. Remotion rendering and the Director are not. |
 
 ---
 
@@ -592,11 +592,11 @@ Config is validated at boot by `config/validate.js`.
 | Engine | Purpose | Current role | Alternative | Keep? | Reason |
 |---|---|---|---|---|---|
 | Remotion | Deterministic compositor and renderer | Sole renderer, 47 templates and a procedural engine | HyperFrames (tried and reverted) | Yes | It already is the product's backbone |
-| Ollama + gemma4 | Script and plan | Default LLM | LM Studio (already wired) | Yes | Provider switch exists |
+| Ollama + gemma4 | Script and plan | Only LLM | — | Yes | LM Studio was removed 2026-10-03 |
 | Qwen3-TTS | Narration | Only TTS | Fish Speech S2 Pro (needs 12GB+ VRAM, blocked) | Yes | Works on the 6GB card |
 | faster-whisper | Caption alignment | CPU, `base` | — | Yes | Cheap and accurate on synthetic speech |
 | MuseTalk | Avatar | Optional overlay | — | Optional | Narrow use |
-| ComfyUI | Image generation | Slot only, no workflow | — | Decide | The missing image layer needs something. This is the stub waiting for it. |
+| ComfyUI | Image generation | Wired through `services/image/`, off by default | — | Yes | It is the only image path. It needs a local install and a checkpoint that fits 6GB. |
 | GSAP | Title template | One file | Remotion `interpolate`/`spring` | Drop candidate | One consumer |
 | FFmpeg | Audio post and mux | Not used | — | Likely add | Needed for music mixing and loudnorm |
 | BullMQ/Redis, MinIO, MongoDB | Infra | In use | — | Yes | |
@@ -609,15 +609,15 @@ Target: "an AI Video Director that uses Remotion as its rendering engine."
 
 | Layer | Exists | Missing |
 |---|---|---|
-| **Director** | `AIDirectorService` orchestrates 5 steps for video jobs | Not used by courses. No reasoning about audience or goal. No shared "creative brief" that every later layer reads. |
+| **Director** | `AIDirectorService` orchestrates story, scenes, storyboard, voice and motion for video jobs and course lessons | No reasoning about audience or goal. No shared "creative brief" beyond the storyboard brief that later layers read. |
 | **Script** | Chunked generation, per-line emotion | No self-critique or rewrite loop. Continuity is a 4-scene recap. |
-| **Storyboard** | `beats` with purpose and tone | No per-scene visual intent (shot type, focal element, on-screen data). No storyboard artifact to review or edit. |
-| **Scene planning** | `sceneType` from the LLM, layout via `chooseStrategy` heuristics | The LLM can't choose layout (quote, stat, comparison, timeline). Scene count and duration are formulaic. |
-| **Visual planning** | `visualPalette` string, seeded palette and style | Nothing turns the plan into actual visuals (image, chart, diagram). The palette text feeds a prompt that never runs. |
-| **Motion planning** | `MotionPlanningService` | Connected to nothing. Renderer ignores `cameraMotion`, `animation` is unused. |
+| **Storyboard** | `beats` plus per-scene `scene.storyboard` (beat, intent, layout, visual prompt, camera, transition) | No shot type or on-screen data. No storyboard artifact to review or edit in the UI. |
+| **Scene planning** | `sceneType` from the LLM, layout proposed by the storyboard and checked by `layoutHint` | Scene count and duration are formulaic. Layout hints are dropped when content does not fit. |
+| **Visual planning** | Palette string, seeded style, per-scene image prompts with a budget | No charts or diagrams. No stock search. |
+| **Motion planning** | `MotionPlanningService` and the storyboard set camera motion, rendered by `camera.js` | `animation` is still unread. |
 | **Audio planning** | Voice per speaker, emotion | No music, SFX, ducking, loudness or pacing marks |
 | **Timeline planning** | Duration equals audio duration, fixed 0.5 s crossfade | No holds, beats or word-level cues. Transition choice is a seeded pick. |
-| **Asset planning** | `imagePrompt` per scene | No generator, no stock search, no reuse index, no per-scene asset decision |
+| **Asset planning** | Image budget and prompt per scene, prompt-hash image cache | No stock search, no reuse index across jobs beyond the cache. |
 | **Quality control** | IR compile (shadow), `validateAssets` | No visual QC (blank frames, text overflow, caption overlap). No LLM review of the script. Overflow handled only by `textFit`. |
 | **Regeneration** | Per-scene audio, whole-script, re-render | No per-scene script or visual regeneration with feedback. No record of why a scene looks as it does. |
 
@@ -628,48 +628,52 @@ Two structural facts matter for ordering: the IR is the natural contract to exte
 ## 28. Final report
 
 ### A. What Vireon is today
-Vireon is a local-first, single-user video factory for faceless explainer, podcast and course videos. An LLM (Ollama, gemma4) plans and writes a script, you review and edit it, then Qwen3-TTS narrates it with per-word caption timing from faster-whisper. Remotion renders the result as MP4 using a seeded procedural scene engine, with an optional MuseTalk talking-head overlay. A course workflow turns a topic into a curriculum and per-lesson videos. The platform around that is mature: resumable queues, GPU sequencing for a 6GB card, MinIO storage, Socket.IO progress, analytics and a Windows deployment. It has no visuals beyond text, shapes and gradients, no music, no auth, and an "AI Director" that only plans the script.
+Vireon is a local-first, single-user video factory for faceless explainer, podcast and course videos. An LLM (Ollama, gemma4) plans and writes a script, you review and edit it, then Qwen3-TTS narrates it with per-word caption timing from faster-whisper. Remotion renders the result as MP4 using a seeded procedural scene engine, with an optional MuseTalk talking-head overlay. A course workflow turns a topic into a curriculum and per-lesson videos. The platform around that is mature: resumable queues, GPU sequencing for a 6GB card, MinIO storage, Socket.IO progress, analytics and a Windows deployment. Visuals are text, shapes and gradients unless the opt-in ComfyUI image path is switched on, which it is not in prod. It has no music and no auth, and the AI Director plans the script and storyboard but not audio or assets beyond images.
 
 ### B. Current pipeline
-Prompt → Zod → BullMQ → Director (story plan, chunked scenes, deterministic post-passes) → validate → pause for approval → TTS, alignment, MinIO → optional avatar → assets and IR → Remotion render → MinIO → complete.
+Prompt → Zod → BullMQ → Director (story plan, chunked scenes, storyboard, deterministic post-passes) → validate → pause for approval → TTS, alignment, MinIO → optional avatar → optional scene images → assets and IR → Remotion render → MinIO → complete.
 
 ### C. All engines
-Remotion, Ollama (gemma4:e4b-it-qat), LM Studio (alternate), Qwen3-TTS, faster-whisper, MuseTalk, ComfyUI (slot only), GSAP (one file), FFmpeg (indirect dependency), BullMQ, MinIO, MongoDB.
+Remotion, Ollama (gemma4:e4b-it-qat), Qwen3-TTS, faster-whisper, MuseTalk, ComfyUI (image generation, off by default), GSAP (one file), FFmpeg (indirect dependency), BullMQ, MinIO, MongoDB.
 
 ### D. Major implemented features
-Video and podcast generation, course curriculum and lessons, scene Studio with live preview, voice library and Audio Studio, word-synced animated captions, caching, retry and recovery, GPU sequencing, analytics, live logs, Windows and Docker deployment, CI.
+Video and podcast generation, course curriculum and lessons (through the Director), scene Studio with live preview, voice library and Audio Studio, word-synced animated captions, camera motion, render-side image URL guard, caching, retry and recovery, GPU sequencing, analytics, live logs, Windows and Docker deployment, CI.
 
 ### E. Partial features
-Director (script only), IR (shadow mode), portrait reflow in the generative scene, cross-process GPU safety (off by default), avatar (two stock faces), assets page, template analytics.
+Director (script and storyboard only), image generation (built, off, unproven), IR (shadow mode), portrait reflow in the generative scene, cross-process GPU safety (on in `.env.example`, off in prod), avatar (two stock faces), assets page, template analytics.
 
 ### F. Unused / dead systems
-ComfyUI, the step graph, `Project` and `Render`, image statuses, `cameraMotion`, `animation`, `imagePrompt`, `thumbnailPrompt`, 46 legacy templates, `multer`, `uuid`.
+The step graph, `Project` and `Render`, `animation`, `thumbnailPrompt`, 46 legacy templates. ComfyUI is no longer dead but is not installed here.
 
 ### G. Missing capabilities
-Image or video generation, charts and diagrams, music, SFX, ducking, loudness, auth, SRT/VTT export, WebM, variable FPS, retention policy for buckets, visual QC, VRAM awareness.
+A working image setup (install, checkpoint, first end-to-end run), video generation, charts and diagrams, music, SFX, ducking, loudness, auth, SRT/VTT export, WebM, variable FPS, retention policy for buckets, visual QC, VRAM awareness.
 
 ### H. AI Director gap
-A director output contract (creative brief plus storyboard) must exist, be stored per job, and be read by every later step. Scenes need explicit visual intent and a layout choice made by the planner. The planner's decisions need to reach Remotion through the IR (camera motion, music, asset requests). The course path needs to go through the same director.
+The storyboard now exists, is stored per scene and reaches the renderer for layout, image and camera motion. What is missing: the storyboard is not editable in the UI, there is no audio plan (music, SFX, ducking), no chart or diagram scene types, and no visual QC of what the planner asked for. The course path goes through the same Director now.
 
 ### I. Architecture risks
 1. No auth. Safety relies on the network edge (Tailscale).
-2. Public-read buckets, and unvalidated scene `imageUrl` fetched by headless Chromium.
-3. Two uncoordinated worker processes can overload the 6GB GPU unless `GPU_COORDINATOR=redis` is set. Production env not verified.
+2. Public-read buckets. Scene `imageUrl` is now guarded against private hosts, with a DNS-rebinding gap.
+3. Two uncoordinated worker processes can overload the 6GB GPU unless `GPU_COORDINATOR=redis` is set. `.env.example` sets it, but the prod `.env` does not.
 4. A whole job is one BullMQ execution, so render and GPU stages can't scale independently.
 5. Duplicated video and course pipelines, plus three template registries, will drift.
 6. Output quality depends on one local 4B-class model.
 7. Preview (Player) and final render (CLI) are separate paths. The IR shadow diff only monitors it, and I did not see its results.
-8. Tests cover the infrastructure core but not the worker steps, Remotion rendering, or the Director.
-9. A secret was committed once, per the `backup-before-remove-secret` branch name. `UNKNOWN` whether it was rotated.
+8. Tests now cover the infrastructure core and the worker processor and steps, but not Remotion rendering or the Director.
+9. A secret was committed once, per the `backup-before-remove-secret` branch name, which still exists locally. `UNKNOWN` whether it was rotated.
 
 ### J. Recommended development order (by dependency, not by score)
 
-1. **Foundation:** decide the Director's output contract (creative brief and storyboard) and extend the IR to carry it. Set `GPU_COORDINATOR=redis` if both workers run. Add a render-side URL allowlist for scene images.
-2. **Core:** route the course path through `AIDirectorService`. Make the renderer consume `cameraMotion`, or delete it. Let the planner choose scene layouts instead of heuristics.
-3. **Integration:** wire a real image path (the ComfyUI slot and `imagePrompt` already exist), plus an asset decision step. Add music and SFX mixing, which is where FFmpeg earns a place. Add chart and diagram scene types.
+1. **Foundation (open):** set `GPU_COORDINATOR=redis` in the prod `.env` and restart both workers. Decide whether the IR should carry the storyboard.
+   *Done since the first pass: render-side URL guard, storyboard contract.*
+2. **Core (open):** decide whether `animation` is wired or deleted.
+   *Done since the first pass: course path through `AIDirectorService`, camera motion rendered, planner-proposed layouts.*
+3. **Integration (open):** install ComfyUI, pick a checkpoint that fits 6GB and run the image path end to end. Add music and SFX mixing, which is where FFmpeg earns a place. Add chart and diagram scene types.
+   *Done since the first pass: the image path itself, as opt-in code.*
 4. **Quality:** pipeline-step and Director tests, visual QC (overflow, blank frames, caption overlap), IR switched to authoritative once the shadow diff is clean, per-scene regeneration with feedback.
 5. **Advanced:** wire the step graph if non-GPU work comes to dominate, split workers by capability, unify `VideoJob` and `CourseVideo` onto `Project` and `Render`, VRAM awareness.
-6. **Optional:** WebM or other exports, SRT/VTT, auth if it leaves a trusted network, retention policy for buckets, remove dead packages and legacy templates.
+6. **Optional:** WebM or other exports, SRT/VTT, auth if it leaves a trusted network, retention policy for buckets, remove legacy templates.
+   *Done since the first pass: unused `multer` and `uuid` and `pages/placeholder` removed.*
 
 ---
 
@@ -679,22 +683,22 @@ A director output contract (creative brief plus storyboard) must exist, be store
 Product:            Local-first AI explainer / podcast / course video generator (single user, no auth)
 Frontend:           React 19 + Vite 8 + Tailwind 4 + TanStack Query + Socket.IO + @remotion/player; v1 UI plus a /v2 shell
 Backend:            Node 22 + Express 5; API plus two native BullMQ workers; Zod, helmet, winston, Swagger
-Database:           MongoDB (Atlas in prod) via Mongoose; 11 models, 2 of them unused scaffolding
+Database:           MongoDB (Atlas in prod) via Mongoose; 12 models, 2 of them unused scaffolding
 Queue:              BullMQ on Redis: video-rendering (one job = whole pipeline) and course-video-processing (concurrency 1)
 Storage:            MinIO only: vireon-scenes, vireon-video, vireon-cache (all public-read); jobs/ is scratch
-LLM:                Ollama gemma4:e4b-it-qat (default), LM Studio selectable; JSON mode, no response cache
-Image Engine:       NONE. ComfyUI is a configured GPU slot only; imagePrompt is a dead end; manual URL paste only
+LLM:                Ollama gemma4:e4b-it-qat (only backend; LM Studio removed 2026-10-03); JSON mode, no response cache
+Image Engine:       ComfyUI txt2img via API workflow (opt-in, COMFYUI_ENABLED, needs a checkpoint); built but not installed here and off in prod; text-only fallback
 TTS Engine:         Qwen3-TTS (1.7B / 0.6B) via Gradio: 9 presets, ~70 clone refs, voice design; content-hash cached
 Audio Engine:       TTS plus faster-whisper alignment only; no music, SFX, ducking, normalization or volume control
 Video Engine:       Remotion 4.0.489 (headless Chromium), MP4 h264 only, 8 resolutions, 4 aspect ratios, 30 fps fixed
-Animation Engine:   Remotion interpolate/spring, seeded-random choreography; 10 motions, 9 transitions, 8 backgrounds, 8 decorations; GSAP in one file; cameraMotion ignored
+Animation Engine:   Remotion interpolate/spring, seeded-random choreography; 10 motions, 9 transitions, 8 backgrounds, 8 decorations; camera motion rendered; GSAP in one file; animation field unread
 Caption Engine:     Word-level forced alignment, 9 animations, 4 named styles, burned in; default on for podcast only; no SRT/VTT
-Course Engine:      Curriculum LLM prompt, lessons and trailer, per-lesson script, audio and render stages; does not use the AI Director
+Course Engine:      Curriculum LLM prompt, lessons and trailer, per-lesson script through the AI Director, then audio, images and render stages
 Analytics:          Real Mongo aggregates plus Metric counters (stage times, cache hit rate, storage, retries); no GPU, model or template metrics
 Caching:            TTS audio and reference transcripts (MinIO), render fingerprint skip; nothing else cached
-Security:           No authentication; helmet, CORS allowlist, rate limit and Zod present; public-read buckets; scene imageUrl unvalidated
+Security:           No authentication; helmet, CORS allowlist, rate limit and Zod present; public-read buckets; scene image URLs guarded against private hosts
 Observability:      Winston files, live log stream, JobEvent timeline, /health and /ready, Mongo counters; no tracing or alerting
-AI Director:        Partial: script-time only (story beats, chunked scenes, deterministic visual/voice/motion passes), video jobs only; motion pass has no effect
+AI Director:        Script-time: story beats, chunked scenes, storyboard (layout, image, camera, transition), deterministic voice/motion passes; video jobs and course lessons
 Overall Pipeline:   Prompt → plan → script → approve → TTS and captions → [avatar] → Remotion render → MinIO. Solid and resumable, text-only visuals
-Main Missing Layer: A director-owned storyboard and asset layer: visual intent per scene, image/chart/music generation, and the renderer contract to consume it
+Main Missing Layer: Audio (music, SFX, ducking, loudness), chart/diagram scenes, a working image install, and a storyboard review UI
 ```
