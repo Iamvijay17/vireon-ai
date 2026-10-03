@@ -337,6 +337,17 @@ const config = Object.freeze({
       .filter(Boolean),
   },
 
+  security: {
+    // Extra hosts a scene image URL may point at even though they are (or
+    // resolve to) a private address - comma-separated hostnames or host:port.
+    // MinIO's own public URL is always allowed (see utils/assetUrlGuard.js),
+    // so this is only needed for e.g. an internal image server on the LAN.
+    imageAllowedHosts: (process.env.IMAGE_URL_ALLOWED_HOSTS || '')
+      .split(',')
+      .map((host) => host.trim())
+      .filter(Boolean),
+  },
+
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000,
     max: parseInt(process.env.RATE_LIMIT_MAX, 10) || 600,

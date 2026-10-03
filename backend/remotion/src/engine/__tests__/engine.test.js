@@ -19,6 +19,7 @@ import { BACKGROUND_IDS, BACKGROUND_REGISTRY, renderBackground } from '../backgr
 import { DECORATION_IDS, DECORATION_REGISTRY, renderDecoration } from '../decorations';
 import { VISUAL_STYLE_IDS, VISUAL_STYLES, resolveVisualStyle } from '../visualStyle';
 import { chooseBackground, chooseDecoration } from '../chooseVisuals';
+import { computeCameraTransform, cameraTransformToCss, resolveCameraMotion } from '../../camera';
 
 // ---------------------------------------------------------------------------
 // Scene routing - representative ContentProfiles should route through
@@ -431,4 +432,42 @@ test('non-repetition: motion stagger timing (delay/duration) varies across seeds
   }
   assert.ok(firstItemDelays.size > 1, `expected varied delay across seeds, got only: ${[...firstItemDelays]}`);
   assert.ok(firstItemDurations.size > 1, `expected varied duration across seeds, got only: ${[...firstItemDurations]}`);
+});
+
+// ---------------------------------------------------------------------------
+// Camera motion - scene.cameraMotion drives a slow whole-scene zoom/pan.
+// ---------------------------------------------------------------------------
+
+test('camera motion: static and unknown values render no transform', () => {
+  for (const motion of ['static', '', undefined, null, 'whoosh']) {
+    assert.equal(computeCameraTransform(motion, 0.5), null, `motion=${motion}`);
+    assert.equal(cameraTransformToCss(computeCameraTransform(motion, 0.5)), undefined);
+  }
+});
+
+test('camera motion: zoom-in grows and zoom-out shrinks, never below scale 1', () => {
+  assert.equal(computeCameraTransform('zoom-in', 0).scale, 1);
+  assert.ok(computeCameraTransform('zoom-in', 1).scale > 1);
+  assert.ok(computeCameraTransform('zoom-out', 0).scale > computeCameraTransform('zoom-out', 1).scale);
+  assert.equal(computeCameraTransform('zoom-out', 1).scale, 1);
+});
+
+test('camera motion: pans keep scale >= 1 and travel in opposite directions', () => {
+  const leftStart = computeCameraTransform('pan-left', 0);
+  const leftEnd = computeCameraTransform('pan-left', 1);
+  const rightStart = computeCameraTransform('pan-right', 0);
+  assert.ok(leftStart.scale >= 1);
+  assert.ok(leftEnd.translateXPct < leftStart.translateXPct);
+  assert.equal(rightStart.translateXPct, -leftStart.translateXPct);
+});
+
+test('camera motion: the LLM/Studio vocabulary ("slide", "tracking") maps onto a real move', () => {
+  assert.equal(resolveCameraMotion('slide'), 'pan-left');
+  assert.equal(resolveCameraMotion('tracking'), 'pan-right');
+  assert.equal(resolveCameraMotion(' Zoom-In '), 'zoom-in');
+});
+
+test('camera motion: progress is clamped so out-of-range frames stay valid', () => {
+  assert.deepEqual(computeCameraTransform('zoom-in', -3), computeCameraTransform('zoom-in', 0));
+  assert.deepEqual(computeCameraTransform('zoom-in', 9), computeCameraTransform('zoom-in', 1));
 });
