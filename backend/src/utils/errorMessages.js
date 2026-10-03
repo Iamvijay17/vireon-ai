@@ -21,6 +21,9 @@ function classifyError(err, step) {
   if (/avatar generation failed/i.test(detail)) {
     return { friendly: 'Avatar generation failed - the animation service did not respond in time. This is usually temporary.', detail };
   }
+  if (/comfyui/i.test(detail)) {
+    return { friendly: 'Image generation failed - the image service (ComfyUI) did not produce a picture. Check that it is running and its checkpoint is set.', detail };
+  }
   if (/remotion rendering failed/i.test(detail)) {
     return { friendly: 'Video rendering failed - the render engine hit an error while assembling the video.', detail };
   }

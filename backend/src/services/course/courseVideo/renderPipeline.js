@@ -9,6 +9,10 @@ const AvatarService = require('../../avatar/avatarService');
 const { buildNarrationTrack } = require('../../avatar/narrationTrack');
 const RemotionService = require('../../video/RemotionService');
 const RemotionStatus = require('../../localAI/remotionStatus');
+const LocalAIService = require('../../localAI');
+const config = require('../../../config');
+const { ensureSceneImages, needsImage } = require('../../image/sceneImages');
+const { IMAGE_SCENE_FIELDS } = require('../../image/fields');
 const StorageService = require('../../storage/StorageService');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
@@ -46,7 +50,55 @@ async function renderVideo(videoId) {
 
     // Plain object copy so it can be freely spread/mutated below.
     const scriptData = video.script.toObject();
-    const scenes = scriptData.scenes;
+    let scenes = scriptData.scenes;
+
+    // Scene images, or their text-only fallbacks (see services/image/sceneImages.js).
+    // Done before the audio files are mapped below so the render sees the final scenes.
+    if (scenes.some(needsImage)) {
+      await bailIfCancelled(videoId);
+      const distinct = new Set(scenes.filter(needsImage).map((s) => s.imagePrompt.trim())).size;
+
+      video.status = VIDEO_STATUS.GENERATING_IMAGES;
+      await video.save();
+      await ActivityLogService.add(videoId, `Image generation started (${distinct} image${distinct === 1 ? '' : 's'})`);
+      SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_IMAGES, 61, 'Generating scene images...');
+
+      const generate = () => ensureSceneImages({
+        id: String(video._id),
+        scenes,
+        aspectRatio: '16:9', // course videos are always landscape
+        checkCancelled: () => bailIfCancelled(videoId),
+        // Saved as each image lands, so a crash mid-batch keeps the finished ones.
+        persist: async (changed) => {
+          for (const next of changed) {
+            const target = video.script.scenes.find((s) => s.sceneNumber === next.sceneNumber);
+            if (!target) continue;
+            for (const field of IMAGE_SCENE_FIELDS) {
+              if (field in next) target[field] = next[field];
+            }
+          }
+          await video.save();
+        },
+        onProgress: (done, total) =>
+          SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_IMAGES, 61 + Math.round((done / total) * 3), 'Generating scene images...'),
+      });
+      const imageResult = await (config.imageGen.enabled ? LocalAIService.gpu.withGPU('comfyui', generate) : generate());
+
+      scenes = imageResult.scenes;
+      scriptData.scenes = scenes;
+      if (imageResult.generated + imageResult.cached > 0) {
+        await ActivityLogService.add(videoId, `Images ready: ${imageResult.generated} generated, ${imageResult.cached} from cache.`);
+      }
+      if (imageResult.degraded.length > 0) {
+        await ActivityLogService.add(
+          videoId,
+          `${imageResult.degraded.length} scene(s) rendered as text instead of an image (${imageResult.reasons.join('; ').slice(0, 300)}).`
+        );
+      }
+
+      video.status = VIDEO_STATUS.RENDERING_VIDEO;
+      await video.save();
+    }
 
      // Map audio files to scenes - use videoId as job directory
      const jobId = video._id.toString();

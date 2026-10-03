@@ -19,6 +19,7 @@ import { BACKGROUND_IDS, BACKGROUND_REGISTRY, renderBackground } from '../backgr
 import { DECORATION_IDS, DECORATION_REGISTRY, renderDecoration } from '../decorations';
 import { VISUAL_STYLE_IDS, VISUAL_STYLES, resolveVisualStyle } from '../visualStyle';
 import { chooseBackground, chooseDecoration } from '../chooseVisuals';
+import { LAYOUT_IDS, isLayoutCompatible, resolveLayoutHint } from '../layoutHint';
 import { computeCameraTransform, cameraTransformToCss, resolveCameraMotion } from '../../camera';
 
 // ---------------------------------------------------------------------------
@@ -470,4 +471,71 @@ test('camera motion: the LLM/Studio vocabulary ("slide", "tracking") maps onto a
 test('camera motion: progress is clamped so out-of-range frames stay valid', () => {
   assert.deepEqual(computeCameraTransform('zoom-in', -3), computeCameraTransform('zoom-in', 0));
   assert.deepEqual(computeCameraTransform('zoom-in', 9), computeCameraTransform('zoom-in', 1));
+});
+
+// ---------------------------------------------------------------------------
+// Layout hints - the Director's storyboard can pick a composition, but only
+// when the scene's own content fits it.
+// ---------------------------------------------------------------------------
+
+test('layout hints: the id list matches the backend LAYOUT_IDS (keep in sync with backend/src/ir/templateRegistry.js)', () => {
+  assert.deepEqual([...LAYOUT_IDS].sort(), [
+    'comparison-split', 'grid', 'image-fullbleed', 'paragraph-stack', 'podcast-centered', 'podcast-split',
+    'quote-feature', 'split-image', 'stack-list', 'stat-highlight', 'timeline', 'title-only',
+  ]);
+});
+
+test('layout hints: a compatible hint is honoured over the heuristic', () => {
+  const items = [{ text: 'one' }, { text: 'two' }, { text: 'three' }, { text: 'four' }, { text: 'five' }];
+  for (const layout of ['grid', 'timeline', 'stack-list']) {
+    const profile = analyzeContent({ elements: { title: 'T', items }, layout });
+    assert.equal(solveLayout(profile, 'seed').strategy, layout);
+  }
+});
+
+test('layout hints: the storyboard field is read too (the Studio preview passes the raw scene)', () => {
+  const items = [{ text: 'one' }, { text: 'two' }, { text: 'three' }, { text: 'four' }];
+  const profile = analyzeContent({ elements: { title: 'T', items }, storyboard: { layout: 'timeline' } });
+  assert.equal(solveLayout(profile, 'seed').strategy, 'timeline');
+});
+
+test('layout hints: an incompatible or unknown hint falls back to the heuristic instead of dropping content', () => {
+  const twoItems = { elements: { title: 'T', items: [{ text: 'a' }, { text: 'b' }] } };
+  for (const layout of ['stat-highlight', 'split-image', 'podcast-split', 'title-only', 'nonsense', '']) {
+    const hinted = solveLayout(analyzeContent({ ...twoItems, layout }), 'seed');
+    const plain = solveLayout(analyzeContent(twoItems), 'seed');
+    assert.equal(hinted.strategy, plain.strategy, `hint "${layout}" should be ignored`);
+  }
+});
+
+test('layout hints: sceneTypes with a dedicated composition only accept their own family', () => {
+  const podcast = analyzeContent({ sceneType: 'podcast', elements: { title: 'T', hostName: 'H', hostImage: 'x.png' } });
+  assert.equal(isLayoutCompatible('podcast-centered', podcast), true);
+  assert.equal(isLayoutCompatible('grid', podcast), false);
+  const image = analyzeContent({ sceneType: 'image', elements: { image: 'x.png', caption: 'C' } });
+  assert.equal(isLayoutCompatible('image-fullbleed', image), true);
+  assert.equal(isLayoutCompatible('split-image', image), false);
+  const content = analyzeContent({ elements: { title: 'T', items: [{ text: 'a' }] } });
+  assert.equal(isLayoutCompatible('podcast-split', content), false);
+});
+
+test('layout hints: shape requirements - comparison needs exactly 2 items, stat exactly 1, image layouts need an image', () => {
+  const two = analyzeContent({ elements: { title: 'T', items: [{ text: 'a' }, { text: 'b' }] } });
+  const one = analyzeContent({ elements: { title: 'T', items: [{ text: '87% of teams' }] } });
+  const withImage = analyzeContent({ elements: { title: 'T', body: 'text', image: 'x.png' } });
+  assert.equal(isLayoutCompatible('comparison-split', two), true);
+  assert.equal(isLayoutCompatible('comparison-split', one), false);
+  assert.equal(isLayoutCompatible('stat-highlight', one), true);
+  assert.equal(isLayoutCompatible('stat-highlight', two), false);
+  assert.equal(isLayoutCompatible('split-image', withImage), true);
+  assert.equal(isLayoutCompatible('grid', withImage), false);
+  assert.equal(resolveLayoutHint({ ...withImage, layoutHint: 'split-image' }), 'split-image');
+  assert.equal(resolveLayoutHint({ ...withImage, layoutHint: '' }), null);
+});
+
+test('layout hints: scenes without a hint resolve exactly as before', () => {
+  const scene = { elements: { title: 'T', items: [{ text: 'a' }, { text: 'b' }, { text: 'c' }, { text: 'd' }] } };
+  const before = solveLayout({ ...analyzeContent(scene), layoutHint: undefined }, 'seed');
+  const after = solveLayout(analyzeContent(scene), 'seed');
+  assert.equal(before.strategy, after.strategy);
 });

@@ -42,6 +42,12 @@ const SceneIR = z.object({
   animation: z.string(),
   imagePrompt: z.string(),
   imageUrl: z.string(),
+  // Composition the storyboard asked for ('' = let the engine decide). Reaches
+  // the renderer; the engine ignores it when the scene's content doesn't fit.
+  layout: z.string(),
+  // Full storyboard entry, kept for diagnostics and regeneration. Not part of
+  // the render props.
+  storyboard: z.record(z.any()).nullable(),
   timing: SceneTiming,
   audio: SceneAudio,
   // Validated separately against the resolved template's own schema in

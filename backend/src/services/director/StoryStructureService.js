@@ -10,7 +10,7 @@ const LoggerService = require('../common/LoggerService');
  * happened to write.
  */
 class StoryStructureService {
-  static async plan({ videoType, topic, language, sceneCount, durationMinutes, jobId }) {
+  static async plan({ videoType, topic, language, sceneCount, durationMinutes, extraInstructions, jobId }) {
     const prompt = PromptService.render('story-structure', {
       videoType,
       topic,
@@ -19,7 +19,10 @@ class StoryStructureService {
       durationMinutes,
     });
 
-    const parsed = await LLMService.generateScript(prompt, { maxTokens: 3000 });
+    const parsed = await LLMService.generateScript(
+      PromptService.withExtraInstructions(prompt, extraInstructions),
+      { maxTokens: 3000 }
+    );
 
     const beats = Array.isArray(parsed?.beats) && parsed.beats.length > 0
       ? parsed.beats

@@ -28,6 +28,14 @@ const SCENE_TYPE_TEMPLATE_IDS = {
   podcast: ['001-podcast', '002-podcast'],
 };
 
+// Composition ids the generative engine can lay a scene out with - what a
+// storyboard's `layout` may name. Mirrors remotion/src/engine/scenes/index.js
+// (SCENE_IDS); both lists are pinned by tests against the same literal.
+const LAYOUT_IDS = [
+  'title-only', 'stack-list', 'grid', 'timeline', 'paragraph-stack', 'split-image',
+  'image-fullbleed', 'podcast-split', 'podcast-centered', 'quote-feature', 'stat-highlight', 'comparison-split',
+];
+
 // One shared id across every family - the Generative Scene Engine reads the
 // same per-family elements shape and computes layout from it.
 const GENERATIVE_TEMPLATE_ID = 'generative';
@@ -115,6 +123,7 @@ module.exports = {
   SCENE_TYPE_TEMPLATE_IDS,
   GENERATIVE_TEMPLATE_ID,
   GENERATIVE_SUPPORTED_SCENE_TYPES,
+  LAYOUT_IDS,
   ELEMENTS_SCHEMAS,
   resolveTemplate,
   isRegistered,

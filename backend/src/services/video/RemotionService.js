@@ -219,6 +219,9 @@ class RemotionService {
            cameraMotion: scene.cameraMotion,
            animation: scene.animation,
            imageUrl: scene.imageUrl || '',
+           // Storyboard's composition choice - kept in step with ir/toRenderProps.js
+           // so the shadow diff stays clean.
+           layout: typeof scene.storyboard?.layout === 'string' ? scene.storyboard.layout : '',
             // Template-based rendering fields
             templateId: scene.templateId || '',
             elements: scene.elements || null,

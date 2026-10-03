@@ -1,9 +1,10 @@
 const DEFAULT_MOTIONS = ['static', 'zoom-in'];
 
 /**
- * Assigns camera motion for scenes the model left blank/static, cycling
- * through the story's shared motion vocabulary instead of every unset scene
- * defaulting to the same static shot.
+ * Assigns camera motion for scenes nobody chose one for, cycling through the
+ * story's shared motion vocabulary instead of every unset scene defaulting to
+ * the same static shot. A motion the script or the storyboard planner chose
+ * explicitly - including a deliberate "static" from the planner - is kept.
  */
 class MotionPlanningService {
   static apply(scenes, styleGuide = {}) {
@@ -15,8 +16,9 @@ class MotionPlanningService {
 
     let cursor = 0;
     return scenes.map((scene) => {
+      const plannerChoseMotion = Boolean(scene.storyboard?.cameraMotion);
       const hasExplicitMotion = scene.cameraMotion && scene.cameraMotion !== 'static';
-      if (hasExplicitMotion) return scene;
+      if (plannerChoseMotion || hasExplicitMotion) return scene;
 
       const cameraMotion = vocabulary[cursor % vocabulary.length];
       cursor += 1;

@@ -38,6 +38,7 @@ function toRenderProps(ir) {
       cameraMotion: scene.cameraMotion,
       animation: scene.animation,
       imageUrl: scene.imageUrl,
+      layout: scene.layout || '',
       templateId: scene.templateId,
       elements: scene.elements,
       audio: {

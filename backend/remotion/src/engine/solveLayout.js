@@ -1,5 +1,6 @@
 import { createSeededRng, pick } from './seedRandom';
 import { SCENE_REGISTRY, STAT_PATTERN } from './scenes';
+import { resolveLayoutHint } from './layoutHint';
 
 /**
  * Layout Solver - layer 2 of the generative scene engine.
@@ -62,7 +63,9 @@ const runBuilder = (strategy, profile, rng) => {
 
 export const solveLayout = (profile, seedInput) => {
   const rng = createSeededRng(`${seedInput}-layout`);
-  const strategy = chooseStrategy(profile, rng);
+  // A storyboard layout hint wins when the scene's content fits it (see
+  // layoutHint.js); otherwise the content-shape heuristic decides as before.
+  const strategy = resolveLayoutHint(profile) || chooseStrategy(profile, rng);
   const { slots, waveform } = runBuilder(strategy, profile, rng);
   return { strategy, canvas: { width: 1920, height: 1080 }, slots: slots.filter(Boolean), scrim: SCRIM_STRATEGIES.has(strategy), waveform: waveform || null };
 };

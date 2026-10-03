@@ -14,6 +14,7 @@ const { getResumeStep } = require('../../services/video/videoService/resumeLogic
 const scriptStep = require('./scriptStep');
 const audioStep = require('./audioStep');
 const avatarStep = require('./avatarStep');
+const imageStep = require('./imageStep');
 const renderStep = require('./renderStep');
 const uploadStep = require('./uploadStep');
 
@@ -126,18 +127,27 @@ async function processVideoJob(job) {
 
     await bailIfCancelled(jobId);
 
+    // ── Step 5.7: Scene images (or their text-only fallbacks)
+    await imageStep.run(jobId, ctx);
+
+    await bailIfCancelled(jobId);
+
+    // The image step rewrites scenes (image URLs, fallbacks to text), so the render
+    // and upload below work from the script as it is now, not the pre-image copy.
+    const renderScript = (await VideoService.getById(jobId)).script;
+
     // ── Step 6: Prepare Assets
-    const assets = await renderStep.prepareAssets(jobId, videoJob, script, avatarVideoUrl, ctx);
+    const assets = await renderStep.prepareAssets(jobId, videoJob, renderScript, avatarVideoUrl, ctx);
 
     await bailIfCancelled(jobId);
 
     // ── Step 7: Render Video
-    await renderStep.render(jobId, assets, ctx, script);
+    await renderStep.render(jobId, assets, ctx, renderScript);
 
     await bailIfCancelled(jobId);
 
     // ── Step 8-9: Upload output, complete job, cleanup
-    return await uploadStep.run(jobId, script, ctx);
+    return await uploadStep.run(jobId, renderScript, ctx);
   } catch (err) {
     if (err.cancelled) {
       // Status is already CANCELLED (set by VideoService.stop, which is

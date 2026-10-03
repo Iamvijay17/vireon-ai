@@ -16,6 +16,8 @@ const withTimeout = require('../../../utils/withTimeout');
 const CATEGORY_MAP = {
   audio: { bucket: () => config.minio.scenesBucket, subfolder: 'audio' },
   avatar: { bucket: () => config.minio.scenesBucket, subfolder: 'avatar' },
+  // Generated scene images (services/image/) - per-video, so they go away with the video.
+  image: { bucket: () => config.minio.scenesBucket, subfolder: 'images' },
   render: { bucket: () => config.minio.videoBucket, subfolder: null },
   // Audio Studio generations are keyed by AudioGeneration._id, not a video
   // jobId - kept in their own subfolder of scenesBucket so they can't
