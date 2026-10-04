@@ -178,6 +178,12 @@ export const remapSceneElementsForTemplate = (id, sceneNumber, templateId, curre
     elements: currentScene?.elements,
   });
 
+// Converts a scene to another sceneType server-side (template, elements, image prompt).
+// Returns { scene, promptSource }; nothing is persisted until the editor saves. Drafting an
+// image prompt can wait on the local LLM for up to 45s, past the default 30s timeout.
+export const convertVideoSceneType = (id, sceneNumber, sceneType, scene) =>
+  api.post(`/api/videos/${id}/scenes/${sceneNumber}/convert-type`, { sceneType, scene }, { timeout: 60000 });
+
 export const getVideoJobActivityLogs = (id) => api.get(`/api/videos/${id}/activity-logs`);
 
 // ─── Voices ─────────────────────────────────────────────────────────────────────

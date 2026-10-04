@@ -49,8 +49,9 @@ export const ContentTab = ({ scene, selectedSceneIndex, canEdit, editor, jobId }
         <NumberInput min={1} value={scene.sceneNumber} onChange={(e) => editor.handleFieldChange(selectedSceneIndex, "sceneNumber", Number(e.target.value))} disabled={!canEdit} />
       </Field>
       <Field label="Scene Type">
-        <Select value={scene.sceneType} onChange={(v) => editor.handleFieldChange(selectedSceneIndex, "sceneType", v)} options={SCENE_TYPE_OPTIONS} disabled={!canEdit} />
+        <Select value={scene.sceneType} onChange={(v) => editor.handleSceneTypeChange(selectedSceneIndex, v)} options={SCENE_TYPE_OPTIONS} disabled={!canEdit || editor.convertingType} />
       </Field>
+      {editor.convertingType && <p className="col-span-2 -mt-1 text-[11px] text-text-tertiary">Converting scene - drafting its image prompt can take a few seconds...</p>}
       <Field label="Title">
         <Input
           value={scene.title || ""}

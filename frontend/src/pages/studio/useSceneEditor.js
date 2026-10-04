@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { remapSceneElementsForTemplate } from "../../services/api";
+import { remapSceneElementsForTemplate, convertVideoSceneType } from "../../services/api";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 
@@ -16,6 +16,16 @@ const getSceneItems = (scene) => scene.elements?.items || scene.elements?.featur
 // so this strips the numeric prefix to compare scene types.
 const sceneTypeOf = (templateId) => (templateId || "").replace(/^\d+-/, "");
 
+// Scene types that can show a picture (podcast turns show their host image).
+const IMAGE_KEEPING_TYPES = new Set(["image", "contentwithimage", "podcast"]);
+
+// What to tell the user about the image prompt a type conversion ended up with.
+const IMAGE_PROMPT_NOTES = {
+  llm: "Drafted an image prompt from the narration - review it in the Image tab.",
+  fallback: "Image prompt built from the scene text (AI drafting was unavailable) - review it in the Image tab.",
+  none: "This scene needs an image prompt - write one in the Image tab.",
+};
+
 /**
  * Owns the draft scene list and every edit operation on it - field edits,
  * template swaps (with server-side element remapping), content-item
@@ -31,6 +41,7 @@ export function useSceneEditor(jobId) {
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [remappingTemplate, setRemappingTemplate] = useState(false);
+  const [convertingType, setConvertingType] = useState(false);
 
   // Called by the job fetch to (re)hydrate the draft from a freshly loaded
   // job - resets selection/dirty state along with the scene list itself.
@@ -118,6 +129,39 @@ export function useSceneEditor(jobId) {
       toast.error(err.friendlyMessage || "Couldn't adapt scene content to the new template - you may need to re-enter some fields.");
     } finally {
       setRemappingTemplate(false);
+    }
+  };
+
+  // The Scene Type dropdown. Flipping only `sceneType` left the old template,
+  // items-shaped elements and no image prompt behind, so a scene switched to
+  // "Content + Image" never got a picture - the server builds the whole scene
+  // for the new type (template, elements, image prompt) and it is applied here
+  // as one unsaved edit.
+  const handleSceneTypeChange = async (index, sceneType) => {
+    const scene = editedScenes[index];
+    if (!scene || sceneType === scene.sceneType) return;
+    if (!jobId) {
+      handleFieldChange(index, "sceneType", sceneType);
+      return;
+    }
+    if (scene.imageUrl && !IMAGE_KEEPING_TYPES.has(sceneType)) {
+      const ok = await confirmDialog({
+        title: "Remove this scene's image?",
+        content: "The new scene type has no image, so the generated picture is dropped from this scene.",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    setConvertingType(true);
+    try {
+      const res = await convertVideoSceneType(jobId, scene.sceneNumber, sceneType, scene);
+      updateScene(index, (s) => ({ ...s, ...res.data.scene }));
+      const note = IMAGE_PROMPT_NOTES[res.data.promptSource];
+      if (note) toast.info(note);
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Couldn't convert this scene to the new type.");
+    } finally {
+      setConvertingType(false);
     }
   };
 
@@ -223,8 +267,10 @@ export function useSceneEditor(jobId) {
     templatePickerOpen,
     setTemplatePickerOpen,
     remappingTemplate,
+    convertingType,
     getSceneItems,
     handleFieldChange,
+    handleSceneTypeChange,
     handleElementFieldChange,
     handleTextStyleFieldChange,
     handleElementDirectFieldChange,

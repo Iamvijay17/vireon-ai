@@ -1,0 +1,5 @@
+{
+  "name": "sceneImagePrompt",
+  "label": "Scene image prompt",
+  "prompt": "You are the art director of a {{videoType}} video about \"{{topic}}\". One scene needs a generated picture. Write ONE image description for it. Do NOT rewrite the narration. Return ONLY valid JSON without markdown formatting.\n\nVisual look shared by every scene: {{visualPalette}}\n\nScene title: {{title}}\nScene narration ({{language}}): {{narration}}\n\nRules:\n- \"imagePrompt\" is one concrete image description in English: subject, setting, lighting and style, 15-40 words, consistent with the shared visual look\n- Show a concrete object, place, scene or metaphor that adds meaning the narration alone does not\n- No text, letters, logos, charts or screenshots inside the image\n\nRequired JSON format:\n{ \"imagePrompt\": \"\" }"
+}
