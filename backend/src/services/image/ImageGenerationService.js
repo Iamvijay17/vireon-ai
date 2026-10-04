@@ -53,19 +53,21 @@ class ImageGenerationService {
   }
 
   /** Everything that decides what the image looks like - the cache key's inputs. */
-  static _params(prompt, aspectRatio, variant = 0, steps = null, seed = null) {
+  static _params(prompt, aspectRatio, variant = 0, { steps = null, seed = null, negative = null, cfg = null } = {}) {
     const { width, height } = this.sizeFor(aspectRatio);
     const g = config.imageGen;
     return {
       prompt,
-      negative: g.negativePrompt,
+      // A caller's own "avoid" text (Image Studio) replaces the configured default; both are cache-key inputs.
+      negative: negative || g.negativePrompt,
       // A pinned seed (Image Studio) wins over the prompt-derived one; it is part of the cache key either way.
       seed: seed ?? this.seedFor(prompt, variant),
       width,
       height,
       // A caller-chosen step count (Image Studio's "fast") is part of the cache key like any other setting.
       steps: steps || g.steps,
-      cfg: g.cfg,
+      // Guidance only matters if the model does a negative pass (see config.imageGen.guidedCfg).
+      cfg: cfg || g.cfg,
       sampler: g.sampler,
       scheduler: g.scheduler,
       checkpoint: g.checkpoint,
@@ -76,9 +78,9 @@ class ImageGenerationService {
    * Generate (or fetch from cache) the image for `prompt` and return its public URL.
    * @returns {Promise<{ url, fileName, cacheKey, fromCache, durationMs }>}
    */
-  static async generate({ jobId, prompt, aspectRatio, variant = 0, steps = null, seed = null, signal, onProgress }) {
+  static async generate({ jobId, prompt, aspectRatio, variant = 0, steps = null, seed = null, negative = null, cfg = null, signal, onProgress }) {
     const { template, raw } = await this._loadWorkflow();
-    const params = this._params(prompt, aspectRatio, variant, steps, seed);
+    const params = this._params(prompt, aspectRatio, variant, { steps, seed, negative, cfg });
 
     if (placeholdersIn(template).has('checkpoint') && !params.checkpoint) {
       throw configError('COMFYUI_CHECKPOINT is not set - name the checkpoint file ComfyUI should generate with (see backend/workflows/README.md)');

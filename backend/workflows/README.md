@@ -56,6 +56,16 @@ fails loudly instead of sending a broken graph.
 The graph must end in a **SaveImage** node. Export your own with ComfyUI's
 "Save (API Format)" and replace the values with placeholders.
 
+## Negative prompts
+
+`qwen-image-2.1.api.json` takes `{{negative}}`, but Qwen-Image at CFG 1 (the setting that
+renders one pass per step) **ignores** it - a same-seed test gave pixel-identical images
+with and without one. Image Studio's "Avoid" field therefore renders in guided mode:
+`IMAGE_NEGATIVE_CFG` (default 3) instead of CFG 1. That runs the model twice per step
+(about 50% slower) and changes the whole composition, not just the avoided thing, and it
+removes the subject from the foreground rather than from the whole picture. Video scene
+images stay at CFG 1, where the default negative is harmless and unused.
+
 ## Caching
 
 Images are cached by a hash of the prompt, seed, size, sampler settings, checkpoint and

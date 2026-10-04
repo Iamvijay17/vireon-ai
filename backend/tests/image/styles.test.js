@@ -45,6 +45,12 @@ describe('createImageSchema', () => {
     expect(parse({ prompt: 'a red fox', seed: 1.5 }).success).toBe(false);
   });
 
+  it('takes an optional "avoid" prompt, trimmed, defaulting to empty, capped at 500 characters', () => {
+    expect(parse({ prompt: 'a red fox' }).data.negative).toBe('');
+    expect(parse({ prompt: 'a red fox', negative: '  cars, text  ' }).data.negative).toBe('cars, text');
+    expect(parse({ prompt: 'a red fox', negative: 'x'.repeat(501) }).success).toBe(false);
+  });
+
   it('rejects a pinned seed with more than one image (they would all be identical)', () => {
     const result = parse({ prompt: 'a red fox', seed: 42, count: 2 });
     expect(result.success).toBe(false);

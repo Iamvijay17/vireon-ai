@@ -26,6 +26,11 @@ const imageGenerationSchema = new mongoose.Schema(
       enum: ['fast', 'standard', 'high'],
       default: 'standard',
     },
+    // "Avoid" (negative) prompt; non-empty means the picture was rendered in guided mode.
+    negative: {
+      type: String,
+      default: '',
+    },
     // Style preset key (services/image/styles.js); `prompt` above stays the user's own text.
     style: {
       type: String,

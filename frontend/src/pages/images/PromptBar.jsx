@@ -2,7 +2,7 @@ import { Wand2, Loader2, Zap, Sparkles, Gem, X } from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Select } from "../../components/ui/Select";
-import { Textarea } from "../../components/ui/Input";
+import { Textarea, Input } from "../../components/ui/Input";
 import { Segmented } from "./Segmented";
 import { ASPECTS, COUNTS, STYLES, EXAMPLES, MAX_SEED } from "./constants";
 
@@ -24,7 +24,7 @@ const Field = ({ label, className, children }) => (
 
 // The prompt and everything that shapes the result, in one card: the prompt on
 // top, the options in a wrapping row beneath, Generate at the end of it.
-export const PromptBar = ({ promptRef, prompt, setPrompt, opts, setOpt, seed, setSeed, submitting, onGenerate }) => {
+export const PromptBar = ({ promptRef, prompt, setPrompt, negative, setNegative, opts, setOpt, seed, setSeed, submitting, onGenerate }) => {
   const seeded = seed !== "";
   // A pinned seed would make every image of a batch identical, so it locks the count to 1.
   const count = seeded ? 1 : opts.count;
@@ -54,6 +54,22 @@ export const PromptBar = ({ promptRef, prompt, setPrompt, opts, setOpt, seed, se
         className="resize-none"
         placeholder="Describe the picture: subject, setting, lighting, style... e.g. A misty mountain valley at sunrise, golden light through the clouds, realistic photo"
       />
+
+      <div className="mt-2.5">
+        <Input
+          aria-label="Avoid"
+          value={negative}
+          maxLength={500}
+          onChange={(e) => setNegative(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Avoid (optional): things to leave out, e.g. text, blur, extra people"
+        />
+        {negative.trim() && (
+          <p className="mt-1.5 text-xs text-warning-600 dark:text-warning-500">
+            Guided mode: about 50% slower, and the whole picture can change, not just the avoided thing.
+          </p>
+        )}
+      </div>
 
       <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
         <Field label="Shape" className="w-full sm:w-auto">

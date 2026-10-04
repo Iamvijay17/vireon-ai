@@ -126,6 +126,20 @@ describe('generate', () => {
     expect(client.queue.mock.calls[1][0]['3'].inputs.steps).toBe(15);
   });
 
+  it('sends a negative prompt and CFG override to the workflow, and keys the cache on them', async () => {
+    const hashInputs = require('../../src/services/common/CacheService').hashInputs;
+    hashInputs.mockClear();
+    await ImageGenerationService.generate({ jobId: 'j', prompt: 'a street', aspectRatio: '16:9' });
+    await ImageGenerationService.generate({ jobId: 'j', prompt: 'a street', aspectRatio: '16:9', negative: 'cars', cfg: 3 });
+
+    const [plain, guided] = hashInputs.mock.calls.map(([i]) => i);
+    expect(plain.negative).toBe(config.imageGen.negativePrompt);
+    expect(guided).toMatchObject({ negative: 'cars', cfg: 3 });
+    const sent = client.queue.mock.calls[1][0];
+    expect(sent['3'].inputs.cfg).toBe(3);        // KSampler
+    expect(sent['7'].inputs.text).toBe('cars');  // negative CLIPTextEncode
+  });
+
   it('refuses to run without a checkpoint, as a non-retryable configuration error', async () => {
     config.imageGen.checkpoint = '';
     await expect(ImageGenerationService.generate({ jobId: 'j', prompt: 'p', aspectRatio: '16:9' }))

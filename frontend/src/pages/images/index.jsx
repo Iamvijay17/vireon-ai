@@ -42,6 +42,7 @@ const shapeOf = (item) => (item.aspectRatio === "4:5" ? "9:16" : item.aspectRati
 
 const ImagesPage = () => {
   const [prompt, setPrompt] = useState("");
+  const [negative, setNegative] = useState("");
   const [opts, setOpts] = useState(loadStudioSettings);
   const [seed, setSeed] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -122,6 +123,7 @@ const ImagesPage = () => {
       aspectRatio: opts.aspectRatio,
       quality: opts.quality,
       style: opts.style,
+      negative: negative.trim(),
       // A pinned seed makes every image of a batch identical, so it means one image.
       count: seed ? 1 : opts.count,
       seed: seed ? Number(seed) : null,
@@ -135,12 +137,14 @@ const ImagesPage = () => {
       aspectRatio: item.aspectRatio,
       quality: item.quality || "standard",
       style: item.style || "none",
+      negative: item.negative || "",
       count: 1,
       seed: null,
     });
 
   const handleReuse = (item, { withSeed = false } = {}) => {
     setPrompt(item.prompt);
+    setNegative(item.negative || "");
     setOpts({
       aspectRatio: item.aspectRatio === "4:5" ? "9:16" : item.aspectRatio,
       quality: item.quality || "standard",
@@ -222,6 +226,8 @@ const ImagesPage = () => {
         promptRef={promptRef}
         prompt={prompt}
         setPrompt={setPrompt}
+        negative={negative}
+        setNegative={setNegative}
         opts={opts}
         setOpt={setOpt}
         seed={seed}

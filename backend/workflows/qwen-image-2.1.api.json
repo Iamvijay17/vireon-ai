@@ -13,7 +13,7 @@
   },
   "452": {
     "class_type": "TextEncodeQwenImage21",
-    "inputs": { "prompt": "{{prompt}}", "negative_prompt": "", "resolution": 1024, "clip": ["453", 0] }
+    "inputs": { "prompt": "{{prompt}}", "negative_prompt": "{{negative}}", "resolution": 1024, "clip": ["453", 0] }
   },
   "456": {
     "class_type": "EmptyLatentImage",

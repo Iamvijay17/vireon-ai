@@ -68,7 +68,7 @@ class ImageController {
    */
   static async generate(req, res, next) {
     try {
-      const { prompt, aspectRatio, quality, style, count, seed } = validate(createImageSchema)(req.body);
+      const { prompt, aspectRatio, quality, style, negative, count, seed } = validate(createImageSchema)(req.body);
 
       if (!config.imageGen.enabled) {
         return res.status(503).json({
@@ -99,6 +99,7 @@ class ImageController {
               _id,
               prompt,
               style,
+              negative,
               aspectRatio,
               quality,
               seed: seed ?? null,
@@ -146,6 +147,9 @@ class ImageController {
           variant: record.variant,
           steps: stepsFor(record.quality),
           seed: record.seed ?? null,
+          // An "avoid" prompt only does anything with guidance above 1 (about 50% slower).
+          negative: record.negative || null,
+          cfg: record.negative ? config.imageGen.guidedCfg : null,
           onProgress: (update) => setProgress(id, update),
         })
       ));

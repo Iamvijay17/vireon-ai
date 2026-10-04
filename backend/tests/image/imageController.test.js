@@ -229,6 +229,21 @@ describe('ImageController.generate', () => {
     await flush();
   });
 
+  it('an "avoid" prompt is stored and switches the render to guided CFG; without one the configured CFG stands', async () => {
+    config.imageGen.guidedCfg = 3;
+    ImageGeneration.create.mockImplementation(async (doc) => makeRecord(doc));
+    ImageGenerationService.generate.mockResolvedValue({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false, seed: 1 });
+
+    await ImageController.generate({ body: { prompt: 'a street', negative: 'cars, traffic' } }, makeRes(), jest.fn());
+    await flush();
+    expect(ImageGeneration.create).toHaveBeenLastCalledWith(expect.objectContaining({ negative: 'cars, traffic' }));
+    expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({ negative: 'cars, traffic', cfg: 3 }));
+
+    await ImageController.generate({ body: { prompt: 'a street' } }, makeRes(), jest.fn());
+    await flush();
+    expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({ negative: null, cfg: null }));
+  });
+
   it('answers 503 and creates nothing when image generation is off', async () => {
     config.imageGen.enabled = false;
     const res = makeRes();

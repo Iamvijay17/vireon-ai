@@ -48,6 +48,13 @@ export const ImagePreview = ({ item, onClose, onDownload, onReuseSettings }) => 
           <CopyButton value={item.prompt} label="Copy prompt" />
         </div>
 
+        {item.negative && (
+          <p className="mt-3 text-[13px] text-text-secondary">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Avoid </span>
+            {item.negative}
+          </p>
+        )}
+
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border-light pt-4 sm:grid-cols-3">
           <Detail label="Shape">{item.aspectRatio}</Detail>
           <Detail label="Quality">{QUALITY_LABEL[item.quality] || "Standard"}</Detail>
