@@ -3,6 +3,7 @@ const { validate, jobIdSchema } = require('../validators');
 const LoggerService = require('../services/common/LoggerService');
 const VideoService = require('../services/video/VideoService');
 const ScriptParserService = require('../services/video/ScriptParserService');
+const { convertSceneType } = require('../services/video/sceneConversion');
 const { JOB_STATUS } = require('../constants');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 
@@ -154,6 +155,45 @@ class SceneController {
       }
 
       res.json({ elements: newElements });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/videos/:id/scenes/:sceneNumber/convert-type - Compute what a
+   * scene looks like as a different sceneType: a template of that type, the
+   * matching `elements` shape, and - for image-bearing types - an image prompt
+   * (the scene's own, else drafted from its narration).
+   *
+   * The Studio's Scene Type dropdown used to flip only `sceneType`, leaving a
+   * `content` template, items-shaped elements and no image prompt - so the
+   * scene never got a picture. Like remap-template this reads the scene from
+   * the request body (the editor holds unsaved edits) and persists nothing.
+   */
+  static async convertSceneType(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const sceneNumber = parseInt(req.params.sceneNumber, 10);
+      const { sceneType, scene } = req.body;
+
+      if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
+        throw new ValidationError('sceneNumber must be a positive integer');
+      }
+      if (!Object.keys(ScriptParserService.SCENE_TYPE_TEMPLATE_IDS).includes(sceneType)) {
+        throw new ValidationError(`sceneType must be one of: ${Object.keys(ScriptParserService.SCENE_TYPE_TEMPLATE_IDS).join(', ')}`);
+      }
+      if (!scene || typeof scene !== 'object') {
+        throw new ValidationError('scene is required');
+      }
+
+      const job = await VideoJob.findById(id).select('type topic language hostName guestName script.brief').lean();
+      if (!job) {
+        throw new NotFoundError('Video job not found');
+      }
+
+      const { patch, promptSource } = await convertSceneType(scene, sceneType, job);
+      res.json({ scene: patch, promptSource });
     } catch (err) {
       next(err);
     }

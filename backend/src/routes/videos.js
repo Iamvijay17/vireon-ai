@@ -384,6 +384,45 @@ router.post('/:id/scenes/:sceneNumber/remap-template', authenticate, SceneContro
 
 /**
  * @swagger
+ * /api/videos/{id}/scenes/{sceneNumber}/convert-type:
+ *   post:
+ *     summary: Compute a scene converted to a different sceneType
+ *     description: |
+ *       Returns the template, elements, subtitle and image fields the scene needs as the new type.
+ *       For image-bearing types (image, contentwithimage) a scene with no image prompt gets one
+ *       drafted from its narration (LLM, with a deterministic fallback). Does not persist anything -
+ *       the frontend merges the returned fields into its local (unsaved) scene state.
+ *     tags: [Scenes]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/VideoJobId' }
+ *       - { $ref: '#/components/parameters/SceneNumber' }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [sceneType, scene]
+ *             properties:
+ *               sceneType: { type: string, enum: [title, content, image, contentwithimage, podcast] }
+ *               scene: { type: object, description: The scene as the editor holds it, unsaved edits included }
+ *     responses:
+ *       200:
+ *         description: Fields to merge into the scene
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 scene: { type: object }
+ *                 promptSource: { type: string, enum: [existing, llm, fallback, none] }
+ *       400: { description: Invalid sceneType / scene / sceneNumber }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.post('/:id/scenes/:sceneNumber/convert-type', authenticate, SceneController.convertSceneType);
+
+/**
+ * @swagger
  * /api/videos/{id}/activity-logs:
  *   get:
  *     summary: Get activity logs for a video job
