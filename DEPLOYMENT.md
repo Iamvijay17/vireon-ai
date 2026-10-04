@@ -184,6 +184,23 @@ Test a backup without touching Atlas: restore into a throwaway `docker run -d --
 **Restore media:** stop MinIO (`Stop-ScheduledTask VireonMinio`, then end `minio.exe`), copy `E:\VireonBackups\minio` back over
 `D:\Programs\minio-data` with `robocopy E:\VireonBackups\minio D:\Programs\minio-data /E`, then `Start-ScheduledTask VireonMinio`.
 
+## 8d. Image generation (ComfyUI)
+Scene images (workers) and **Image Studio** (`/images`, runs inside the API container) both use ComfyUI with the
+Qwen-Image 2.1 workflow (`backend/workflows/qwen-image-2.1.api.json`).
+- ComfyUI is the scheduled task **`VireonComfyUI`** (registered by `install-workers.ps1`, restarted by the watchdog). It
+  reuses Comfy Desktop's Python env and model folders, listens on **127.0.0.1:8188 only** and has no `--enable-manager`.
+  The API container reaches it at `host.docker.internal:8188`: Docker Desktop forwards that to the host's *loopback*, so
+  ComfyUI is never exposed to the LAN and no firewall rule is needed.
+- API container: `COMFYUI_*`, `IMAGE_*` and `GPU_COORDINATOR=redis` are set in `docker-compose.yml`. The container cannot
+  start ComfyUI (`COMFYUI_AUTO_START=false`); if the task is down, Image Studio shows an error and the watchdog alerts.
+- Native workers: `backend/.env` needs `COMFYUI_ENABLED=true`, `IMAGE_WORKFLOW_PATH` (absolute path to the workflow in this
+  checkout), `IMAGE_STEPS/CFG/SAMPLER/SCHEDULER`, and `GPU_COORDINATOR=redis`. `COMFYUI_START_COMMAND`/`COMFYUI_WORKDIR`
+  let a worker start ComfyUI itself if the task is down.
+- **One 6 GB card is shared** by Ollama, TTS, ComfyUI and Remotion. `GPU_COORDINATOR=redis` must be set in BOTH the API
+  container and the worker `.env`; otherwise Image Studio can load ComfyUI while a worker has a model loaded and the card OOMs.
+- Speed on the RTX 2060: Fast ~40 s, Standard ~55 s, High ~75 s per 16:9 image; an "Avoid" prompt adds ~50%.
+- Don't run Comfy Desktop at the same time as the task if you can avoid it: both want the GPU and port 8188.
+
 ## 9. Troubleshooting
 - **Videos/audio show 502 Bad Gateway on `/media/...`:** MinIO is not running. It is the `VireonMinio` scheduled task
   (starts at logon, ~10 s to come up). Check `Get-ScheduledTask VireonMinio`, then `Start-ScheduledTask VireonMinio`.

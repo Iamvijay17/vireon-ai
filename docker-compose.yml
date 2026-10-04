@@ -53,6 +53,22 @@ services:
       TTS_API_URL: http://host.docker.internal:7860
       TTS_AUTO_START: "false"
       AVATAR_AUTO_START: "false"
+      # Image Studio renders inside this container, so it needs ComfyUI. That runs
+      # natively (scheduled task VireonComfyUI, see deploy/install-workers.ps1) on
+      # the host's loopback; Docker Desktop forwards host.docker.internal there, so
+      # ComfyUI never has to listen on the LAN. This container can't start it.
+      COMFYUI_ENABLED: "true"
+      COMFYUI_API_URL: http://host.docker.internal:8188
+      COMFYUI_AUTO_START: "false"
+      COMFYUI_AUTO_STOP: "false"
+      IMAGE_WORKFLOW_PATH: /app/workflows/qwen-image-2.1.api.json
+      IMAGE_STEPS: "25"
+      IMAGE_CFG: "1"
+      IMAGE_SAMPLER: euler
+      IMAGE_SCHEDULER: simple
+      # One 6 GB card shared with the native workers: serialize through the Redis
+      # lease so Image Studio can't load ComfyUI while a worker has Ollama/TTS loaded.
+      GPU_COORDINATOR: redis
     volumes:
       # Same scratch/log dirs the native workers use.
       - ./backend/jobs:/app/jobs

@@ -2,6 +2,7 @@
  Registers every Vireon background job as a Windows scheduled task:
    VireonVideoWorker / VireonCourseWorker  BullMQ workers (start at logon, restart on crash)
    VireonMinio                              MinIO object storage (start at logon)
+   VireonComfyUI                            ComfyUI, headless, 127.0.0.1:8188 (start at logon)
    VireonWatchdog                           every 2 min: health checks, auto-restart, alerts
    VireonBackup                             nightly 03:00
    VireonDeployPoll                         every 5 min: pull-based deploy
@@ -55,6 +56,24 @@ $minioScript = 'D:\Programs\minio\start-minio.ps1'
 if (Test-Path $minioScript) {
   Register 'VireonMinio' (New-HiddenAction 'powershell.exe' "$psArgs -File `"$minioScript`"" (Split-Path $minioScript)) `
     (New-ScheduledTaskTrigger -AtLogOn -User $user) (New-ServiceSettings)
+}
+
+# ComfyUI (native, headless): scene images in the workers and Image Studio in the API
+# container. The container can't launch it, so it is an always-on task, bound to the
+# host's loopback only (Docker Desktop forwards host.docker.internal there) - never
+# listening on the LAN. It reuses Comfy Desktop's own Python environment and model
+# folders, and deliberately has no --enable-manager (no remote custom-node installs).
+$comfyRoot = Join-Path $env:LOCALAPPDATA 'Comfy-Desktop\ComfyUI-Installs\Personal'
+$comfyPython = Join-Path $comfyRoot 'ComfyUI\.venv\Scripts\python.exe'
+$comfyShared = Join-Path $env:LOCALAPPDATA 'Comfy-Desktop\ComfyUI-Shared'
+$comfyModels = Get-ChildItem (Join-Path $env:APPDATA 'Comfy Desktop\instance-model-paths') -Filter '*.yaml' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ((Test-Path $comfyPython) -and $comfyModels) {
+  $comfyArgs = "-s ComfyUI\main.py --listen 127.0.0.1 --port 8188 --extra-model-paths-config `"$($comfyModels.FullName)`" " +
+    "--input-directory `"$comfyShared\input`" --output-directory `"$comfyShared\output`""
+  Register 'VireonComfyUI' (New-HiddenAction $comfyPython $comfyArgs $comfyRoot) `
+    (New-ScheduledTaskTrigger -AtLogOn -User $user) (New-ServiceSettings)
+} else {
+  Write-Host 'ComfyUI (Comfy Desktop install) not found - VireonComfyUI not registered; image generation stays off.'
 }
 
 # Watchdog: every 2 minutes.
