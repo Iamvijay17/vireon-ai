@@ -21,6 +21,7 @@ jest.mock('../../src/models/ImageGeneration', () => ({
 }));
 
 const config = require('../../src/config');
+const { NO_TEXT } = require('../../src/services/image/styles');
 const ImageGeneration = require('../../src/models/ImageGeneration');
 const ImageGenerationService = require('../../src/services/image/ImageGenerationService');
 const LocalAIService = require('../../src/services/localAI');
@@ -73,7 +74,7 @@ describe('ImageController.generate', () => {
     await flush();
     expect(LocalAIService.gpu.withGPU).toHaveBeenCalledWith('comfyui', expect.any(Function));
     expect(ImageGenerationService.generate).toHaveBeenCalledWith(
-      expect.objectContaining({ jobId: 'img-ABCD1234', prompt: expect.stringMatching(/^a lighthouse\. No text/), aspectRatio: '16:9', variant: 0, onProgress: expect.any(Function) })
+      expect.objectContaining({ jobId: 'img-ABCD1234', prompt: `a lighthouse. ${NO_TEXT}`, aspectRatio: '16:9', variant: 0, onProgress: expect.any(Function) })
     );
     expect(record).toMatchObject({ status: 'COMPLETED', imageUrl: 'http://x/a.png', fileName: 'a.png' });
     expect(record.save).toHaveBeenCalled();
@@ -258,7 +259,7 @@ describe('ImageController.generate', () => {
     await ImageController.generate({ body: { prompt: 'A classroom with a screen' } }, makeRes(), jest.fn());
     await flush();
     expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({
-      prompt: 'A classroom with a screen. No text, lettering, captions, logos or watermarks anywhere in the image.',
+      prompt: `A classroom with a screen. ${NO_TEXT}`,
     }));
   });
 

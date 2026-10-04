@@ -260,6 +260,10 @@ videoJobSchema.pre('findOneAndUpdate', async function (next) {
     delete update[key];
   }
   const normalized = { ...update, $set: { ...plainFields, ...update.$set } };
+  // The plain keys were just deleted from the live update, so write the folded
+  // form back now - the early returns below (no status in the update, or a
+  // status that isn't changing) would otherwise silently drop every field.
+  this.setUpdate(normalized);
 
   const nextStatus = normalized.$set.status;
   if (!nextStatus) return next();

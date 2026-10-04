@@ -110,7 +110,7 @@ describe('prepareSceneForImage', () => {
 describe('ensureSceneImages with re-rolled scenes', () => {
   it('passes the variant to the generator', async () => {
     const result = await ensureSceneImages({ id: 'job-1', scenes: [prepareSceneForImage(imageScene(1))], aspectRatio: '16:9', generator: ImageGenerationService });
-    expect(ImageGenerationService.generate).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'prompt 1', variant: 1 }));
+    expect(ImageGenerationService.generate).toHaveBeenCalledWith(expect.objectContaining({ prompt: expect.stringMatching(/^prompt 1\./), variant: 1 }));
     expect(result.scenes[0].imageUrl).toContain('-v1.png');
   });
 

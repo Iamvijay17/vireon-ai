@@ -8,6 +8,7 @@ jest.mock('../../src/utils/abortableDelay', () => ({
 }));
 
 const config = require('../../src/config');
+const { composeFinalPrompt, NO_TEXT } = require('../../src/services/image/styles');
 const { ensureSceneImages, needsImage, applyImage, degradeScene } = require('../../src/services/image/sceneImages');
 
 const original = { ...config.imageGen };
@@ -52,13 +53,29 @@ describe('ensureSceneImages: generation', () => {
 
     expect(result).toMatchObject({ total: 2, generated: 2, cached: 0, degraded: [] });
     const [a, b, c] = result.scenes;
-    expect(a.imageUrl).toBe('http://minio/prompt%201.png');
+    expect(a.imageUrl).toBe(`http://minio/${encodeURIComponent(composeFinalPrompt('prompt 1'))}.png`);
     expect(a.elements.image).toBe(a.imageUrl);
     expect(a.storyboard.visual.status).toBe('generated');
     expect(b.imageUrl).toContain('prompt%202');
     expect(c).toEqual(scene(3, { sceneType: 'content', imagePrompt: '' })); // untouched
     expect(persist).toHaveBeenCalledTimes(2);
     expect(persist.mock.calls[0][0].map((s) => s.sceneNumber)).toEqual([1]);
+  });
+
+  it('tells the model to draw no words in scene pictures, but keeps the scene\'s own imagePrompt unchanged', async () => {
+    const result = await run([scene(1, { imagePrompt: 'A neural network diagram with layers and arrows' })]);
+
+    expect(generator.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: `A neural network diagram with layers and arrows. ${NO_TEXT}` })
+    );
+    expect(result.scenes[0].imagePrompt).toBe('A neural network diagram with layers and arrows');
+    expect(result.scenes[0].storyboard.visual.prompt).toBe('A neural network diagram with layers and arrows');
+  });
+
+  it('leaves a scene prompt that quotes its own text alone', async () => {
+    await run([scene(1, { imagePrompt: 'A storefront sign that says "OPEN"' })]);
+
+    expect(generator.generate).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'A storefront sign that says "OPEN"' }));
   });
 
   it('generates a shared prompt once and applies it to every scene that uses it (podcast cover)', async () => {

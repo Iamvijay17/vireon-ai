@@ -25,7 +25,7 @@ function composePrompt(prompt, style = 'none') {
   return `${text.replace(/[\s,.;]+$/, '')}, ${suffix}`;
 }
 
-const NO_TEXT = 'No text, lettering, captions, logos or watermarks anywhere in the image.';
+const NO_TEXT = 'Purely visual and completely unlabeled, with no words, letters, numbers or symbols that look like writing anywhere in the image.';
 const MAX_TEXT_LINES = 3;
 
 /** The lines of exact text to draw: trimmed, blanks dropped, at most MAX_TEXT_LINES. */
@@ -43,9 +43,13 @@ function textLines(text) {
  * Same-seed tests on Qwen-Image (see workflows/README.md) found two things that work:
  *  - exact words: describe them as THE text of the picture - large, centered, one
  *    short line each - which left no room for invented labels (clean on 3/3 runs);
- *  - no words: say so plainly (a classroom with screens and whiteboards came out
- *    clean). A trailing "no other text" sentence on a prompt that already asks for
- *    text did NOT stop the invented labels, so that case is left to the wording above.
+ *  - no words: say it strongly. "No text, lettering, captions..." cleaned a classroom
+ *    with screens and whiteboards but left garbled labels on a neural-network diagram;
+ *    "purely visual and completely unlabeled, with no words, letters, numbers or symbols
+ *    that look like writing" cleaned the diagram too. It cannot help when the prompt
+ *    itself asks for signs or billboards - the model then draws signage.
+ *    A trailing "no other text" sentence on a prompt that already asks for text did NOT
+ *    stop the invented labels, so that case is left to the wording above.
  * A prompt that contains its own quoted text is the caller's wording and is left alone.
  */
 function composeFinalPrompt(prompt, style = 'none', text = '') {
@@ -65,4 +69,4 @@ function composeFinalPrompt(prompt, style = 'none', text = '') {
   return `${base.replace(/[\s,.;]+$/, '')}. ${NO_TEXT}`;
 }
 
-module.exports = { IMAGE_STYLES, STYLE_KEYS, composePrompt, composeFinalPrompt, textLines, MAX_TEXT_LINES };
+module.exports = { IMAGE_STYLES, STYLE_KEYS, NO_TEXT, composePrompt, composeFinalPrompt, textLines, MAX_TEXT_LINES };
