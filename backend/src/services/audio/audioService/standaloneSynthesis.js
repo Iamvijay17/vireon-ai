@@ -16,11 +16,18 @@ const execFileAsync = promisify(execFile);
  * used by both single-voice and per-turn dialogue generation below.
  * Deliberately separate from sceneSynthesis.synthesizeSceneAudio - that one
  * is keyed off a jobId+scene shape (script.scenes) this caller doesn't have.
+ *
+ * Holds the GPU lease for the call (this is what makes the API process wait
+ * for a worker's ComfyUI/Ollama to unload, and later unload TTS for them).
+ * Callers must not already hold gpu 'tts' - the slot isn't reentrant.
  */
-async function synthesizeToFile(outputFile, text, voice, seed, instruct, logCtx, fastMode = false) {
-  const { Client } = require("@gradio/client");
+async function synthesizeToFile(...args) {
   const LocalAIService = require("../../localAI");
-  await LocalAIService.tts.ensureRunning();
+  return LocalAIService.gpu.withGPU("tts", () => synthesizeOnGPU(...args));
+}
+
+async function synthesizeOnGPU(outputFile, text, voice, seed, instruct, logCtx, fastMode = false) {
+  const { Client } = require("@gradio/client");
   const resolved = await resolveVoice(voice);
   let lastError = null;
 

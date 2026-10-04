@@ -3,8 +3,11 @@ const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
 const { ManagedProcess, parseCommand } = require('./processManager');
 const { SERVICE_STATE, checkHealth, waitUntilHealthy } = require('./serviceHealth');
+const withTimeout = require('../../utils/withTimeout');
 
 const managed = new ManagedProcess('Qwen3-TTS');
+
+const UNLOAD_TIMEOUT_MS = 30000;
 
 // Same in-flight-promise concurrency guard as ollamaManager - see there
 // for why (#11 in the spec: only one caller actually starts the process).
@@ -74,13 +77,31 @@ async function stop() {
 }
 
 /**
- * A Gradio app has no "unload model, keep server up" operation the way
- * Ollama's API does - the only way to actually free its VRAM is to kill
- * the process. Aliased so GPUResourceManager can call unload() uniformly
- * across every registered service.
+ * Frees VRAM, called uniformly by GPUResourceManager. A process this backend
+ * spawned is simply killed. An externally managed one (the VireonTTS scheduled
+ * task, which the API container relies on because it can't launch GPU apps)
+ * can't be killed from here, so ask the app to drop its models instead:
+ * app.py's /unload_all_models endpoint, which keeps the server up and makes
+ * the next request pay only a model reload.
  */
 async function unload() {
-  return stop();
+  if (managed.isAlive()) {
+    return stop();
+  }
+
+  if (!(await isRunning())) {
+    return;
+  }
+
+  LoggerService.tts('[AI SERVICE] Unloading Qwen3-TTS models to free GPU');
+  try {
+    const { Client } = require('@gradio/client');
+    const baseUrl = config.tts.url.replace(/\/generate$/, '').replace(/\/$/, '');
+    const client = await withTimeout(Client.connect(baseUrl), UNLOAD_TIMEOUT_MS, 'Connecting to TTS server timed out');
+    await withTimeout(client.predict('/unload_all_models', {}), UNLOAD_TIMEOUT_MS, 'TTS model unload timed out');
+  } catch (err) {
+    LoggerService.warn('[AI SERVICE] Qwen3-TTS unload failed (may already be unloaded)', { error: err.message });
+  }
 }
 
 async function restart() {

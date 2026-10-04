@@ -212,6 +212,17 @@ Qwen-Image 2.1 workflow (`backend/workflows/qwen-image-2.1.api.json`).
 - Speed on the RTX 2060: Fast ~40 s, Standard ~55 s, High ~75 s per 16:9 image; an "Avoid" prompt adds ~50%.
 - Don't run Comfy Desktop at the same time as the task if you can avoid it: both want the GPU and port 8188.
 
+## 8e. Audio Studio (Qwen3-TTS)
+Audio Studio runs inside the API container, which cannot launch GPU apps, so Qwen3-TTS must already be up.
+- It is the scheduled task **`VireonTTS`** (`install-workers.ps1`, restarted by the watchdog, which alerts if nothing
+  listens on :7860). It runs `local-ai\qwen3-tts\app.py` from the venv next to the checkout, listens on **127.0.0.1:7860
+  only** (reached from the container as `host.docker.internal:7860`) and logs to `local-ai\qwen3-tts\tts-server.log`.
+- It only loads a model on the first request. The backend's GPU manager (lease shared via `GPU_COORDINATOR=redis`) calls
+  the app's `/unload_all_models` when TTS goes idle or another service needs the card, so keeping it up costs almost no
+  VRAM. A TTS process the backend spawned itself is killed instead.
+- Workers reuse the running server and only spawn their own when nothing answers on :7860.
+- Error "Qwen3-TTS is not running and TTS_AUTO_START=false": the task is down. `Start-ScheduledTask VireonTTS`.
+
 ## 9. Troubleshooting
 - **Videos/audio show 502 Bad Gateway on `/media/...`:** MinIO is not running. It is the `VireonMinio` scheduled task
   (starts at logon, ~10 s to come up). Check `Get-ScheduledTask VireonMinio`, then `Start-ScheduledTask VireonMinio`.
