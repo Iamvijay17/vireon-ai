@@ -141,14 +141,22 @@ const StudioPage = () => {
     }
   };
 
+  // Approve, Generate Audio, Generate Render and Re-render all act on what is stored, not on
+  // the draft in this tab - without saving first, an edit (a scene type change, say) was
+  // silently left out. Returns the saved job, or null when there was nothing to save.
+  const saveDraft = async () => {
+    if (!hasChanges) return null;
+    const res = await updateVideoScenes(jobId, editedScenes);
+    setHasChanges(false);
+    syncStatus(res.data?.job);
+    return res.data?.job || null;
+  };
+
   const handleApprove = async () => {
     if (!jobId) return;
     try {
       setApproving(true);
-      if (hasChanges) {
-        await updateVideoScenes(jobId, editedScenes);
-        setHasChanges(false);
-      }
+      await saveDraft();
       const res = await approveVideoJob(jobId);
       if (job?.fastGeneration === false) {
         setJob((prev) => (prev ? { ...prev, status: res.data.status, progress: res.data.progress } : prev));
@@ -168,6 +176,7 @@ const StudioPage = () => {
     if (!jobId) return;
     try {
       setGeneratingAudio(true);
+      await saveDraft();
       await generateVideoAudio(jobId);
       toast.success("Audio generation started!");
       navigate(`/render?id=${jobId}`);
@@ -182,6 +191,13 @@ const StudioPage = () => {
     if (!jobId) return;
     try {
       setGeneratingRender(true);
+      const saved = await saveDraft();
+      if (saved && saved.status !== "AUDIO_COMPLETED") {
+        // A saved scene that has no audio sends the job back to SCRIPT_COMPLETED (see
+        // SceneController.updateScenes), so rendering has to wait for the audio step.
+        toast.info("Changes saved. A scene still needs audio - click Generate Audio first.");
+        return;
+      }
       await generateVideoRender(jobId);
       toast.success("Rendering started!");
       navigate(`/render?id=${jobId}`);
@@ -196,6 +212,7 @@ const StudioPage = () => {
     if (!jobId) return;
     try {
       setRerendering(true);
+      await saveDraft();
       await rerenderVideoJob(jobId);
       toast.success("Re-render started!");
       navigate(`/render?id=${jobId}`);

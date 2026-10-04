@@ -21,8 +21,8 @@ async function rerender(jobId) {
     throw new NotFoundError('Job not found');
   }
 
-  // Only allow re-render from COMPLETED or FAILED states
-  assertTransitionAllowed(job, 'rerender', (status) => `Job is in ${status} state and cannot be re-rendered. Only COMPLETED or FAILED jobs can be re-rendered.`);
+  // Only allow re-render from COMPLETED, FAILED or SCRIPT_COMPLETED (edited after a finished render)
+  assertTransitionAllowed(job, 'rerender', (status) => `Job is in ${status} state and cannot be re-rendered. Only COMPLETED, FAILED or SCRIPT_COMPLETED jobs can be re-rendered.`);
 
   // Delete assets/props so the worker regenerates them with the latest
   // scene data (prepareAssets always does this anyway - see renderStep.js).
