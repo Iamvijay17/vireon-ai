@@ -12,6 +12,7 @@ const V1_TITLES = {
   "/images": "Image Studio",
   "/projects": "Projects",
   "/jobs": "Jobs",
+  "/workflow": "Workflow",
   "/assets": "Assets",
   "/analytics": "Analytics",
   "/logs": "Live Logs",

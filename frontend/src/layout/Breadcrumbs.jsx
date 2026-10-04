@@ -8,6 +8,7 @@ const STATIC_LABELS = {
   render: "Render",
   studio: "Studio",
   projects: "Projects",
+  workflow: "Workflow",
   analytics: "Analytics",
   settings: "Settings",
   courses: "Courses",

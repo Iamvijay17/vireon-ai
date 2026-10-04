@@ -164,3 +164,11 @@
   --color-accent-active: var(--accent-active);
   --color-accent-subtle: var(--accent-subtle);
 }
+
+/* Workflow canvas: dashes travelling along the edge into the active node. */
+@keyframes workflow-flow {
+  to { stroke-dashoffset: -36; }
+}
+.workflow-flow {
+  animation: workflow-flow 0.9s linear infinite;
+}
