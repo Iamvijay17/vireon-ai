@@ -1,4 +1,4 @@
-const { IMAGE_STYLES, STYLE_KEYS, composePrompt, composeFinalPrompt, textLines } = require('../../src/services/image/styles');
+const { IMAGE_STYLES, STYLE_KEYS, NO_TEXT, composePrompt, composeFinalPrompt, textLines } = require('../../src/services/image/styles');
 const { createImageSchema } = require('../../src/validators');
 
 describe('composePrompt', () => {
@@ -95,8 +95,9 @@ describe('composeFinalPrompt', () => {
 
   it('with no text and no quoted words, says plainly there is none (models invent labels otherwise)', () => {
     expect(composeFinalPrompt('A classroom with a screen and whiteboards', 'none', ''))
-      .toBe('A classroom with a screen and whiteboards. No text, lettering, captions, logos or watermarks anywhere in the image.');
-    expect(composeFinalPrompt('A classroom.', 'none')).toMatch(/classroom\. No text/);
+      .toBe(`A classroom with a screen and whiteboards. ${NO_TEXT}`);
+    expect(composeFinalPrompt('A classroom.', 'none')).toBe(`A classroom. ${NO_TEXT}`);
+    expect(NO_TEXT).toMatch(/unlabeled.*no words, letters, numbers/);
   });
 
   it('leaves a prompt that already quotes its own text alone', () => {

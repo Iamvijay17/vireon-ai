@@ -4,6 +4,7 @@ const { abortableDelay } = require('../../utils/abortableDelay');
 const ScriptParserService = require('../video/ScriptParserService');
 const StoryboardPlanningService = require('../director/StoryboardPlanningService');
 const ImageGenerationService = require('./ImageGenerationService');
+const { composeFinalPrompt } = require('./styles');
 
 /**
  * Fills a video's scenes with their generated images - the one place both the
@@ -97,7 +98,11 @@ async function generateWithRetry({ id, prompt, aspectRatio, variant, signal, gen
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      return await generator.generate({ jobId: id, prompt, aspectRatio, variant, signal });
+      // Scene pictures never need words in them (the video templates draw the titles and
+      // captions), and image models invent gibberish ones - labels on diagrams, fake
+      // writing on screens - so every scene prompt says so. A prompt that quotes its own
+      // text is left alone. The scene keeps its own imagePrompt; only what is sent changes.
+      return await generator.generate({ jobId: id, prompt: composeFinalPrompt(prompt), aspectRatio, variant, signal });
     } catch (err) {
       if (isCancel(err) || err.permanent) throw err;
       lastError = err;

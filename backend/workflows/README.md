@@ -66,6 +66,37 @@ with and without one. Image Studio's "Avoid" field therefore renders in guided m
 removes the subject from the foreground rather than from the whole picture. Video scene
 images stay at CFG 1, where the default negative is harmless and unused.
 
+## Text inside images
+
+Image models invent text: asked for a poster they add rows of icon labels in gibberish,
+and diagrams, screens and whiteboards fill with fake words. Same-seed tests on
+Qwen-Image 2.1 (1024x576, 25 steps) found that **the wording matters, resolution and steps
+do not** (1360x768 made the headline bigger but added even more made-up text):
+
+| Prompt | Result |
+|---|---|
+| headline in quotes inside a busy poster prompt | right words, plus invented labels |
+| same, plus a trailing "no other text" sentence | still invented labels |
+| text described as THE text: `The text reads exactly: "X" in very large bold sans-serif capital letters across the center, and below it "Y" in smaller clean letters. Sharp, perfectly spelled, highly legible typography.` | clean on 4/4 runs and 2 seeds |
+| nothing asked for, plain "No text, lettering, captions..." | classroom clean, diagram still labelled |
+| nothing asked for, `Purely visual and completely unlabeled, with no words, letters, numbers or symbols that look like writing anywhere in the image.` | diagram clean |
+
+`services/image/styles.js` (`composeFinalPrompt`) applies this in two places:
+- **Image Studio**: the "Text in the picture" field (up to 3 short lines) becomes the exact-text
+  wording; with the field empty and no quoted words in the prompt the unlabeled sentence is
+  appended; a prompt that quotes its own text is left alone.
+- **Video scene images** (`sceneImages.generateWithRetry`, used by the video worker, the course
+  pipeline and scene regeneration): always the unlabeled sentence (unless the prompt quotes its
+  own text), because the video templates draw their own titles and captions. The scene keeps its
+  own `imagePrompt`; only what is sent to the model changes, which also retires cached images
+  once per prompt.
+
+Limits: it cannot help when the prompt itself asks for signs or billboards (the model draws
+signage), and when the Director's prompt explicitly asks for labels ("gears labeled 'Partnerships'
+...") the model still draws them - on real prompts from the library the labels came out as good
+or better than without the sentence (a 7-gear infographic: 5 of 7 right vs 4 of 7; a 5-box
+feedback-loop diagram: all 5 right), not removed.
+
 ## Caching
 
 Images are cached by a hash of the prompt, seed, size, sampler settings, checkpoint and

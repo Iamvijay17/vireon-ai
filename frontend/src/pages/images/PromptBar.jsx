@@ -155,7 +155,7 @@ export const PromptBar = ({ promptRef, prompt, setPrompt, negative, setNegative,
         </div>
       ) : (
         <p className="mt-2.5 text-xs text-text-tertiary">
-          About a minute per image (~35s Fast, ~80s High). Several images render one after another. Ctrl+Enter generates. Pictures have no text unless you fill "Text in the picture" - AI invents garbled words otherwise.
+          About a minute per image (~35s Fast, ~80s High). Several images render one after another. Ctrl+Enter generates. Pictures have no text unless you fill "Text in the picture" (AI invents garbled words otherwise; a prompt that asks for signs still gets signs).
         </p>
       )}
     </Card>
