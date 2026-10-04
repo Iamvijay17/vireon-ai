@@ -5,7 +5,7 @@
    VireonComfyUI                            ComfyUI, headless, 127.0.0.1:8188 (start at logon)
    VireonWatchdog                           every 2 min: health checks, auto-restart, alerts
    VireonBackup                             nightly 03:00
-   VireonDeployPoll                         every 5 min: pull-based deploy
+   VireonDeployPoll                         every 1 min: pull-based deploy
  Safe to re-run: existing tasks are replaced. Run from the production checkout:
    powershell -ExecutionPolicy Bypass -File deploy\install-workers.ps1
  Workers stay native (not Docker): they launch Ollama / Qwen3-TTS / MuseTalk /
@@ -86,9 +86,9 @@ Register 'VireonBackup' (New-HiddenAction 'powershell.exe' "$psArgs -File `"$PSS
   (New-ScheduledTaskTrigger -Daily -At 3am) `
   (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 2))
 
-# Pull-based deploy poller: every 5 minutes.
+# Pull-based deploy poller: every minute (a no-change poll is just a git fetch).
 Register 'VireonDeployPoll' (New-HiddenAction 'powershell.exe' "$psArgs -File `"$PSScriptRoot\deploy.ps1`" -Poll" $repo) `
-  (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5)) `
+  (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)) `
   (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew)
 
 Write-Host 'Start workers now:  Start-ScheduledTask VireonVideoWorker; Start-ScheduledTask VireonCourseWorker'

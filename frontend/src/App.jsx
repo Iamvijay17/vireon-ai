@@ -15,6 +15,7 @@ import PageTitle from "./components/PageTitle";
 
 // v2 mounts outside v1's layout so the two shells never nest. See src/v2/App.jsx.
 const V2App = lazy(() => import("./v2/App"));
+import UpdateBanner from "./components/UpdateBanner";
 import "./App.css";
 
 const AppShell = () => {
@@ -48,6 +49,7 @@ const AppShell = () => {
           </BreadcrumbProvider>
         </SidebarProvider>
         <ConfirmDialogHost />
+        <UpdateBanner />
       </ToastProvider>
     </div>
   );

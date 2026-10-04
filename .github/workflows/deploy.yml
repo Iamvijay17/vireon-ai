@@ -2,7 +2,7 @@ name: Deploy
 
 # Runs only after CI succeeded on main. It does NOT touch your PC: it builds
 # and publishes images (sha-<commit>) to GHCR. The Windows server pulls them
-# (deploy/deploy.ps1, scheduled every 5 min). No secrets and no self-hosted
+# (deploy/deploy.ps1, scheduled every minute). No secrets and no self-hosted
 # runner are needed - GITHUB_TOKEN is provided automatically.
 on:
   workflow_run:
@@ -72,4 +72,4 @@ jobs:
           cache-from: type=gha,scope=frontend
       - name: Summary
         run: |
-          echo "Published v${APP_VERSION} (sha-${SHA}). The server deploys it on its next poll (<=5 min)." >> "$GITHUB_STEP_SUMMARY"
+          echo "Published v${APP_VERSION} (sha-${SHA}). The server deploys it on its next poll (<=1 min)." >> "$GITHUB_STEP_SUMMARY"
