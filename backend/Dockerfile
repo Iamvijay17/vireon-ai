@@ -7,6 +7,11 @@ RUN npm ci --omit=dev
 
 FROM node:22-slim
 ENV NODE_ENV=production
+# Version stamp reported by /api/version (set by deploy.yml; "-dev" when unset).
+ARG APP_VERSION=
+ARG APP_COMMIT=
+ARG APP_BUILD_DATE=
+ENV APP_VERSION=$APP_VERSION APP_COMMIT=$APP_COMMIT APP_BUILD_DATE=$APP_BUILD_DATE
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
