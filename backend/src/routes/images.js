@@ -21,6 +21,7 @@ const router = Router();
  *             properties:
  *               prompt: { type: string, minLength: 3, maxLength: 1000 }
  *               aspectRatio: { type: string, enum: ['16:9', '9:16', '1:1', '4:5'], default: '16:9' }
+ *               quality: { type: string, enum: [fast, standard], default: standard, description: 'fast samples ~60% of the configured steps' }
  *     responses:
  *       202: { description: Generation started (status PENDING) }
  *       400: { $ref: '#/components/responses/BadRequest' }

@@ -152,6 +152,8 @@ const IMAGE_ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5'];
 const createImageSchema = z.object({
   prompt: z.string().min(3, 'Describe the image you want (at least 3 characters)').max(1000, 'Prompt must be 1000 characters or fewer').trim(),
   aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).optional().default('16:9'),
+  // 'fast' samples with fewer steps (see imageController.stepsFor): quicker, a little less detail.
+  quality: z.enum(['fast', 'standard']).optional().default('standard'),
 });
 
 const imageIdSchema = z.object({

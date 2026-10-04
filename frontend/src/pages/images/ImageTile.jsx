@@ -54,6 +54,7 @@ export const ImageTile = ({ item, progress, deleting, onOpen, onDelete, onDownlo
         <div className="mt-2.5 flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Badge variant="neutral">{item.aspectRatio}</Badge>
+            {item.quality === "fast" && <Badge variant="warning">Fast</Badge>}
             {done && item.fromCache && <Badge variant="info">Cached</Badge>}
             {done && !item.fromCache && item.durationMs ? <Badge variant="neutral">{formatDuration(item.durationMs)}</Badge> : null}
           </div>

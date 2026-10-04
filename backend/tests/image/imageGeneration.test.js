@@ -115,6 +115,17 @@ describe('generate', () => {
     expect(keys[0].width).not.toBe(keys[1].width);
   });
 
+  it('uses a caller-chosen step count and keys the cache on it', async () => {
+    const hashInputs = require('../../src/services/common/CacheService').hashInputs;
+    hashInputs.mockClear();
+    await ImageGenerationService.generate({ jobId: 'j', prompt: 'a cat', aspectRatio: '16:9' });
+    await ImageGenerationService.generate({ jobId: 'j', prompt: 'a cat', aspectRatio: '16:9', steps: 15 });
+    const [normal, fast] = hashInputs.mock.calls.map(([i]) => i);
+    expect(normal.steps).toBe(config.imageGen.steps);
+    expect(fast.steps).toBe(15);
+    expect(client.queue.mock.calls[1][0]['3'].inputs.steps).toBe(15);
+  });
+
   it('refuses to run without a checkpoint, as a non-retryable configuration error', async () => {
     config.imageGen.checkpoint = '';
     await expect(ImageGenerationService.generate({ jobId: 'j', prompt: 'p', aspectRatio: '16:9' }))

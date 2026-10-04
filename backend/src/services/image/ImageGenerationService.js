@@ -53,7 +53,7 @@ class ImageGenerationService {
   }
 
   /** Everything that decides what the image looks like - the cache key's inputs. */
-  static _params(prompt, aspectRatio, variant = 0) {
+  static _params(prompt, aspectRatio, variant = 0, steps = null) {
     const { width, height } = this.sizeFor(aspectRatio);
     const g = config.imageGen;
     return {
@@ -62,7 +62,8 @@ class ImageGenerationService {
       seed: this.seedFor(prompt, variant),
       width,
       height,
-      steps: g.steps,
+      // A caller-chosen step count (Image Studio's "fast") is part of the cache key like any other setting.
+      steps: steps || g.steps,
       cfg: g.cfg,
       sampler: g.sampler,
       scheduler: g.scheduler,
@@ -74,9 +75,9 @@ class ImageGenerationService {
    * Generate (or fetch from cache) the image for `prompt` and return its public URL.
    * @returns {Promise<{ url, fileName, cacheKey, fromCache, durationMs }>}
    */
-  static async generate({ jobId, prompt, aspectRatio, variant = 0, signal, onProgress }) {
+  static async generate({ jobId, prompt, aspectRatio, variant = 0, steps = null, signal, onProgress }) {
     const { template, raw } = await this._loadWorkflow();
-    const params = this._params(prompt, aspectRatio, variant);
+    const params = this._params(prompt, aspectRatio, variant, steps);
 
     if (placeholdersIn(template).has('checkpoint') && !params.checkpoint) {
       throw configError('COMFYUI_CHECKPOINT is not set - name the checkpoint file ComfyUI should generate with (see backend/workflows/README.md)');

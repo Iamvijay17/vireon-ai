@@ -101,6 +101,21 @@ describe('ImageController.generate', () => {
     expect(record).toMatchObject({ status: 'FAILED', error: 'ComfyUI is down' });
   });
 
+  it('standard quality uses the configured steps; fast samples ~60% of them', async () => {
+    config.imageGen.steps = 25;
+    ImageGeneration.create.mockImplementation(async (doc) => makeRecord(doc));
+    ImageGenerationService.generate.mockResolvedValue({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false });
+
+    await ImageController.generate({ body: { prompt: 'a lighthouse' } }, makeRes(), jest.fn());
+    await flush();
+    expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({ steps: null }));
+
+    await ImageController.generate({ body: { prompt: 'a lighthouse', quality: 'fast' } }, makeRes(), jest.fn());
+    await flush();
+    expect(ImageGeneration.create).toHaveBeenLastCalledWith(expect.objectContaining({ quality: 'fast' }));
+    expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({ steps: 15 }));
+  });
+
   it('answers 503 and creates nothing when image generation is off', async () => {
     config.imageGen.enabled = false;
     const res = makeRes();

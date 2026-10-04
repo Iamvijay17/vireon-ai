@@ -20,6 +20,11 @@ const imageGenerationSchema = new mongoose.Schema(
       enum: ['16:9', '9:16', '1:1', '4:5'],
       default: '16:9',
     },
+    quality: {
+      type: String,
+      enum: ['fast', 'standard'],
+      default: 'standard',
+    },
     // Re-roll counter for the same prompt + aspect ratio: the seed is derived
     // from the prompt, so a repeat only makes a new picture if the variant moves
     // (see ImageGenerationService.seedFor).

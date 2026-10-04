@@ -31,6 +31,12 @@ function setProgress(id, update) {
   progress.set(id, next);
 }
 
+// "Fast" trades some detail for speed by sampling ~60% of the configured steps
+// (25 -> 15, about 35s instead of 55s here). Standard is the configured count.
+function stepsFor(quality) {
+  return quality === 'fast' ? Math.max(4, Math.round(config.imageGen.steps * 0.6)) : null;
+}
+
 class ImageController {
   /**
    * POST /api/images/generate - Start a standalone text-to-image generation
@@ -43,7 +49,7 @@ class ImageController {
    */
   static async generate(req, res, next) {
     try {
-      const { prompt, aspectRatio } = validate(createImageSchema)(req.body);
+      const { prompt, aspectRatio, quality } = validate(createImageSchema)(req.body);
 
       if (!config.imageGen.enabled) {
         return res.status(503).json({
@@ -58,7 +64,7 @@ class ImageController {
       const variant = last ? last.variant + 1 : 0;
       const { width, height } = ImageGenerationService.sizeFor(aspectRatio);
 
-      const record = await ImageGeneration.create({ prompt, aspectRatio, variant, width, height, status: 'PENDING' });
+      const record = await ImageGeneration.create({ prompt, aspectRatio, quality, variant, width, height, status: 'PENDING' });
       active.add(record._id);
       setProgress(record._id, { phase: 'queued' });
       ImageController._run(record);
@@ -79,6 +85,7 @@ class ImageController {
           prompt: record.prompt,
           aspectRatio: record.aspectRatio,
           variant: record.variant,
+          steps: stepsFor(record.quality),
           onProgress: (update) => setProgress(id, update),
         })
       );
