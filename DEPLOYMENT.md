@@ -140,6 +140,15 @@ does not shrink by itself after cleanup, so C: free space may not change. To han
 run `wsl --shutdown`, then in an elevated PowerShell `Optimize-VHD -Path "$env:LOCALAPPDATA\Docker\wsl\disk\docker_data.vhdx" -Mode Full`
 (needs the Hyper-V module), and start Docker Desktop again. Vireon is offline while Docker is stopped.
 
+### App version
+
+Every deploy gets its own version, shown at the bottom of the sidebar (hover for
+commit and build time). It is `<major.minor>.<run number>`: major.minor comes from
+the root `package.json` `version` (bump it by hand for a feature release), and the
+patch is the `deploy.yml` run number, so it rises on every deploy. `deploy.yml`
+passes it to the frontend image as build args; a hand-built or dev frontend shows
+`<version>-dev`.
+
 ## 8. Rollback
 Every deploy keeps the previous working image tag in `.deploy\state.json`.
 - Automatic: failed health check → previous version restored.

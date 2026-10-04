@@ -9,6 +9,7 @@ import { Button } from "../ui/primitives";
 import { cx } from "../ui/cx";
 import { useSocketRoom } from "../../shared/useSocketRoom";
 import { useMediaQuery } from "../../lib/useMediaQuery";
+import { appVersionLabel, appVersionTitle } from "../../lib/appVersion";
 import { useEscapeKey, useLockBodyScroll } from "../../components/ui/hooks";
 
 /**
@@ -157,6 +158,13 @@ function Sidebar({ collapsed, onToggle, isDrawer, open, onClose }) {
             </div>
           ))}
         </nav>
+
+        <p
+          title={appVersionTitle}
+          className="label-xs shrink-0 truncate px-2 pb-2 text-center normal-case"
+        >
+          {appVersionLabel}
+        </p>
 
         {/* The collapse toggle only means something for the desktop rail. */}
         {!isDrawer && (
