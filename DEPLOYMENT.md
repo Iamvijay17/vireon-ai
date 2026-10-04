@@ -112,7 +112,7 @@ Old queue state in `.redis-data` is not migrated (queues start empty).
   `docker login ghcr.io -u <user>` with a classic PAT that has only `read:packages`.
 
 ### How the server gets updates (pull-based, no self-hosted runner)
-The `VireonDeployPoll` scheduled task runs `deploy\deploy.ps1 -Poll` every 5 minutes. It:
+The `VireonDeployPoll` scheduled task runs `deploy\deploy.ps1 -Poll` every minute. It:
 1. fetches `origin/main`, derives `sha-<commit>`;
 2. skips if that image doesn't exist yet (CI not finished/failed) or render jobs are active;
 3. pulls images, checks out that commit, `npm ci` if lockfiles changed;
@@ -126,7 +126,7 @@ PC. (If you ever add one: run it only for `main`, never for pull requests/forks.
 ## 7. Day-to-day
 | Task | Command (in the prod checkout) |
 |---|---|
-| Deploy | `git push origin main` → wait for CI + ≤5 min (or run `deploy\deploy.ps1 -Poll`) |
+| Deploy | `git push origin main` → wait for CI + ≤1 min (or run `deploy\deploy.ps1 -Poll`) |
 | Start | `docker compose --profile tailscale up -d` |
 | Restart one service | `docker compose restart backend` |
 | Restart workers | `Stop-ScheduledTask VireonVideoWorker; Start-ScheduledTask VireonVideoWorker` |
@@ -148,7 +148,8 @@ the root `package.json` `version` (bump it by hand for a feature release), and t
 patch is the `deploy.yml` run number, so it rises on every deploy. `deploy.yml`
 passes it to the frontend and backend images as build args; a hand-built or dev
 build shows `<version>-dev`. The API reports its own at `GET /api/version` (and
-logs it at startup); the sidebar tooltip lists both, so a mismatch is visible.
+logs it at startup); the sidebar tooltip lists both, so a mismatch is visible. An already-open tab keeps running the JS it loaded, so it
+checks `/api/version` every minute and shows a "new version available - Reload" banner after a deploy.
 
 ## 8. Rollback
 Every deploy keeps the previous working image tag in `.deploy\state.json`.
@@ -221,7 +222,7 @@ Qwen-Image 2.1 workflow (`backend/workflows/qwen-image-2.1.api.json`).
   (add your home IP or 0.0.0.0/0 for free tier), wrong `MONGODB_URI`, Redis not up.
 - **Rate-limit hits for everyone:** `trust proxy` is set in production; ensure `NODE_ENV=production`.
 - **Terminal windows pop up / flash on Windows:** Task Scheduler starting `powershell.exe` or `node.exe` opens a console, which on
-  Windows 11 (Windows Terminal as default terminal) is a visible window - a flash every 2/5 minutes for the watchdog and deploy poller,
+  Windows 11 (Windows Terminal as default terminal) is a visible window - a flash every 1-2 minutes for the watchdog and deploy poller,
   and a permanent window for each worker. `-WindowStyle Hidden` does not help (it hides the window only after it appeared). All Vireon
   tasks therefore launch through `deployun-hidden.vbs` (`wscript.exe //B`, window style 0). Re-run `deploy\install-workers.ps1`
   to re-register them; a plain `powershell.exe`/`node.exe` action in Task Scheduler brings the windows back.

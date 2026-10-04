@@ -1,7 +1,7 @@
 <#
  Pull-based deploy for the Windows Vireon server. Runs from the PRODUCTION
  checkout (a separate clone from your dev folder), normally via the
- VireonDeployPoll scheduled task every 5 minutes.
+ VireonDeployPoll scheduled task every minute.
 
    deploy.ps1 -Poll              deploy origin/main if CI built images for it
    deploy.ps1 -Tag sha-abc123    deploy a specific image tag
