@@ -73,7 +73,7 @@ describe('ImageController.generate', () => {
     await flush();
     expect(LocalAIService.gpu.withGPU).toHaveBeenCalledWith('comfyui', expect.any(Function));
     expect(ImageGenerationService.generate).toHaveBeenCalledWith(
-      expect.objectContaining({ jobId: 'img-ABCD1234', prompt: 'a lighthouse', aspectRatio: '16:9', variant: 0, onProgress: expect.any(Function) })
+      expect.objectContaining({ jobId: 'img-ABCD1234', prompt: expect.stringMatching(/^a lighthouse\. No text/), aspectRatio: '16:9', variant: 0, onProgress: expect.any(Function) })
     );
     expect(record).toMatchObject({ status: 'COMPLETED', imageUrl: 'http://x/a.png', fileName: 'a.png' });
     expect(record.save).toHaveBeenCalled();
@@ -242,6 +242,24 @@ describe('ImageController.generate', () => {
     await ImageController.generate({ body: { prompt: 'a street' } }, makeRes(), jest.fn());
     await flush();
     expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({ negative: null, cfg: null }));
+  });
+
+  it('exact text is stored as typed and sent to the model as the picture\'s text; no text means an explicit no-text sentence', async () => {
+    ImageGeneration.create.mockImplementation(async (doc) => makeRecord(doc));
+    ImageGenerationService.generate.mockResolvedValue({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false, seed: 1 });
+
+    await ImageController.generate({ body: { prompt: 'A conference poster', text: 'FUTURE OF AI\nBUILDING TOMORROW' } }, makeRes(), jest.fn());
+    await flush();
+    expect(ImageGeneration.create).toHaveBeenLastCalledWith(expect.objectContaining({ prompt: 'A conference poster', text: 'FUTURE OF AI\nBUILDING TOMORROW' }));
+    expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining('The text reads exactly: "FUTURE OF AI" in very large bold sans-serif capital letters across the center, and below it "BUILDING TOMORROW"'),
+    }));
+
+    await ImageController.generate({ body: { prompt: 'A classroom with a screen' } }, makeRes(), jest.fn());
+    await flush();
+    expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({
+      prompt: 'A classroom with a screen. No text, lettering, captions, logos or watermarks anywhere in the image.',
+    }));
   });
 
   it('answers 503 and creates nothing when image generation is off', async () => {

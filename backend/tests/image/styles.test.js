@@ -1,4 +1,4 @@
-const { IMAGE_STYLES, STYLE_KEYS, composePrompt } = require('../../src/services/image/styles');
+const { IMAGE_STYLES, STYLE_KEYS, composePrompt, composeFinalPrompt, textLines } = require('../../src/services/image/styles');
 const { createImageSchema } = require('../../src/validators');
 
 describe('composePrompt', () => {
@@ -55,5 +55,52 @@ describe('createImageSchema', () => {
     const result = parse({ prompt: 'a red fox', seed: 42, count: 2 });
     expect(result.success).toBe(false);
     expect(result.error.issues[0].message).toMatch(/identical/);
+  });
+
+  it('takes optional exact text: up to 3 lines of 80 characters, defaulting to empty', () => {
+    expect(parse({ prompt: 'a red fox' }).data.text).toBe('');
+    expect(parse({ prompt: 'a red fox', text: 'FUTURE OF AI\nBUILDING TOMORROW' }).success).toBe(true);
+    expect(parse({ prompt: 'a red fox', text: 'a\nb\nc\nd' }).success).toBe(false);          // 4 lines
+    expect(parse({ prompt: 'a red fox', text: 'x'.repeat(81) }).success).toBe(false);       // line too long
+    expect(parse({ prompt: 'a red fox', text: 'a\n\n\nb' }).success).toBe(true);            // blanks don't count
+  });
+});
+
+describe('textLines', () => {
+  it('trims, drops blank lines, caps at three, and neutralises double quotes', () => {
+    expect(textLines('  FUTURE OF AI \r\n\r\nSAY "HI"\nthree\nfour')).toEqual(['FUTURE OF AI', "SAY 'HI'", 'three']);
+    expect(textLines('')).toEqual([]);
+    expect(textLines(undefined)).toEqual([]);
+  });
+});
+
+describe('composeFinalPrompt', () => {
+  it('with exact text, describes it as the picture\'s text: large, centered, then smaller lines below', () => {
+    const out = composeFinalPrompt('A conference poster, dark background', 'none', 'FUTURE OF AI\nBUILDING TOMORROW');
+    expect(out).toBe(
+      'A conference poster, dark background. The text reads exactly: "FUTURE OF AI" in very large bold sans-serif capital letters across the center, '
+      + 'and below it "BUILDING TOMORROW" in smaller clean letters. Sharp, perfectly spelled, highly legible typography.'
+    );
+  });
+
+  it('places a third line at the bottom', () => {
+    expect(composeFinalPrompt('A poster', 'none', 'A\nB\nC')).toMatch(/and at the bottom "C" in small clean letters/);
+  });
+
+  it('keeps the style phrase before the text instructions', () => {
+    const out = composeFinalPrompt('A poster', 'cinematic', 'HELLO');
+    expect(out.indexOf(IMAGE_STYLES.cinematic.suffix)).toBeGreaterThan(-1);
+    expect(out.indexOf(IMAGE_STYLES.cinematic.suffix)).toBeLessThan(out.indexOf('The text reads exactly'));
+  });
+
+  it('with no text and no quoted words, says plainly there is none (models invent labels otherwise)', () => {
+    expect(composeFinalPrompt('A classroom with a screen and whiteboards', 'none', ''))
+      .toBe('A classroom with a screen and whiteboards. No text, lettering, captions, logos or watermarks anywhere in the image.');
+    expect(composeFinalPrompt('A classroom.', 'none')).toMatch(/classroom\. No text/);
+  });
+
+  it('leaves a prompt that already quotes its own text alone', () => {
+    expect(composeFinalPrompt('A shop sign that says "OPEN"', 'none', '')).toBe('A shop sign that says "OPEN"');
+    expect(composeFinalPrompt('A sign that says “OPEN”', 'none', '')).toBe('A sign that says “OPEN”');
   });
 });

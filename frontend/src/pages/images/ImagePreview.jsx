@@ -48,6 +48,13 @@ export const ImagePreview = ({ item, onClose, onDownload, onReuseSettings }) => 
           <CopyButton value={item.prompt} label="Copy prompt" />
         </div>
 
+        {item.text && (
+          <p className="mt-3 text-[13px] text-text-secondary">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Text </span>
+            {item.text.split("\n").join(" | ")}
+          </p>
+        )}
+
         {item.negative && (
           <p className="mt-3 text-[13px] text-text-secondary">
             <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Avoid </span>

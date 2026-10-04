@@ -58,6 +58,7 @@ export const ImageTile = ({ item, progress, deleting, onOpen, onDelete, onDownlo
             <Badge variant="neutral">{item.aspectRatio}</Badge>
             {item.quality === "fast" && <Badge variant="warning">Fast</Badge>}
             {item.quality === "high" && <Badge variant="info">High</Badge>}
+            {item.text && <Badge variant="neutral" title={`Text: ${item.text.split("\n").join(" | ")}`}>Text</Badge>}
             {item.negative && <Badge variant="neutral" title={`Avoid: ${item.negative}`}>Avoid</Badge>}
             {item.style && item.style !== "none" && <Badge variant="accent">{STYLE_LABEL[item.style] || item.style}</Badge>}
             {done && item.fromCache && <Badge variant="info">Cached</Badge>}

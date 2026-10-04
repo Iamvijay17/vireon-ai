@@ -31,6 +31,11 @@ const imageGenerationSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Exact words drawn in the picture (one per line); empty means the prompt is rendered with "no text".
+    text: {
+      type: String,
+      default: '',
+    },
     // Style preset key (services/image/styles.js); `prompt` above stays the user's own text.
     style: {
       type: String,

@@ -25,4 +25,44 @@ function composePrompt(prompt, style = 'none') {
   return `${text.replace(/[\s,.;]+$/, '')}, ${suffix}`;
 }
 
-module.exports = { IMAGE_STYLES, STYLE_KEYS, composePrompt };
+const NO_TEXT = 'No text, lettering, captions, logos or watermarks anywhere in the image.';
+const MAX_TEXT_LINES = 3;
+
+/** The lines of exact text to draw: trimmed, blanks dropped, at most MAX_TEXT_LINES. */
+function textLines(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/"/g, "'"))
+    .filter(Boolean)
+    .slice(0, MAX_TEXT_LINES);
+}
+
+/**
+ * Text handling, because image models make up text: asked for a poster they add
+ * rows of icon labels in gibberish, and drawn "documents" fill with fake words.
+ * Same-seed tests on Qwen-Image (see workflows/README.md) found two things that work:
+ *  - exact words: describe them as THE text of the picture - large, centered, one
+ *    short line each - which left no room for invented labels (clean on 3/3 runs);
+ *  - no words: say so plainly (a classroom with screens and whiteboards came out
+ *    clean). A trailing "no other text" sentence on a prompt that already asks for
+ *    text did NOT stop the invented labels, so that case is left to the wording above.
+ * A prompt that contains its own quoted text is the caller's wording and is left alone.
+ */
+function composeFinalPrompt(prompt, style = 'none', text = '') {
+  const base = composePrompt(prompt, style);
+  const lines = textLines(text);
+
+  if (lines.length > 0) {
+    const [headline, ...rest] = lines;
+    const placements = ['and below it', 'and at the bottom'];
+    const sizes = ['in smaller clean letters', 'in small clean letters'];
+    const parts = [`"${headline}" in very large bold sans-serif capital letters across the center`];
+    rest.forEach((line, i) => parts.push(`${placements[i]} "${line}" ${sizes[i]}`));
+    return `${base.replace(/[\s,.;]+$/, '')}. The text reads exactly: ${parts.join(', ')}. Sharp, perfectly spelled, highly legible typography.`;
+  }
+
+  if (/["“”]/.test(base)) return base;
+  return `${base.replace(/[\s,.;]+$/, '')}. ${NO_TEXT}`;
+}
+
+module.exports = { IMAGE_STYLES, STYLE_KEYS, composePrompt, composeFinalPrompt, textLines, MAX_TEXT_LINES };

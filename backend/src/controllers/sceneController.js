@@ -38,17 +38,23 @@ class SceneController {
       // saving edits during the pre-render approval pause doesn't lose track
       // of the fact it's still awaiting approval (vs. SCRIPT_COMPLETED for
       // post-completion revisions, which are ready for an explicit re-render).
+      // AUDIO_COMPLETED (manual mode, paused before "Generate Render") is kept
+      // too while every scene still has its audio file: the audio step skips
+      // those scenes anyway, so dropping back to SCRIPT_COMPLETED would only
+      // force a pointless "Generate Audio" click. A scene added without audio
+      // does need that step, so it falls through to SCRIPT_COMPLETED.
       const existing = await VideoJob.findById(id).select('status').lean();
-      const nextStatus = existing?.status === JOB_STATUS.AWAITING_APPROVAL
-        ? JOB_STATUS.AWAITING_APPROVAL
-        : JOB_STATUS.SCRIPT_COMPLETED;
+      const keepsStatus = existing?.status === JOB_STATUS.AWAITING_APPROVAL
+        || (existing?.status === JOB_STATUS.AUDIO_COMPLETED && scenes.every((s) => s?.audio?.file));
+      const nextStatus = keepsStatus ? existing.status : JOB_STATUS.SCRIPT_COMPLETED;
+      const nextProgress = nextStatus === JOB_STATUS.AUDIO_COMPLETED ? 50 : 20;
 
       const updatedJob = await VideoJob.findByIdAndUpdate(
         id,
         {
           'script.scenes': scenes,
           status: nextStatus,
-          progress: 20,
+          progress: nextProgress,
           currentStep: nextStatus,
           error: undefined,
         },

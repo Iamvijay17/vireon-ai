@@ -23,6 +23,7 @@ const router = Router();
  *               aspectRatio: { type: string, enum: ['16:9', '9:16', '1:1', '4:5'], default: '16:9' }
  *               quality: { type: string, enum: [fast, standard, high], default: standard, description: 'fast ~60% and high ~140% of the configured steps' }
  *               style: { type: string, enum: [none, photo, cinematic, illustration, render3d, flat, watercolor, anime], default: none, description: 'a phrase appended to the prompt' }
+ *               text: { type: string, maxLength: 240, description: 'exact words to draw, one per line (max 3); empty renders with no text at all' }
  *               negative: { type: string, maxLength: 500, description: 'things to leave out; switches to guided mode (CFG > 1, ~50% slower)' }
  *               count: { type: integer, minimum: 1, maximum: 4, default: 1, description: 'pictures to make, each with a new seed' }
  *               seed: { type: integer, nullable: true, description: 'pin the seed to reproduce a picture; requires count 1' }

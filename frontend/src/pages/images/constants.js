@@ -25,6 +25,21 @@ export const COUNTS = [1, 2, 3, 4].map((n) => ({ value: n, label: `${n}` }));
 
 export const MAX_SEED = 2 ** 48 - 1;
 
+// Exact text in the picture is typed on one line with "|" between lines
+// ("FUTURE OF AI | BUILDING TOMORROW") and stored/sent one line per row.
+export const MAX_TEXT_LINES = 3;
+export const pipesToLines = (input) =>
+  String(input || "")
+    .split("|")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+export const linesToPipes = (stored) =>
+  String(stored || "")
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .join(" | ");
+
 export const EXAMPLES = [
   "A misty mountain valley at sunrise, golden light through the clouds",
   "A cozy coffee shop interior on a rainy afternoon, warm lamps, steamed-up windows",
