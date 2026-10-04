@@ -31,6 +31,13 @@ With `COMFYUI_ENABLED` off (the default), scenes that wanted an image are render
 text-only scenes instead - the job never fails because of images unless
 `IMAGE_GEN_REQUIRED=true`.
 
+## Included workflows
+
+- `txt2img.api.json` - classic single-checkpoint graph (SD/SDXL style); needs `COMFYUI_CHECKPOINT`.
+- `qwen-image-2.1.api.json` - Qwen-Image 2.1 with split loaders (diffusion model + Qwen3-VL
+  text encoder + VAE, filenames hardcoded in the file; no checkpoint). Use CFG 1,
+  `euler`/`simple`; it ignores the negative prompt. Select with `IMAGE_WORKFLOW_PATH`.
+
 ## Placeholders
 
 | Placeholder | Value |

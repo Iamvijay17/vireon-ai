@@ -8,7 +8,7 @@ Audit date: 2026-10-03, refreshed the same day after commits `8cb8718` (image ge
 1. Image generation now exists (ComfyUI through `imageStep`, with a Director image budget and a text-only fallback) but it is switched off. No ComfyUI install was found on this machine and prod has `COMFYUI_ENABLED=false`, so it has not run end to end here.
 2. The AI Director now serves video jobs and course lessons, and has a storyboard layer that proposes layout, image, camera motion and transition per scene. It is still script-time only.
 3. Camera motion is now rendered (`camera.js`). The LLM `animation` field is still saved and passed to render props, but no scene renderer I found reads it.
-4. There is still no background music, SFX, ducking or loudness normalization. Prod also does not set `GPU_COORDINATOR=redis`, so the two workers can still overload the GPU.
+4. There is still no background music, SFX, ducking or loudness normalization. Prod `.env` now sets `GPU_COORDINATOR=redis`, but the old worker processes were not all restarted, so the lease is not fully active yet.
 
 Legend: 🟢 implemented, 🟡 partial, 🔵 configured but unused, 🔴 missing, ⚪ dead/unused.
 
@@ -251,7 +251,7 @@ Actual flow: `storyboard visual prompt (+ palette suffix) → ensureSceneImages 
 | URLs | `MINIO_PUBLIC_URL` + `/bucket/key`, stored in Mongo. The frontend re-homes them to `/media`. |
 | Local | `backend/jobs/{id}/` is scratch (script, assets.json, render). Wiped on completion by `StorageService.cleanupJob`. |
 | Cleanup | `deleteJob` removes scenes and video prefixes. The cache bucket is untouched. |
-| Expiration / lifecycle | 🟡 `CACHE_RETENTION_DAYS` sets a MinIO expiry rule on the cache bucket (`services/storage/cacheRetention.js`). Default 0 keeps everything, and prod does not set it, so the bucket still grows without bound. |
+| Expiration / lifecycle | 🟡 `CACHE_RETENTION_DAYS` sets a MinIO expiry rule on the cache bucket (`services/storage/cacheRetention.js`). Default 0 keeps everything. The prod `.env` now sets 90 days, but prod runs `main`, which does not have this code yet, so nothing expires until `v2` is deployed. |
 | Dedup | `Asset.contentHash` is recorded. Reuse relies on the TTS cache key, not byte dedup. |
 
 ---
@@ -283,7 +283,7 @@ A real implementation, slot-based, not VRAM-aware.
 - **Remotion is not GPU-managed.** `RemotionStatus` is only a status flag.
 
 **Overload points:**
-1. With the default in-process coordinator, the video worker and course worker are separate processes that can each load a model onto the same 6GB card. The fix exists (`GPU_COORDINATOR=redis`) and `backend/.env.example` now sets it, but the prod `.env` has no `GPU_COORDINATOR` line, so prod runs in-process. Image generation adds a fourth service to that contention once ComfyUI is on.
+1. With the default in-process coordinator, the video worker and course worker are separate processes that can each load a model onto the same 6GB card. The fix is `GPU_COORDINATOR=redis`. `backend/.env.example` sets it and the prod `.env` now does too (added 2026-10-03), but the processes running at the time of writing started before that: the course worker (PID 8900) and an old video worker (PID 9400) still use the in-process lease, next to a new video worker (PID 4300) that uses Redis. All three need to be restarted onto the new env, with only the new video worker left running. Image generation adds a fourth service to that contention once ComfyUI is on.
 2. With video worker concurrency above 1, two jobs run CPU-heavy Remotion renders at once.
 3. MuseTalk and Qwen3-TTS contend for the single GPU slot, so avatar jobs serialize behind TTS.
 4. Remotion render runs while another job's TTS may hold the GPU.
@@ -619,7 +619,7 @@ Target: "an AI Video Director that uses Remotion as its rendering engine."
 | **Audio planning** | Voice per speaker, emotion | No music, SFX, ducking, loudness or pacing marks |
 | **Timeline planning** | Duration equals audio duration, fixed 0.5 s crossfade | No holds, beats or word-level cues. Transition choice is a seeded pick. |
 | **Asset planning** | Image budget and prompt per scene, prompt-hash image cache | No stock search, no reuse index across jobs beyond the cache. |
-| **Quality control** | IR compile (shadow), `validateAssets` | Visual layout QC exists (`services/qc/`, `remotion/src/qc/`: clipped or off-frame text, failed images, overlap, small text, empty scenes) but is off by default (`QC_ENABLED`), and not enabled in prod. No LLM review of the script. Overflow handled only by `textFit`. |
+| **Quality control** | IR compile (shadow), `validateAssets` | Visual layout QC exists (`services/qc/`, `remotion/src/qc/`: clipped or off-frame text, failed images, overlap, small text, empty scenes) but is off by default (`QC_ENABLED`). The prod `.env` now sets `QC_ENABLED=true`, which does nothing until `v2` is deployed, since prod runs `main`. A manual run on `job-FKMS1O5Y` found 0 errors and 2 small-text warnings. No LLM review of the script. Overflow handled only by `textFit`. |
 | **Regeneration** | Per-scene audio, whole-script, re-render | No per-scene script or visual regeneration with feedback. No record of why a scene looks as it does. |
 
 Two structural facts matter for ordering: the IR is the natural contract to extend, because it already validates scenes against template schemas, and the Director has no home in the course path today.
@@ -647,15 +647,15 @@ Director (script and storyboard only), image generation (built, off, unproven), 
 The step graph, `Project` and `Render`, `animation`, `thumbnailPrompt`, 46 legacy templates. ComfyUI is no longer dead but is not installed here.
 
 ### G. Missing capabilities
-A working image setup (install, checkpoint, first end-to-end run), video generation, charts and diagrams, music, SFX, ducking, loudness, auth, WebM, variable FPS, retention turned on for the cache bucket, layout QC enabled in prod, a download button for captions, secret rotation, VRAM awareness.
+A working image setup (install, checkpoint, first end-to-end run), video generation, charts and diagrams, music, SFX, ducking, loudness, auth, WebM, variable FPS, `v2` deployed so layout QC and cache retention take effect in prod, the stale worker processes restarted, a download button for captions, secret rotation, VRAM awareness.
 
 ### H. AI Director gap
-The storyboard now exists, is stored per scene and reaches the renderer for layout, image and camera motion. What is missing: the storyboard is not editable in the UI, there is no audio plan (music, SFX, ducking), no chart or diagram scene types, and layout QC is off by default. The course path goes through the same Director now.
+The storyboard now exists, is stored per scene and reaches the renderer for layout, image and camera motion. What is missing: the storyboard is not editable in the UI, there is no audio plan (music, SFX, ducking), no chart or diagram scene types, and layout QC is not live in prod until `v2` is deployed. The course path goes through the same Director now.
 
 ### I. Architecture risks
 1. No auth. Safety relies on the network edge (Tailscale).
 2. Public-read buckets. Scene `imageUrl` is now guarded against private hosts, with a DNS-rebinding gap.
-3. Two uncoordinated worker processes can overload the 6GB GPU unless `GPU_COORDINATOR=redis` is set. `.env.example` sets it, but the prod `.env` does not.
+3. Two uncoordinated worker processes can overload the 6GB GPU unless `GPU_COORDINATOR=redis` is in effect. It is now in `.env.example` and the prod `.env`, but the running worker processes still need restarting onto it.
 4. A whole job is one BullMQ execution, so render and GPU stages can't scale independently.
 5. Duplicated video and course pipelines, plus three template registries, will drift.
 6. Output quality depends on one local 4B-class model.
@@ -665,15 +665,15 @@ The storyboard now exists, is stored per scene and reaches the renderer for layo
 
 ### J. Recommended development order (by dependency, not by score)
 
-1. **Foundation (open):** set `GPU_COORDINATOR=redis` in the prod `.env` and restart both workers. Decide whether the IR should carry the storyboard.
+1. **Foundation (open):** `GPU_COORDINATOR=redis` is set in the prod `.env`. Restart the course worker and kill the old video worker so the running processes use it. Decide whether the IR should carry the storyboard.
    *Done since the first pass: render-side URL guard, storyboard contract.*
 2. **Core (open):** decide whether `animation` is wired or deleted.
    *Done since the first pass: course path through `AIDirectorService`, camera motion rendered, planner-proposed layouts.*
 3. **Integration (open):** install ComfyUI, pick a checkpoint that fits 6GB and run the image path end to end. Add music and SFX mixing, which is where FFmpeg earns a place. Add chart and diagram scene types.
    *Done since the first pass: the image path itself, as opt-in code.*
-4. **Quality:** pipeline-step and Director tests, turning layout QC on (`QC_ENABLED=true`), IR switched to authoritative once the shadow diff is clean, per-scene regeneration with feedback.
+4. **Quality:** pipeline-step and Director tests, deploying `v2` so `QC_ENABLED=true` (already in the prod `.env`) takes effect, IR switched to authoritative once the shadow diff is clean, per-scene regeneration with feedback.
 5. **Advanced:** wire the step graph if non-GPU work comes to dominate, split workers by capability, unify `VideoJob` and `CourseVideo` onto `Project` and `Render`, VRAM awareness.
-6. **Optional:** WebM or other exports, auth if it leaves a trusted network, turn on `CACHE_RETENTION_DAYS`, remove legacy templates.
+6. **Optional:** WebM or other exports, auth if it leaves a trusted network, deploy `v2` so `CACHE_RETENTION_DAYS=90` (already in the prod `.env`) takes effect, remove legacy templates.
    *Done since the first pass: unused `multer` and `uuid` and `pages/placeholder` removed.*
 
 ---
