@@ -1,8 +1,18 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+// Stamped by CI (deploy.yml -> Dockerfile build args); local runs show the
+// root package.json version marked "dev".
+const rootVersion = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.APP_VERSION || `${rootVersion}-dev`),
+    __APP_COMMIT__: JSON.stringify((process.env.APP_COMMIT || "").slice(0, 7)),
+    __APP_BUILD_DATE__: JSON.stringify(process.env.APP_BUILD_DATE || ""),
+  },
   plugins: [react(), tailwindcss()],
   server: {
     // Bind to all network interfaces so the dev server is reachable from

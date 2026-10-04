@@ -34,6 +34,11 @@ jobs:
         run: |
           echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
           echo "SHA=${{ github.event.workflow_run.head_sha || github.sha }}" >> "$GITHUB_ENV"
+          # App version shown in the UI: major.minor from the root package.json
+          # (bump by hand for a feature release) + this workflow's run number,
+          # so every deploy gets a new, ever-increasing version.
+          BASE=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
+          echo "APP_VERSION=${BASE}.${{ github.run_number }}" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -53,10 +58,14 @@ jobs:
           context: .
           file: frontend/Dockerfile
           push: true
+          build-args: |
+            APP_VERSION=${{ env.APP_VERSION }}
+            APP_COMMIT=${{ env.SHA }}
+            APP_BUILD_DATE=${{ github.event.workflow_run.updated_at || github.event.repository.updated_at }}
           tags: |
             ghcr.io/${{ env.OWNER }}/vireon-frontend:sha-${{ env.SHA }}
             ghcr.io/${{ env.OWNER }}/vireon-frontend:latest
           cache-from: type=gha,scope=frontend
       - name: Summary
         run: |
-          echo "Published sha-${SHA}. The server deploys it on its next poll (<=5 min)." >> "$GITHUB_STEP_SUMMARY"
+          echo "Published v${APP_VERSION} (sha-${SHA}). The server deploys it on its next poll (<=5 min)." >> "$GITHUB_STEP_SUMMARY"

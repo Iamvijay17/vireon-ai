@@ -12,6 +12,11 @@ COPY deploy/install-linux-natives.cjs deploy/
 RUN node deploy/install-linux-natives.cjs
 COPY frontend frontend
 COPY backend/remotion backend/remotion
+# Version stamp shown in the UI (set by deploy.yml; "dev" when built by hand).
+ARG APP_VERSION=dev
+ARG APP_COMMIT=
+ARG APP_BUILD_DATE=
+ENV APP_VERSION=$APP_VERSION APP_COMMIT=$APP_COMMIT APP_BUILD_DATE=$APP_BUILD_DATE
 # No VITE_* needed: the production build uses same-origin /api, /socket.io, /media.
 RUN npm run build --workspace=frontend
 

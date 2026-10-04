@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "../../components/ui/cn";
+import { appVersionLabel, appVersionTitle } from "../../lib/appVersion";
 
 const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, route: "/" },
@@ -195,6 +196,13 @@ const AppSidebar = ({ collapsed, isDrawer = false, open = false, onClose }) => {
           );
         })}
       </nav>
+
+      <p
+        title={appVersionTitle}
+        className="shrink-0 truncate px-2 py-3 text-center text-[11px] text-sidebar-text"
+      >
+        {appVersionLabel}
+      </p>
     </aside>
     </>
   );
