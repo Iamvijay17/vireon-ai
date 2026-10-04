@@ -77,7 +77,7 @@ function Report([string]$name, [string]$problem) {
 }
 
 # --- 1. scheduled tasks: restart if not running ----------------------------
-foreach ($t in 'VireonMinio', 'VireonVideoWorker', 'VireonCourseWorker') {
+foreach ($t in 'VireonMinio', 'VireonComfyUI', 'VireonVideoWorker', 'VireonCourseWorker') {
   $task = Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue
   if (-not $task) { continue }
   if ($task.State -ne 'Running') {
@@ -97,6 +97,16 @@ $p = $null
 try { Invoke-WebRequest 'http://127.0.0.1:9000/minio/health/live' -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop | Out-Null }
 catch { $p = 'MinIO not responding: videos and audio will fail (502).' }
 Report 'MinIO' $p
+
+# --- 3b. ComfyUI (image generation) ----------------------------------------
+# Only checked once the task exists, so a PC without ComfyUI stays quiet. Down
+# means scene images fall back to text-only scenes and Image Studio errors.
+$p = $null
+if (Get-ScheduledTask -TaskName 'VireonComfyUI' -ErrorAction SilentlyContinue) {
+  try { Invoke-WebRequest 'http://127.0.0.1:8188/system_stats' -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop | Out-Null }
+  catch { $p = 'ComfyUI not responding on 127.0.0.1:8188: image generation is down (scene images fall back to text).' }
+}
+Report 'ComfyUI' $p
 
 # --- 4. Docker containers ---------------------------------------------------
 $p = $null
