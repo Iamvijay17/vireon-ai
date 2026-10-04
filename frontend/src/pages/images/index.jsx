@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ImagePlus, Wand2, Loader2, RefreshCw, Download, Trash2, Zap, Sparkles } from "lucide-react";
+import { ImagePlus, RefreshCw, Trash2, Search, SearchX } from "lucide-react";
 import {
   generateImage,
   getImageGenerations,
@@ -13,28 +13,15 @@ import { useApiQuery, useInvalidate } from "../../lib/useApiQuery";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
-import { Modal } from "../../components/ui/Modal";
 import { Spinner } from "../../components/ui/Spinner";
-import { Textarea } from "../../components/ui/Input";
-import { cn } from "../../components/ui/cn";
+import { Input } from "../../components/ui/Input";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
+import { PromptBar } from "./PromptBar";
 import { ImageTile } from "./ImageTile";
-
-const MAX_CHARS = 1000;
-
-// 4:5 is accepted by the API but maps to the portrait size, so only the
-// shapes that really produce a distinct picture are offered.
-const ASPECTS = [
-  { value: "16:9", label: "Landscape", box: "h-2.5 w-4" },
-  { value: "9:16", label: "Portrait", box: "h-4 w-2.5" },
-  { value: "1:1", label: "Square", box: "h-3 w-3" },
-];
-
-const QUALITIES = [
-  { value: "fast", label: "Fast", icon: <Zap className="size-3.5" />, title: "Fewer steps: about 35s, a little less detail" },
-  { value: "standard", label: "Standard", icon: <Sparkles className="size-3.5" />, title: "Full steps: about a minute, best detail" },
-];
+import { ImagePreview } from "./ImagePreview";
+import { Segmented } from "./Segmented";
+import { loadStudioSettings, saveStudioSettings } from "./constants";
 
 // While something renders: the list is re-checked every few seconds (a safety
 // net - a finished render is noticed sooner, see the effect below), and the
@@ -43,38 +30,34 @@ const LIST_POLL_MS = 3000;
 const PROGRESS_POLL_MS = 1000;
 const EMPTY = [];
 
-// Compact pill-style single choice: one control, all options visible.
-const Segmented = ({ options, value, onChange, label, className }) => (
-  <div role="group" aria-label={label} className={cn("grid gap-1 rounded-lg bg-surface-hover p-1", className)} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
-    {options.map((o) => (
-      <button
-        key={o.value}
-        type="button"
-        title={o.title}
-        aria-pressed={value === o.value}
-        onClick={() => onChange(o.value)}
-        className={cn(
-          "flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
-          value === o.value ? "bg-surface text-accent shadow-xs" : "text-text-secondary hover:text-text-primary"
-        )}
-      >
-        {o.icon ?? <span className={cn("rounded-[2px] border-[1.5px] border-current", o.box)} />}
-        {o.label}
-      </button>
-    ))}
-  </div>
-);
+const SHAPE_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "16:9", label: "Landscape" },
+  { value: "9:16", label: "Portrait" },
+  { value: "1:1", label: "Square" },
+];
+
+// 4:5 is stored as the portrait size, so it filters with portrait.
+const shapeOf = (item) => (item.aspectRatio === "4:5" ? "9:16" : item.aspectRatio);
 
 const ImagesPage = () => {
   const [prompt, setPrompt] = useState("");
-  const [aspectRatio, setAspectRatio] = useState("16:9");
-  const [quality, setQuality] = useState("standard");
+  const [opts, setOpts] = useState(loadStudioSettings);
+  const [seed, setSeed] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [clearing, setClearing] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [search, setSearch] = useState("");
+  const [shapeFilter, setShapeFilter] = useState("all");
   const promptRef = useRef(null);
   const invalidate = useInvalidate();
+
+  const setOpt = (key, value) => setOpts((o) => ({ ...o, [key]: value }));
+
+  useEffect(() => {
+    saveStudioSettings(opts);
+  }, [opts]);
 
   const { data, loading: historyLoading, error: historyError, refetch } = useApiQuery(
     queryKeys.images.history(1),
@@ -90,6 +73,14 @@ const ImagesPage = () => {
   const history = data ?? EMPTY;
   const rendering = history.filter((h) => h.status === "PENDING").length;
   const failed = history.filter((h) => h.status === "FAILED");
+
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return history.filter(
+      (h) => (shapeFilter === "all" || shapeOf(h) === shapeFilter) && (!needle || h.prompt.toLowerCase().includes(needle))
+    );
+  }, [history, search, shapeFilter]);
+  const filtered = search.trim() !== "" || shapeFilter !== "all";
 
   // Plain useQuery, not useApiQuery: that toasts every failure, which at one
   // poll a second would bury the page if the API blipped. Progress is cosmetic.
@@ -107,13 +98,14 @@ const ImagesPage = () => {
     if (progress && history.some((h) => h.status === "PENDING" && !(h._id in progress))) refetch();
   }, [progress, history, refetch]);
 
-  const startGeneration = async (text, ratio, qual) => {
+  const startGeneration = async (params) => {
     try {
       setSubmitting(true);
-      await generateImage({ prompt: text, aspectRatio: ratio, quality: qual });
+      await generateImage(params);
       await invalidate(queryKeys.images.all);
     } catch (err) {
-      toast.error(err.response?.data?.message || err.friendlyMessage || "Failed to start image generation");
+      const detail = err.response?.data?.details?.[0]?.message;
+      toast.error(err.response?.data?.message || detail || err.friendlyMessage || "Failed to start image generation");
     } finally {
       setSubmitting(false);
     }
@@ -125,15 +117,38 @@ const ImagesPage = () => {
       toast.error("Describe the image you want");
       return;
     }
-    startGeneration(text, aspectRatio, quality);
+    startGeneration({
+      prompt: text,
+      aspectRatio: opts.aspectRatio,
+      quality: opts.quality,
+      style: opts.style,
+      // A pinned seed makes every image of a batch identical, so it means one image.
+      count: seed ? 1 : opts.count,
+      seed: seed ? Number(seed) : null,
+    });
   };
 
-  const handleVariation = (item) => startGeneration(item.prompt, item.aspectRatio, item.quality || "standard");
+  // "Another variation": same prompt and options, a fresh random seed.
+  const handleVariation = (item) =>
+    startGeneration({
+      prompt: item.prompt,
+      aspectRatio: item.aspectRatio,
+      quality: item.quality || "standard",
+      style: item.style || "none",
+      count: 1,
+      seed: null,
+    });
 
-  const handleReuse = (item) => {
+  const handleReuse = (item, { withSeed = false } = {}) => {
     setPrompt(item.prompt);
-    setAspectRatio(item.aspectRatio === "4:5" ? "9:16" : item.aspectRatio);
-    setQuality(item.quality || "standard");
+    setOpts({
+      aspectRatio: item.aspectRatio === "4:5" ? "9:16" : item.aspectRatio,
+      quality: item.quality || "standard",
+      style: item.style || "none",
+      count: 1,
+    });
+    setSeed(withSeed && item.seed != null ? String(item.seed) : "");
+    setPreview(null);
     promptRef.current?.focus();
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -194,10 +209,6 @@ const ImagesPage = () => {
     }
   };
 
-  const onKeyDown = (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !submitting) handleGenerate();
-  };
-
   return (
     <div>
       <div className="mb-4 flex items-center gap-3">
@@ -207,55 +218,46 @@ const ImagesPage = () => {
         </Badge>
       </div>
 
-      {/* Prompt bar: one compact card - prompt on the left, options and the
-          action on the right - so the gallery gets the page. */}
-      <Card className="animate-slide-up p-3 sm:p-4">
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <Textarea
-            ref={promptRef}
-            rows={3}
-            aria-label="Prompt"
-            value={prompt}
-            maxLength={MAX_CHARS}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={onKeyDown}
-            className="min-w-0 flex-1 resize-none"
-            placeholder="Describe the picture: subject, setting, lighting, style... e.g. A misty mountain valley at sunrise, golden light through the clouds, realistic photo"
-          />
+      <PromptBar
+        promptRef={promptRef}
+        prompt={prompt}
+        setPrompt={setPrompt}
+        opts={opts}
+        setOpt={setOpt}
+        seed={seed}
+        setSeed={setSeed}
+        submitting={submitting}
+        onGenerate={handleGenerate}
+      />
 
-          <div className="flex shrink-0 flex-col gap-2 lg:w-72">
-            <Segmented label="Shape" options={ASPECTS} value={aspectRatio} onChange={setAspectRatio} />
-            <div className="flex gap-2">
-              <Segmented label="Quality" options={QUALITIES} value={quality} onChange={setQuality} className="w-44 shrink-0" />
-              <Button
-                className="min-w-0 flex-1"
-                variant="primary"
-                icon={submitting ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
-                disabled={submitting || prompt.trim().length < 3}
-                onClick={handleGenerate}
-              >
-                {submitting ? "Starting" : "Generate"}
-              </Button>
-            </div>
-          </div>
-        </div>
-        <p className="mt-2.5 text-xs text-text-tertiary">
-          About a minute per image, ~35s on Fast. Queue several - they render one at a time. Ctrl+Enter generates. Text inside a picture usually comes out garbled.
-        </p>
-      </Card>
-
-      <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-baseline gap-2">
           <h2 className="text-[15px] font-semibold text-text-primary">Gallery</h2>
           <span className="text-xs text-text-tertiary">
-            {history.length} image{history.length === 1 ? "" : "s"}
+            {filtered ? `${visible.length} of ${history.length}` : history.length} image{history.length === 1 ? "" : "s"}
             {rendering ? ` · ${rendering} rendering` : ""}
           </span>
         </div>
-        {failed.length > 0 && (
-          <Button variant="ghost" size="xs" icon={<Trash2 className="size-3.5" />} loading={clearing} onClick={handleClearFailed}>
-            Clear {failed.length} failed
-          </Button>
+
+        {history.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-48">
+              <Input
+                icon={<Search className="size-3.5" />}
+                aria-label="Search prompts"
+                placeholder="Search prompts"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 text-[13px]"
+              />
+            </div>
+            <Segmented label="Filter by shape" options={SHAPE_FILTERS} value={shapeFilter} onChange={setShapeFilter} />
+            {failed.length > 0 && (
+              <Button variant="ghost" size="xs" icon={<Trash2 className="size-3.5" />} loading={clearing} onClick={handleClearFailed}>
+                Clear {failed.length} failed
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -276,11 +278,26 @@ const ImagesPage = () => {
           <ImagePlus className="size-8" />
           <p className="text-[13px]">Generated images will appear here.</p>
         </Card>
+      ) : visible.length === 0 ? (
+        <Card className="flex flex-col items-center gap-2 py-12 text-center text-text-tertiary">
+          <SearchX className="size-7" />
+          <p className="text-[13px]">No images match.</p>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => {
+              setSearch("");
+              setShapeFilter("all");
+            }}
+          >
+            Clear filters
+          </Button>
+        </Card>
       ) : (
         // Masonry: columns of tiles keep their own aspect ratio, so mixed
         // landscape / portrait / square images pack without gaps.
         <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4">
-          {history.map((item) => (
+          {visible.map((item) => (
             <ImageTile
               key={item._id}
               item={item}
@@ -296,26 +313,12 @@ const ImagesPage = () => {
         </div>
       )}
 
-      <Modal
-        open={Boolean(preview)}
+      <ImagePreview
+        item={preview}
         onClose={() => setPreview(null)}
-        title="Image"
-        width="xl"
-        footer={
-          preview && (
-            <Button variant="secondary" size="sm" icon={<Download className="size-3.5" />} onClick={() => handleDownload(preview)}>
-              Download
-            </Button>
-          )
-        }
-      >
-        {preview && (
-          <>
-            <img src={resolveMediaUrl(preview.imageUrl)} alt={preview.prompt} className="w-full rounded-lg" />
-            <p className="mt-3 text-[13px] text-text-secondary">{preview.prompt}</p>
-          </>
-        )}
-      </Modal>
+        onDownload={handleDownload}
+        onReuseSettings={(item) => handleReuse(item, { withSeed: true })}
+      />
     </div>
   );
 };

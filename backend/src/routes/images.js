@@ -21,9 +21,12 @@ const router = Router();
  *             properties:
  *               prompt: { type: string, minLength: 3, maxLength: 1000 }
  *               aspectRatio: { type: string, enum: ['16:9', '9:16', '1:1', '4:5'], default: '16:9' }
- *               quality: { type: string, enum: [fast, standard], default: standard, description: 'fast samples ~60% of the configured steps' }
+ *               quality: { type: string, enum: [fast, standard, high], default: standard, description: 'fast ~60% and high ~140% of the configured steps' }
+ *               style: { type: string, enum: [none, photo, cinematic, illustration, render3d, flat, watercolor, anime], default: none, description: 'a phrase appended to the prompt' }
+ *               count: { type: integer, minimum: 1, maximum: 4, default: 1, description: 'pictures to make, each with a new seed' }
+ *               seed: { type: integer, nullable: true, description: 'pin the seed to reproduce a picture; requires count 1' }
  *     responses:
- *       202: { description: Generation started (status PENDING) }
+ *       202: { description: 'Generation started - { image, images } with the PENDING record(s)' }
  *       400: { $ref: '#/components/responses/BadRequest' }
  *       503: { description: Image generation is not enabled (COMFYUI_ENABLED) }
  */

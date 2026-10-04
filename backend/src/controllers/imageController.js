@@ -6,6 +6,8 @@ const ImageGenerationService = require('../services/image/ImageGenerationService
 const LocalAIService = require('../services/localAI');
 const { getStorageProvider } = require('../services/storage/providers');
 const LoggerService = require('../services/common/LoggerService');
+const { composePrompt } = require('../services/image/styles');
+const { generateImageGenerationId } = require('../utils/id');
 const { createImageSchema, imageIdSchema, validate } = require('../validators');
 
 // Ids of generations this process is working on right now. A PENDING record
@@ -31,10 +33,26 @@ function setProgress(id, update) {
   progress.set(id, next);
 }
 
-// "Fast" trades some detail for speed by sampling ~60% of the configured steps
-// (25 -> 15, about 35s instead of 55s here). Standard is the configured count.
+// Renders take turns. The GPU manager arbitrates between different services
+// (ComfyUI vs Ollama vs TTS); it is not built for the same service being
+// claimed twice at once, which a batch of images would do. Queueing here also
+// keeps the waiting ones honestly "queued" until their turn instead of
+// showing "loading models" while another image is still sampling.
+let renderQueue = Promise.resolve();
+function enqueueRender(task) {
+  const run = renderQueue.then(task);
+  renderQueue = run.catch(() => {});
+  return run;
+}
+
+// Quality is the step count relative to the configured one (IMAGE_STEPS, 25 here):
+// "fast" ~60% (15 steps, about 35s), "high" ~140% (35 steps, about 80s), and
+// standard is the configured count itself.
 function stepsFor(quality) {
-  return quality === 'fast' ? Math.max(4, Math.round(config.imageGen.steps * 0.6)) : null;
+  const steps = config.imageGen.steps;
+  if (quality === 'fast') return Math.max(4, Math.round(steps * 0.6));
+  if (quality === 'high') return Math.round(steps * 1.4);
+  return null;
 }
 
 class ImageController {
@@ -45,11 +63,12 @@ class ImageController {
    * willing to hold a request open, so the client polls GET /api/images
    * instead. Rendering goes through the same ImageGenerationService (workflow,
    * cache, MinIO) the video pipeline uses, holding the GPU lease like its
-   * image step does.
+   * image step does. `count` > 1 queues that many pictures of the same prompt
+   * (each a new seed); they render one after another.
    */
   static async generate(req, res, next) {
     try {
-      const { prompt, aspectRatio, quality } = validate(createImageSchema)(req.body);
+      const { prompt, aspectRatio, quality, style, count, seed } = validate(createImageSchema)(req.body);
 
       if (!config.imageGen.enabled) {
         return res.status(503).json({
@@ -60,16 +79,56 @@ class ImageController {
 
       // The seed comes from the prompt, so generating the same prompt again
       // would just return the cached picture - step the variant for a new one.
-      const last = await ImageGeneration.findOne({ prompt, aspectRatio }).sort({ variant: -1 }).select('variant').lean();
-      const variant = last ? last.variant + 1 : 0;
+      // (A pinned seed ignores the variant, and the schema keeps count at 1 then.)
+      const last = await ImageGeneration.findOne({ prompt, aspectRatio, style }).sort({ variant: -1 }).select('variant').lean();
+      const firstVariant = last ? last.variant + 1 : 0;
       const { width, height } = ImageGenerationService.sizeFor(aspectRatio);
 
-      const record = await ImageGeneration.create({ prompt, aspectRatio, quality, variant, width, height, status: 'PENDING' });
-      active.add(record._id);
-      setProgress(record._id, { phase: 'queued' });
-      ImageController._run(record);
+      const records = [];
+      try {
+        for (let i = 0; i < count; i++) {
+          // Claim the id as "running" BEFORE the record exists: list() fails any
+          // PENDING record this process isn't running, and registering after
+          // create() left a window (a database round trip) where a poll could
+          // brand a brand-new image "interrupted".
+          const _id = generateImageGenerationId();
+          active.add(_id);
+          let record;
+          try {
+            record = await ImageGeneration.create({
+              _id,
+              prompt,
+              style,
+              aspectRatio,
+              quality,
+              seed: seed ?? null,
+              variant: seed == null ? firstVariant + i : 0,
+              width,
+              height,
+              status: 'PENDING',
+            });
+          } catch (err) {
+            active.delete(_id);
+            throw err;
+          }
+          setProgress(record._id, { phase: 'queued' });
+          records.push(record);
+        }
+      } catch (err) {
+        // Part of the batch exists but nothing will run it: fail those records so they don't spin forever.
+        for (const record of records) {
+          active.delete(record._id);
+          progress.delete(record._id);
+          record.status = 'FAILED';
+          record.error = 'The batch could not be started';
+          await record.save().catch(() => {});
+        }
+        throw err;
+      }
+      // Started only once every record exists, so a failure above never leaves half a batch running.
+      records.forEach((record) => ImageController._run(record));
 
-      res.status(202).json({ image: record });
+      res.status(202).json({ image: records[0], images: records });
     } catch (err) {
       next(err);
     }
@@ -79,22 +138,25 @@ class ImageController {
   static async _run(record) {
     const id = record._id;
     try {
-      const result = await LocalAIService.gpu.withGPU('comfyui', () =>
+      const result = await enqueueRender(() => LocalAIService.gpu.withGPU('comfyui', () =>
         ImageGenerationService.generate({
           jobId: id,
-          prompt: record.prompt,
+          prompt: composePrompt(record.prompt, record.style),
           aspectRatio: record.aspectRatio,
           variant: record.variant,
           steps: stepsFor(record.quality),
+          seed: record.seed ?? null,
           onProgress: (update) => setProgress(id, update),
         })
-      );
+      ));
 
       record.status = 'COMPLETED';
       record.imageUrl = result.url;
       record.fileName = result.fileName;
       record.durationMs = result.durationMs;
       record.fromCache = result.fromCache;
+      record.error = null;
+      record.seed = result.seed ?? record.seed;
       await record.save();
     } catch (err) {
       LoggerService.error('Standalone image generation failed', { id, error: err.message });

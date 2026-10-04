@@ -67,7 +67,7 @@ describe('ImageController.generate', () => {
     await ImageController.generate({ body: { prompt: 'a lighthouse', aspectRatio: '16:9' } }, res, jest.fn());
 
     expect(res.status).toHaveBeenCalledWith(202);
-    expect(res.json).toHaveBeenCalledWith({ image: record });
+    expect(res.json).toHaveBeenCalledWith({ image: record, images: [record] });
     expect(ImageGeneration.create).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'a lighthouse', variant: 0, width: 1024, height: 576 }));
 
     await flush();
@@ -101,7 +101,7 @@ describe('ImageController.generate', () => {
     expect(record).toMatchObject({ status: 'FAILED', error: 'ComfyUI is down' });
   });
 
-  it('standard quality uses the configured steps; fast samples ~60% of them', async () => {
+  it('standard quality uses the configured steps; fast samples ~60% of them and high ~140%', async () => {
     config.imageGen.steps = 25;
     ImageGeneration.create.mockImplementation(async (doc) => makeRecord(doc));
     ImageGenerationService.generate.mockResolvedValue({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false });
@@ -114,6 +114,119 @@ describe('ImageController.generate', () => {
     await flush();
     expect(ImageGeneration.create).toHaveBeenLastCalledWith(expect.objectContaining({ quality: 'fast' }));
     expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({ steps: 15 }));
+
+    await ImageController.generate({ body: { prompt: 'a lighthouse', quality: 'high' } }, makeRes(), jest.fn());
+    await flush();
+    expect(ImageGeneration.create).toHaveBeenLastCalledWith(expect.objectContaining({ quality: 'high' }));
+    expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({ steps: 35 }));
+  });
+
+  it('applies the style to the prompt sent to the model, but keeps the typed prompt in the record', async () => {
+    ImageGeneration.create.mockImplementation(async (doc) => makeRecord(doc));
+    ImageGenerationService.generate.mockResolvedValue({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false, seed: 7 });
+
+    await ImageController.generate({ body: { prompt: 'a lighthouse', style: 'watercolor' } }, makeRes(), jest.fn());
+    await flush();
+
+    expect(ImageGeneration.create).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'a lighthouse', style: 'watercolor' }));
+    expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ prompt: expect.stringMatching(/^a lighthouse, watercolor painting/) })
+    );
+  });
+
+  it('count makes that many records with consecutive variants and returns them all', async () => {
+    ImageGeneration.findOne.mockReturnValue(lastLookup({ variant: 4 }));
+    let n = 0;
+    ImageGeneration.create.mockImplementation(async (doc) => makeRecord({ ...doc, _id: `img-BATCH00${++n}` }));
+    ImageGenerationService.generate.mockResolvedValue({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false, seed: 1 });
+    const res = makeRes();
+
+    await ImageController.generate({ body: { prompt: 'a lighthouse', count: 3 } }, res, jest.fn());
+    await flush();
+
+    expect(ImageGeneration.create.mock.calls.map(([d]) => d.variant)).toEqual([5, 6, 7]);
+    const body = res.json.mock.calls[0][0];
+    expect(body.images).toHaveLength(3);
+    expect(body.image).toBe(body.images[0]);
+    expect(ImageGenerationService.generate).toHaveBeenCalledTimes(3);
+  });
+
+  it('a pinned seed is stored and passed to the model, and the used seed is saved back', async () => {
+    const record = makeRecord({ seed: 42 });
+    ImageGeneration.create.mockResolvedValue(record);
+    ImageGenerationService.generate.mockResolvedValue({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false, seed: 42 });
+
+    await ImageController.generate({ body: { prompt: 'a lighthouse', seed: 42 } }, makeRes(), jest.fn());
+    await flush();
+
+    expect(ImageGeneration.create).toHaveBeenCalledWith(expect.objectContaining({ seed: 42, variant: 0 }));
+    expect(ImageGenerationService.generate).toHaveBeenLastCalledWith(expect.objectContaining({ seed: 42 }));
+    expect(record.seed).toBe(42);
+  });
+
+  it('records the seed the model actually used when none was pinned', async () => {
+    const record = makeRecord({ seed: null });
+    ImageGeneration.create.mockResolvedValue(record);
+    ImageGenerationService.generate.mockResolvedValue({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false, seed: 987654 });
+
+    await ImageController.generate({ body: { prompt: 'a lighthouse' } }, makeRes(), jest.fn());
+    await flush();
+
+    expect(record.seed).toBe(987654);
+  });
+
+  it('fails the records already created, and starts nothing, if a later one in the batch cannot be created', async () => {
+    const first = makeRecord({ _id: 'img-HALF0001' });
+    ImageGeneration.create.mockResolvedValueOnce(first).mockRejectedValueOnce(new Error('db down'));
+    const next = jest.fn();
+
+    await ImageController.generate({ body: { prompt: 'a lighthouse', count: 2 } }, makeRes(), next);
+    await flush();
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: 'db down' }));
+    expect(first).toMatchObject({ status: 'FAILED' });
+    expect(ImageGenerationService.generate).not.toHaveBeenCalled();
+  });
+
+  it('marks an image as running before its record exists, so a poll cannot call it interrupted', async () => {
+    let idDuringCreate;
+    let skippedByPoll;
+    ImageGeneration.find.mockReturnValue({ sort: () => ({ skip: () => ({ limit: () => ({ lean: async () => [] }) }) }) });
+    ImageGeneration.countDocuments.mockResolvedValue(0);
+    ImageGeneration.create.mockImplementation(async (doc) => {
+      idDuringCreate = doc._id;
+      // The list endpoint runs while the record is being written - the old race window.
+      await ImageController.list({ query: {} }, makeRes(), jest.fn());
+      skippedByPoll = ImageGeneration.updateMany.mock.calls.at(-1)[0]._id.$nin;
+      return makeRecord(doc);
+    });
+    ImageGenerationService.generate.mockResolvedValue({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false, seed: 1 });
+
+    await ImageController.generate({ body: { prompt: 'a lighthouse' } }, makeRes(), jest.fn());
+    await flush();
+
+    expect(idDuringCreate).toMatch(/^img-[0-9A-Z]{8}$/);
+    expect(skippedByPoll).toContain(idDuringCreate);
+  });
+
+  it('renders a batch one image at a time', async () => {
+    let n = 0;
+    ImageGeneration.create.mockImplementation(async (doc) => makeRecord({ ...doc, _id: `img-SERIAL0${++n}` }));
+    const finishers = [];
+    ImageGenerationService.generate.mockImplementation(() => new Promise((resolve) => {
+      finishers.push(() => resolve({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false, seed: 1 }));
+    }));
+
+    await ImageController.generate({ body: { prompt: 'a lighthouse', count: 2 } }, makeRes(), jest.fn());
+    await flush();
+    expect(ImageGenerationService.generate).toHaveBeenCalledTimes(1);   // the second waits its turn
+
+    finishers[0]();
+    await flush();
+    expect(ImageGenerationService.generate).toHaveBeenCalledTimes(2);
+
+    finishers[1]();
+    await flush();
   });
 
   it('answers 503 and creates nothing when image generation is off', async () => {
@@ -166,12 +279,15 @@ describe('ImageController.progress', () => {
 
   it('starts a new generation at 0% queued', async () => {
     ImageGeneration.create.mockResolvedValue(makeRecord({ _id: 'img-PROG0002' }));
-    ImageGenerationService.generate.mockReturnValue(new Promise(() => {})); // never settles
+    let finish;
+    ImageGenerationService.generate.mockReturnValue(new Promise((resolve) => { finish = () => resolve({ url: 'u', fileName: 'f', durationMs: 1, fromCache: false, seed: 1 }); }));
 
     await ImageController.generate({ body: { prompt: 'a lighthouse' } }, makeRes(), jest.fn());
 
     // The GPU lease callback hasn't run a progress update yet, but 'queued' is set synchronously.
     expect(snapshot()['img-PROG0002']).toMatchObject({ percent: expect.any(Number) });
+    finish();   // render turns are queued process-wide: never leave one hanging for the next test
+    await flush();
   });
 });
 

@@ -1,8 +1,10 @@
 import { Download, Trash2, RefreshCw, Maximize2, TriangleAlert } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
+import { RelativeTime } from "../../components/ui/RelativeTime";
 import { resolveMediaUrl } from "../../services/api";
 import { GenerationProgress } from "./GenerationProgress";
+import { STYLE_LABEL } from "./constants";
 
 const ratioStyle = (item) => ({ aspectRatio: `${item.width || 16} / ${item.height || 9}` });
 
@@ -55,6 +57,8 @@ export const ImageTile = ({ item, progress, deleting, onOpen, onDelete, onDownlo
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Badge variant="neutral">{item.aspectRatio}</Badge>
             {item.quality === "fast" && <Badge variant="warning">Fast</Badge>}
+            {item.quality === "high" && <Badge variant="info">High</Badge>}
+            {item.style && item.style !== "none" && <Badge variant="accent">{STYLE_LABEL[item.style] || item.style}</Badge>}
             {done && item.fromCache && <Badge variant="info">Cached</Badge>}
             {done && !item.fromCache && item.durationMs ? <Badge variant="neutral">{formatDuration(item.durationMs)}</Badge> : null}
           </div>
@@ -95,7 +99,7 @@ export const ImageTile = ({ item, progress, deleting, onOpen, onDelete, onDownlo
         </div>
 
         <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-text-tertiary">
-          <span>{item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}</span>
+          <RelativeTime value={item.createdAt} />
           <button type="button" onClick={() => onReuse(item)} className="cursor-pointer font-medium text-accent hover:underline">
             Use prompt
           </button>

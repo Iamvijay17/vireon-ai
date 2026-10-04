@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { generateImageGenerationId } = require('../utils/id');
+const { STYLE_KEYS } = require('../services/image/styles');
 
 // Standalone text-to-image generations (Image Studio), independent of the
 // video pipeline's per-scene images. Single-user app (see middleware/auth.js)
@@ -22,8 +23,20 @@ const imageGenerationSchema = new mongoose.Schema(
     },
     quality: {
       type: String,
-      enum: ['fast', 'standard'],
+      enum: ['fast', 'standard', 'high'],
       default: 'standard',
+    },
+    // Style preset key (services/image/styles.js); `prompt` above stays the user's own text.
+    style: {
+      type: String,
+      enum: STYLE_KEYS,
+      default: 'none',
+    },
+    // Seed the picture was made with: the one the user pinned while PENDING,
+    // the one actually used once COMPLETED, null before that if left random.
+    seed: {
+      type: Number,
+      default: null,
     },
     // Re-roll counter for the same prompt + aspect ratio: the seed is derived
     // from the prompt, so a repeat only makes a new picture if the variant moves

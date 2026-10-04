@@ -53,13 +53,14 @@ class ImageGenerationService {
   }
 
   /** Everything that decides what the image looks like - the cache key's inputs. */
-  static _params(prompt, aspectRatio, variant = 0, steps = null) {
+  static _params(prompt, aspectRatio, variant = 0, steps = null, seed = null) {
     const { width, height } = this.sizeFor(aspectRatio);
     const g = config.imageGen;
     return {
       prompt,
       negative: g.negativePrompt,
-      seed: this.seedFor(prompt, variant),
+      // A pinned seed (Image Studio) wins over the prompt-derived one; it is part of the cache key either way.
+      seed: seed ?? this.seedFor(prompt, variant),
       width,
       height,
       // A caller-chosen step count (Image Studio's "fast") is part of the cache key like any other setting.
@@ -75,9 +76,9 @@ class ImageGenerationService {
    * Generate (or fetch from cache) the image for `prompt` and return its public URL.
    * @returns {Promise<{ url, fileName, cacheKey, fromCache, durationMs }>}
    */
-  static async generate({ jobId, prompt, aspectRatio, variant = 0, steps = null, signal, onProgress }) {
+  static async generate({ jobId, prompt, aspectRatio, variant = 0, steps = null, seed = null, signal, onProgress }) {
     const { template, raw } = await this._loadWorkflow();
-    const params = this._params(prompt, aspectRatio, variant, steps);
+    const params = this._params(prompt, aspectRatio, variant, steps, seed);
 
     if (placeholdersIn(template).has('checkpoint') && !params.checkpoint) {
       throw configError('COMFYUI_CHECKPOINT is not set - name the checkpoint file ComfyUI should generate with (see backend/workflows/README.md)');
@@ -94,7 +95,7 @@ class ImageGenerationService {
 
     const cached = await CacheService.getImage(cacheKey, jobId, fileName);
     if (cached) {
-      return { url: provider.getPublicUrl(jobId, 'image', fileName), fileName, cacheKey, fromCache: true, durationMs: 0 };
+      return { url: provider.getPublicUrl(jobId, 'image', fileName), fileName, cacheKey, fromCache: true, durationMs: 0, seed: params.seed };
     }
 
     const startedAt = Date.now();
@@ -114,7 +115,7 @@ class ImageGenerationService {
     const durationMs = Date.now() - startedAt;
     MetricsService.recordDuration('image.duration', durationMs);
     LoggerService.info('Scene image generated', { jobId, fileName, durationMs, width: params.width, height: params.height });
-    return { url, fileName, cacheKey, fromCache: false, durationMs };
+    return { url, fileName, cacheKey, fromCache: false, durationMs, seed: params.seed };
   }
 
   static async _render(template, params, signal, onProgress) {
