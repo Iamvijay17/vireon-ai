@@ -15,8 +15,12 @@ const ALL_STATUSES = Object.values(JOB_STATUS);
  * copy of it).
  */
 const VIDEO_JOB_TRANSITIONS = Object.freeze({
-  // Only a finished (successful or failed) render can be redone.
-  rerender: [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED],
+  // A finished (successful or failed) render can be redone, and so can a finished job
+  // whose scenes were just edited: saving moves it to SCRIPT_COMPLETED "ready for an
+  // explicit re-render" (see SceneController.updateScenes), which the Studio's Re-render
+  // button offers. The worker's steps are gated on what is stored, not on this status, so
+  // missing audio or scene images are still generated before the render.
+  rerender: [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.SCRIPT_COMPLETED],
   // Any state except CANCELLED can regenerate its script from scratch.
   regenerateScript: ALL_STATUSES.filter((s) => s !== JOB_STATUS.CANCELLED),
   // Only a job that's actually still going can be stopped.
