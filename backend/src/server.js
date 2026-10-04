@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 const config = require('./config');
+const appVersion = require('./config/version');
 // Validate the assembled config before anything connects to Mongo/Redis/MinIO
 // below - a bad .env should be a startup crash naming the variable, not a
 // confusing mid-job failure. See config/validate.js.
@@ -122,6 +123,12 @@ LoggerService.info('Voice sample files configured', { path: voicesDir });
 // and doesn't log, since Docker polls it every few seconds.
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
+});
+
+// Which build is running (stamped per deploy, see config/version.js). Under
+// /api so the nginx proxy forwards it; no host details, so it is fine unauthenticated.
+app.get('/api/version', (req, res) => {
+  res.json(appVersion);
 });
 
 // /ready = can this instance actually serve requests (Mongo + Redis up)?
@@ -377,6 +384,8 @@ async function startServer() {
       LoggerService.info('Server initialized', {
         port: config.port,
         environment: config.nodeEnv,
+        version: appVersion.version,
+        commit: appVersion.commit,
         pid: process.pid,
       });
       console.log(`\n  \x1b[32m➜\x1b[0m  \x1b[1mLocal:\x1b[0m    \x1b[4;36mhttp://localhost:${config.port}\x1b[0m`);
@@ -384,6 +393,7 @@ async function startServer() {
       console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mAPI:\x1b[0m     \x1b[4;36mhttp://localhost:${config.port}/api\x1b[0m`);
       console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mDocs:\x1b[0m    \x1b[4;36mhttp://localhost:${config.port}/api-docs\x1b[0m`);
       console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mEnv:\x1b[0m     \x1b[37m${config.nodeEnv}\x1b[0m`);
+      console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mVersion:\x1b[0m \x1b[37mv${appVersion.version}${appVersion.commit ? ` (${appVersion.commit})` : ''}\x1b[0m`);
       console.log();
     });
   } catch (err) {

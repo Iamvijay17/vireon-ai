@@ -146,8 +146,9 @@ Every deploy gets its own version, shown at the bottom of the sidebar (hover for
 commit and build time). It is `<major.minor>.<run number>`: major.minor comes from
 the root `package.json` `version` (bump it by hand for a feature release), and the
 patch is the `deploy.yml` run number, so it rises on every deploy. `deploy.yml`
-passes it to the frontend image as build args; a hand-built or dev frontend shows
-`<version>-dev`.
+passes it to the frontend and backend images as build args; a hand-built or dev
+build shows `<version>-dev`. The API reports its own at `GET /api/version` (and
+logs it at startup); the sidebar tooltip lists both, so a mismatch is visible.
 
 ## 8. Rollback
 Every deploy keeps the previous working image tag in `.deploy\state.json`.
