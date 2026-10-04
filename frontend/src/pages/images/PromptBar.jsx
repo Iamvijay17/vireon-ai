@@ -24,7 +24,7 @@ const Field = ({ label, className, children }) => (
 
 // The prompt and everything that shapes the result, in one card: the prompt on
 // top, the options in a wrapping row beneath, Generate at the end of it.
-export const PromptBar = ({ promptRef, prompt, setPrompt, negative, setNegative, opts, setOpt, seed, setSeed, submitting, onGenerate }) => {
+export const PromptBar = ({ promptRef, prompt, setPrompt, negative, setNegative, text, setText, opts, setOpt, seed, setSeed, submitting, onGenerate }) => {
   const seeded = seed !== "";
   // A pinned seed would make every image of a batch identical, so it locks the count to 1.
   const count = seeded ? 1 : opts.count;
@@ -55,20 +55,37 @@ export const PromptBar = ({ promptRef, prompt, setPrompt, negative, setNegative,
         placeholder="Describe the picture: subject, setting, lighting, style... e.g. A misty mountain valley at sunrise, golden light through the clouds, realistic photo"
       />
 
-      <div className="mt-2.5">
-        <Input
-          aria-label="Avoid"
-          value={negative}
-          maxLength={500}
-          onChange={(e) => setNegative(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Avoid (optional): things to leave out, e.g. text, blur, extra people"
-        />
-        {negative.trim() && (
-          <p className="mt-1.5 text-xs text-warning-600 dark:text-warning-500">
-            Guided mode: about 50% slower, and the whole picture can change, not just the avoided thing.
-          </p>
-        )}
+      <div className="mt-2.5 grid grid-cols-1 gap-x-3 gap-y-2.5 md:grid-cols-2">
+        <div>
+          <Input
+            aria-label="Text in the picture"
+            value={text}
+            maxLength={240}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Text in the picture (optional): exact words, e.g. FUTURE OF AI | BUILDING TOMORROW"
+          />
+          {text.trim() && (
+            <p className="mt-1.5 text-xs text-text-tertiary">
+              Line 1 is the big headline; separate up to 2 more lines with |. Short words spell best.
+            </p>
+          )}
+        </div>
+        <div>
+          <Input
+            aria-label="Avoid"
+            value={negative}
+            maxLength={500}
+            onChange={(e) => setNegative(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Avoid (optional): things to leave out, e.g. blur, extra people, clutter"
+          />
+          {negative.trim() && (
+            <p className="mt-1.5 text-xs text-warning-600 dark:text-warning-500">
+              Guided mode: about 50% slower, and the whole picture can change, not just the avoided thing.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
@@ -138,7 +155,7 @@ export const PromptBar = ({ promptRef, prompt, setPrompt, negative, setNegative,
         </div>
       ) : (
         <p className="mt-2.5 text-xs text-text-tertiary">
-          About a minute per image (~35s Fast, ~80s High). Several images render one after another. Ctrl+Enter generates. Text inside a picture usually comes out garbled.
+          About a minute per image (~35s Fast, ~80s High). Several images render one after another. Ctrl+Enter generates. Pictures have no text unless you fill "Text in the picture" - AI invents garbled words otherwise.
         </p>
       )}
     </Card>

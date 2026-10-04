@@ -21,7 +21,7 @@ import { PromptBar } from "./PromptBar";
 import { ImageTile } from "./ImageTile";
 import { ImagePreview } from "./ImagePreview";
 import { Segmented } from "./Segmented";
-import { loadStudioSettings, saveStudioSettings } from "./constants";
+import { loadStudioSettings, saveStudioSettings, pipesToLines, linesToPipes, MAX_TEXT_LINES } from "./constants";
 
 // While something renders: the list is re-checked every few seconds (a safety
 // net - a finished render is noticed sooner, see the effect below), and the
@@ -43,6 +43,7 @@ const shapeOf = (item) => (item.aspectRatio === "4:5" ? "9:16" : item.aspectRati
 const ImagesPage = () => {
   const [prompt, setPrompt] = useState("");
   const [negative, setNegative] = useState("");
+  const [text, setText] = useState("");
   const [opts, setOpts] = useState(loadStudioSettings);
   const [seed, setSeed] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -113,17 +114,23 @@ const ImagesPage = () => {
   };
 
   const handleGenerate = () => {
-    const text = prompt.trim();
-    if (text.length < 3) {
+    const promptText = prompt.trim();
+    if (promptText.length < 3) {
       toast.error("Describe the image you want");
       return;
     }
+    const pictureText = pipesToLines(text);
+    if (pictureText.split("\n").filter(Boolean).length > MAX_TEXT_LINES) {
+      toast.error(`Text in the picture can have at most ${MAX_TEXT_LINES} lines`);
+      return;
+    }
     startGeneration({
-      prompt: text,
+      prompt: promptText,
       aspectRatio: opts.aspectRatio,
       quality: opts.quality,
       style: opts.style,
       negative: negative.trim(),
+      text: pictureText,
       // A pinned seed makes every image of a batch identical, so it means one image.
       count: seed ? 1 : opts.count,
       seed: seed ? Number(seed) : null,
@@ -138,6 +145,7 @@ const ImagesPage = () => {
       quality: item.quality || "standard",
       style: item.style || "none",
       negative: item.negative || "",
+      text: item.text || "",
       count: 1,
       seed: null,
     });
@@ -145,6 +153,7 @@ const ImagesPage = () => {
   const handleReuse = (item, { withSeed = false } = {}) => {
     setPrompt(item.prompt);
     setNegative(item.negative || "");
+    setText(linesToPipes(item.text));
     setOpts({
       aspectRatio: item.aspectRatio === "4:5" ? "9:16" : item.aspectRatio,
       quality: item.quality || "standard",
@@ -228,6 +237,8 @@ const ImagesPage = () => {
         setPrompt={setPrompt}
         negative={negative}
         setNegative={setNegative}
+        text={text}
+        setText={setText}
         opts={opts}
         setOpt={setOpt}
         seed={seed}

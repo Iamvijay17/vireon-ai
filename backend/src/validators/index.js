@@ -12,7 +12,7 @@ const {
   getAspectRatioForResolution,
 } = require('../constants');
 const { ID_PATTERN } = require('../utils/id');
-const { STYLE_KEYS: IMAGE_STYLE_KEYS } = require('../services/image/styles');
+const { STYLE_KEYS: IMAGE_STYLE_KEYS, MAX_TEXT_LINES: MAX_IMAGE_TEXT_LINES } = require('../services/image/styles');
 
 const createVideoSchema = z
   .object({
@@ -164,6 +164,14 @@ const createImageSchema = z
     // Things to leave out. Only has an effect with guidance above 1 (see config.imageGen.guidedCfg),
     // so a non-empty value switches the render to that slower guided mode.
     negative: z.string().max(500, 'Avoid text must be 500 characters or fewer').trim().optional().default(''),
+    // Exact words to draw in the picture, one per line (max 3, see services/image/styles.js). Empty = no text at all.
+    text: z
+      .string()
+      .max(240, 'Text must be 240 characters or fewer')
+      .refine((v) => v.split(/\r?\n/).filter((l) => l.trim()).length <= MAX_IMAGE_TEXT_LINES, `At most ${MAX_IMAGE_TEXT_LINES} lines of text`)
+      .refine((v) => v.split(/\r?\n/).every((l) => l.length <= 80), 'Each text line must be 80 characters or fewer')
+      .optional()
+      .default(''),
     // How many pictures to make from this one prompt (each a different seed).
     count: z.number().int().min(1, 'Make at least 1 image').max(4, 'At most 4 images at a time').optional().default(1),
     // Pin the seed to reproduce a picture or refine its prompt. Omitted/null = random.

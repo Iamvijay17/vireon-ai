@@ -6,7 +6,7 @@ const ImageGenerationService = require('../services/image/ImageGenerationService
 const LocalAIService = require('../services/localAI');
 const { getStorageProvider } = require('../services/storage/providers');
 const LoggerService = require('../services/common/LoggerService');
-const { composePrompt } = require('../services/image/styles');
+const { composeFinalPrompt } = require('../services/image/styles');
 const { generateImageGenerationId } = require('../utils/id');
 const { createImageSchema, imageIdSchema, validate } = require('../validators');
 
@@ -68,7 +68,7 @@ class ImageController {
    */
   static async generate(req, res, next) {
     try {
-      const { prompt, aspectRatio, quality, style, negative, count, seed } = validate(createImageSchema)(req.body);
+      const { prompt, aspectRatio, quality, style, negative, text, count, seed } = validate(createImageSchema)(req.body);
 
       if (!config.imageGen.enabled) {
         return res.status(503).json({
@@ -100,6 +100,7 @@ class ImageController {
               prompt,
               style,
               negative,
+              text,
               aspectRatio,
               quality,
               seed: seed ?? null,
@@ -142,7 +143,7 @@ class ImageController {
       const result = await enqueueRender(() => LocalAIService.gpu.withGPU('comfyui', () =>
         ImageGenerationService.generate({
           jobId: id,
-          prompt: composePrompt(record.prompt, record.style),
+          prompt: composeFinalPrompt(record.prompt, record.style, record.text),
           aspectRatio: record.aspectRatio,
           variant: record.variant,
           steps: stepsFor(record.quality),

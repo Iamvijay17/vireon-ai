@@ -118,12 +118,21 @@ const StudioPage = () => {
     }
   };
 
+  // Saving can move the job to another status (see SceneController.updateScenes), and the
+  // toolbar's action button follows job.status - without this it would keep offering
+  // "Generate Render" for a job the server has already sent back to SCRIPT_COMPLETED.
+  const syncStatus = (saved) => {
+    if (!saved?.status) return;
+    setJob((prev) => (prev ? { ...prev, status: saved.status, progress: saved.progress, currentStep: saved.currentStep } : prev));
+  };
+
   const handleSave = async () => {
     if (!jobId) return;
     try {
       setSaving(true);
-      await updateVideoScenes(jobId, editedScenes);
+      const res = await updateVideoScenes(jobId, editedScenes);
       setHasChanges(false);
+      syncStatus(res.data?.job);
       toast.success("Scenes saved successfully!");
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to save scenes");
@@ -216,7 +225,7 @@ const StudioPage = () => {
   const isManual = job.fastGeneration === false;
   const isAwaitingAudioTrigger = isManual && job.status === "SCRIPT_COMPLETED";
   const isAwaitingRenderTrigger = isManual && job.status === "AUDIO_COMPLETED";
-  const canEdit = job.status === "COMPLETED" || job.status === "FAILED" || job.status === "SCRIPT_COMPLETED" || isAwaitingApproval;
+  const canEdit = ["COMPLETED", "FAILED", "SCRIPT_COMPLETED", "AUDIO_COMPLETED"].includes(job.status) || isAwaitingApproval;
   const scene = editedScenes[selectedSceneIndex];
 
   // Fixed-height three-pane workspace only from lg up; below that the panes
