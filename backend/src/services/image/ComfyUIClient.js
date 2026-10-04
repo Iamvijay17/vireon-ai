@@ -61,6 +61,51 @@ class ComfyUIClient {
     }
   }
 
+  /**
+   * Live sampling progress for one client id, over ComfyUI's websocket (the only
+   * place it reports per-step progress). Call before queue() with the same
+   * client id so no step is missed. Best effort: progress is cosmetic, so a
+   * missing WebSocket, a refused connection or a bad frame just means no
+   * updates - never an error. Resolves to a close() function.
+   *
+   * @param {string} clientId
+   * @param {(p: { value: number, max: number }) => void} onProgress
+   */
+  async watchProgress(clientId, onProgress, { WebSocketImpl = globalThis.WebSocket, openTimeoutMs = 1500 } = {}) {
+    if (typeof WebSocketImpl !== 'function') return () => {};
+
+    let ws;
+    try {
+      ws = new WebSocketImpl(`${this.baseUrl.replace(/^http/, 'ws')}/ws?clientId=${encodeURIComponent(clientId)}`);
+    } catch {
+      return () => {};
+    }
+
+    ws.onmessage = (event) => {
+      // Binary frames are live preview images, not progress.
+      if (typeof event.data !== 'string') return;
+      let message;
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+      const { value, max } = message.type === 'progress' ? message.data || {} : {};
+      if (max > 0) onProgress({ value, max });
+    };
+    ws.onerror = () => {};
+
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, openTimeoutMs);
+      ws.onopen = () => { clearTimeout(timer); resolve(); };
+      ws.onclose = () => { clearTimeout(timer); resolve(); };
+    });
+
+    return () => {
+      try { ws.close(); } catch { /* already closed */ }
+    };
+  }
+
   /** Download an image listed in a history entry. Returns a Buffer. */
   async download({ filename, subfolder = '', type = 'output' }) {
     const res = await this.http.get(`${this.baseUrl}/view`, {

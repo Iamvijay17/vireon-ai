@@ -53,17 +53,21 @@ class ImageGenerationService {
   }
 
   /** Everything that decides what the image looks like - the cache key's inputs. */
-  static _params(prompt, aspectRatio, variant = 0) {
+  static _params(prompt, aspectRatio, variant = 0, { steps = null, seed = null, negative = null, cfg = null } = {}) {
     const { width, height } = this.sizeFor(aspectRatio);
     const g = config.imageGen;
     return {
       prompt,
-      negative: g.negativePrompt,
-      seed: this.seedFor(prompt, variant),
+      // A caller's own "avoid" text (Image Studio) replaces the configured default; both are cache-key inputs.
+      negative: negative || g.negativePrompt,
+      // A pinned seed (Image Studio) wins over the prompt-derived one; it is part of the cache key either way.
+      seed: seed ?? this.seedFor(prompt, variant),
       width,
       height,
-      steps: g.steps,
-      cfg: g.cfg,
+      // A caller-chosen step count (Image Studio's "fast") is part of the cache key like any other setting.
+      steps: steps || g.steps,
+      // Guidance only matters if the model does a negative pass (see config.imageGen.guidedCfg).
+      cfg: cfg || g.cfg,
       sampler: g.sampler,
       scheduler: g.scheduler,
       checkpoint: g.checkpoint,
@@ -74,9 +78,9 @@ class ImageGenerationService {
    * Generate (or fetch from cache) the image for `prompt` and return its public URL.
    * @returns {Promise<{ url, fileName, cacheKey, fromCache, durationMs }>}
    */
-  static async generate({ jobId, prompt, aspectRatio, variant = 0, signal }) {
+  static async generate({ jobId, prompt, aspectRatio, variant = 0, steps = null, seed = null, negative = null, cfg = null, signal, onProgress }) {
     const { template, raw } = await this._loadWorkflow();
-    const params = this._params(prompt, aspectRatio, variant);
+    const params = this._params(prompt, aspectRatio, variant, { steps, seed, negative, cfg });
 
     if (placeholdersIn(template).has('checkpoint') && !params.checkpoint) {
       throw configError('COMFYUI_CHECKPOINT is not set - name the checkpoint file ComfyUI should generate with (see backend/workflows/README.md)');
@@ -93,11 +97,12 @@ class ImageGenerationService {
 
     const cached = await CacheService.getImage(cacheKey, jobId, fileName);
     if (cached) {
-      return { url: provider.getPublicUrl(jobId, 'image', fileName), fileName, cacheKey, fromCache: true, durationMs: 0 };
+      return { url: provider.getPublicUrl(jobId, 'image', fileName), fileName, cacheKey, fromCache: true, durationMs: 0, seed: params.seed };
     }
 
     const startedAt = Date.now();
-    const png = await this._render(template, params, signal);
+    const png = await this._render(template, params, signal, onProgress);
+    onProgress?.({ phase: 'saving' });
 
     const dir = path.resolve(__dirname, '../../../jobs', jobId, 'images');
     await fs.mkdir(dir, { recursive: true });
@@ -112,16 +117,29 @@ class ImageGenerationService {
     const durationMs = Date.now() - startedAt;
     MetricsService.recordDuration('image.duration', durationMs);
     LoggerService.info('Scene image generated', { jobId, fileName, durationMs, width: params.width, height: params.height });
-    return { url, fileName, cacheKey, fromCache: false, durationMs };
+    return { url, fileName, cacheKey, fromCache: false, durationMs, seed: params.seed };
   }
 
-  static async _render(template, params, signal) {
+  static async _render(template, params, signal, onProgress) {
     // Make sure ComfyUI is up before queueing (starts it if it is managed).
     await require('../localAI').comfyUI.ensureRunning();
 
     const client = new ComfyUIClient({ baseUrl: config.imageGen.apiUrl });
-    const promptId = await client.queue(fillWorkflow(template, params), crypto.randomUUID());
-    const entry = await client.waitForResult(promptId, { timeoutMs: config.imageGen.timeoutMs, signal });
+    const clientId = crypto.randomUUID();
+
+    // Models load before the first sampling step, so that is what the caller sees until a step lands.
+    onProgress?.({ phase: 'loading' });
+    const stopWatching = onProgress
+      ? await client.watchProgress(clientId, ({ value, max }) => onProgress({ phase: 'sampling', step: value, steps: max }))
+      : null;
+
+    let entry;
+    try {
+      const promptId = await client.queue(fillWorkflow(template, params), clientId);
+      entry = await client.waitForResult(promptId, { timeoutMs: config.imageGen.timeoutMs, signal });
+    } finally {
+      stopWatching?.();
+    }
 
     const image = firstOutputImage(entry);
     if (!image) throw new Error('ComfyUI finished but returned no image - does the workflow end in a SaveImage node?');

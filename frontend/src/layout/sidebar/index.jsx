@@ -13,7 +13,9 @@ import {
   ChevronDown,
   Terminal,
   AudioLines,
+  ImagePlus,
   ListChecks,
+  Workflow,
   Boxes,
   X,
 } from "lucide-react";
@@ -24,9 +26,11 @@ const NAV_ITEMS = [
   { key: "courses", label: "Courses", icon: BookOpen, route: "/courses" },
   { key: "projects", label: "Projects", icon: FolderKanban, route: "/projects" },
   { key: "jobs", label: "Job Management", icon: ListChecks, route: "/jobs" },
+  { key: "workflow", label: "Workflow", icon: Workflow, route: "/workflow" },
   { key: "assets", label: "Assets", icon: Boxes, route: "/assets" },
   { key: "render", label: "Render", icon: Rocket, route: "/render" },
   { key: "audio", label: "Audio Studio", icon: AudioLines, route: "/audio" },
+  { key: "images", label: "Image Studio", icon: ImagePlus, route: "/images" },
   {
     key: "editor",
     label: "Editor",

@@ -25,6 +25,11 @@ export const queryKeys = {
     all: ['audio'],
     history: (page) => ['audio', 'history', page],
   },
+  images: {
+    all: ['images'],
+    history: (page) => ['images', 'history', page],
+    progress: () => ['images', 'progress'],
+  },
   assets: {
     all: ['assets'],
     list: (page, filters) => ['assets', 'list', page, filters],

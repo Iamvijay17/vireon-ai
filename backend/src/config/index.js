@@ -323,6 +323,10 @@ const config = Object.freeze({
     checkpoint: process.env.COMFYUI_CHECKPOINT || '',
     steps: parseInt(process.env.IMAGE_STEPS, 10) || 25,
     cfg: parseFloat(process.env.IMAGE_CFG) || 7,
+    // CFG used when Image Studio is given an "avoid" (negative) prompt. Qwen-Image runs at CFG 1
+    // (no negative pass) and ignores a negative there; above 1 each step runs the model twice, so
+    // it is ~50% slower and the picture can change a lot. See workflows/README.md.
+    guidedCfg: parseFloat(process.env.IMAGE_NEGATIVE_CFG) || 3,
     sampler: process.env.IMAGE_SAMPLER || 'euler',
     scheduler: process.env.IMAGE_SCHEDULER || 'normal',
     negativePrompt:

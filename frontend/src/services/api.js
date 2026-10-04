@@ -206,6 +206,21 @@ export const getAudioGenerations = (page = 1, limit = 20) =>
 
 export const deleteAudioGeneration = (id) => api.delete(`/api/audio/${id}`);
 
+// ─── Image Studio ───────────────────────────────────────────────────────────────
+
+// Returns immediately with a PENDING record (a render takes 1-2 minutes); the page
+// polls getImageGenerations until it flips to COMPLETED/FAILED.
+export const generateImage = (data) => api.post('/api/images/generate', data);
+
+export const getImageGenerations = (page = 1, limit = 20) =>
+  api.get('/api/images', { params: { page, limit } });
+
+// In-memory on the server, so cheap to poll every second while images render:
+// { active: { [id]: { phase, percent, step, steps } } }.
+export const getImageProgress = () => api.get('/api/images/progress');
+
+export const deleteImageGeneration = (id) => api.delete(`/api/images/${id}`);
+
 // ─── Courses ────────────────────────────────────────────────────────────────────
 
 export const createCourse = (data) => api.post('/api/courses', data);

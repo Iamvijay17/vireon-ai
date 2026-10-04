@@ -12,6 +12,7 @@ const {
   getAspectRatioForResolution,
 } = require('../constants');
 const { ID_PATTERN } = require('../utils/id');
+const { STYLE_KEYS: IMAGE_STYLE_KEYS } = require('../services/image/styles');
 
 const createVideoSchema = z
   .object({
@@ -147,6 +148,36 @@ const audioIdSchema = z.object({
   id: z.string().regex(/^aud-[0-9A-Z]{8}$/, 'Invalid audio generation id'),
 });
 
+const IMAGE_ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5'];
+
+// The service derives seeds as 48-bit integers (see ImageGenerationService.seedFor).
+const MAX_IMAGE_SEED = 2 ** 48 - 1;
+
+const createImageSchema = z
+  .object({
+    prompt: z.string().min(3, 'Describe the image you want (at least 3 characters)').max(1000, 'Prompt must be 1000 characters or fewer').trim(),
+    aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).optional().default('16:9'),
+    // How many sampling steps: 'fast' fewer, 'high' more (see imageController.stepsFor).
+    quality: z.enum(['fast', 'standard', 'high']).optional().default('standard'),
+    // Appended to the prompt - see services/image/styles.js.
+    style: z.enum(IMAGE_STYLE_KEYS).optional().default('none'),
+    // Things to leave out. Only has an effect with guidance above 1 (see config.imageGen.guidedCfg),
+    // so a non-empty value switches the render to that slower guided mode.
+    negative: z.string().max(500, 'Avoid text must be 500 characters or fewer').trim().optional().default(''),
+    // How many pictures to make from this one prompt (each a different seed).
+    count: z.number().int().min(1, 'Make at least 1 image').max(4, 'At most 4 images at a time').optional().default(1),
+    // Pin the seed to reproduce a picture or refine its prompt. Omitted/null = random.
+    seed: z.number().int().min(0).max(MAX_IMAGE_SEED).nullable().optional(),
+  })
+  .refine((d) => d.seed == null || d.count === 1, {
+    message: 'A fixed seed makes every image identical - set Images to 1',
+    path: ['count'],
+  });
+
+const imageIdSchema = z.object({
+  id: z.string().regex(/^img-[0-9A-Z]{8}$/, 'Invalid image generation id'),
+});
+
 const dialogueSpeakerSchema = z.object({
   name: z.string().min(1).max(40).trim(),
   voice: z.string().min(1).max(260),
@@ -194,5 +225,8 @@ module.exports = {
   createAudioSchema,
   audioIdSchema,
   createDialogueAudioSchema,
+  createImageSchema,
+  imageIdSchema,
+  IMAGE_ASPECT_RATIOS,
   validate,
 };

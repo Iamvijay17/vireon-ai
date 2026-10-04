@@ -31,6 +31,13 @@ With `COMFYUI_ENABLED` off (the default), scenes that wanted an image are render
 text-only scenes instead - the job never fails because of images unless
 `IMAGE_GEN_REQUIRED=true`.
 
+## Included workflows
+
+- `txt2img.api.json` - classic single-checkpoint graph (SD/SDXL style); needs `COMFYUI_CHECKPOINT`.
+- `qwen-image-2.1.api.json` - Qwen-Image 2.1 with split loaders (diffusion model + Qwen3-VL
+  text encoder + VAE, filenames hardcoded in the file; no checkpoint). Use CFG 1,
+  `euler`/`simple`; it ignores the negative prompt. Select with `IMAGE_WORKFLOW_PATH`.
+
 ## Placeholders
 
 | Placeholder | Value |
@@ -48,6 +55,16 @@ fails loudly instead of sending a broken graph.
 
 The graph must end in a **SaveImage** node. Export your own with ComfyUI's
 "Save (API Format)" and replace the values with placeholders.
+
+## Negative prompts
+
+`qwen-image-2.1.api.json` takes `{{negative}}`, but Qwen-Image at CFG 1 (the setting that
+renders one pass per step) **ignores** it - a same-seed test gave pixel-identical images
+with and without one. Image Studio's "Avoid" field therefore renders in guided mode:
+`IMAGE_NEGATIVE_CFG` (default 3) instead of CFG 1. That runs the model twice per step
+(about 50% slower) and changes the whole composition, not just the avoided thing, and it
+removes the subject from the foreground rather than from the whole picture. Video scene
+images stay at CFG 1, where the default negative is harmless and unused.
 
 ## Caching
 

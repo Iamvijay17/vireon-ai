@@ -5,6 +5,7 @@ const Asset = require('../../models/Asset');
 const VideoJob = require('../../models/VideoJob');
 const CourseVideo = require('../../models/CourseVideo');
 const AudioGeneration = require('../../models/AudioGeneration');
+const ImageGeneration = require('../../models/ImageGeneration');
 const LoggerService = require('../common/LoggerService');
 const { NotFoundError } = require('../../utils/errors');
 
@@ -22,6 +23,7 @@ const OWNER_MODELS = {
   video: VideoJob,
   'course-video': CourseVideo,
   'audio-studio': AudioGeneration,
+  'image-studio': ImageGeneration,
 };
 
 function mimeTypeFor(fileName) {
@@ -47,12 +49,15 @@ function hashFile(filePath) {
 
 /**
  * Resolve which collection an id belongs to. `audio-studio` category is
- * unambiguous (always an AudioGeneration); `audio`/`avatar`/`render` are
- * shared between video jobs and course videos, so those need a lookup -
- * cheap, since both are indexed _id lookups.
+ * unambiguous (always an AudioGeneration); `image` is shared between video
+ * jobs/course videos and Image Studio, told apart by Image Studio's `img-`
+ * id prefix; `audio`/`avatar`/`render` are shared between video jobs and
+ * course videos, so those need a lookup - cheap, since both are indexed _id
+ * lookups.
  */
 async function resolveOwnerType(id, category) {
   if (category === 'audio-studio') return 'audio-studio';
+  if (category === 'image' && String(id).startsWith('img-')) return 'image-studio';
   if (await VideoJob.exists({ _id: id })) return 'video';
   if (await CourseVideo.exists({ _id: id })) return 'course-video';
   return 'unknown';

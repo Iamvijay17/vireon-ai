@@ -16,6 +16,7 @@ const Wizard = lazy(() => import("../pages/wizard"));
 const RenderPage = lazy(() => import("../pages/render"));
 const StudioPage = lazy(() => import("../pages/studio"));
 const AudioPage = lazy(() => import("../pages/audio"));
+const ImagesPage = lazy(() => import("../pages/images"));
 const CoursesList = lazy(() => import("../pages/courses/CoursesList"));
 const CourseDetail = lazy(() => import("../pages/courses/CourseDetail"));
 const CourseCurriculum = lazy(() => import("../pages/courses/CourseCurriculum"));
@@ -28,6 +29,7 @@ const Projects = lazy(() => import("../pages/projects"));
 const Jobs = lazy(() => import("../pages/jobs"));
 const Assets = lazy(() => import("../pages/assets"));
 const LiveLogs = lazy(() => import("../pages/logs"));
+const WorkflowPage = lazy(() => import("../pages/workflow"));
 
 // Matches Tailwind's `lg`. At and above it the sidebar is a persistent,
 // collapsible rail; below it the sidebar is an off-canvas drawer so phones
@@ -87,11 +89,13 @@ const AppLayout = () => {
                   <Route path="/render" element={<RenderPage />} />
                   <Route path="/studio" element={<StudioPage />} />
                   <Route path="/audio" element={<AudioPage />} />
+                  <Route path="/images" element={<ImagesPage />} />
                   <Route path="/projects" element={<Projects />} />
                   <Route path="/jobs" element={<Jobs />} />
                   <Route path="/assets" element={<Assets />} />
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/logs" element={<LiveLogs />} />
+                  <Route path="/workflow" element={<WorkflowPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/editor/complete" element={<CompletedVideos />} />
                   <Route path="/courses" element={<CoursesList />} />

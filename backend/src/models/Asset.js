@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const OWNER_TYPES = ['video', 'course-video', 'audio-studio', 'unknown'];
+const OWNER_TYPES = ['video', 'course-video', 'audio-studio', 'image-studio', 'unknown'];
 const ASSET_CATEGORIES = ['audio', 'avatar', 'render', 'audio-studio', 'image'];
 
 const assetSchema = new mongoose.Schema(

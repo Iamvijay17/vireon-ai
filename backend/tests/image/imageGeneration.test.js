@@ -16,6 +16,7 @@ jest.mock('../../src/services/localAI', () => ({ comfyUI: { ensureRunning: jest.
 jest.mock('../../src/services/image/ComfyUIClient');
 
 const fs = require('fs');
+const path = require('path');
 const config = require('../../src/config');
 const CacheService = require('../../src/services/common/CacheService');
 const LocalAIService = require('../../src/services/localAI');
@@ -26,7 +27,12 @@ const original = { ...config.imageGen };
 let client;
 
 beforeEach(() => {
-  Object.assign(config.imageGen, original, { checkpoint: 'model.safetensors' });
+  // Pin the checkpoint workflow these tests are written against: the real
+  // IMAGE_WORKFLOW_PATH comes from the machine's .env (Qwen-Image today).
+  Object.assign(config.imageGen, original, {
+    checkpoint: 'model.safetensors',
+    workflowPath: path.resolve(__dirname, '../../workflows/txt2img.api.json'),
+  });
   jest.clearAllMocks();
   jest.spyOn(fs.promises, 'mkdir').mockResolvedValue();
   jest.spyOn(fs.promises, 'writeFile').mockResolvedValue();
@@ -107,6 +113,31 @@ describe('generate', () => {
     expect(keys[0]).toMatchObject({ prompt: 'a cat', width: 1024, checkpoint: 'model.safetensors' });
     expect(keys[0].workflow).toMatch(/^[0-9a-f]{64}$/);
     expect(keys[0].width).not.toBe(keys[1].width);
+  });
+
+  it('uses a caller-chosen step count and keys the cache on it', async () => {
+    const hashInputs = require('../../src/services/common/CacheService').hashInputs;
+    hashInputs.mockClear();
+    await ImageGenerationService.generate({ jobId: 'j', prompt: 'a cat', aspectRatio: '16:9' });
+    await ImageGenerationService.generate({ jobId: 'j', prompt: 'a cat', aspectRatio: '16:9', steps: 15 });
+    const [normal, fast] = hashInputs.mock.calls.map(([i]) => i);
+    expect(normal.steps).toBe(config.imageGen.steps);
+    expect(fast.steps).toBe(15);
+    expect(client.queue.mock.calls[1][0]['3'].inputs.steps).toBe(15);
+  });
+
+  it('sends a negative prompt and CFG override to the workflow, and keys the cache on them', async () => {
+    const hashInputs = require('../../src/services/common/CacheService').hashInputs;
+    hashInputs.mockClear();
+    await ImageGenerationService.generate({ jobId: 'j', prompt: 'a street', aspectRatio: '16:9' });
+    await ImageGenerationService.generate({ jobId: 'j', prompt: 'a street', aspectRatio: '16:9', negative: 'cars', cfg: 3 });
+
+    const [plain, guided] = hashInputs.mock.calls.map(([i]) => i);
+    expect(plain.negative).toBe(config.imageGen.negativePrompt);
+    expect(guided).toMatchObject({ negative: 'cars', cfg: 3 });
+    const sent = client.queue.mock.calls[1][0];
+    expect(sent['3'].inputs.cfg).toBe(3);        // KSampler
+    expect(sent['7'].inputs.text).toBe('cars');  // negative CLIPTextEncode
   });
 
   it('refuses to run without a checkpoint, as a non-retryable configuration error', async () => {
