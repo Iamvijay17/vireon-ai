@@ -77,7 +77,7 @@ function Report([string]$name, [string]$problem) {
 }
 
 # --- 1. scheduled tasks: restart if not running ----------------------------
-foreach ($t in 'VireonMinio', 'VireonComfyUI', 'VireonVideoWorker', 'VireonCourseWorker') {
+foreach ($t in 'VireonMinio', 'VireonComfyUI', 'VireonTTS', 'VireonVideoWorker', 'VireonCourseWorker') {
   $task = Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue
   if (-not $task) { continue }
   if ($task.State -ne 'Running') {
@@ -107,6 +107,20 @@ if (Get-ScheduledTask -TaskName 'VireonComfyUI' -ErrorAction SilentlyContinue) {
   catch { $p = 'ComfyUI not responding on 127.0.0.1:8188: image generation is down (scene images fall back to text).' }
 }
 Report 'ComfyUI' $p
+
+# --- 3c. Qwen3-TTS (Audio Studio) --------------------------------------------
+# A TCP connect, not an HTTP request: Gradio's single Python process stops answering
+# HTTP while it loads a model or runs an inference (minutes on this card), which would
+# page as "down". A listening socket still means the process is alive.
+$p = $null
+if (Get-ScheduledTask -TaskName 'VireonTTS' -ErrorAction SilentlyContinue) {
+  $tcp = New-Object System.Net.Sockets.TcpClient
+  try {
+    if (-not $tcp.ConnectAsync('127.0.0.1', 7860).Wait(5000)) { throw 'timeout' }
+  } catch { $p = 'Qwen3-TTS not listening on 127.0.0.1:7860: Audio Studio and narration are down.' }
+  finally { $tcp.Dispose() }
+}
+Report 'Qwen3-TTS' $p
 
 # --- 4. Docker containers ---------------------------------------------------
 $p = $null

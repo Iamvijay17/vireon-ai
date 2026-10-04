@@ -3,6 +3,7 @@
    VireonVideoWorker / VireonCourseWorker  BullMQ workers (start at logon, restart on crash)
    VireonMinio                              MinIO object storage (start at logon)
    VireonComfyUI                            ComfyUI, headless, 127.0.0.1:8188 (start at logon)
+   VireonTTS                                Qwen3-TTS (Audio Studio), 127.0.0.1:7860 (start at logon)
    VireonWatchdog                           every 2 min: health checks, auto-restart, alerts
    VireonBackup                             nightly 03:00
    VireonDeployPoll                         every 1 min: pull-based deploy
@@ -74,6 +75,22 @@ if ((Test-Path $comfyPython) -and $comfyModels) {
     (New-ScheduledTaskTrigger -AtLogOn -User $user) (New-ServiceSettings)
 } else {
   Write-Host 'ComfyUI (Comfy Desktop install) not found - VireonComfyUI not registered; image generation stays off.'
+}
+
+# Qwen3-TTS (native, always on): Audio Studio runs in the API container, which can't
+# launch GPU apps (TTS_AUTO_START=false there), so the server must already be up.
+# Gradio binds 127.0.0.1:7860 and Docker Desktop forwards host.docker.internal to it,
+# like ComfyUI above. It only loads a model on the first request and the backend's GPU
+# manager asks it to unload (/unload_all_models) when idle or when another service
+# needs the card, so staying up costs almost no VRAM. The workers reuse it too: they
+# only spawn their own copy when nothing answers on :7860.
+$ttsRoot = Join-Path (Split-Path $repo) 'local-ai\qwen3-tts'
+$ttsPython = Join-Path $ttsRoot 'venv\Scripts\python.exe'
+if ((Test-Path $ttsPython) -and (Test-Path (Join-Path $ttsRoot 'app.py'))) {
+  Register 'VireonTTS' (New-HiddenAction $ttsPython '-u -X utf8 app.py --log tts-server.log' $ttsRoot) `
+    (New-ScheduledTaskTrigger -AtLogOn -User $user) (New-ServiceSettings)
+} else {
+  Write-Host "Qwen3-TTS not found at $ttsRoot - VireonTTS not registered; Audio Studio stays off."
 }
 
 # Watchdog: every 2 minutes.
