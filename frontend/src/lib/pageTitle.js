@@ -9,6 +9,7 @@ const V1_TITLES = {
   "/render": "Render Queue",
   "/studio": "Studio",
   "/audio": "Audio Studio",
+  "/images": "Image Studio",
   "/projects": "Projects",
   "/jobs": "Jobs",
   "/assets": "Assets",

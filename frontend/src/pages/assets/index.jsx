@@ -22,6 +22,7 @@ const OWNER_TYPE_OPTIONS = [
   { value: "video", label: "Video jobs" },
   { value: "course-video", label: "Course videos" },
   { value: "audio-studio", label: "Audio Studio" },
+  { value: "image-studio", label: "Image Studio" },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -30,18 +31,21 @@ const CATEGORY_OPTIONS = [
   { value: "avatar", label: "Avatar" },
   { value: "render", label: "Render" },
   { value: "audio-studio", label: "Audio Studio" },
+  { value: "image", label: "Image" },
 ];
 
 const OWNER_BADGE = {
   video: { variant: "info", label: "Video" },
   "course-video": { variant: "warning", label: "Course Video" },
   "audio-studio": { variant: "accent", label: "Audio Studio" },
+  "image-studio": { variant: "accent", label: "Image Studio" },
   unknown: { variant: "neutral", label: "Unknown" },
 };
 
 const OWNER_ROUTE = {
   video: (id) => `/render?id=${id}`,
   "audio-studio": () => `/audio`,
+  "image-studio": () => `/images`,
 };
 
 const EMPTY = [];

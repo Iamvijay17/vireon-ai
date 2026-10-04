@@ -16,6 +16,7 @@ const Wizard = lazy(() => import("../pages/wizard"));
 const RenderPage = lazy(() => import("../pages/render"));
 const StudioPage = lazy(() => import("../pages/studio"));
 const AudioPage = lazy(() => import("../pages/audio"));
+const ImagesPage = lazy(() => import("../pages/images"));
 const CoursesList = lazy(() => import("../pages/courses/CoursesList"));
 const CourseDetail = lazy(() => import("../pages/courses/CourseDetail"));
 const CourseCurriculum = lazy(() => import("../pages/courses/CourseCurriculum"));
@@ -87,6 +88,7 @@ const AppLayout = () => {
                   <Route path="/render" element={<RenderPage />} />
                   <Route path="/studio" element={<StudioPage />} />
                   <Route path="/audio" element={<AudioPage />} />
+                  <Route path="/images" element={<ImagesPage />} />
                   <Route path="/projects" element={<Projects />} />
                   <Route path="/jobs" element={<Jobs />} />
                   <Route path="/assets" element={<Assets />} />

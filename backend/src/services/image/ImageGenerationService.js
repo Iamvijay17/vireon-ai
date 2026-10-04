@@ -74,7 +74,7 @@ class ImageGenerationService {
    * Generate (or fetch from cache) the image for `prompt` and return its public URL.
    * @returns {Promise<{ url, fileName, cacheKey, fromCache, durationMs }>}
    */
-  static async generate({ jobId, prompt, aspectRatio, variant = 0, signal }) {
+  static async generate({ jobId, prompt, aspectRatio, variant = 0, signal, onProgress }) {
     const { template, raw } = await this._loadWorkflow();
     const params = this._params(prompt, aspectRatio, variant);
 
@@ -97,7 +97,8 @@ class ImageGenerationService {
     }
 
     const startedAt = Date.now();
-    const png = await this._render(template, params, signal);
+    const png = await this._render(template, params, signal, onProgress);
+    onProgress?.({ phase: 'saving' });
 
     const dir = path.resolve(__dirname, '../../../jobs', jobId, 'images');
     await fs.mkdir(dir, { recursive: true });
@@ -115,13 +116,26 @@ class ImageGenerationService {
     return { url, fileName, cacheKey, fromCache: false, durationMs };
   }
 
-  static async _render(template, params, signal) {
+  static async _render(template, params, signal, onProgress) {
     // Make sure ComfyUI is up before queueing (starts it if it is managed).
     await require('../localAI').comfyUI.ensureRunning();
 
     const client = new ComfyUIClient({ baseUrl: config.imageGen.apiUrl });
-    const promptId = await client.queue(fillWorkflow(template, params), crypto.randomUUID());
-    const entry = await client.waitForResult(promptId, { timeoutMs: config.imageGen.timeoutMs, signal });
+    const clientId = crypto.randomUUID();
+
+    // Models load before the first sampling step, so that is what the caller sees until a step lands.
+    onProgress?.({ phase: 'loading' });
+    const stopWatching = onProgress
+      ? await client.watchProgress(clientId, ({ value, max }) => onProgress({ phase: 'sampling', step: value, steps: max }))
+      : null;
+
+    let entry;
+    try {
+      const promptId = await client.queue(fillWorkflow(template, params), clientId);
+      entry = await client.waitForResult(promptId, { timeoutMs: config.imageGen.timeoutMs, signal });
+    } finally {
+      stopWatching?.();
+    }
 
     const image = firstOutputImage(entry);
     if (!image) throw new Error('ComfyUI finished but returned no image - does the workflow end in a SaveImage node?');

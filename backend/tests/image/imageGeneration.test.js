@@ -16,6 +16,7 @@ jest.mock('../../src/services/localAI', () => ({ comfyUI: { ensureRunning: jest.
 jest.mock('../../src/services/image/ComfyUIClient');
 
 const fs = require('fs');
+const path = require('path');
 const config = require('../../src/config');
 const CacheService = require('../../src/services/common/CacheService');
 const LocalAIService = require('../../src/services/localAI');
@@ -26,7 +27,12 @@ const original = { ...config.imageGen };
 let client;
 
 beforeEach(() => {
-  Object.assign(config.imageGen, original, { checkpoint: 'model.safetensors' });
+  // Pin the checkpoint workflow these tests are written against: the real
+  // IMAGE_WORKFLOW_PATH comes from the machine's .env (Qwen-Image today).
+  Object.assign(config.imageGen, original, {
+    checkpoint: 'model.safetensors',
+    workflowPath: path.resolve(__dirname, '../../workflows/txt2img.api.json'),
+  });
   jest.clearAllMocks();
   jest.spyOn(fs.promises, 'mkdir').mockResolvedValue();
   jest.spyOn(fs.promises, 'writeFile').mockResolvedValue();

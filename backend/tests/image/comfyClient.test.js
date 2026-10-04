@@ -139,3 +139,48 @@ describe('ComfyUIClient against a fake ComfyUI server (real HTTP)', () => {
     expect(seen[0]).toMatchObject({ method: 'POST', path: '/free', body: { unload_models: true, free_memory: true } });
   });
 });
+
+describe('ComfyUIClient.watchProgress', () => {
+  // A stand-in for the global WebSocket: opens on the next tick, lets the test push frames.
+  const makeSocketClass = () => {
+    const instances = [];
+    class FakeSocket {
+      constructor(url) {
+        this.url = url;
+        this.closed = false;
+        instances.push(this);
+        setImmediate(() => this.onopen?.());
+      }
+      close() { this.closed = true; }
+    }
+    return { FakeSocket, instances };
+  };
+
+  it('connects with the client id and reports sampling steps, ignoring other frames', async () => {
+    const { FakeSocket, instances } = makeSocketClass();
+    const seen = [];
+    const stop = await makeClient({}).watchProgress('client-1', (p) => seen.push(p), { WebSocketImpl: FakeSocket });
+
+    const [socket] = instances;
+    expect(socket.url).toBe('ws://comfy:8188/ws?clientId=client-1');
+    socket.onmessage({ data: JSON.stringify({ type: 'status', data: {} }) });
+    socket.onmessage({ data: JSON.stringify({ type: 'progress', data: { value: 3, max: 25 } }) });
+    socket.onmessage({ data: new Uint8Array([1, 2, 3]) });   // binary preview frame
+    socket.onmessage({ data: 'not json' });
+
+    expect(seen).toEqual([{ value: 3, max: 25 }]);
+    stop();
+    expect(socket.closed).toBe(true);
+  });
+
+  it('does nothing, without throwing, when there is no WebSocket', async () => {
+    const stop = await makeClient({}).watchProgress('c', jest.fn(), { WebSocketImpl: null });
+    expect(() => stop()).not.toThrow();
+  });
+
+  it('still resolves if the server never opens the socket', async () => {
+    class Silent { constructor() { this.closed = false; } close() { this.closed = true; } }
+    const stop = await makeClient({}).watchProgress('c', jest.fn(), { WebSocketImpl: Silent, openTimeoutMs: 10 });
+    expect(typeof stop).toBe('function');
+  });
+});

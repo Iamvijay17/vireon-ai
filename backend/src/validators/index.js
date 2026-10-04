@@ -147,6 +147,17 @@ const audioIdSchema = z.object({
   id: z.string().regex(/^aud-[0-9A-Z]{8}$/, 'Invalid audio generation id'),
 });
 
+const IMAGE_ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5'];
+
+const createImageSchema = z.object({
+  prompt: z.string().min(3, 'Describe the image you want (at least 3 characters)').max(1000, 'Prompt must be 1000 characters or fewer').trim(),
+  aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).optional().default('16:9'),
+});
+
+const imageIdSchema = z.object({
+  id: z.string().regex(/^img-[0-9A-Z]{8}$/, 'Invalid image generation id'),
+});
+
 const dialogueSpeakerSchema = z.object({
   name: z.string().min(1).max(40).trim(),
   voice: z.string().min(1).max(260),
@@ -194,5 +205,8 @@ module.exports = {
   createAudioSchema,
   audioIdSchema,
   createDialogueAudioSchema,
+  createImageSchema,
+  imageIdSchema,
+  IMAGE_ASPECT_RATIOS,
   validate,
 };

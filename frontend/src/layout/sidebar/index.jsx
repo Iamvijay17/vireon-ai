@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Terminal,
   AudioLines,
+  ImagePlus,
   ListChecks,
   Boxes,
   X,
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { key: "assets", label: "Assets", icon: Boxes, route: "/assets" },
   { key: "render", label: "Render", icon: Rocket, route: "/render" },
   { key: "audio", label: "Audio Studio", icon: AudioLines, route: "/audio" },
+  { key: "images", label: "Image Studio", icon: ImagePlus, route: "/images" },
   {
     key: "editor",
     label: "Editor",
