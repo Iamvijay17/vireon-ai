@@ -13,7 +13,6 @@ const validConfig = () => ({
   llm: { timeout: 60000, maxRetries: 3 },
   ollama: { url: 'http://localhost:11434', model: 'gemma', numCtx: 16384 },
   gpu: { mode: 'sequential', maxConcurrent: 1, idleTimeoutMs: 60000, coordinator: 'in-process', leaseTtlMs: 30000 },
-  avatar: { url: 'http://127.0.0.1:8890', maxRetries: 3, timeout: 120000 },
   remotion: {
     binary: 'npx remotion', timeout: 300000, maxRetries: 2,
     codec: 'h264', pixelFormat: 'yuv420p',

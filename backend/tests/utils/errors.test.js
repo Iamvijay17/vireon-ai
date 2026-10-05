@@ -6,8 +6,8 @@ const {
 
 describe('classifyError', () => {
   /**
-   * These patterns match the exact message shapes LLMService, sceneSynthesis,
-   * avatarService and RemotionService throw. If one of those services
+   * These patterns match the exact message shapes LLMService, sceneSynthesis
+   * and RemotionService throw. If one of those services
    * rewords its retry-exhausted message, the corresponding case here fails -
    * which is the point: the UI silently degrades to raw stack-trace text
    * otherwise, with nothing to notice it.
@@ -16,7 +16,6 @@ describe('classifyError', () => {
     ['Ollama failed after 3 attempts: socket hang up', 'AI model server'],
     ['Ollama failed after 3 attempts: timeout', 'AI model server'],
     ['TTS failed after 3 attempts: connection reset', 'text-to-speech'],
-    ['Avatar generation failed after 2 attempts', 'animation service'],
     ['Remotion rendering failed: exit code 1', 'render engine'],
   ])('maps %s to a friendly message mentioning %s', (message, expected) => {
     const { friendly, detail } = classifyError(new Error(message), 'RENDERING');

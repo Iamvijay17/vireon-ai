@@ -1,6 +1,6 @@
 # Vireon AI - Backend
 
-Express API and BullMQ workers for the Vireon AI video pipeline. The API creates and edits jobs; the workers do the heavy lifting (LLM script, TTS, avatar/images, Remotion render) against local AI services and MinIO.
+Express API and BullMQ workers for the Vireon AI video pipeline. The API creates and edits jobs; the workers do the heavy lifting (LLM script, TTS, images, Remotion render) against local AI services and MinIO.
 
 For the project overview and deployment, see the [root README](../README.md).
 
@@ -12,7 +12,7 @@ For the project overview and deployment, see the [root README](../README.md).
 - **Realtime:** Socket.IO
 - **LLM:** Ollama
 - **TTS:** self-hosted Qwen3-TTS; faster-whisper forced alignment (`services/audio/alignCaptions.py`) for caption timing
-- **Avatar / images (optional):** MuseTalk, ComfyUI
+- **Images (optional):** ComfyUI
 - **Rendering:** Remotion (templates live in [`remotion/`](remotion/README.md))
 - **Storage:** MinIO (the only storage backend)
 - **Validation / logging / docs:** Zod, Winston, Swagger UI (`/api-docs`)
@@ -34,15 +34,14 @@ src/
 │   ├── video/     # VideoService (crud, lifecycle, resume logic), ScriptParser, RemotionService
 │   ├── course/    # courses, curricula, course videos
 │   ├── audio/     # TTS client, caption alignment
-│   ├── avatar/    # MuseTalk avatar + narration track
 │   ├── director/  # AI director: scene, visual, motion and voice planning
-│   ├── localAI/   # start/stop/health managers for Ollama, TTS, ComfyUI, MuseTalk + GPU slot manager
+│   ├── localAI/   # start/stop/health managers for Ollama, TTS, ComfyUI + GPU slot manager
 │   ├── storage/   # StorageService + MinIO provider
 │   ├── asset/     # asset library
 │   ├── job/       # cross-type job aggregation
 │   └── common/    # LLM, prompts, cache, logger, sockets, metrics, retry policy
 ├── validators/    # Zod request schemas
-├── workers/       # videoWorker/ (script, audio, avatar, render, upload steps) and courseVideoWorker.js
+├── workers/       # videoWorker/ (script, audio, images, render, upload steps) and courseVideoWorker.js
 └── server.js
 templates/         # LLM prompt templates per video type
 scripts/           # one-off maintenance scripts (backfills, artifact stats, ...)
@@ -58,7 +57,7 @@ Statuses are defined in [`src/constants/index.js`](src/constants/index.js) (`JOB
 2. `SCRIPT_GENERATION` → `SCRIPT_COMPLETED` - the LLM writes the script, which is validated and saved in MongoDB
 3. `AWAITING_APPROVAL` - the script is reviewed/edited, then approved (`POST /api/videos/:id/approve`)
 4. `GENERATING_AUDIO` → `AUDIO_COMPLETED` - TTS per scene, caption timing aligned with faster-whisper, each file uploaded to MinIO as soon as it exists
-5. `GENERATING_AVATAR` / `GENERATING_IMAGES` → `IMAGE_COMPLETED` - optional steps when the job uses an avatar or generated images
+5. `GENERATING_IMAGES` → `IMAGE_COMPLETED` - optional step when the job uses generated images
 6. `PREPARING_ASSETS` - `assets.json` built for Remotion (local scratch only)
 7. `RENDERING` - Remotion renders the video and thumbnail
 8. `UPLOADING` → `COMPLETED` - output uploaded to MinIO, local scratch wiped
@@ -73,7 +72,7 @@ Three MinIO buckets (names overridable via `MINIO_*_BUCKET`):
 
 | Bucket | Contents |
 |--------|----------|
-| `vireon-scenes` | per-scene audio/avatar, keyed by video id |
+| `vireon-scenes` | per-scene audio, keyed by video id |
 | `vireon-video` | render output, keyed by video id |
 | `vireon-cache` | content-addressed cache shared across jobs (TTS etc.); disable with `SMART_CACHE_ENABLED=false` |
 
@@ -103,7 +102,7 @@ npm run course-worker:dev
 | `npm test` / `test:watch` / `test:coverage` | Jest |
 | `npm run lint` | ESLint over `src/` |
 
-Local AI services (Ollama, TTS, ComfyUI, MuseTalk) can be started on demand by the workers via the `*_AUTO_START` and `*_START_COMMAND` settings, and controlled through `/api/system/ai-services`. When more than one process uses the GPU, set `GPU_COORDINATOR=redis` (see [`src/core/README.md`](src/core/README.md)).
+Local AI services (Ollama, TTS, ComfyUI) can be started on demand by the workers via the `*_AUTO_START` and `*_START_COMMAND` settings, and controlled through `/api/system/ai-services`. When more than one process uses the GPU, set `GPU_COORDINATOR=redis` (see [`src/core/README.md`](src/core/README.md)).
 
 ## API
 

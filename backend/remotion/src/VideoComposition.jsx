@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect, useRef, useState } from "react";
-import { AbsoluteFill, Sequence, Video, continueRender, delayRender, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Sequence, continueRender, delayRender, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import TemplateRegistry from "./templates/TemplateRegistry";
 import DefaultTemplate from "./templates/DefaultTemplate";
 import { applyFontPairing } from "./theme";
@@ -211,55 +211,8 @@ Scene.displayName = "Scene";
 
 export { Scene };
 
-// Corner placement for the optional talking-head overlay - see
-// RemotionService.prepareAssets's `avatar` field. Only reserves space when
-// assets.avatar is actually present (see AvatarOverlay below); a job with
-// no avatar renders identically to before this feature existed.
-const AVATAR_POSITION_STYLES = {
-  "top-left": { top: "4%", left: "4%" },
-  "top-right": { top: "4%", right: "4%" },
-  "bottom-left": { bottom: "4%", left: "4%" },
-  "bottom-right": { bottom: "4%", right: "4%" },
-};
-
-/**
- * Small circular picture-in-picture clip rendered once, above every scene,
- * for the whole video's duration (see the Sequence wrapping it below) -
- * not per-template, since it needs to persist across scene changes and
- * only VideoComposition has access to the top-level `assets.avatar`.
- * Muted: the driving clip's own audio has nothing to do with this video's
- * narration.
- */
-const AvatarOverlay = ({ avatar }) => {
-  if (!avatar?.videoUrl || !avatar?.position) return null;
-  const positionStyle = AVATAR_POSITION_STYLES[avatar.position] || AVATAR_POSITION_STYLES["bottom-right"];
-
-  return (
-    <AbsoluteFill style={{ pointerEvents: "none" }}>
-      <div
-        style={{
-          position: "absolute",
-          width: "20%",
-          aspectRatio: "1 / 1",
-          borderRadius: "50%",
-          overflow: "hidden",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
-          ...positionStyle,
-        }}
-      >
-        <Video
-          src={avatar.videoUrl}
-          loop
-          muted
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
-      </div>
-    </AbsoluteFill>
-  );
-};
-
 export const VideoComposition = ({ assets, jobId }) => {
-  const { scenes, avatar, fontPairing } = assets || {};
+  const { scenes, fontPairing } = assets || {};
 
   // Mutates the shared theme.js `typography` object once, before any scene
   // below renders - see applyFontPairing's doc comment for why this is safe
@@ -330,11 +283,6 @@ export const VideoComposition = ({ assets, jobId }) => {
           </Sequence>
         );
       })}
-      {avatar?.videoUrl && (
-        <Sequence from={0} durationInFrames={currentFrame}>
-          <AvatarOverlay avatar={avatar} />
-        </Sequence>
-      )}
     </>
   );
 };

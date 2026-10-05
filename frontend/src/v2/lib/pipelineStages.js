@@ -45,16 +45,6 @@ export function stagesFromJob(job) {
             : STATE.RUN
           : STATE.IDLE),
 
-    avatar:
-      at("avatar") ??
-      (!job.avatarEnabled
-        ? STATE.IDLE
-        : job.avatarVideoUrl
-          ? STATE.DONE
-          : status.includes("AVATAR")
-            ? STATE.RUN
-            : STATE.IDLE),
-
     render:
       at("render") ??
       (job.videoUrl
@@ -79,7 +69,6 @@ function stageFromStatus(value) {
   const s = String(value || "").toUpperCase();
   if (s.includes("SCRIPT")) return "script";
   if (s.includes("AUDIO")) return "voice";
-  if (s.includes("AVATAR")) return "avatar";
   if (s.includes("RENDER") || s.includes("ASSETS")) return "render";
   if (s.includes("UPLOAD")) return "publish";
   return null;
@@ -95,7 +84,7 @@ function stageFromStatus(value) {
  * current one by its state, and the rest as untouched - never claiming
  * knowledge it doesn't have.
  */
-const ORDER = ["script", "voice", "avatar", "render", "publish"];
+const ORDER = ["script", "voice", "render", "publish"];
 
 export function stagesFromStatus(status) {
   const s = String(status || "").toUpperCase();
@@ -138,7 +127,6 @@ function currentStageOf(s) {
   if (s === "SCRIPT_COMPLETED" || s === "AWAITING_APPROVAL") return "voice";
   if (s.includes("SCRIPT")) return "script";
   if (s.includes("AUDIO") || s.includes("VOICE")) return "voice";
-  if (s.includes("AVATAR")) return "avatar";
   if (s.includes("RENDER") || s.includes("ASSETS")) return "render";
   if (s.includes("UPLOAD")) return "publish";
   return null;

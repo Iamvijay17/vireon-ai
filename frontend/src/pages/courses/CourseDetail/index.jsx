@@ -156,12 +156,6 @@ const CourseDetail = () => {
   const pickDefaultVoice = (preferred) =>
     (preferred && voiceOptions.some((o) => o.value === preferred) ? preferred : voiceOptions[0]?.value) || EMPTY_FORM.voice;
 
-  const handleCreateAvatarEnabledChange = (enabled) =>
-    setFormValues((prev) => ({ ...prev, avatarEnabled: enabled, avatarPosition: enabled ? prev.avatarPosition || "bottom-right" : undefined }));
-
-  const handleEditAvatarEnabledChange = (enabled) =>
-    setVideoEditForm((prev) => ({ ...prev, avatarEnabled: enabled, avatarPosition: enabled ? prev.avatarPosition || "bottom-right" : undefined }));
-
   const showCreateModal = () => {
     const prefs = loadSettings();
     setFormValues({
@@ -204,8 +198,6 @@ const CourseDetail = () => {
       quality: video.quality || EMPTY_FORM.quality,
       additionalInstructions: video.additionalInstructions || "",
       fastAudio: video.fastAudio ?? EMPTY_FORM.fastAudio,
-      avatarEnabled: video.avatarEnabled ?? false,
-      avatarPosition: video.avatarPosition || undefined,
     });
     setVideoEditError("");
     setVideoEditModalVisible(true);
@@ -776,7 +768,6 @@ const CourseDetail = () => {
         voiceOptions={voiceOptions}
         isFavorite={isFavorite}
         toggleFavorite={toggleFavorite}
-        onAvatarEnabledChange={handleCreateAvatarEnabledChange}
       />
 
       <VideoEditModal
@@ -790,7 +781,6 @@ const CourseDetail = () => {
         voiceOptions={voiceOptions}
         isFavorite={isFavorite}
         toggleFavorite={toggleFavorite}
-        onAvatarEnabledChange={handleEditAvatarEnabledChange}
       />
 
       <CurriculumModal

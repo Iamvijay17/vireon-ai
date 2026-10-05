@@ -78,13 +78,6 @@ const VERTICAL_RESOLUTIONS = RESOLUTIONS.filter((r) => {
   return height > width && height / width === 16 / 9;
 });
 
-const AVATAR_POSITIONS = [
-  { value: "top-left", label: "Top left" },
-  { value: "top-right", label: "Top right" },
-  { value: "bottom-left", label: "Bottom left" },
-  { value: "bottom-right", label: "Bottom right" },
-];
-
 // Shown while the real voice catalog is loading (or if it fails to load).
 const FALLBACK_VOICES = [
   { value: "female-1", label: "Female Voice 1" },
@@ -197,10 +190,6 @@ const DEFAULT_VALUES = {
   captionAnimation: "fadeInUp",
   fastGeneration: false,
   fastAudio: false,
-  // Optional talking-head overlay - no photo upload, the backend picks a
-  // bundled default portrait matching the selected voice's gender.
-  avatarEnabled: false,
-  avatarPosition: undefined,
 };
 
 const isVerticalResolution = (value) => VERTICAL_RESOLUTIONS.some((r) => r.value === value);
@@ -372,9 +361,6 @@ const Wizard = () => {
   );
 
   const setField = (name, value) => setValues((prev) => ({ ...prev, [name]: value }));
-
-  const handleAvatarEnabledChange = (enabled) =>
-    setValues((prev) => ({ ...prev, avatarEnabled: enabled, avatarPosition: enabled ? prev.avatarPosition || "bottom-right" : undefined }));
 
   // Duration and resolution are each constrained to a different set of
   // valid options depending on video type (YouTube Shorts: 1-3 minutes,
@@ -700,31 +686,6 @@ const Wizard = () => {
               onChange={(v) => setField("captionAnimation", v)}
             />
             <FieldHint>How narration captions animate word-by-word. Podcast dialogue always uses its own highlight style regardless of this setting.</FieldHint>
-          </div>
-
-          <div className="mb-6">
-            <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
-              <div>
-                <Label className="mb-1">Avatar Overlay</Label>
-                <p className="text-xs text-text-secondary">
-                  {values.avatarEnabled
-                    ? "On: a talking-head overlay is generated automatically, using a default portrait matching the selected voice's gender."
-                    : "Off: no avatar is generated for this video."}
-                </p>
-              </div>
-              <Switch checked={values.avatarEnabled} onChange={handleAvatarEnabledChange} />
-            </div>
-
-            {values.avatarEnabled && (
-              <div className="mt-4">
-                <Label>Avatar position</Label>
-                <Select
-                  options={AVATAR_POSITIONS}
-                  value={values.avatarPosition || "bottom-right"}
-                  onChange={(v) => setField("avatarPosition", v)}
-                />
-              </div>
-            )}
           </div>
 
           <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">

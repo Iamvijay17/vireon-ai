@@ -1,5 +1,5 @@
 # Vireon production stack. Run from this folder:  docker compose up -d
-# Native on Windows (NOT in compose): MinIO, Ollama, Qwen3-TTS, MuseTalk,
+# Native on Windows (NOT in compose): MinIO, Ollama, Qwen3-TTS,
 # ComfyUI, and the two BullMQ workers (see deploy/install-workers.ps1).
 # MongoDB is Atlas (cloud). Nothing here publishes a port to the LAN: the only
 # host port is 127.0.0.1:8080 (frontend) and 127.0.0.1:6379 (Redis, for the

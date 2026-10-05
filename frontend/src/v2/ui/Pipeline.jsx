@@ -8,12 +8,12 @@ import { STAGES, STATE, stageColor } from "../lib/status";
  * v1 surfaced pipeline position as a status string in a table cell, which
  * told you the current step but never where that step sat in the whole
  * sequence - you had to already know the pipeline to read it. This makes
- * the sequence itself the UI: five fixed stages, each with a permanent
+ * the sequence itself the UI: four fixed stages, each with a permanent
  * colour identity, so position and progress are legible at a glance and in
  * peripheral vision.
  *
  * @param {Record<string, 'idle'|'run'|'wait'|'done'|'fail'>} stages
- *        state per stage id (script, voice, avatar, render, publish)
+ *        state per stage id (script, voice, render, publish)
  * @param {'sm'|'md'} size  sm = table rows, md = detail headers
  */
 export function PipelineTrack({ stages = {}, size = "md", className }) {
@@ -21,7 +21,7 @@ export function PipelineTrack({ stages = {}, size = "md", className }) {
 
   return (
     // Detail size: below `sm` each stage stacks its label under the dot so
-    // five labelled stages fit a phone; connectors drop to dot height.
+    // four labelled stages fit a phone; connectors drop to dot height.
     <div className={cx("flex", compact ? "items-center gap-1" : "items-start gap-1 sm:items-center sm:gap-1.5", className)}>
       {STAGES.map((stage, i) => {
         const state = stages[stage.id] || STATE.IDLE;

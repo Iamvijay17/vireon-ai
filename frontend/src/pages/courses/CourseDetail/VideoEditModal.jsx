@@ -4,7 +4,7 @@ import { Select } from "../../../components/ui/Select";
 import { Switch } from "../../../components/ui/Switch";
 import { VoiceSelect } from "../../../components/ui/VoiceSelect";
 import { Input, Textarea, Label, FieldHint } from "../../../components/ui/Input";
-import { DURATION_OPTIONS, STYLE_OPTIONS, RESOLUTION_OPTIONS, QUALITY_OPTIONS, AVATAR_POSITION_OPTIONS } from "./constants";
+import { DURATION_OPTIONS, STYLE_OPTIONS, RESOLUTION_OPTIONS, QUALITY_OPTIONS } from "./constants";
 
 export const VideoEditModal = ({
   open,
@@ -17,7 +17,6 @@ export const VideoEditModal = ({
   voiceOptions,
   isFavorite,
   toggleFavorite,
-  onAvatarEnabledChange,
 }) => (
   <Modal
     open={open}
@@ -96,30 +95,6 @@ export const VideoEditModal = ({
           value={videoEditForm.additionalInstructions}
           onChange={(e) => setVideoEditForm((prev) => ({ ...prev, additionalInstructions: e.target.value }))}
         />
-      </div>
-      <div>
-        <div className="flex items-center justify-between gap-4 rounded-lg border border-border-light px-3 py-2.5">
-          <div>
-            <Label className="mb-0.5">Avatar Overlay</Label>
-            <FieldHint>
-              {videoEditForm.avatarEnabled
-                ? "On: a talking-head overlay is generated automatically, using a default portrait matching the selected voice's gender."
-                : "Off: no avatar overlay for this video."}
-            </FieldHint>
-          </div>
-          <Switch checked={videoEditForm.avatarEnabled} onChange={onAvatarEnabledChange} />
-        </div>
-
-        {videoEditForm.avatarEnabled && (
-          <div className="mt-3">
-            <Label>Avatar position</Label>
-            <Select
-              options={AVATAR_POSITION_OPTIONS}
-              value={videoEditForm.avatarPosition || "bottom-right"}
-              onChange={(v) => setVideoEditForm((prev) => ({ ...prev, avatarPosition: v }))}
-            />
-          </div>
-        )}
       </div>
       <div className="flex items-center justify-between gap-4 rounded-lg border border-border-light px-3 py-2.5">
         <div>

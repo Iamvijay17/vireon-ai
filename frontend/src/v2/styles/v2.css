@@ -7,7 +7,7 @@
       so surfaces are dark by default and recede, letting thumbnails,
       waveforms and previews carry the color.
    2. The domain has one dominant structure - a pipeline (script -> voice ->
-      avatar -> render -> publish). Stage identity is a first-class token
+      render -> publish). Stage identity is a first-class token
       set, not something each page invents.
    3. Status is the most-read information on every screen. It gets a
       deliberate, restricted vocabulary so "running" looks the same in a
@@ -65,7 +65,6 @@
      pipeline once instead of per screen. */
   --color-stage-script: #6f8cff;
   --color-stage-voice: #12b5a5;
-  --color-stage-avatar: #c072f0;
   --color-stage-render: #f0913d;
   --color-stage-publish: #22b07d;
 

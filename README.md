@@ -1,13 +1,13 @@
 # Vireon AI
 
-Self-hosted AI video generation. Give it a topic (or a course outline) and it writes a scene-by-scene script with a local LLM, narrates it with a local TTS model, optionally adds a talking avatar, and renders the final video with Remotion. Everything runs on your own machine; there is no paid API in the pipeline.
+Self-hosted AI video generation. Give it a topic (or a course outline) and it writes a scene-by-scene script with a local LLM, narrates it with a local TTS model, optionally adds generated images, and renders the final video with Remotion. Everything runs on your own machine; there is no paid API in the pipeline.
 
 ## How it works
 
 ```
 Topic ──► Script (Ollama) ──► Narration (Qwen3-TTS) ──► Caption alignment (faster-whisper)
                                                  │
-                              optional avatar (MuseTalk) / images (ComfyUI)
+                              optional images (ComfyUI)
                                                  ▼
                          assets.json ──► Remotion render (50 templates) ──► MinIO
 ```
@@ -34,7 +34,7 @@ The root `package.json` is an npm workspace (`frontend`, `backend/remotion`) wit
 
 - **API:** Node.js 22, Express 5, Zod, Winston, Swagger UI at `/api-docs`
 - **Data:** MongoDB (Atlas or local), Redis + BullMQ for queues
-- **Storage:** MinIO (S3-compatible) — buckets `vireon-scenes` (audio/avatar) and `vireon-video` (renders)
+- **Storage:** MinIO (S3-compatible) — buckets `vireon-scenes` (audio) and `vireon-video` (renders)
 - **LLM:** Ollama (`gemma4:e4b-it-qat`)
 - **TTS:** Qwen3-TTS, with forced alignment via faster-whisper for caption timing
 - **Render:** Remotion 4
@@ -47,7 +47,7 @@ The root `package.json` is an npm workspace (`frontend`, `backend/remotion`) wit
 - [MinIO](https://min.io/) running on `127.0.0.1:9000`
 - [Ollama](https://ollama.com/) with a model pulled (`ollama pull gemma4:e4b-it-qat`)
 - A running Qwen3-TTS server (default `http://localhost:7860`)
-- Optional: MuseTalk (avatars) and ComfyUI (image generation)
+- Optional: ComfyUI (image generation)
 
 A GPU with ~6 GB VRAM is enough for the default setup, which is why the worker runs one job at a time (`VIDEO_WORKER_CONCURRENCY=1`).
 
@@ -116,7 +116,7 @@ CI (`.github/workflows/ci.yml`) syntax-checks and tests the backend, tests and b
 
 ## Deployment
 
-Production runs on a single Windows PC: Redis, the API and nginx in Docker; MinIO, Ollama, TTS, MuseTalk, ComfyUI and the two BullMQ workers natively (they need the GPU); MongoDB on Atlas. Remote access is through Tailscale Serve, so no ports are opened to the internet. Deploys are pull-based via `deploy/deploy.ps1`.
+Production runs on a single Windows PC: Redis, the API and nginx in Docker; MinIO, Ollama, TTS, ComfyUI and the two BullMQ workers natively (they need the GPU); MongoDB on Atlas. Remote access is through Tailscale Serve, so no ports are opened to the internet. Deploys are pull-based via `deploy/deploy.ps1`.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the step-by-step guide.
 

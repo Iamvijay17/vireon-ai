@@ -1,8 +1,6 @@
 // The compiler pulls in the whole service layer at require time; none of it
 // is exercised by topology tests, so stub it out rather than booting Mongo.
 jest.mock('../../src/services/audio/audioService', () => ({ generateSceneAudio: jest.fn(), predictCacheKey: jest.fn() }));
-jest.mock('../../src/services/avatar/avatarService', () => ({ resolveDefaultSourceImage: jest.fn(), animatePortrait: jest.fn() }));
-jest.mock('../../src/services/avatar/narrationTrack', () => ({ buildNarrationTrack: jest.fn() }));
 jest.mock('../../src/services/video/RemotionService', () => ({ prepareAssets: jest.fn(), renderVideo: jest.fn() }));
 jest.mock('../../src/services/storage/StorageService', () => ({ cleanupJob: jest.fn() }));
 jest.mock('../../src/services/storage/providers', () => ({ getStorageProvider: jest.fn() }));
@@ -21,7 +19,7 @@ const compile = (scenes, videoJob = {}) =>
   compileVideoGraph({
     jobId: 'job-TEST1234',
     ir: { scenes },
-    videoJob: { avatarEnabled: false, ...videoJob },
+    videoJob: { ...videoJob },
     handlers: {},
   });
 
@@ -59,20 +57,14 @@ describe('compileVideoGraph', () => {
     expect(ids).not.toContain('scene.image.4');
   });
 
-  it('includes an avatar node only when the job enables it', () => {
-    expect(compile([scene(1)], { avatarEnabled: false }).map((n) => n.id)).not.toContain('avatar');
-    expect(compile([scene(1)], { avatarEnabled: true }).map((n) => n.id)).toContain('avatar');
-  });
-
-  it('makes compose wait on every piece of scene work, including the avatar', () => {
+  it('makes compose wait on every piece of scene work', () => {
     const nodes = compile(
-      [scene(1), scene(2, { sceneType: 'image', imagePrompt: 'x' })],
-      { avatarEnabled: true }
+      [scene(1), scene(2, { sceneType: 'image', imagePrompt: 'x' })]
     );
     const compose = nodes.find((n) => n.id === 'compose');
 
     expect(compose.deps.sort()).toEqual(
-      ['avatar', 'scene.audio.1', 'scene.audio.2', 'scene.image.2'].sort()
+      ['scene.audio.1', 'scene.audio.2', 'scene.image.2'].sort()
     );
   });
 

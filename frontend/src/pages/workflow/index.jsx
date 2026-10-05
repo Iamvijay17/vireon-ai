@@ -36,7 +36,7 @@ const STATE_TEXT = {
 };
 
 const STAGE_LEGEND = [
-  ["script", "Script"], ["voice", "Voice"], ["avatar", "Avatar"], ["render", "Render"], ["publish", "Publish"],
+  ["script", "Script"], ["voice", "Voice"], ["render", "Render"], ["publish", "Publish"],
 ];
 
 const MIN_ZOOM = 0.35;

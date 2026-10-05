@@ -121,14 +121,6 @@ describe('legacy builder and IR agree', () => {
     expect(diffRenderProps(legacy, toRenderProps(ir))).toEqual([]);
   });
 
-  it('agree when an avatar overlay is present', async () => {
-    const script = cases['plain educational script (never storyboarded)']();
-    const cfg = jobConfig({ avatar: { videoUrl: 'http://minio/job-1/avatar/avatar.mp4', position: 'bottom-right' } });
-    const legacy = await RemotionService.prepareAssets('job-1', script, cfg);
-    const { ir } = compile({ jobId: 'job-1', script, jobConfig: cfg, stage: 'render', audioUrlFor: (n) => `http://minio/job-1/audio/scene${n}.mp3` });
-    expect(diffRenderProps(legacy, toRenderProps(ir))).toEqual([]);
-  });
-
   it('actually carries the layout through both builders', async () => {
     const script = cases['storyboarded script with a layout choice']();
     const legacy = await RemotionService.prepareAssets('job-1', script, jobConfig());

@@ -61,13 +61,6 @@ export const QUALITY_OPTIONS = [
   { value: "hd", label: "HD (best quality, slower render)" },
 ];
 
-export const AVATAR_POSITION_OPTIONS = [
-  { value: "top-left", label: "Top left" },
-  { value: "top-right", label: "Top right" },
-  { value: "bottom-left", label: "Bottom left" },
-  { value: "bottom-right", label: "Bottom right" },
-];
-
 export const EMPTY_FORM = {
   title: "",
   topic: "",
@@ -78,10 +71,6 @@ export const EMPTY_FORM = {
   quality: "standard",
   additionalInstructions: "",
   fastAudio: false,
-  // Optional talking-head overlay - no photo upload, the backend picks a
-  // bundled default portrait matching the selected voice's gender.
-  avatarEnabled: false,
-  avatarPosition: undefined,
 };
 export const EMPTY_PROMO = { title: "", topic: "", description: "" };
 
