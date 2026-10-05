@@ -31,8 +31,6 @@ async function create(courseId, data) {
     quality: data.quality || 'standard',
     additionalInstructions: data.additionalInstructions || '',
     fastAudio: data.fastAudio ?? false,
-    avatarEnabled: data.avatarEnabled ?? false,
-    avatarPosition: data.avatarEnabled ? data.avatarPosition || 'bottom-right' : null,
     status: VIDEO_STATUS.DRAFT,
   });
 
@@ -44,7 +42,6 @@ async function create(courseId, data) {
     courseId,
     title: video.title,
     order,
-    avatarEnabled: video.avatarEnabled,
   });
 
   return video;
@@ -300,13 +297,13 @@ async function claimStage(videoId, action) {
 // Fields the client is allowed to edit via update(). Everything else
 // (status, approved, courseId, script, error, retryCount, ...) is
 // pipeline-managed state and must not be settable through this endpoint.
-const UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'resolution', 'quality', 'additionalInstructions', 'fastAudio', 'avatarEnabled', 'avatarPosition'];
+const UPDATABLE_FIELDS = ['title', 'topic', 'duration', 'voice', 'style', 'resolution', 'quality', 'additionalInstructions', 'fastAudio'];
 
 /**
  * Update a video.
  */
 async function update(videoId, data) {
-  const existing = await CourseVideo.findById(videoId).select('avatarEnabled voice').lean();
+  const existing = await CourseVideo.findById(videoId).select('_id').lean();
   if (!existing) {
     throw new NotFoundError('Video not found');
   }
@@ -314,21 +311,6 @@ async function update(videoId, data) {
   const updateData = {};
   for (const field of UPDATABLE_FIELDS) {
     if (data[field] !== undefined) updateData[field] = data[field];
-  }
-
-  const avatarEnabled = updateData.avatarEnabled ?? existing.avatarEnabled;
-  if (avatarEnabled && !updateData.avatarPosition) {
-    updateData.avatarPosition = updateData.avatarPosition ?? 'bottom-right';
-  }
-  // Whether the currently-generated avatar clip (if any) is still valid:
-  // only when the avatar stays enabled and the voice - which determines
-  // which default portrait's gender it was animated from - hasn't
-  // changed. Any other transition invalidates it, so the next render
-  // regenerates via AvatarService (see renderVideo's avatar step).
-  const voice = updateData.voice ?? existing.voice;
-  const keepExistingAvatarClip = avatarEnabled && existing.avatarEnabled && voice === existing.voice;
-  if (!keepExistingAvatarClip) {
-    updateData.avatarVideoUrl = '';
   }
 
   const video = await CourseVideo.findByIdAndUpdate(

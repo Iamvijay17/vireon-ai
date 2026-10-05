@@ -138,25 +138,6 @@ const config = Object.freeze({
       healthCheckIntervalMs: parseInt(process.env.COMFYUI_HEALTH_CHECK_INTERVAL_MS, 10) || 3000,
       healthCheckTimeoutMs: parseInt(process.env.COMFYUI_HEALTH_CHECK_TIMEOUT_MS, 10) || 5000,
     },
-    // MuseTalk (audio-driven lip-sync avatar overlay - AvatarService) is the
-    // same shape as TTS: a Gradio app, launched via its own Pinokio app
-    // (C:\pinokio\api\musetalk.git\{start.js,app\app.py} - point
-    // AVATAR_START_COMMAND/AVATAR_WORKDIR at wherever that app's own
-    // start.js resolves its venv python.exe + app.py). Was LivePortrait
-    // (canned stock-driving-video motion, audio-agnostic) until the avatar
-    // overlay's mouth needed to actually match the TTS narration - see
-    // services/avatar/avatarService.js.
-    avatar: {
-      enabled: process.env.AVATAR_SERVICE_ENABLED !== 'false',
-      autoStart: process.env.AVATAR_AUTO_START !== 'false',
-      autoStop: process.env.AVATAR_AUTO_STOP !== 'false',
-      startCommand: process.env.AVATAR_START_COMMAND || '',
-      workdir: process.env.AVATAR_WORKDIR || '',
-      healthUrl: process.env.AVATAR_HEALTH_URL || `${(process.env.MUSETALK_URL || 'http://127.0.0.1:8890').replace(/\/$/, '')}/`,
-      startupTimeoutMs: parseInt(process.env.AVATAR_STARTUP_TIMEOUT_MS, 10) || 180000,
-      healthCheckIntervalMs: parseInt(process.env.AVATAR_HEALTH_CHECK_INTERVAL_MS, 10) || 3000,
-      healthCheckTimeoutMs: parseInt(process.env.AVATAR_HEALTH_CHECK_TIMEOUT_MS, 10) || 5000,
-    },
   },
 
   // GPU Resource Manager (backend/src/services/localAI/gpuResourceManager):
@@ -175,8 +156,8 @@ const config = Object.freeze({
     // instead stays warm indefinitely until another service's acquire()
     // forces it out (GPU capacity is a hard limit either way).
     idleTimeoutMs: (parseInt(process.env.AI_SERVICE_IDLE_TIMEOUT, 10) || 60) * 1000,
-    // Coordination backend for LocalAIService.gpu (Ollama/TTS/ComfyUI/
-    // avatar sequencing). 'in-process' (default) is today's
+    // Coordination backend for LocalAIService.gpu (Ollama/TTS/ComfyUI
+    // sequencing). 'in-process' (default) is today's
     // GPUResourceManager, correct only because exactly one worker process
     // runs. 'redis' additionally backs it with core/leases/RedisLease, so a
     // second worker process on the same GPU actually serializes against
@@ -191,19 +172,6 @@ const config = Object.freeze({
     // lingers before another process can reclaim the card. Short is good;
     // too short risks a renewal round-trip losing a race it should win.
     leaseTtlMs: parseInt(process.env.GPU_LEASE_TTL_MS, 10) || 30000,
-  },
-
-  avatar: {
-    url: process.env.MUSETALK_URL || 'http://127.0.0.1:8890',
-    // No user-uploaded photo - the avatar's source portrait is always one of
-    // these two bundled defaults, picked by the job's voice's gender (see
-    // AvatarService.resolveDefaultSourceImage). MuseTalk animates the mouth
-    // region of this still image directly from the job's own narration
-    // audio (see AvatarService.animatePortrait) - no separate driving video.
-    defaultMaleImagePath: path.resolve(__dirname, '../../assets/avatar/default-male.jpg'),
-    defaultFemaleImagePath: path.resolve(__dirname, '../../assets/avatar/default-female.jpg'),
-    maxRetries: parseInt(process.env.AVATAR_MAX_RETRIES, 10) || 3,
-    timeout: parseInt(process.env.AVATAR_TIMEOUT, 10) || 120000,
   },
 
   remotion: {
@@ -257,12 +225,12 @@ const config = Object.freeze({
     accessKey: process.env.MINIO_ROOT_USER || '',
     secretKey: process.env.MINIO_ROOT_PASSWORD || '',
     // Two buckets instead of one flat namespace: scenes = scene-level data
-    // (audio/avatar), video = final video-level output (render/thumbnail).
+    // (audio), video = final video-level output (render/thumbnail).
     // script.json/assets.json are local scratch only, never uploaded - the
     // script content lives in MongoDB. See MinioStorageProvider.
     scenesBucket: process.env.MINIO_SCENES_BUCKET || 'vireon-scenes',
     videoBucket: process.env.MINIO_VIDEO_BUCKET || 'vireon-video',
-    // Content-addressed Smart Cache storage (avatar clips, TTS audio) - kept
+    // Content-addressed Smart Cache storage (TTS audio) - kept
     // separate from scenesBucket/videoBucket so a job's delete/cleanup never
     // touches cached entries shared across jobs. See CacheService.
     cacheBucket: process.env.MINIO_CACHE_BUCKET || 'vireon-cache',
@@ -279,7 +247,7 @@ const config = Object.freeze({
     uploadTimeoutMs: parseInt(process.env.MINIO_UPLOAD_TIMEOUT_MS, 10) || 120000,
   },
 
-  // Smart Cache: content-addressed reuse of avatar clips and TTS audio
+  // Smart Cache: content-addressed reuse of TTS audio
   // across jobs, so identical inputs skip the GPU/TTS call entirely. Set
   // SMART_CACHE_ENABLED=false to fall back to always-regenerate for
   // debugging. See CacheService.

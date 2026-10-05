@@ -80,7 +80,6 @@ async function backfillVideoJobs() {
   for (const job of jobs) {
     if (job.videoUrl) await upsertAsset({ ownerType: 'video', ownerId: job._id, category: 'render', url: job.videoUrl });
     if (job.thumbnailUrl) await upsertAsset({ ownerType: 'video', ownerId: job._id, category: 'render', url: job.thumbnailUrl });
-    if (job.avatarVideoUrl) await upsertAsset({ ownerType: 'video', ownerId: job._id, category: 'avatar', url: job.avatarVideoUrl });
     for (const url of job.audioUrls || []) {
       await upsertAsset({ ownerType: 'video', ownerId: job._id, category: 'audio', url });
     }
@@ -99,7 +98,6 @@ async function backfillCourseVideos() {
   const videos = await CourseVideo.find({}).lean();
   for (const video of videos) {
     if (video.renderUrl) await upsertAsset({ ownerType: 'course-video', ownerId: video._id, category: 'render', url: video.renderUrl });
-    if (video.avatarVideoUrl) await upsertAsset({ ownerType: 'course-video', ownerId: video._id, category: 'avatar', url: video.avatarVideoUrl });
     if (video.audioUrl) await upsertAsset({ ownerType: 'course-video', ownerId: video._id, category: 'audio', url: video.audioUrl });
     for (const scene of video.script?.scenes || []) {
       if (scene.audio?.file) {

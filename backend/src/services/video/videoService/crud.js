@@ -17,7 +17,6 @@ const { NotFoundError, ValidationError } = require('../../../utils/errors');
 const BUSY_STATUSES = [
   JOB_STATUS.SCRIPT_GENERATION,
   JOB_STATUS.GENERATING_AUDIO,
-  JOB_STATUS.GENERATING_AVATAR,
   JOB_STATUS.GENERATING_IMAGES,
   JOB_STATUS.PREPARING_ASSETS,
   JOB_STATUS.RENDERING,
@@ -46,8 +45,6 @@ async function create(data) {
     captionAnimation: data.captionAnimation || 'fadeInUp',
     fastGeneration: data.fastGeneration ?? true,
     fastAudio: data.fastAudio ?? false,
-    avatarEnabled: data.avatarEnabled ?? false,
-    avatarPosition: data.avatarEnabled ? data.avatarPosition || 'bottom-right' : null,
     status: JOB_STATUS.QUEUED,
     progress: 0,
   });
@@ -56,7 +53,6 @@ async function create(data) {
     jobId: job._id,
     type: job.type,
     topic: job.topic,
-    avatarEnabled: job.avatarEnabled,
   });
 
   return job;
@@ -221,29 +217,10 @@ async function update(jobId, updates) {
     if (!guestVoice) throw new ValidationError('Guest voice is required for podcast videos');
   }
 
-  // Whether the currently-generated avatar clip (if any) is still valid.
-  // The avatar's mouth is lip-synced to the job's own narration audio (see
-  // AvatarService/narrationTrack.buildNarrationTrack), so it depends on
-  // BOTH the source portrait's gender (driven by voice) AND the narration
-  // content itself - changing either invalidates it. `updates` here never
-  // carries script/scene edits (see this function's own doc comment: it's
-  // topic/duration/voice/names/resolution only), so a voice change is the
-  // only thing this endpoint can invalidate; scene-audio regeneration
-  // invalidates it separately (see statusUpdates.updateSceneAudio).
-  const wasAvatarEnabled = job.avatarEnabled;
-  const previousVoice = job.voice;
-
   Object.assign(job, updates);
   job.duration = duration;
   job.resolution = resolution;
 
-  if (job.avatarEnabled && !job.avatarPosition) {
-    job.avatarPosition = 'bottom-right';
-  }
-  const keepExistingAvatarClip = job.avatarEnabled && wasAvatarEnabled && job.voice === previousVoice;
-  if (!keepExistingAvatarClip) {
-    job.avatarVideoUrl = '';
-  }
   job.aspectRatio = getAspectRatioForResolution(resolution);
   await job.save();
 

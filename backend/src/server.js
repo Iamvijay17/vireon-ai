@@ -103,7 +103,7 @@ app.use(morgan('short', { stream: LoggerService.stream() }));
 // media.
 //
 // (No longer serving backend/jobs/ here - it's pure scratch space now, wiped
-// after every job. Scene audio/avatar/render output are all served straight
+// after every job. Scene audio/render output are all served straight
 // from MinIO instead - see StorageProvider.getPublicUrl.)
 
 // Reference .wav files used for voice cloning - also served publicly so the
@@ -206,7 +206,7 @@ async function reapOrphanedAudioGenerations() {
   }
 }
 
-// Video jobs run their entire pipeline (script -> audio -> avatar/images ->
+// Video jobs run their entire pipeline (script -> audio -> images ->
 // render -> upload) inside a single BullMQ job execution (see
 // videoWorker/processor.js) that writes its current step to Mongo as it
 // goes, purely for progress display. If the process hosting that execution
@@ -225,7 +225,6 @@ const STUCK_VIDEO_STATUSES = [
   JOB_STATUS.QUEUED,
   JOB_STATUS.SCRIPT_GENERATION,
   JOB_STATUS.GENERATING_AUDIO,
-  JOB_STATUS.GENERATING_AVATAR,
   JOB_STATUS.GENERATING_IMAGES,
   JOB_STATUS.PREPARING_ASSETS,
   JOB_STATUS.RENDERING,

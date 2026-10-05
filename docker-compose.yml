@@ -52,7 +52,6 @@ services:
       OLLAMA_AUTO_START: "false"
       TTS_API_URL: http://host.docker.internal:7860
       TTS_AUTO_START: "false"
-      AVATAR_AUTO_START: "false"
       # Image Studio renders inside this container, so it needs ComfyUI. That runs
       # natively (scheduled task VireonComfyUI, see deploy/install-workers.ps1) on
       # the host's loopback; Docker Desktop forwards host.docker.internal there, so

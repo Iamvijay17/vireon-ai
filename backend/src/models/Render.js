@@ -35,7 +35,6 @@ const renderSchema = new mongoose.Schema(
 
     videoUrl: { type: String, default: '' },
     thumbnailUrl: { type: String, default: '' },
-    avatarVideoUrl: { type: String, default: '' },
     audioUrls: [String],
 
     error: {

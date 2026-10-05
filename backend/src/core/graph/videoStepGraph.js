@@ -1,6 +1,4 @@
 const AudioService = require('../../services/audio/audioService');
-const AvatarService = require('../../services/avatar/avatarService');
-const { buildNarrationTrack } = require('../../services/avatar/narrationTrack');
 const RemotionService = require('../../services/video/RemotionService');
 const StorageService = require('../../services/storage/StorageService');
 const { getStorageProvider } = require('../../services/storage/providers');
@@ -55,14 +53,6 @@ function compileVideoGraph({ jobId, ir, videoJob, handlers }) {
     }
   }
 
-  if (videoJob.avatarEnabled) {
-    nodes.push({
-      id: 'avatar',
-      deps: [],
-      run: (ctx) => handlers.avatar(ctx),
-    });
-  }
-
   const sceneWorkIds = nodes.map((n) => n.id);
 
   nodes.push({
@@ -88,7 +78,7 @@ function compileVideoGraph({ jobId, ir, videoJob, handlers }) {
 
 /**
  * Real handlers: thin wrappers around the exact same service calls
- * videoWorker's step modules make today (AudioService, AvatarService,
+ * videoWorker's step modules make today (AudioService,
  * RemotionService, StorageService) - no reimplementation, so running a job
  * through this graph produces the same artifacts the sequential pipeline
  * would. Not wired into the live queue/worker; see scripts/graphRun.js for
@@ -109,40 +99,17 @@ function realHandlers({ jobId, videoJob }) {
     sceneImage: async () => {
       throw new Error('Image generation has no standalone service call yet - not wired into the step graph');
     },
-    avatar: async () => {
-      const VideoService = require('../../services/video/VideoService');
-      const sourceImagePath = AvatarService.resolveDefaultSourceImage(videoJob.voice);
-      // Re-read: sceneAudio nodes just persisted scene.audio.file, needed
-      // here to build the narration track - videoJob (closed over above)
-      // is a stale pre-run snapshot.
-      const fresh = await VideoService.getById(jobId);
-      const fs = require('fs').promises;
-      const narrationAudioPath = await buildNarrationTrack(jobId, fresh.script?.scenes);
-      if (!narrationAudioPath) {
-        return { videoUrl: '', position: videoJob.avatarPosition };
-      }
-      let result;
-      try {
-        result = await AvatarService.animatePortrait(jobId, sourceImagePath, narrationAudioPath);
-      } finally {
-        await fs.unlink(narrationAudioPath).catch(() => {});
-      }
-      const updated = await VideoService.updateAvatar(jobId, result);
-      return { videoUrl: updated.avatarVideoUrl, position: videoJob.avatarPosition };
-    },
     compose: async (ctx) => {
       // Re-read is deliberate: scene.audio nodes just persisted new
       // durations/files that the freshest script reflects.
       const VideoService = require('../../services/video/VideoService');
       const fresh = await VideoService.getById(jobId);
-      const avatarResult = ctx.results.get('avatar');
       return RemotionService.prepareAssets(jobId, fresh.script, {
         resolution: videoJob.resolution,
         quality: videoJob.quality,
         aspectRatio: videoJob.aspectRatio,
         fontPairing: videoJob.fontPairing,
         type: videoJob.type,
-        avatar: avatarResult?.value,
       });
     },
     render: async (ctx) => RemotionService.renderVideo(jobId, ctx.results.get('compose').value),
@@ -178,7 +145,6 @@ function shadowHandlers({ videoJob }) {
       return { predicted: true, cacheKey };
     },
     sceneImage: async () => ({ predicted: true }),
-    avatar: async () => ({ predicted: true }),
     compose: async () => ({ predicted: true }),
     render: async () => ({ predicted: true }),
     upload: async () => ({ predicted: true }),

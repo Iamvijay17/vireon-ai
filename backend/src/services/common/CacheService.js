@@ -6,7 +6,7 @@ const { getStorageProvider } = require('../storage/providers');
 
 /**
  * Content-addressed Smart Cache for expensive, deterministic generation
- * calls (avatar animation, TTS synthesis) so identical inputs across
+ * calls (TTS synthesis) so identical inputs across
  * different jobs skip the GPU/TTS round trip and reuse a prior result.
  * Built entirely on the existing MinIO storage provider - a dedicated
  * bucket (config.minio.cacheBucket), not the per-job scenesBucket/
@@ -131,8 +131,7 @@ class CacheService {
   }
 
   // ---- Voice-clone reference transcripts: keyed by the (bundled, fixed)
-  // reference audio filename - same "small fixed set of files" shape as
-  // avatar clips above, not user-uploaded content. ----
+  // reference audio filename, not user-uploaded content. ----
 
   /**
    * ttsClient.getReferenceText already memoizes this in an in-process Map,

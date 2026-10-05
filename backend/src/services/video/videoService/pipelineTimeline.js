@@ -116,7 +116,7 @@ function logsInWindows(logs, windows) {
 
 // Per-stage substrings that this codebase's own ActivityLog lines use when a
 // step skips real work because a previous result is still valid - see
-// scriptStep/audioStep/avatarStep/renderStep's own comments for each skip
+// scriptStep/audioStep/imageStep/renderStep's own comments for each skip
 // path. Only a logged, textual signal counts as "cached" here (no guessing
 // from timing) - a skip that isn't logged today just won't be flagged yet.
 const CACHE_HIT_PATTERNS = /already generated|skipping|using existing|served from smart cache/i;

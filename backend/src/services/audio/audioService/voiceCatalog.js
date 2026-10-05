@@ -184,48 +184,6 @@ async function resolveVoice(voice) {
   return { mode: "custom", speaker: LEGACY_VOICE_MAP[voice] || DEFAULT_SPEAKER };
 }
 
-/**
- * Best-effort, synchronous "male"/"female" for a voice selection string -
- * used by AvatarService.resolveDefaultSourceImage to pick a matching
- * default avatar portrait. Reuses the same VOICE_METADATA gender field
- * that already drives the Voice Library's gender filter, so a voice's
- * avatar and its library listing never disagree. Synchronous (unlike
- * resolveVoice) since it never needs to touch disk - a clone file's
- * gender comes from its filename, not its contents.
- */
-function resolveGenderSync(voice) {
-  if (typeof voice !== "string") return "female";
-
-  if (voice.startsWith("clone:")) {
-    const file = path.basename(voice.slice("clone:".length));
-    return VOICE_METADATA[`clone:${file}`]?.gender || genderFromFilename(file) || "female";
-  }
-
-  if (voice.startsWith("custom:")) {
-    const requested = voice.slice("custom:".length);
-    const match = QWEN_SPEAKERS.find((s) => s.toLowerCase() === requested.toLowerCase());
-    const speaker = match || DEFAULT_SPEAKER;
-    return VOICE_METADATA[`custom:${speaker}`]?.gender || "female";
-  }
-
-  if (voice.startsWith("design:")) {
-    // No structured gender field for a from-scratch design - best-effort
-    // keyword sniff of the description text the user wrote.
-    const description = voice.slice("design:".length).toLowerCase();
-    if (/\bfemale\b|\bwoman\b/.test(description)) return "female";
-    if (/\bmale\b|\bman\b/.test(description)) return "male";
-    return "female";
-  }
-
-  // Legacy bare key (male-1, female-1, neutral-1, ...) - most already
-  // spell out the gender in the key itself.
-  if (/female/i.test(voice)) return "female";
-  if (/male/i.test(voice)) return "male";
-
-  const speaker = LEGACY_VOICE_MAP[voice] || DEFAULT_SPEAKER;
-  return VOICE_METADATA[`custom:${speaker}`]?.gender || "female";
-}
-
 module.exports = {
   QWEN_SPEAKERS,
   DEFAULT_SPEAKER,
@@ -234,5 +192,4 @@ module.exports = {
   listCustomVoices,
   listCloneVoices,
   resolveVoice,
-  resolveGenderSync,
 };

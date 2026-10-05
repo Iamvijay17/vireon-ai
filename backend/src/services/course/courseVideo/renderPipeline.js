@@ -5,8 +5,6 @@ const CourseService = require('../CourseService');
 const LoggerService = require('../../common/LoggerService');
 const SocketService = require('../../common/SocketService');
 const ActivityLogService = require('../../common/ActivityLogService');
-const AvatarService = require('../../avatar/avatarService');
-const { buildNarrationTrack } = require('../../avatar/narrationTrack');
 const RemotionService = require('../../video/RemotionService');
 const RemotionStatus = require('../../localAI/remotionStatus');
 const LocalAIService = require('../../localAI');
@@ -141,43 +139,12 @@ async function renderVideo(videoId) {
       scenes: scenesWithAudio,
     };
 
-    // Optional talking-head overlay (see AvatarService, VideoJob's
-    // equivalent GENERATING_AVATAR step in videoWorker.js). No
-    // user-uploaded photo - the source portrait is a bundled default
-    // picked by the video's voice's gender. Course videos have no
-    // separate BullMQ pipeline stage the way the standalone wizard does,
-    // so this runs as part of the render step, right before assets prep -
-    // reused on any subsequent re-render since avatarVideoUrl persists
-    // once generated.
-    if (video.avatarEnabled && !video.avatarVideoUrl) {
-      await bailIfCancelled(videoId);
-      SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, 62, 'Generating avatar overlay...');
-      await ActivityLogService.add(videoId, 'Avatar generation started');
-
-      const sourceImagePath = AvatarService.resolveDefaultSourceImage(video.voice);
-      const narrationAudioPath = await buildNarrationTrack(jobId, scenesWithAudio);
-      if (narrationAudioPath) {
-        try {
-          const avatarResult = await AvatarService.animatePortrait(jobId, sourceImagePath, narrationAudioPath);
-          video.avatarVideoUrl = avatarResult.url;
-          await video.save();
-
-          await ActivityLogService.add(videoId, 'Avatar overlay generated successfully.');
-        } finally {
-          await fs.unlink(narrationAudioPath).catch(() => {});
-        }
-      } else {
-        LoggerService.warn('No scene audio available yet - skipping avatar generation', { videoId });
-      }
-    }
-
     // Job config
     const jobConfig = {
       resolution: video.resolution || '1920x1080',
       quality: video.quality || 'standard',
       aspectRatio: '16:9',
       type: video.style || 'educational',
-      avatar: video.avatarVideoUrl ? { videoUrl: video.avatarVideoUrl, position: video.avatarPosition } : undefined,
     };
 
     // Prepare assets for Remotion
@@ -236,8 +203,8 @@ async function renderVideo(videoId) {
     SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.UPLOADING, 90, 'Uploading to storage...');
 
     // Upload the render output - the only "big" upload left, since
-    // audio/avatar were already uploaded inline as they were produced
-    // (see AudioService._synthesizeSceneAudio, AvatarService.animatePortrait);
+    // audio was already uploaded inline as it was produced
+    // (see AudioService._synthesizeSceneAudio);
     // script is only ever local scratch data, never uploaded to storage.
     const renderDir = StorageService.getRenderDir(jobId);
     const renderFileNames = await fs.readdir(renderDir).catch(() => []);

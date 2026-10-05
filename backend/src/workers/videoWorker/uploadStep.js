@@ -10,8 +10,8 @@ const { JOB_STATUS } = require('../../constants');
 
 /**
  * Step 8-9: upload the render output - the only "big" upload left, since
- * audio/avatar were already uploaded inline as they were produced (see
- * AudioService/AvatarService); script/assets are only ever local scratch
+ * audio was already uploaded inline as it was produced (see
+ * AudioService); script/assets are only ever local scratch
  * data, never uploaded to storage. Then completes the job and cleans up
  * its local scratch directory.
  */

@@ -84,12 +84,6 @@ const projectSchema = new mongoose.Schema(
 
     fastGeneration: { type: Boolean, default: true },
     fastAudio: { type: Boolean, default: false },
-    avatarEnabled: { type: Boolean, default: false },
-    avatarPosition: {
-      type: String,
-      enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right', null],
-      default: null,
-    },
 
     // The creative recipe, including per-scene generated artifacts
     // (scene.audio.file/duration/captionTimestamps, scene.imageUrl) inline

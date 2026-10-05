@@ -82,17 +82,6 @@ const courseVideoSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // Optional talking-head overlay - same shape/pipeline as VideoJob's
-    // avatar fields (see VideoJob.js, AvatarService). Explicit on/off, no
-    // user-uploaded photo - when true, CourseVideoService.renderVideo
-    // animates a bundled default portrait matching `voice`'s gender.
-    avatarEnabled: { type: Boolean, default: false },
-    avatarPosition: {
-      type: String,
-      enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right', null],
-      default: null,
-    },
-    avatarVideoUrl: { type: String, default: '' },
     status: {
       type: String,
       enum: Object.values(VIDEO_STATUS),

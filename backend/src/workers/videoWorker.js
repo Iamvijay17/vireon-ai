@@ -1,4 +1,4 @@
-// Split into videoWorker/{shared,scriptStep,audioStep,avatarStep,renderStep,
+// Split into videoWorker/{shared,scriptStep,audioStep,imageStep,renderStep,
 // uploadStep,processor,index}.js for maintainability - see
 // videoWorker/index.js for the Worker setup and videoWorker/processor.js
 // for the 9-step pipeline.

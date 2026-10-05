@@ -16,7 +16,6 @@ const { applyCacheRetention } = require('../cacheRetention');
 // bucket - see the bucket layout in the storage plan.
 const CATEGORY_MAP = {
   audio: { bucket: () => config.minio.scenesBucket, subfolder: 'audio' },
-  avatar: { bucket: () => config.minio.scenesBucket, subfolder: 'avatar' },
   // Generated scene images (services/image/) - per-video, so they go away with the video.
   image: { bucket: () => config.minio.scenesBucket, subfolder: 'images' },
   render: { bucket: () => config.minio.videoBucket, subfolder: null },
@@ -47,7 +46,7 @@ function publicReadPolicy(bucket) {
  * MinIO (S3-compatible) Storage Provider.
  *
  * Spreads video assets across two buckets instead of one flat namespace:
- * scenes (audio/avatar, keyed by videoId), video (render output, keyed by
+ * scenes (audio, keyed by videoId), video (render output, keyed by
  * videoId). In this codebase jobId and videoId are the same underlying
  * Mongo _id.
  */
@@ -161,7 +160,7 @@ class MinioStorageProvider extends StorageProvider {
    *
    * @param {string} id
    * @param {string} filePath - Absolute path to local file.
-   * @param {string} category - 'audio', 'avatar', or 'render'.
+   * @param {string} category - 'audio' or 'render'.
    * @param {{ cacheKey?: string }} [opts] - `cacheKey` is the producing
    *   step's input hash, recorded on the Asset when the caller knows one
    *   (see CacheService.hashTtsInputs).

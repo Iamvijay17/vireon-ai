@@ -13,14 +13,13 @@ const cancellationBus = require('../../services/common/cancellationBus');
 const { getResumeStep } = require('../../services/video/videoService/resumeLogic');
 const scriptStep = require('./scriptStep');
 const audioStep = require('./audioStep');
-const avatarStep = require('./avatarStep');
 const imageStep = require('./imageStep');
 const renderStep = require('./renderStep');
 const uploadStep = require('./uploadStep');
 
 // A job actively pre-audio (not yet past GENERATING_AUDIO) that started as
 // manual mode should pause right after audio completes rather than
-// auto-continuing into avatar/render - see the fastGeneration check below.
+// auto-continuing into images/render - see the fastGeneration check below.
 const PRE_AUDIO_STATUSES = [
   JOB_STATUS.QUEUED,
   JOB_STATUS.SCRIPT_GENERATION,
@@ -122,11 +121,6 @@ async function processVideoJob(job) {
 
     await bailIfCancelled(jobId);
 
-    // ── Step 5.5: Avatar Generation (optional)
-    const avatarVideoUrl = await avatarStep.run(jobId, videoJob, ctx);
-
-    await bailIfCancelled(jobId);
-
     // ── Step 5.7: Scene images (or their text-only fallbacks)
     await imageStep.run(jobId, ctx);
 
@@ -137,7 +131,7 @@ async function processVideoJob(job) {
     const renderScript = (await VideoService.getById(jobId)).script;
 
     // ── Step 6: Prepare Assets
-    const assets = await renderStep.prepareAssets(jobId, videoJob, renderScript, avatarVideoUrl, ctx);
+    const assets = await renderStep.prepareAssets(jobId, videoJob, renderScript, ctx);
 
     await bailIfCancelled(jobId);
 

@@ -39,7 +39,6 @@ async function loadFromJob(jobId) {
     aspectRatio: job.aspectRatio,
     fontPairing: job.fontPairing,
     captionAnimation: job.captionAnimation,
-    avatar: job.avatarVideoUrl ? { videoUrl: job.avatarVideoUrl, position: job.avatarPosition } : undefined,
   });
   return { jobId, assets, close: () => mongoose.disconnect() };
 }

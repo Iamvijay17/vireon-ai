@@ -24,7 +24,6 @@ module.exports = {
   listCustomVoices: voiceCatalog.listCustomVoices,
   listCloneVoices: voiceCatalog.listCloneVoices,
   resolveVoice: voiceCatalog.resolveVoice,
-  resolveGenderSync: voiceCatalog.resolveGenderSync,
   turnGapSeconds: seeding.turnGapSeconds,
   alignCaptions,
   generateSceneAudio: sceneSynthesis.generateSceneAudio,
