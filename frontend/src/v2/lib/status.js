@@ -23,7 +23,6 @@ export const STATE = {
 export const STAGES = [
   { id: "script", label: "Script" },
   { id: "voice", label: "Voice" },
-  { id: "avatar", label: "Avatar" },
   { id: "render", label: "Render" },
   { id: "publish", label: "Publish" },
 ];
@@ -46,7 +45,6 @@ const STATE_BY_STATUS = {
   scriptgeneration: STATE.RUN,
   generatingscript: STATE.RUN,
   generatingaudio: STATE.RUN,
-  generatingavatar: STATE.RUN,
   preparingassets: STATE.RUN,
   rendering: STATE.RUN,
   uploading: STATE.RUN,
@@ -88,7 +86,6 @@ export function stageOf(status) {
   const s = normalise(status);
   if (s.includes("script")) return "script";
   if (s.includes("audio") || s.includes("voice")) return "voice";
-  if (s.includes("avatar")) return "avatar";
   if (s.includes("render") || s.includes("assets")) return "render";
   if (s.includes("upload") || s.includes("publish")) return "publish";
   return null;

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, RefreshCw, Square, Redo2, Download, AlertTriangle, Play,
-  Mic2, Clock, Monitor, Palette, UserSquare2, Sparkles, ChevronRight,
+  Mic2, Clock, Monitor, Palette, Sparkles, ChevronRight,
 } from "lucide-react";
 import {
   Panel, PanelHead, Button, StatusPill, Progress, Skeleton, Empty, Mono, Divider,
@@ -403,7 +403,6 @@ function SpecPanel({ job }) {
     { icon: Clock, label: "Duration", value: job.duration ? `${job.duration}s` : "—" },
     { icon: Mic2, label: "Voice", value: prettyVoice(job.voice) },
     { icon: Palette, label: "Quality", value: job.quality || "standard" },
-    { icon: UserSquare2, label: "Avatar", value: job.avatarEnabled ? job.avatarPosition || "on" : "off" },
   ];
 
   return (

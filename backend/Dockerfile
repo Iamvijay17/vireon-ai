@@ -1,5 +1,5 @@
 # API image only. Workers stay native on Windows (they spawn Ollama/TTS/
-# MuseTalk/ComfyUI and Remotion from local paths and need the GPU).
+# ComfyUI and Remotion from local paths and need the GPU).
 FROM node:22-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./

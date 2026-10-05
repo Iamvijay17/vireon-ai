@@ -265,14 +265,14 @@ describe('GPUResourceManager with a lease (two processes, one GPU)', () => {
   });
 
   it('lets a process move between its own services without re-acquiring', async () => {
-    a.register('avatar', fakeManager(logA, 'A.avatar'), { autoStop: false });
+    a.register('imagegen', fakeManager(logA, 'A.imagegen'), { autoStop: false });
 
     await a.withGPU('llm', async () => {});
-    await a.withGPU('avatar', async () => {});
+    await a.withGPU('imagegen', async () => {});
 
     // One lease acquisition covers both: the in-process state machine
-    // handles the llm -> avatar handoff, including the unload.
-    expect(logA).toEqual(['load:A.llm', 'unload:A.llm', 'load:A.avatar']);
+    // handles the llm -> imagegen handoff, including the unload.
+    expect(logA).toEqual(['load:A.llm', 'unload:A.llm', 'load:A.imagegen']);
     expect(shared.keys.has('gpu-slot')).toBe(true);
   });
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Wand2, Play, Pause, Check, Zap, UserSquare2, AlertTriangle, Sparkles,
+  Wand2, Play, Pause, Check, Zap, AlertTriangle, Sparkles,
 } from "lucide-react";
 import { Panel, PanelHead, Button, Divider, Skeleton } from "../ui/primitives";
 import { Select, Segmented, Checkbox } from "../ui/controls";
@@ -67,7 +67,6 @@ export default function CreateVideo() {
     guestVoice: "",
     fastGeneration: true,
     fastAudio: false,
-    avatarEnabled: false,
   });
 
   const { data: voices, loading: voicesLoading } = useApiQuery(
@@ -130,7 +129,6 @@ export default function CreateVideo() {
         quality: form.quality,
         fastGeneration: form.fastGeneration,
         fastAudio: form.fastAudio,
-        avatarEnabled: form.avatarEnabled,
         ...(isPodcast
           ? { hostVoice: form.hostVoice, guestVoice: form.guestVoice }
           : { voice: form.voice }),
@@ -277,13 +275,6 @@ export default function CreateVideo() {
               hint="Uses the smaller TTS model. Quicker, slightly lower quality."
               checked={form.fastAudio}
               onChange={(v) => set({ fastAudio: v })}
-            />
-            <Toggle
-              icon={UserSquare2}
-              title="Avatar overlay"
-              hint="Adds a lip-synced presenter matching the chosen voice."
-              checked={form.avatarEnabled}
-              onChange={(v) => set({ avatarEnabled: v })}
             />
           </div>
         </Panel>

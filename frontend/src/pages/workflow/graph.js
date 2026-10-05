@@ -11,7 +11,6 @@ export const STATE = {
 export const STAGE_COLOR = {
   script: "var(--color-accent-500)",
   voice: "#12b5a5",
-  avatar: "#c072f0",
   render: "#f0913d",
   publish: "var(--color-success-500)",
 };
@@ -32,7 +31,7 @@ export const STATE_COLOR = {
  * MinIO) so the canvas doubles as living documentation.
  *
  * Layout is a two-row snake: row 1 runs left to right, row 2 runs right to
- * left, so twelve nodes fit one screen without shrinking to illegibility.
+ * left, so eleven nodes fit one screen without shrinking to illegibility.
  */
 
 export const NODE_W = 232;
@@ -91,42 +90,35 @@ export const NODES = [
   },
 
   {
-    id: "avatar", stage: "avatar", icon: "user", order: 5.5, x: rtl(0), y: ROW_Y[1], dir: "rtl", optional: true,
-    title: "Avatar", tech: "Optional", statuses: ["GENERATING_AVATAR"],
-    summary: "Only runs when the job has an avatar enabled; otherwise this step is skipped.",
-    file: "workers/videoWorker/avatarStep.js",
-    outputs: "avatarVideoUrl",
-  },
-  {
-    id: "images", stage: "render", icon: "image", order: 6, x: rtl(1), y: ROW_Y[1], dir: "rtl",
+    id: "images", stage: "render", icon: "image", order: 6, x: rtl(0), y: ROW_Y[1], dir: "rtl",
     title: "Scene images", tech: "ComfyUI · Qwen-Image", statuses: ["GENERATING_IMAGES", "IMAGE_COMPLETED"],
     summary: "One image per scene (about 2 min each on the 2060). Falls back to a text-only scene when image generation is off, ComfyUI is down, or a prompt fails, so a render never fails over a picture.",
     file: "workers/videoWorker/imageStep.js",
     outputs: "scene image URLs or text fallbacks",
   },
   {
-    id: "assets", stage: "render", icon: "box", order: 8, x: rtl(2), y: ROW_Y[1], dir: "rtl",
+    id: "assets", stage: "render", icon: "box", order: 8, x: rtl(1), y: ROW_Y[1], dir: "rtl",
     title: "Prepare assets", tech: "Remotion assets.json", statuses: ["PREPARING_ASSETS"],
     summary: "Always regenerated from the current script, then validated so a missing file fails here instead of halfway through a render.",
     file: "workers/videoWorker/renderStep.js",
     outputs: "assets.json",
   },
   {
-    id: "render", stage: "render", icon: "film", order: 9, x: rtl(3), y: ROW_Y[1], dir: "rtl",
+    id: "render", stage: "render", icon: "film", order: 9, x: rtl(2), y: ROW_Y[1], dir: "rtl",
     title: "Render video", tech: "Remotion · 50 templates", statuses: ["RENDERING", "VALIDATION", "LAYOUT CHECK"],
     summary: "Validates the assets and optionally checks the layout, then renders the chosen template over the scene audio, images and captions. A crash-recovered job skips the render if the existing output is still current.",
     file: "workers/videoWorker/renderStep.js",
     outputs: "Rendered MP4",
   },
   {
-    id: "upload", stage: "publish", icon: "upload", order: 10, x: rtl(4), y: ROW_Y[1], dir: "rtl",
+    id: "upload", stage: "publish", icon: "upload", order: 10, x: rtl(3), y: ROW_Y[1], dir: "rtl",
     title: "Upload", tech: "MinIO", statuses: ["UPLOADING"],
     summary: "Pushes the finished video and its artifacts to MinIO, then cleans up local working files.",
     file: "workers/videoWorker/uploadStep.js",
     outputs: "videoUrl",
   },
   {
-    id: "done", stage: "publish", icon: "check", order: 11, x: rtl(5), y: ROW_Y[1], dir: "rtl", terminal: true,
+    id: "done", stage: "publish", icon: "check", order: 11, x: rtl(4), y: ROW_Y[1], dir: "rtl", terminal: true,
     title: "Ready", tech: "Socket event", statuses: ["COMPLETED"],
     summary: "The job completes and a socket event tells every open page. The video is playable from Jobs.",
     outputs: "COMPLETED",
@@ -144,7 +136,7 @@ export const EDGES = NODES.slice(0, -1).map((node, i) => {
     to: next.id,
     fromSide: wrap ? "bottom" : node.dir === "ltr" ? "right" : "left",
     toSide: wrap ? "top" : node.dir === "ltr" ? "left" : "right",
-    // Avatar is optional, so the edge into it is drawn as skippable.
+    // Optional steps are drawn as skippable edges.
     optional: next.optional || node.optional,
   };
 });
@@ -193,7 +185,6 @@ const ORDER_BY_STATUS = {
   AWAITING_APPROVAL: 3,
   GENERATING_AUDIO: 4,
   AUDIO_COMPLETED: 5,
-  GENERATING_AVATAR: 5.5,
   GENERATING_IMAGES: 6,
   IMAGE_COMPLETED: 6,
   PREPARING_ASSETS: 8,
@@ -238,13 +229,13 @@ export function nodeStates(job) {
       // rather than draw a confident but wrong pipeline.
       states[node.id] = STATE.IDLE;
     } else if (status === "COMPLETED") {
-      states[node.id] = node.optional && !job.avatarEnabled ? SKIPPED : STATE.DONE;
+      states[node.id] = STATE.DONE;
     } else if (here) {
       states[node.id] = failed ? STATE.FAIL : retrying || node.gate ? STATE.WAIT : STATE.RUN;
     } else if (node.order < current) {
-      states[node.id] = node.optional && !job.avatarEnabled ? SKIPPED : STATE.DONE;
+      states[node.id] = STATE.DONE;
     } else {
-      states[node.id] = node.optional && !job.avatarEnabled ? SKIPPED : STATE.IDLE;
+      states[node.id] = STATE.IDLE;
     }
   }
 

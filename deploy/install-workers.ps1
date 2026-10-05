@@ -9,7 +9,7 @@
    VireonDeployPoll                         every 1 min: pull-based deploy
  Safe to re-run: existing tasks are replaced. Run from the production checkout:
    powershell -ExecutionPolicy Bypass -File deploy\install-workers.ps1
- Workers stay native (not Docker): they launch Ollama / Qwen3-TTS / MuseTalk /
+ Workers stay native (not Docker): they launch Ollama / Qwen3-TTS /
  ComfyUI / Remotion from local paths and need the GPU.
 
  Every task is launched through deploy\run-hidden.vbs so no terminal window ever

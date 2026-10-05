@@ -13,14 +13,14 @@
 
  Windows PC (RTX 2060)
    Docker:  redis, backend (API), frontend (nginx), tailscale
-   Native:  MinIO, Ollama(Gemma), Qwen3-TTS, MuseTalk, ComfyUI,
+   Native:  MinIO, Ollama(Gemma), Qwen3-TTS, ComfyUI,
             videoWorker, courseVideoWorker (+ Remotion)   ← need the GPU / local paths
    Cloud:   MongoDB Atlas (free tier, already used)
 ```
 
 **Never exposed:** MongoDB, Redis (127.0.0.1 only), MinIO console/admin/credentials
 (nginx only forwards `GET/HEAD /media/vireon-{scenes,video,cache}/<object>`),
-Ollama, TTS, MuseTalk, ComfyUI, workers.
+Ollama, TTS, ComfyUI, workers.
 
 > **Important:** the app has **no login** (`backend/src/middleware/auth.js` is a stub).
 > Default access is **Tailscale Serve = private** (only devices you sign into your
@@ -30,7 +30,7 @@ Ollama, TTS, MuseTalk, ComfyUI, workers.
 
 ## 1. Prerequisites
 - Windows 11, Node.js 22+, Git, PowerShell 7 or Windows PowerShell 5.1.
-- Already working natively: MinIO (`D:\Programs\minio`), Ollama, Qwen3-TTS, MuseTalk.
+- Already working natively: MinIO (`D:\Programs\minio`), Ollama, Qwen3-TTS.
 - A GitHub repo for this project (Actions + GHCR are free; private repos get 2,000 CI min/month).
 - PC set to **never sleep** (Settings → System → Power) and Docker/Tailscale start at login.
 
@@ -77,7 +77,7 @@ Root `.env` keys: `GHCR_OWNER`, `IMAGE_TAG`, `PUBLIC_URL` (your https URL), `MON
 `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `TS_AUTHKEY`.
 Use the same MongoDB/MinIO values as your current `backend/.env`.
 In `backend/.env` for workers: `NODE_ENV=production`, `REDIS_HOST=localhost`,
-`MINIO_ENDPOINT=127.0.0.1`, plus your existing TTS/Avatar/ComfyUI start commands.
+`MINIO_ENDPOINT=127.0.0.1`, plus your existing TTS/ComfyUI start commands.
 
 ## 5. First deployment (production checkout)
 Use a **separate clone** so deploys never touch your dev folder:
@@ -235,7 +235,8 @@ Audio Studio runs inside the API container, which cannot launch GPU apps, so Qwe
 - **Terminal windows pop up / flash on Windows:** Task Scheduler starting `powershell.exe` or `node.exe` opens a console, which on
   Windows 11 (Windows Terminal as default terminal) is a visible window - a flash every 1-2 minutes for the watchdog and deploy poller,
   and a permanent window for each worker. `-WindowStyle Hidden` does not help (it hides the window only after it appeared). All Vireon
-  tasks therefore launch through `deployun-hidden.vbs` (`wscript.exe //B`, window style 0). Re-run `deploy\install-workers.ps1`
+  tasks therefore launch through `deploy
+un-hidden.vbs` (`wscript.exe //B`, window style 0). Re-run `deploy\install-workers.ps1`
   to re-register them; a plain `powershell.exe`/`node.exe` action in Task Scheduler brings the windows back.
 - **UI warns "course worker not running" / new jobs never start:** the workers and the API are on different Redis servers.
   Cause seen on 2026-10-02: after a reboot the worker started before Docker, saw no Redis and spawned its own native

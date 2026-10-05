@@ -44,7 +44,6 @@ import { toast } from "../../components/ui/toastBus";
 const STAGE_COLUMNS = [
   { key: "planning", label: "Planning" },
   { key: "tts", label: "TTS" },
-  { key: "avatar", label: "Avatar" },
   { key: "sceneBuild", label: "Scene Build" },
   { key: "rendering", label: "Rendering" },
   { key: "upload", label: "Upload" },
@@ -356,7 +355,7 @@ const Analytics = () => {
             <GaugeRing
               value={summary.cacheHitRate}
               color="var(--color-success-500)"
-              label="avatar clips & TTS audio reuse"
+              label="TTS audio reuse"
               size={112}
               className="mt-2"
             />

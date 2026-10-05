@@ -72,7 +72,7 @@ const MINIO_PORT = (() => {
 })();
 
 // The backend builds every asset URL it stores/returns (videoUrl,
-// thumbnailUrl, avatarVideoUrl, audioUrl, renderUrl, scene.audio.file) from
+// thumbnailUrl, audioUrl, renderUrl, scene.audio.file) from
 // MINIO_PUBLIC_URL in backend/.env - by default http://127.0.0.1:9000. That
 // origin only works on the backend machine itself: a browser on any other LAN
 // device resolves 127.0.0.1 to its own loopback, so every <video>/<audio>/<img>

@@ -132,7 +132,7 @@ class ManagedProcess extends EventEmitter {
    *
    * Originally tried a graceful `child.kill('SIGTERM')` first, only falling
    * back to `taskkill /T` after a timeout. That's wrong on Windows for
-   * these specific services: Qwen3-TTS/LivePortrait's venv
+   * these specific services: Qwen3-TTS's venv
    * python.exe re-execs itself as a CHILD process under a different
    * interpreter (e.g. Qwen3-TTS's venv python.exe launches
    * `...\miniforge\python.exe app.py` as a child, which is the one that

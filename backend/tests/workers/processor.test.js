@@ -22,7 +22,6 @@ jest.mock('../../src/services/video/VideoService', () => ({
 }));
 jest.mock('../../src/workers/videoWorker/scriptStep', () => ({ run: jest.fn() }));
 jest.mock('../../src/workers/videoWorker/audioStep', () => ({ run: jest.fn() }));
-jest.mock('../../src/workers/videoWorker/avatarStep', () => ({ run: jest.fn() }));
 jest.mock('../../src/workers/videoWorker/imageStep', () => ({ run: jest.fn() }));
 jest.mock('../../src/workers/videoWorker/renderStep', () => ({ prepareAssets: jest.fn(), render: jest.fn() }));
 jest.mock('../../src/workers/videoWorker/uploadStep', () => ({ run: jest.fn() }));
@@ -33,7 +32,6 @@ const ActivityLogService = require('../../src/services/common/ActivityLogService
 const videoQueue = require('../../src/queues/videoQueue');
 const scriptStep = require('../../src/workers/videoWorker/scriptStep');
 const audioStep = require('../../src/workers/videoWorker/audioStep');
-const avatarStep = require('../../src/workers/videoWorker/avatarStep');
 const imageStep = require('../../src/workers/videoWorker/imageStep');
 const renderStep = require('../../src/workers/videoWorker/renderStep');
 const uploadStep = require('../../src/workers/videoWorker/uploadStep');
@@ -69,7 +67,6 @@ beforeEach(() => {
 
   scriptStep.run.mockImplementation(track('script'));
   audioStep.run.mockImplementation(track('audio'));
-  avatarStep.run.mockImplementation(track('avatar', () => 'http://x/avatar.mp4'));
   imageStep.run.mockImplementation(track('images'));
   renderStep.prepareAssets.mockImplementation(track('assets', () => ({ scenes: [] })));
   renderStep.render.mockImplementation(track('render'));
@@ -79,7 +76,7 @@ beforeEach(() => {
 describe('the happy path', () => {
   it('runs every step in order', async () => {
     const result = await processVideoJob({ data: { jobId: 'job-1' } });
-    expect(calls).toEqual(['script', 'audio', 'avatar', 'images', 'assets', 'render', 'upload']);
+    expect(calls).toEqual(['script', 'audio', 'images', 'assets', 'render', 'upload']);
     expect(result).toEqual({ success: true, jobId: 'job-1' });
   });
 
@@ -103,11 +100,6 @@ describe('the happy path', () => {
     expect(VideoService.updateStatus).toHaveBeenCalledWith('job-1', JOB_STATUS.AUDIO_COMPLETED, { progress: 50 });
     expect(SocketService.emitJobProgress).toHaveBeenCalledWith(expect.objectContaining({ status: JOB_STATUS.AUDIO_COMPLETED, progress: 50 }));
   });
-
-  it('hands the avatar URL to asset preparation', async () => {
-    await processVideoJob({ data: { jobId: 'job-1' } });
-    expect(renderStep.prepareAssets.mock.calls[0][3]).toBe('http://x/avatar.mp4');
-  });
 });
 
 describe('pauses', () => {
@@ -128,7 +120,7 @@ describe('pauses', () => {
   it('continues into images and render once manual mode is triggered (status already past audio)', async () => {
     VideoService.getById.mockResolvedValue(job({ fastGeneration: false, status: JOB_STATUS.AUDIO_COMPLETED }));
     await processVideoJob({ data: { jobId: 'job-1' } });
-    expect(calls).toEqual(['script', 'audio', 'avatar', 'images', 'assets', 'render', 'upload']);
+    expect(calls).toEqual(['script', 'audio', 'images', 'assets', 'render', 'upload']);
   });
 });
 

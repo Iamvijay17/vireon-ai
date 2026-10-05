@@ -28,7 +28,6 @@ const OWNER_TYPE_OPTIONS = [
 const CATEGORY_OPTIONS = [
   { value: "", label: "All categories" },
   { value: "audio", label: "Audio" },
-  { value: "avatar", label: "Avatar" },
   { value: "render", label: "Render" },
   { value: "audio-studio", label: "Audio Studio" },
   { value: "image", label: "Image" },
