@@ -194,7 +194,7 @@ try {
   }
   $state.seenFailedJobs = @($state.seenFailedJobs | Select-Object -Last 200)
 
-  $busy = 'SCRIPT_GENERATION', 'GENERATING_AUDIO', 'GENERATING_AVATAR', 'GENERATING_IMAGES', 'PREPARING_ASSETS', 'RENDERING', 'UPLOADING'
+  $busy = 'SCRIPT_GENERATION', 'GENERATING_AUDIO', 'GENERATING_IMAGES', 'PREPARING_ASSETS', 'RENDERING', 'UPLOADING'
   foreach ($j in ($jobs | Where-Object { $busy -contains $_.status -and $_.updatedAt })) {
     $age = (New-TimeSpan -Start ([datetime]$j.updatedAt).ToUniversalTime() -End (Get-Date).ToUniversalTime()).TotalMinutes
     if ($age -gt 45 -and $state.stuckAlerted -notcontains $j._id) {

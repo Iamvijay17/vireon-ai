@@ -65,15 +65,14 @@ const PIPELINE_STAGE_DEFS = Object.freeze([
     key: 'SCENE_GENERATION',
     label: 'Scene Generation',
     statuses: [
-      JOB_STATUS.GENERATING_AVATAR,
       JOB_STATUS.GENERATING_IMAGES,
       JOB_STATUS.IMAGE_COMPLETED,
       JOB_STATUS.PREPARING_ASSETS,
     ],
     cancellable: true,
-    cacheable: true, // avatar clips served from Smart Cache - avatarService.js
+    cacheable: true, // generated scene images are cached by prompt - sceneImages.js
     retryable: true,
-    timeoutConfigKey: 'avatar.timeout',
+    timeoutConfigKey: 'imageGen.timeoutMs',
   },
   {
     key: 'RENDERING',

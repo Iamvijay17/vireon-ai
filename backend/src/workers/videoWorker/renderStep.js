@@ -15,7 +15,7 @@ const { JobCancelledError, renderConfigFor } = require('./shared');
  * on resume) to pick up the latest imageUrl/templateId, unlike the
  * script/audio steps above.
  */
-async function prepareAssets(jobId, videoJob, script, avatarVideoUrl, ctx) {
+async function prepareAssets(jobId, videoJob, script, ctx) {
   // Delete old assets.json if it exists to force regeneration with updated data
   const oldAssetsPath = path.resolve(__dirname, '../../../jobs', jobId, 'assets.json');
   try { await fs.unlink(oldAssetsPath); } catch {}
@@ -24,7 +24,7 @@ async function prepareAssets(jobId, videoJob, script, avatarVideoUrl, ctx) {
   await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS);
   SocketService.emitJobProgress({ _id: jobId, progress: JOB_STEPS[JOB_STATUS.PREPARING_ASSETS].progress, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
 
-  const assets = await RemotionService.prepareAssets(jobId, script, renderConfigFor(videoJob, avatarVideoUrl));
+  const assets = await RemotionService.prepareAssets(jobId, script, renderConfigFor(videoJob));
 
   LoggerService.success('Assets prepared');
 

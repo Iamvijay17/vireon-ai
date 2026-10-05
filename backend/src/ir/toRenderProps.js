@@ -17,9 +17,6 @@ function toRenderProps(ir) {
     aspectRatio: ir.video.aspectRatio,
     quality: ir.video.quality,
     fontPairing: ir.video.fontPairing,
-    avatar: ir.avatar
-      ? { videoUrl: ir.avatar.videoUrl, position: ir.avatar.position }
-      : undefined,
     scenes: ir.scenes.map((scene) => ({
       sceneNumber: scene.sceneNumber,
       // Real ids only: the compiler synthesizes `scene-N` for scripts that never

@@ -66,11 +66,6 @@ const VideoSettings = z.object({
   captionAnimation: z.string(),
 });
 
-const AvatarOverlay = z.object({
-  videoUrl: z.string().min(1),
-  position: z.string().nullable(),
-});
-
 const SceneGraph = z.object({
   version: z.literal(IR_VERSION),
   jobId: z.string(),
@@ -79,7 +74,6 @@ const SceneGraph = z.object({
   tags: z.array(z.string()),
   thumbnailPrompt: z.string(),
   video: VideoSettings,
-  avatar: AvatarOverlay.nullable(),
   scenes: z.array(SceneIR).min(1),
 });
 
@@ -90,5 +84,4 @@ module.exports = {
   SceneAudio,
   SceneTiming,
   VideoSettings,
-  AvatarOverlay,
 };

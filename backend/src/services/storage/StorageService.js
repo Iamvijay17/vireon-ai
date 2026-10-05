@@ -39,12 +39,12 @@ class StorageService {
   /**
    * Wipe the entire job scratch directory after a successful run.
    *
-   * Every artifact (script, assets, scene audio, avatar, render output) is
+   * Every artifact (script, assets, scene audio, render output) is
    * uploaded to MinIO the moment it's produced - see
-   * AudioService._synthesizeSceneAudio, AvatarService.animatePortrait, and
+   * AudioService._synthesizeSceneAudio and
    * videoWorker.js's inline uploads - so nothing here needs to survive
    * locally once the job completes. VideoService.rerender() and the Studio
-   * Editor's re-render flow read scene audio/avatar straight from storage
+   * Editor's re-render flow read scene audio straight from storage
    * (RemotionService.prepareAssets builds URLs via the storage provider, not
    * local file paths), so an empty scratch dir doesn't block a re-render.
    */

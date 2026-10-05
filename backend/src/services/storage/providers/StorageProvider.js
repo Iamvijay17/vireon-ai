@@ -2,7 +2,7 @@
  * Abstract Storage Provider Interface.
  *
  * Defines the contract storage providers (currently just MinIO) implement,
- * so callers like RemotionService, AudioService, and AvatarService never
+ * so callers like RemotionService and AudioService never
  * need to know which backend is active.
  *
  * @abstract
@@ -27,7 +27,7 @@ class StorageProvider {
    * to `jobId` since today they're always the same underlying id - kept as a
    * separate param for providers that key different categories differently.
    * @param {string} jobId - The job identifier.
-   * @param {string} [videoId] - The video identifier (audio/avatar/render data).
+   * @param {string} [videoId] - The video identifier (audio/render data).
    * @returns {Promise<void>}
    * @abstract
    */
@@ -40,7 +40,7 @@ class StorageProvider {
    * storage, without uploading anything. Used by RemotionService to point
    * Remotion's renderer straight at storage instead of a local file.
    * @param {string} id - The video identifier.
-   * @param {string} category - 'audio', 'avatar', or 'render'.
+   * @param {string} category - 'audio' or 'render'.
    * @param {string} fileName
    * @returns {string}
    * @abstract
@@ -52,7 +52,7 @@ class StorageProvider {
   /**
    * Whether a given file already exists in storage.
    * @param {string} id - The video identifier.
-   * @param {string} category - 'audio', 'avatar', or 'render'.
+   * @param {string} category - 'audio' or 'render'.
    * @param {string} fileName
    * @returns {Promise<boolean>}
    * @abstract

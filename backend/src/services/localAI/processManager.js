@@ -73,7 +73,7 @@ class ManagedProcess extends EventEmitter {
       cwd,
       // Merged over the inherited environment (not replacing it) - callers
       // pass this for things like a conda env's DLL search path additions
-      // (see avatarManager.js) that a normal shell activation would set up
+      // that a normal shell activation would set up
       // but a direct spawn() doesn't.
       env: env ? { ...process.env, ...env } : undefined,
       detached: true,

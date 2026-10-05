@@ -179,18 +179,6 @@ class RemotionService {
       // 'default' keeps the legacy system-font look. Applied once for the
       // whole video via theme.js's applyFontPairing, not per-scene.
       fontPairing: jobConfig.fontPairing || 'default',
-      // Optional talking-head overlay (see AvatarService + videoWorker.js's
-      // GENERATING_AVATAR step) - undefined when the job has no avatar, so
-      // VideoComposition's AvatarOverlay renders nothing and reserves no
-      // space. `videoUrl` is already the real storage URL (uploaded the
-      // moment AvatarService generated it - see AvatarService.animatePortrait),
-      // so Remotion's headless renderer fetches it straight from storage.
-      avatar: jobConfig.avatar
-        ? {
-            videoUrl: jobConfig.avatar.videoUrl,
-            position: jobConfig.avatar.position,
-          }
-        : undefined,
       scenes: script.scenes.map((scene, index) => {
         // Determine sceneType based on position if not explicitly provided
         let sceneType = scene.sceneType;

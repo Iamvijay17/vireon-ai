@@ -147,9 +147,6 @@ function compile({ jobId, script, jobConfig = {}, stage = 'render', audioUrlFor 
       fontPairing: jobConfig.fontPairing || 'default',
       captionAnimation: jobConfig.captionAnimation || 'fadeInUp',
     },
-    avatar: jobConfig.avatar?.videoUrl
-      ? { videoUrl: jobConfig.avatar.videoUrl, position: jobConfig.avatar.position ?? null }
-      : null,
     scenes: irScenes,
   };
 

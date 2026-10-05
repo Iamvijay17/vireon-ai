@@ -2,7 +2,6 @@ const config = require('../../config');
 const llmManager = require('./ollamaManager');
 const ttsManager = require('./ttsManager');
 const comfyUIManager = require('./comfyUIManager');
-const avatarManager = require('./avatarManager');
 const remotionStatus = require('./remotionStatus');
 const { GPUResourceManager } = require('./gpuResourceManager');
 
@@ -39,14 +38,12 @@ const gpu = new GPUResourceManager({ lease: gpuLease });
 gpu.register('llm', llmManager, { autoStop: config.localAI.ollama.autoStop, process: llmManager.process });
 gpu.register('tts', ttsManager, { autoStop: config.localAI.tts.autoStop, process: ttsManager.process });
 gpu.register('comfyui', comfyUIManager, { autoStop: config.localAI.comfyUI.autoStop, process: comfyUIManager.process });
-gpu.register('avatar', avatarManager, { autoStop: config.localAI.avatar.autoStop, process: avatarManager.process });
 
 async function getAllStatuses() {
-  const [llm, tts, comfyui, avatar] = await Promise.all([
+  const [llm, tts, comfyui] = await Promise.all([
     llmManager.getStatus(),
     ttsManager.getStatus(),
     comfyUIManager.getStatus(),
-    avatarManager.getStatus(),
   ]);
 
   const gpuStatus = gpu.getStatus();
@@ -57,7 +54,6 @@ async function getAllStatuses() {
       llm: { ...llm, gpuState: gpuStatus.services.llm.status },
       tts: { ...tts, gpuState: gpuStatus.services.tts.status },
       comfyui: { ...comfyui, gpuState: gpuStatus.services.comfyui.status },
-      avatar: { ...avatar, gpuState: gpuStatus.services.avatar.status },
       remotion: remotionStatus.getStatus(),
     },
   };
@@ -67,7 +63,6 @@ module.exports = {
   llm: llmManager,
   tts: ttsManager,
   comfyUI: comfyUIManager,
-  avatar: avatarManager,
   gpu,
   getAllStatuses,
 };

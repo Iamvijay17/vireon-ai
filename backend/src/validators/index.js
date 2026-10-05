@@ -60,11 +60,6 @@ const createVideoSchema = z
     // 0.6B model for this job's narration instead of the default 1.7B -
     // trades some audio quality for speed.
     fastAudio: z.boolean().optional().default(false),
-    // Optional talking-head overlay - explicit on/off, no user-uploaded
-    // photo. When true, AvatarService animates a bundled default portrait
-    // matching `voice`'s gender (see AvatarService.resolveDefaultSourceImage).
-    avatarEnabled: z.boolean().optional().default(false),
-    avatarPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'podcast') {
@@ -106,8 +101,6 @@ const updateVideoJobSchema = z
     quality: z.enum(QUALITY_PRESETS).optional(),
     fontPairing: z.enum(FONT_PAIRINGS).optional(),
     captionAnimation: z.enum(CAPTION_STYLES).optional(),
-    avatarEnabled: z.boolean().optional(),
-    avatarPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No fields provided to update' });
 

@@ -59,12 +59,6 @@ const configSchema = z.object({
     leaseTtlMs: positiveInt('GPU_LEASE_TTL_MS'),
   }),
 
-  avatar: z.object({
-    url: z.string().url('MUSETALK_URL must be a valid URL'),
-    maxRetries: z.number().int().min(0).max(10),
-    timeout: positiveInt('AVATAR_TIMEOUT'),
-  }).passthrough(),
-
   remotion: z.object({
     binary: z.string().min(1),
     timeout: positiveInt('REMOTION_TIMEOUT'),

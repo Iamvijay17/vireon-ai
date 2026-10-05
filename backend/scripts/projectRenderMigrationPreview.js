@@ -40,8 +40,6 @@ function videoJobToProject(job) {
     captionAnimation: job.captionAnimation,
     fastGeneration: job.fastGeneration,
     fastAudio: job.fastAudio,
-    avatarEnabled: job.avatarEnabled,
-    avatarPosition: job.avatarPosition,
     script: job.script,
   });
 }
@@ -56,7 +54,6 @@ function videoJobToRender(job) {
     currentScene: job.currentScene,
     videoUrl: job.videoUrl,
     thumbnailUrl: job.thumbnailUrl,
-    avatarVideoUrl: job.avatarVideoUrl,
     audioUrls: job.audioUrls,
     error: job.error,
     retryCount: job.retryCount,
@@ -86,8 +83,6 @@ function courseVideoToProject(video) {
     quality: video.quality,
     additionalInstructions: video.additionalInstructions,
     fastAudio: video.fastAudio,
-    avatarEnabled: video.avatarEnabled,
-    avatarPosition: video.avatarPosition,
     script: video.script,
   });
 }
@@ -106,7 +101,6 @@ function courseVideoToRender(video) {
     progress: video.renderProgress,
     videoUrl: video.renderUrl,
     thumbnailUrl: '',
-    avatarVideoUrl: video.avatarVideoUrl,
     audioUrls: video.audioUrl ? [video.audioUrl] : [],
     error: video.error,
     retryCount: video.retryCount,

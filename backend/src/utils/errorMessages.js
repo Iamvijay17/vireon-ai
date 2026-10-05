@@ -4,7 +4,7 @@
  * the job and shown in the UI instead of raw subprocess/stack-trace text.
  *
  * Patterns below match the actual failure message shapes thrown by
- * LLMService, sceneSynthesis/standaloneSynthesis (TTS), avatarService,
+ * LLMService, sceneSynthesis/standaloneSynthesis (TTS),
  * and RemotionService - see each service's own retry loop for the
  * "X failed after N attempts: <cause>" wording this reads.
  */
@@ -17,9 +17,6 @@ function classifyError(err, step) {
   }
   if (/tts failed/i.test(detail)) {
     return { friendly: 'Voice generation failed - the text-to-speech service did not respond in time. This is usually temporary.', detail };
-  }
-  if (/avatar generation failed/i.test(detail)) {
-    return { friendly: 'Avatar generation failed - the animation service did not respond in time. This is usually temporary.', detail };
   }
   if (/comfyui/i.test(detail)) {
     return { friendly: 'Image generation failed - the image service (ComfyUI) did not produce a picture. Check that it is running and its checkpoint is set.', detail };

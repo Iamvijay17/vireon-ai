@@ -16,7 +16,6 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const STAGE_BUCKETS = [
   { key: 'planning', label: 'Planning', statuses: [JOB_STATUS.SCRIPT_GENERATION] },
   { key: 'tts', label: 'TTS', statuses: [JOB_STATUS.GENERATING_AUDIO] },
-  { key: 'avatar', label: 'Avatar', statuses: [JOB_STATUS.GENERATING_AVATAR] },
   { key: 'sceneBuild', label: 'Scene Build', statuses: [JOB_STATUS.GENERATING_IMAGES, JOB_STATUS.PREPARING_ASSETS] },
   { key: 'rendering', label: 'Rendering', statuses: [JOB_STATUS.RENDERING] },
   { key: 'upload', label: 'Upload', statuses: [JOB_STATUS.UPLOADING] },
@@ -262,7 +261,7 @@ class AnalyticsService {
   /**
    * Paginated per-video pipeline timing breakdown - reads each job's
    * statusHistory (see VideoJob.js) and buckets it into the friendly stages
-   * shown on the analytics page (Planning, TTS, Avatar, Scene Build,
+   * shown on the analytics page (Planning, TTS, Scene Build,
    * Rendering, Upload), plus a total end-to-end duration.
    */
   static async getVideoMetrics({ page = 1, limit = 20, status } = {}) {

@@ -18,7 +18,7 @@ const router = Router();
  *         schema: { type: string, enum: [video, course-video, audio-studio] }
  *       - name: category
  *         in: query
- *         schema: { type: string, enum: [audio, avatar, render, audio-studio] }
+ *         schema: { type: string, enum: [audio, render, audio-studio] }
  *       - name: search
  *         in: query
  *         schema: { type: string }

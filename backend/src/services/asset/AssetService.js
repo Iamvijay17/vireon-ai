@@ -51,7 +51,7 @@ function hashFile(filePath) {
  * Resolve which collection an id belongs to. `audio-studio` category is
  * unambiguous (always an AudioGeneration); `image` is shared between video
  * jobs/course videos and Image Studio, told apart by Image Studio's `img-`
- * id prefix; `audio`/`avatar`/`render` are shared between video jobs and
+ * id prefix; `audio`/`render` are shared between video jobs and
  * course videos, so those need a lookup - cheap, since both are indexed _id
  * lookups.
  */
