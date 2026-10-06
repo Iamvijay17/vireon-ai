@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { VIDEO_STATUS, STAGE_STATUS, LANGUAGES, VIDEO_DURATIONS, QUALITY_PRESETS } = require('../constants');
+const { VIDEO_STATUS, STAGE_STATUS, VIDEO_DURATIONS, QUALITY_PRESETS } = require('../constants');
 const { generateCourseVideoId } = require('../utils/id');
 const sceneSchema = require('./schemas/sceneSchema');
 

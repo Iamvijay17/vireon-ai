@@ -138,7 +138,7 @@ describe('VideoService.regenerateSceneImage', () => {
     script: {
       scenes: scenes.map((s) => {
         const doc = { ...s };
-        doc.toObject = () => { const { toObject, ...plain } = doc; return JSON.parse(JSON.stringify(plain)); };
+        doc.toObject = () => { const { toObject: _toObject, ...plain } = doc; return JSON.parse(JSON.stringify(plain)); };
         return doc;
       }),
     },
