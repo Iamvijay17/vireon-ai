@@ -77,7 +77,7 @@ Run only part of the stack:
 | `npm run dev:course` | frontend, API, course worker |
 | `npm run dev:api` / `dev:worker` / `dev:course-worker` / `dev:frontend` | one process |
 
-The backend scripts also launch MinIO through `backend/package.json` → `minio`, which points at `D:\Programs\minio\start-minio.ps1`. Edit that path if MinIO lives elsewhere, or use the `*:only` scripts (e.g. `npm run server:only:dev --prefix backend`) to skip it.
+The backend scripts also launch MinIO through `backend/package.json` → `minio` (`backend/scripts/start-minio.js`), which reads `MINIO_EXE` and `MINIO_DATA_DIR` from `backend/.env` (leave `MINIO_DATA_DIR` empty to skip it), or use the `*:only` scripts (e.g. `npm run server:only:dev --prefix backend`) to skip it.
 
 ### Remotion Studio
 
