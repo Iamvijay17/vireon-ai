@@ -29,8 +29,13 @@ export const VoiceSelect = ({
   const audioRef = useRef(null);
   const searchRef = useRef(null);
   const selectedRef = useRef(null);
-  const ref = useClickOutside(() => setOpen(false), open);
-  useEscapeKey(() => setOpen(false), open);
+  // Every close path goes through here so the search box resets with it.
+  const close = () => {
+    setOpen(false);
+    setSearch("");
+  };
+  const ref = useClickOutside(close, open);
+  useEscapeKey(close, open);
 
   const selected = options.find((o) => o.value === value);
 
@@ -49,16 +54,13 @@ export const VoiceSelect = ({
     );
   }, [sortedOptions, search]);
 
-  // Reset the search box each time the dropdown closes, and jump the
-  // currently selected voice into view (scanning 70+ clone voices to find
-  // the one a Quick Pair just picked isn't obvious otherwise) plus focus
-  // the search box each time it opens.
+  // Jump the currently selected voice into view (scanning 70+ clone voices
+  // to find the one a Quick Pair just picked isn't obvious otherwise) plus
+  // focus the search box each time it opens.
   useEffect(() => {
     if (open) {
       searchRef.current?.focus();
       selectedRef.current?.scrollIntoView({ block: "nearest" });
-    } else {
-      setSearch("");
     }
   }, [open]);
 
@@ -101,7 +103,7 @@ export const VoiceSelect = ({
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? close() : setOpen(true))}
         className={cn(
           "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3",
           "text-left text-sm text-text-primary transition-colors outline-none",
@@ -156,7 +158,7 @@ export const VoiceSelect = ({
                 type="button"
                 onClick={() => {
                   onChange?.(opt.value);
-                  setOpen(false);
+                  close();
                 }}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors cursor-pointer",
