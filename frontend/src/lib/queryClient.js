@@ -45,6 +45,9 @@ export const queryKeys = {
     overview: (days) => ['analytics', 'overview', days],
     videoMetrics: (page) => ['analytics', 'videoMetrics', page],
   },
+  voices: {
+    catalog: ['voices', 'catalog'],
+  },
   system: {
     health: ['system', 'health'],
     courseWorker: ['system', 'courseWorker'],

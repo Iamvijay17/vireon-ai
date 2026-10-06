@@ -11,11 +11,12 @@ import { Button } from "../../components/ui/Button";
 import { toast } from "../../components/ui/toastBus";
 import { ThemeContext } from "../../shared/themeContextValue";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../../shared/settingsStorage";
-import { getVoices, getHealth, getCourseWorkerStatus } from "../../services/api";
+import { getHealth, getCourseWorkerStatus } from "../../services/api";
 import { connect, onCourseWorkerStatus } from "../../services/socket";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../../lib/queryClient";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
+import { useVoiceOptions } from "../../shared/useVoiceOptions";
 
 const FALLBACK_VOICE_OPTIONS = [
   { value: "female-1", label: "Female Voice 1" },
@@ -97,7 +98,6 @@ const SettingsPage = () => {
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const [settings, setSettings] = useState(loadSettings);
-  const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
   const queryClient = useQueryClient();
@@ -117,25 +117,7 @@ const SettingsPage = () => {
   const workerRunning = workerQuery.data ?? null;
   const statusLoading = healthQuery.isFetching || workerQuery.isFetching;
 
-  useEffect(() => {
-    let cancelled = false;
-    getVoices()
-      .then((res) => {
-        if (!cancelled) setVoiceCatalog(res.data || { custom: [], clone: [] });
-      })
-      .catch(() => {
-        // Keep FALLBACK_VOICE_OPTIONS if the catalog can't be loaded.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const voiceOptions = [
-    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom", previewUrl: v.previewUrl })),
-    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
-  ];
-  if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICE_OPTIONS);
+  const { voiceCatalog, voiceOptions } = useVoiceOptions(FALLBACK_VOICE_OPTIONS);
 
   const updateSetting = (key, value) => {
     setSettings((prev) => {
