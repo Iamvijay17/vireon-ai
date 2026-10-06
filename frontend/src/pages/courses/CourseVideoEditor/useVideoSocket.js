@@ -52,7 +52,19 @@ export function useVideoSocket({
       return [
         onCourseVideoProgress(
           forThisVideo((data) => {
-            setVideo((prev) => (prev ? { ...prev, status: data.status } : prev));
+            setVideo((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    status: data.status,
+                    // Keep the live % so the editor can show it without a refetch.
+                    liveProgress: data.progress,
+                    ...(data.status === "Rendering Video" || data.status === "Uploading"
+                      ? { renderProgress: data.progress }
+                      : {}),
+                  }
+                : prev
+            );
             if (data.message) addActivity(data.message);
           })
         ),
