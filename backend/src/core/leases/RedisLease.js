@@ -57,7 +57,9 @@ class LeaseTimeoutError extends Error {
  */
 class RedisLease {
   constructor({ host = config.redis.host, port = config.redis.port } = {}) {
-    this._client = new Redis({ host, port, maxRetriesPerRequest: null });
+    // lazyConnect: ioredis connects on the first command, so a process that
+    // merely loads localAI (API routes, tests) never opens a socket it won't use.
+    this._client = new Redis({ host, port, maxRetriesPerRequest: null, lazyConnect: true });
     this._subscriber = null; // lazily created - most processes only ever release, never wait
     this._waiters = new Map(); // name -> Set<() => void>
     this._demandHandlers = new Map(); // name -> Set<() => void>
