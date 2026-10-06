@@ -10,3 +10,7 @@ node_modules/
 *.key
 .deploy/
 deploy/tailscale/state/
+
+# OS cruft
+.DS_Store
+Thumbs.db

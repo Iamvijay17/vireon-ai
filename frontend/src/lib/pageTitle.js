@@ -3,7 +3,7 @@
 export const APP_NAME = "Vireon AI";
 
 // Static pages, matched on the exact path.
-const V1_TITLES = {
+const TITLES = {
   "/": "Dashboard",
   "/wizard": "Create Video",
   "/render": "Render Queue",
@@ -21,19 +21,6 @@ const V1_TITLES = {
   "/courses": "Courses",
 };
 
-const V2_TITLES = {
-  "/": "Overview",
-  "/new": "New Video",
-  "/studio": "Studio",
-  "/jobs": "Jobs",
-  "/courses": "Courses",
-  "/audio": "Audio",
-  "/assets": "Assets",
-  "/analytics": "Analytics",
-  "/logs": "Logs",
-  "/settings": "Settings",
-};
-
 const norm = (p) => (p.length > 1 ? p.replace(/\/+$/, "") : p);
 
 /**
@@ -43,14 +30,8 @@ const norm = (p) => (p.length > 1 ? p.replace(/\/+$/, "") : p);
  * @returns {string} the full document title
  */
 export function documentTitle(pathname, label = null) {
-  let path = norm(pathname || "/");
-  let titles = V1_TITLES;
-  if (path === "/v2" || path.startsWith("/v2/")) {
-    path = norm(path.slice(3) || "/");
-    titles = V2_TITLES;
-  }
-
-  let page = titles[path];
+  const path = norm(pathname || "/");
+  let page = TITLES[path];
 
   if (!page) {
     // Detail routes: prefer the record's own name over a generic label.

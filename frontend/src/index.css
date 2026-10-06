@@ -1,8 +1,5 @@
 @import "tailwindcss";
 
-/* v2 design system - scoped under [data-v2], see src/v2/styles/v2.css. */
-@import "./v2/styles/v2.css";
-
 @custom-variant dark (&:where(.theme-dark, .theme-dark *));
 
 @theme {

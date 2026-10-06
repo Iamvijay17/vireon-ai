@@ -21,6 +21,22 @@ const STAGE_BUCKETS = [
   { key: 'upload', label: 'Upload', statuses: [JOB_STATUS.UPLOADING] },
 ];
 
+// Statuses in which the worker is actually doing something. Time in any
+// other status - queued, waiting for approval or a manual render click,
+// waiting out a retry backoff - is waiting, not generating.
+const ACTIVE_STATUSES = STAGE_BUCKETS.flatMap((b) => b.statuses);
+
+/**
+ * Time the worker spent working on a job: the sum of its time in each active
+ * status. Wall-clock time (createdAt to updatedAt) is no use as a generation
+ * time - it includes days waiting for a person, retry waits, and any later
+ * edit that touches updatedAt.
+ */
+const activeProcessingMs = (statusHistory = []) =>
+  statusHistory
+    .filter((entry) => entry.from && ACTIVE_STATUSES.includes(entry.from))
+    .reduce((sum, entry) => sum + (entry.durationMs || 0), 0);
+
 const buildStageDurations = (statusHistory = []) =>
   STAGE_BUCKETS.map(({ key, label, statuses }) => {
     const durationMs = statusHistory
@@ -78,7 +94,7 @@ class AnalyticsService {
       cacheHitRate,
       avgRenderTimeMs,
       avgQueueWaitMs,
-      jobRetryCount,
+      retryRows,
       workerJobCounts,
     ] = await Promise.all([
       VideoJob.countDocuments(),
@@ -87,14 +103,28 @@ class AnalyticsService {
       VideoJob.aggregate([{ $group: { _id: '$resolution', count: { $sum: 1 } } }]),
       VideoJob.aggregate([{ $group: { _id: '$voice', count: { $sum: 1 } } }]),
       VideoJob.aggregate([{ $group: { _id: '$aspectRatio', count: { $sum: 1 } } }]),
-      // Whole-pipeline duration (script -> upload), distinct from
-      // avgRenderTimeMs below which times only the Remotion render step
-      // itself (see MetricsService's 'render.duration', recorded in
-      // RemotionService.renderVideo).
+      // Whole-pipeline working time (script -> upload, see
+      // activeProcessingMs), distinct from avgRenderTimeMs below which times
+      // only the Remotion render step itself (see MetricsService's
+      // 'render.duration', recorded in RemotionService.renderVideo). Jobs with
+      // no recorded active time (created before statusHistory existed) are
+      // left out rather than averaged in as zero.
       VideoJob.aggregate([
         { $match: { status: JOB_STATUS.COMPLETED } },
-        { $project: { durationMs: { $subtract: ['$updatedAt', '$createdAt'] } } },
-        { $group: { _id: null, avgMs: { $avg: '$durationMs' } } },
+        {
+          $project: {
+            activeMs: {
+              $sum: {
+                $map: {
+                  input: { $filter: { input: { $ifNull: ['$statusHistory', []] }, cond: { $in: ['$$this.from', ACTIVE_STATUSES] } } },
+                  in: { $ifNull: ['$$this.durationMs', 0] },
+                },
+              },
+            },
+          },
+        },
+        { $match: { activeMs: { $gt: 0 } } },
+        { $group: { _id: null, avgMs: { $avg: '$activeMs' } } },
       ]),
       VideoJob.aggregate([
         { $match: { createdAt: { $gte: since } } },
@@ -132,7 +162,20 @@ class AnalyticsService {
       MetricsService.getRate('cache.hits', 'cache.misses'),
       MetricsService.getAverage('render.duration'),
       MetricsService.getAverage('queue.wait'),
-      MetricsService.getCount('job.retries'),
+      // Retries per job, read from statusHistory rather than the 'job.retries'
+      // counter: the counter only ever grows and has no notion of which job
+      // retried, so it can't give a share of jobs.
+      VideoJob.aggregate([
+        { $match: { 'statusHistory.to': JOB_STATUS.RETRY_SCHEDULED } },
+        {
+          $project: {
+            retries: {
+              $size: { $filter: { input: '$statusHistory', cond: { $eq: ['$$this.to', JOB_STATUS.RETRY_SCHEDULED] } } },
+            },
+          },
+        },
+        { $group: { _id: null, jobs: { $sum: 1 }, retries: { $sum: '$retries' } } },
+      ]),
       videoQueue.getJobCounts('active', 'waiting', 'delayed').catch(() => ({})),
     ]);
 
@@ -141,6 +184,9 @@ class AnalyticsService {
     const failedJobs = jobStatusCounts[JOB_STATUS.FAILED] || 0;
     const activeJobs = totalVideoJobs - completedJobs - failedJobs;
     const resolvedJobs = completedJobs + failedJobs;
+
+    const retriedJobs = retryRows[0]?.jobs || 0;
+    const totalRetries = retryRows[0]?.retries || 0;
 
     const courseStatusCounts = countsByKey(courseStatusRows);
     const courseVideoStatusTotal = (rows) => rows.reduce((sum, r) => sum + r.count, 0);
@@ -231,8 +277,10 @@ class AnalyticsService {
         activeJobs: workerJobCounts.active || 0,
         waitingJobs: workerJobCounts.waiting || 0,
         delayedJobs: workerJobCounts.delayed || 0,
-        totalRetries: jobRetryCount,
-        retryRate: totalVideoJobs ? Math.round((jobRetryCount / totalVideoJobs) * 1000) / 10 : null,
+        totalRetries,
+        retriedJobs,
+        // Share of video jobs that needed at least one automatic retry (0-100).
+        retryRate: totalVideoJobs ? Math.round((retriedJobs / totalVideoJobs) * 1000) / 10 : null,
       },
       trend,
       jobsByStatus: toChartRows(jobStatusRows),
@@ -280,8 +328,8 @@ class AnalyticsService {
 
     const rows = jobs.map((job) => {
       const stages = buildStageDurations(job.statusHistory);
-      const endedAt = job.completedAt || job.updatedAt;
-      const totalMs = endedAt ? new Date(endedAt).getTime() - new Date(job.createdAt).getTime() : null;
+      // Working time, so it adds up with the stage columns - see activeProcessingMs.
+      const totalMs = activeProcessingMs(job.statusHistory) || null;
       return {
         id: job._id,
         topic: job.topic,
@@ -301,3 +349,5 @@ class AnalyticsService {
 }
 
 module.exports = AnalyticsService;
+module.exports.activeProcessingMs = activeProcessingMs;
+module.exports.buildStageDurations = buildStageDurations;

@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars -- abstract base class: the unused params document each method's contract for subclasses. */
 /**
  * Abstract Storage Provider Interface.
  *

@@ -2,7 +2,6 @@ const archiver = require('archiver');
 const CourseService = require('../services/course/CourseService');
 const CourseVideoService = require('../services/course/CourseVideoService');
 const CourseCurriculumService = require('../services/course/CourseCurriculumService');
-const LoggerService = require('../services/common/LoggerService');
 const SocketService = require('../services/common/SocketService');
 const { SOCKET_EVENTS } = require('../constants');
 const { getStorageProvider } = require('../services/storage/providers');

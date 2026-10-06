@@ -12,7 +12,6 @@ require('../utils/ensureRedis')();
 
 const CourseVideoService = require('../services/course/CourseVideoService');
 const SocketService = require('../services/common/SocketService');
-const StorageService = require('../services/storage/StorageService');
 const courseQueue = require('../queues/courseQueue');
 const { decideRetry, describeRetry, retryJobId } = require('../services/common/retryPolicy');
 const ActivityLogService = require('../services/common/ActivityLogService');
@@ -47,21 +46,6 @@ const connection = {
   host: config.redis.host,
   port: config.redis.port,
 };
-
-/**
- * Check if render output exists on disk for a course video job.
- */
-async function renderExists(videoId) {
-  const fs = require('fs').promises;
-  const path = require('path');
-  const renderPath = path.resolve(__dirname, '../../jobs', videoId, 'render', 'video.mp4');
-  try {
-    await fs.access(renderPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Course Video Worker - processes course video generation jobs.

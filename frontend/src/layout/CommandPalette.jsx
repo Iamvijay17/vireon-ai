@@ -86,10 +86,6 @@ const CommandPalette = () => {
   }, []);
 
   useEffect(() => {
-    setActiveIndex(0);
-  }, [query]);
-
-  useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 0);
   }, [open]);
 
@@ -121,7 +117,10 @@ const CommandPalette = () => {
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIndex(0);
+            }}
             onKeyDown={handleInputKeyDown}
             placeholder="Type a command or search..."
             className="h-12 w-full bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none"

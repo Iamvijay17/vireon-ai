@@ -1,330 +1,33 @@
 import { useState, useEffect } from "react";
-import {
-  CheckCircle2,
-  Rocket,
-  Send,
-  Copy,
-  Check,
-  Sparkles,
-  Mic2,
-  SlidersHorizontal,
-  ChevronDown,
-  Plus,
-} from "lucide-react";
+import { Send, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createVideoJob, getVoices } from "../../services/api";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
-import { loadSettings } from "../../shared/settingsStorage";
 import { LoadingState } from "../../components";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Select } from "../../components/ui/Select";
-import { VoiceSelect } from "../../components/ui/VoiceSelect";
 import { Textarea, Label, FieldHint } from "../../components/ui/Input";
-import { Badge } from "../../components/ui/Badge";
-import { Switch } from "../../components/ui/Switch";
 import { toast } from "../../components/ui/toastBus";
-import { cn } from "../../components/ui/cn";
-import { useClickOutside, useEscapeKey } from "../../components/ui/hooks";
+import {
+  VIDEO_TYPES, VERTICAL_RESOLUTIONS, FALLBACK_VOICES, LANGUAGES, DURATIONS, SHORTS_DURATIONS, DEFAULT_VALUES,
+  isVerticalResolution, buildInitialValues,
+} from "./constants";
+import { Section } from "./Section";
+import { AudioSection } from "./AudioSection";
+import { OutputSection } from "./OutputSection";
+import { JobCreated } from "./JobCreated";
 
-const VIDEO_TYPES = [
-  { value: "educational", label: "Educational" },
-  { value: "marketing", label: "Marketing" },
-  { value: "story", label: "Story" },
-  { value: "youtube_shorts", label: "YouTube Shorts" },
-  { value: "podcast", label: "Podcast" },
-  { value: "motivational", label: "Motivational" },
-  { value: "business", label: "Business" },
-];
-
-const RESOLUTIONS = [
-  { value: "1920x1080", label: "1080p (1920x1080)" },
-  { value: "1080x1920", label: "1080p Vertical (1080x1920)" },
-  { value: "1080x1350", label: "Instagram 4:5 (1080x1350)" },
-  { value: "1280x720", label: "720p (1280x720)" },
-  { value: "720x1280", label: "720p Vertical (720x1280)" },
-  { value: "3840x2160", label: "4K (3840x2160)" },
-  { value: "2160x3840", label: "4K Vertical (2160x3840)" },
-];
-
-// Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js)
-// - resolved to an actual encode CRF at render time (config.remotion.qualityCrf).
-const QUALITY_PRESETS = [
-  { value: "draft", label: "Draft (fast, lower quality)" },
-  { value: "standard", label: "Standard" },
-  { value: "hd", label: "HD (best quality, slower render)" },
-];
-
-// Mirrors the backend's CAPTION_STYLES enum (backend/src/constants/index.js) -
-// keys into backend/remotion/src/captions/captionAnimations.js's registry.
-const CAPTION_STYLES = [
-  { value: "fadeInUp", label: "Fade Up" },
-  { value: "popScale", label: "Pop" },
-  { value: "slideLeft", label: "Slide Left" },
-  { value: "slideRight", label: "Slide Right" },
-  { value: "bounce", label: "Bounce" },
-  { value: "typewriter", label: "Typewriter" },
-  { value: "glowActive", label: "Glow" },
-  { value: "zoom", label: "Zoom" },
-  { value: "blurToSharp", label: "Blur to Sharp" },
-];
-
-// YouTube Shorts must be exactly 9:16 - backend rejects anything else for
-// this type (see createVideoSchema's superRefine), so this can't just be
-// "any portrait resolution" now that 4:5 (also taller than wide) is an
-// option too.
-const VERTICAL_RESOLUTIONS = RESOLUTIONS.filter((r) => {
-  const [width, height] = r.value.split("x").map(Number);
-  return height > width && height / width === 16 / 9;
-});
-
-// Shown while the real voice catalog is loading (or if it fails to load).
-const FALLBACK_VOICES = [
-  { value: "female-1", label: "Female Voice 1" },
-  { value: "male-1", label: "Male Voice 1" },
-];
-
-const LANGUAGES = [{ value: "english", label: "English" }];
-
-// Curated host/guest voice pairs, picked for clear contrast (gender, tone,
-// or accent) so the two speakers are always easy to tell apart - a plain
-// "pick any two voices" UI lets people land on two similar-sounding voices,
-// which is what prompted this. Each pair is filtered against the loaded
-// voice catalog before being shown, since these reference specific clone
-// files that may not exist in every backend/voices/ directory.
-const PODCAST_VOICE_PAIRS = [
-  {
-    label: "Radio Host & Conversational",
-    hostVoice: "clone:matt-dramatic-radio-podcast-host.mp3",
-    guestVoice: "clone:eliza-conversational-podcast-host.mp3",
-    hostName: "Matt",
-    guestName: "Eliza",
-  },
-  {
-    label: "Deep & Energetic",
-    hostVoice: "clone:morgan-deep-powerful-and-confident.mp3",
-    guestVoice: "clone:hope-vibrant-warm-and-innocent.mp3",
-    hostName: "Morgan",
-    guestName: "Hope",
-  },
-  {
-    label: "Warm & Professional",
-    hostVoice: "clone:chris-charismatic-warm-confident.mp3",
-    guestVoice: "clone:victoria-warm-trustworthy-and-relatable.mp3",
-    hostName: "Chris",
-    guestName: "Victoria",
-  },
-  {
-    label: "British Duo",
-    hostVoice: "clone:nathaniel-engaging-british-and-calm.mp3",
-    guestVoice: "clone:tamsin-engaging-british-storyteller-and-narrator.mp3",
-    hostName: "Nathaniel",
-    guestName: "Tamsin",
-  },
-  {
-    label: "Storyteller & Mystery",
-    hostVoice: "clone:william-deep-engaging-storyteller.mp3",
-    guestVoice: "clone:valory-mysterious-calm-and-natural.mp3",
-    hostName: "William",
-    guestName: "Valory",
-  },
-];
-
-// Best-effort first name from a voice's catalog label - custom presets are
-// already a bare first name (e.g. "Aiden"), clone voices are titleized from
-// a "name-descriptive-words.ext" filename (e.g. "Matt Dramatic Radio
-// Podcast Host") so the first word is the name. Used to pre-fill the
-// Host/Guest name fields when a voice is picked without a Quick Pair.
-const deriveNameFromVoiceLabel = (label) => (label || "").trim().split(/\s+/)[0] || "";
-
-// Sample names shown in the Host/Guest Name dropdown - the Quick Pair names
-// plus a few common extras, so there's always a reasonable starting list
-// even before a voice is picked. Users can still type their own via "Add
-// new name" in the same dropdown.
-const SUGGESTED_NAMES = Array.from(
-  new Set([
-    ...PODCAST_VOICE_PAIRS.flatMap((p) => [p.hostName, p.guestName]),
-    "Alex",
-    "Jordan",
-    "Sam",
-    "Taylor",
-    "Riley",
-    "Jamie",
-  ])
-);
-
-const DURATIONS = [
-  { value: 1, label: "1 minute" },
-  { value: 2, label: "2 minutes" },
-  { value: 3, label: "3 minutes" },
-  { value: 4, label: "4 minutes" },
-  { value: 5, label: "5 minutes" },
-  { value: 8, label: "8 minutes" },
-  { value: 10, label: "10 minutes" },
-  { value: 15, label: "15 minutes" },
-  { value: 20, label: "20 minutes" },
-  { value: 25, label: "25 minutes" },
-  { value: 30, label: "30 minutes" },
-];
-
-// YouTube Shorts have their own duration scale (YouTube caps Shorts at 3
-// minutes) - backend rejects anything else for this type.
-const SHORTS_DURATIONS = [
-  { value: 1, label: "1 minute" },
-  { value: 2, label: "2 minutes" },
-  { value: 3, label: "3 minutes" },
-];
-
-const DEFAULT_VALUES = {
-  topic: "",
-  type: undefined,
-  duration: 5,
-  language: "english",
-  voice: "female-1",
-  hostVoice: "",
-  guestVoice: "",
-  hostName: "",
-  guestName: "",
-  resolution: "1920x1080",
-  quality: "standard",
-  captionAnimation: "fadeInUp",
-  fastGeneration: false,
-  fastAudio: false,
-};
-
-const isVerticalResolution = (value) => VERTICAL_RESOLUTIONS.some((r) => r.value === value);
-
-// Applies the user's saved preferences (Settings page) on top of the base
-// defaults above - e.g. leaving `type` unselected still forces a choice.
-const buildInitialValues = () => {
-  const prefs = loadSettings();
-  const type = VIDEO_TYPES.some((t) => t.value === prefs.defaultVideoType) ? prefs.defaultVideoType : DEFAULT_VALUES.type;
-  const resolution = prefs.defaultResolution || DEFAULT_VALUES.resolution;
-  const isShorts = type === "youtube_shorts";
-  return {
-    ...DEFAULT_VALUES,
-    type,
-    language: LANGUAGES.some((l) => l.value === prefs.defaultLanguage) ? prefs.defaultLanguage : DEFAULT_VALUES.language,
-    voice: prefs.defaultVoice || DEFAULT_VALUES.voice,
-    fastAudio: prefs.fastAudioGeneration ?? DEFAULT_VALUES.fastAudio,
-    // A saved default resolution/duration might not be valid for Shorts
-    // (e.g. a landscape default resolution) - fall back to a Shorts-valid
-    // default rather than starting the wizard in an invalid state.
-    duration: isShorts ? SHORTS_DURATIONS[0].value : DEFAULT_VALUES.duration,
-    resolution: isShorts && !isVerticalResolution(resolution) ? VERTICAL_RESOLUTIONS[0].value : resolution,
-    quality: QUALITY_PRESETS.some((q) => q.value === prefs.defaultQuality) ? prefs.defaultQuality : DEFAULT_VALUES.quality,
-    captionAnimation: CAPTION_STYLES.some((c) => c.value === prefs.defaultCaptionStyle) ? prefs.defaultCaptionStyle : DEFAULT_VALUES.captionAnimation,
-  };
-};
-
-// Dropdown of sample names for the Host/Guest Name fields, with a "Add new
-// name" row at the bottom for typing a custom one - a plain text input made
-// picking a name from the Quick Pair feel disconnected from typing your own.
-const NameSelect = ({ value, onChange, placeholder = "Select or add a name", options = SUGGESTED_NAMES }) => {
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState("");
-  const ref = useClickOutside(() => setOpen(false), open);
-  useEscapeKey(() => setOpen(false), open);
-
-  const commitDraft = () => {
-    const name = draft.trim();
-    if (!name) return;
-    onChange?.(name);
-    setDraft("");
-    setOpen(false);
-  };
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3",
-          "text-left text-sm text-text-primary transition-colors outline-none cursor-pointer",
-          "focus:border-accent focus:ring-4 focus:ring-accent/10"
-        )}
-      >
-        <span className={cn("truncate", !value && "text-text-tertiary")}>{value || placeholder}</span>
-        <ChevronDown className={cn("size-4 shrink-0 text-text-tertiary transition-transform", open && "rotate-180")} />
-      </button>
-
-      {open && (
-        <div className="absolute z-50 mt-1.5 w-full rounded-xl border border-border bg-surface p-1.5 shadow-lg shadow-black/5 animate-scale-in">
-          <div className="max-h-48 overflow-auto">
-            {options.map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => {
-                  onChange?.(name);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer",
-                  name === value
-                    ? "bg-accent-subtle text-accent"
-                    : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
-                )}
-              >
-                {name}
-                {name === value && <Check className="size-4 shrink-0" />}
-              </button>
-            ))}
-          </div>
-          <div className="mt-1 flex items-center gap-1.5 border-t border-border-light pt-1.5">
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  commitDraft();
-                }
-              }}
-              placeholder="Add new name"
-              maxLength={80}
-              className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-bg px-2.5 text-sm text-text-primary outline-none focus:border-accent"
-            />
-            <button
-              type="button"
-              onClick={commitDraft}
-              disabled={!draft.trim()}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Plus className="size-4" />
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Section card with an icon header, always expanded. Must live at module level:
-// defining it inside Wizard remounts its children (and drops input focus) on every render.
-const Section = ({ icon: Icon, title, description, className, children }) => (
-  <Card className={cn("p-6 sm:p-8", className)}>
-    <div className="mb-6 flex items-start gap-3">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-subtle text-accent">
-        <Icon className="size-4.5" />
-      </div>
-      <div>
-        <h2 className="text-base font-semibold text-text-primary">{title}</h2>
-        {description && <p className="mt-0.5 text-xs text-text-secondary">{description}</p>}
-      </div>
-    </div>
-    {children}
-  </Card>
-);
-
+/**
+ * Create Video: topic and type, voice, and output settings on one page.
+ * Owns the form values and validation; each card is its own component.
+ */
 const Wizard = () => {
   const navigate = useNavigate();
   const [values, setValues] = useState(buildInitialValues);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [copied, setCopied] = useState(false);
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
@@ -354,11 +57,6 @@ const Wizard = () => {
     ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
   ];
   if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
-
-  const voiceIds = new Set(voiceOptions.map((o) => o.value));
-  const availableVoicePairs = PODCAST_VOICE_PAIRS.filter(
-    (p) => voiceIds.has(p.hostVoice) && voiceIds.has(p.guestVoice)
-  );
 
   const setField = (name, value) => setValues((prev) => ({ ...prev, [name]: value }));
 
@@ -410,13 +108,6 @@ const Wizard = () => {
     }
   };
 
-  const copyJobId = async () => {
-    if (!result?.jobId) return;
-    await navigator.clipboard.writeText(result.jobId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
   if (loading) {
     return (
       <div>
@@ -432,55 +123,15 @@ const Wizard = () => {
     return (
       <div>
         <h1 className="mb-6 text-xl font-semibold tracking-tight text-text-primary">Create Video</h1>
-        <Card className="p-8">
-          <div className="mx-auto flex max-w-md flex-col items-center py-6 text-center animate-scale-in">
-            <div className="mb-5 flex size-14 items-center justify-center rounded-full bg-success-500/10 text-success-500">
-              <CheckCircle2 className="size-7" />
-            </div>
-            <h2 className="text-lg font-semibold text-text-primary">Video Job Created!</h2>
-            <p className="mt-2 text-sm text-text-secondary">
-              Your video has been queued for processing. You can monitor its progress in real-time.
-            </p>
-
-            <div className="mt-6 w-full rounded-xl border border-border bg-bg p-4 text-left">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-text-tertiary">Job ID</span>
-                <button
-                  onClick={copyJobId}
-                  className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-accent cursor-pointer"
-                >
-                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              </div>
-              <p className="mt-1 truncate font-mono text-[13px] text-text-primary">{result.jobId}</p>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-xs font-medium text-text-tertiary">Status</span>
-                <Badge variant="accent" icon={<Rocket className="size-3" />}>
-                  {result.status}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              <Button variant="primary" onClick={() => navigate(`/render?id=${result.jobId}`)}>
-                View Progress
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setResult(null);
-                  setValues(buildInitialValues());
-                }}
-              >
-                Create Another
-              </Button>
-              <Button variant="ghost" onClick={() => navigate("/")}>
-                Back to Dashboard
-              </Button>
-            </div>
-          </div>
-        </Card>
+        <JobCreated
+          result={result}
+          onViewProgress={() => navigate(`/render?id=${result.jobId}`)}
+          onCreateAnother={() => {
+            setResult(null);
+            setValues(buildInitialValues());
+          }}
+          onHome={() => navigate("/")}
+        />
       </div>
     );
   }
@@ -539,177 +190,17 @@ const Wizard = () => {
           </div>
         </Section>
 
-        {/* ── Audio ─────────────────────────────────────────────────────── */}
-        <Section icon={Mic2} title="Configure audio settings" className={values.type === "podcast" ? "lg:col-span-2" : undefined}>
-          {values.type === "podcast" ? (
-            <>
-              {availableVoicePairs.length > 0 && (
-                <div className="mb-5">
-                  <Label>Quick Pair</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {availableVoicePairs.map((pair) => {
-                      const active =
-                        values.hostVoice === pair.hostVoice && values.guestVoice === pair.guestVoice;
-                      return (
-                        <button
-                          key={pair.label}
-                          type="button"
-                          onClick={() => {
-                            setValues((prev) => ({
-                              ...prev,
-                              hostVoice: pair.hostVoice,
-                              guestVoice: pair.guestVoice,
-                              hostName: pair.hostName,
-                              guestName: pair.guestName,
-                            }));
-                          }}
-                          className={cn(
-                            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
-                            active
-                              ? "border-accent bg-accent-subtle text-accent"
-                              : "border-border bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
-                          )}
-                        >
-                          {pair.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <FieldHint>
-                    Picks two clearly distinct voices for host and guest in one click - or choose your own below.
-                  </FieldHint>
-                </div>
-              )}
+        <AudioSection
+          values={values}
+          setValues={setValues}
+          setField={setField}
+          errors={errors}
+          voiceOptions={voiceOptions}
+          isFavorite={isFavorite}
+          toggleFavorite={toggleFavorite}
+        />
 
-              <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-                <div>
-                  <Label required>Host Voice</Label>
-                  <VoiceSelect
-                    placeholder="Select host voice"
-                    options={voiceOptions}
-                    value={values.hostVoice}
-                    onChange={(v) => {
-                      setValues((prev) => ({
-                        ...prev,
-                        hostVoice: v,
-                        // Only auto-fill if the user hasn't typed their own name yet.
-                        hostName: prev.hostName ? prev.hostName : deriveNameFromVoiceLabel(voiceOptions.find((o) => o.value === v)?.label),
-                      }));
-                    }}
-                    error={Boolean(errors.hostVoice)}
-                    isFavorite={isFavorite}
-                    onToggleFavorite={toggleFavorite}
-                  />
-                  <FieldHint error={Boolean(errors.hostVoice)}>{errors.hostVoice}</FieldHint>
-                </div>
-                <div>
-                  <Label>Host Name</Label>
-                  <NameSelect value={values.hostName} onChange={(v) => setField("hostName", v)} />
-                </div>
-              </div>
-
-              <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-                <div>
-                  <Label required>Guest Voice</Label>
-                  <VoiceSelect
-                    placeholder="Select guest voice"
-                    options={voiceOptions}
-                    value={values.guestVoice}
-                    onChange={(v) => {
-                      setValues((prev) => ({
-                        ...prev,
-                        guestVoice: v,
-                        guestName: prev.guestName ? prev.guestName : deriveNameFromVoiceLabel(voiceOptions.find((o) => o.value === v)?.label),
-                      }));
-                    }}
-                    error={Boolean(errors.guestVoice)}
-                    isFavorite={isFavorite}
-                    onToggleFavorite={toggleFavorite}
-                  />
-                  <FieldHint error={Boolean(errors.guestVoice)}>{errors.guestVoice}</FieldHint>
-                </div>
-                <div>
-                  <Label>Guest Name</Label>
-                  <NameSelect value={values.guestName} onChange={(v) => setField("guestName", v)} />
-                </div>
-              </div>
-              <FieldHint>
-                The host and guest take turns in the conversation, each with their own voice - and now their own name, shown on screen and used in the dialogue.
-              </FieldHint>
-            </>
-          ) : (
-            <div>
-              <Label>Voice</Label>
-              <VoiceSelect
-                options={voiceOptions}
-                value={values.voice}
-                onChange={(v) => setField("voice", v)}
-                isFavorite={isFavorite}
-                onToggleFavorite={toggleFavorite}
-              />
-              <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/. Click the play button to hear a sample.</FieldHint>
-            </div>
-          )}
-        </Section>
-
-        {/* ── Output ────────────────────────────────────────────────────── */}
-        <Section icon={SlidersHorizontal} title="Choose output quality">
-          <div className="mb-6">
-            <Label>Resolution</Label>
-            <Select
-              options={values.type === "youtube_shorts" ? VERTICAL_RESOLUTIONS : RESOLUTIONS}
-              value={values.resolution}
-              onChange={(v) => setField("resolution", v)}
-            />
-            <FieldHint>
-              {values.type === "youtube_shorts"
-                ? "YouTube Shorts are vertical-only."
-                : "Aspect ratio is determined automatically by the resolution you pick."}
-            </FieldHint>
-          </div>
-
-          <div className="mb-6">
-            <Label>Render Quality</Label>
-            <Select
-              options={QUALITY_PRESETS}
-              value={values.quality}
-              onChange={(v) => setField("quality", v)}
-            />
-            <FieldHint>Draft renders faster for quick previews; HD takes longer but produces the cleanest result.</FieldHint>
-          </div>
-
-          <div className="mb-6">
-            <Label>Caption Style</Label>
-            <Select
-              options={CAPTION_STYLES}
-              value={values.captionAnimation}
-              onChange={(v) => setField("captionAnimation", v)}
-            />
-            <FieldHint>How narration captions animate word-by-word. Podcast dialogue always uses its own highlight style regardless of this setting.</FieldHint>
-          </div>
-
-          <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
-            <div>
-              <Label className="mb-1">Fast Generation</Label>
-              <p className="text-xs text-text-secondary">
-                {values.fastGeneration
-                  ? "On: after you approve the script, audio, images, and the final video generate automatically."
-                  : "Off: you'll manually trigger each step — approve the script, then generate audio, then generate the video — reviewing in between, like course videos."}
-              </p>
-            </div>
-            <Switch checked={values.fastGeneration} onChange={(v) => setField("fastGeneration", v)} />
-          </div>
-
-          <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
-            <div>
-              <Label className="mb-1">Fast Audio (0.6B)</Label>
-              <p className="text-xs text-text-secondary">
-                Uses the smaller, faster Qwen3-TTS 0.6B model for narration instead of the default 1.7B - quicker, lower quality.
-              </p>
-            </div>
-            <Switch checked={values.fastAudio} onChange={(v) => setField("fastAudio", v)} />
-          </div>
-        </Section>
+        <OutputSection values={values} setField={setField} />
 
         <div className="flex justify-end pb-2 lg:col-span-2">
           <Button variant="primary" size="lg" icon={<Send className="size-4" />} loading={loading} onClick={handleSubmit}>

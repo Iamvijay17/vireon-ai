@@ -1,60 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Search,
-  RefreshCw,
-  Eye,
-  Square,
-  Redo2,
-  Trash2,
-  MoreVertical,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { cancelJob, retryJob, bulkJobAction } from "../../services/api";
-import { useJobs, useJobDetail, useInvalidateJobs } from "../../lib/useJobs";
-import { PageHeader, LoadingState, EmptyState, StatusTag, JobEventTimeline } from "../../components";
-import { useJobEvents } from "../../shared/useJobEvents";
+import { Square, Redo2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { useJobs } from "../../lib/useJobs";
+import { PageHeader, LoadingState, EmptyState } from "../../components";
 import { Card } from "../../components/ui/Card";
 import { Table } from "../../components/ui/Table";
 import { Button } from "../../components/ui/Button";
-import { Input } from "../../components/ui/Input";
-import { Select } from "../../components/ui/Select";
-import { Badge } from "../../components/ui/Badge";
-import { Progress } from "../../components/ui/Progress";
-import { Modal } from "../../components/ui/Modal";
-import { Dropdown, DropdownItem } from "../../components/ui/Dropdown";
 import { toast } from "../../components/ui/toastBus";
-import { confirmDialog } from "../../components/ui/confirmBus";
 import { classifyStatus } from "../../lib/statusTone";
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from "../../lib/useDebouncedValue";
-
-const TYPE_OPTIONS = [
-  { value: "", label: "All types" },
-  { value: "video", label: "Video jobs" },
-  { value: "course", label: "Courses" },
-  { value: "audio", label: "Audio Studio" },
-];
-
-const STATUS_FILTERS = [
-  { value: "all", label: "All" },
-  { value: "processing", label: "Processing" },
-  { value: "success", label: "Completed" },
-  { value: "error", label: "Failed" },
-  { value: "cancelled", label: "Cancelled" },
-];
-
-const TYPE_BADGE = {
-  video: { variant: "info", label: "Video" },
-  course: { variant: "warning", label: "Course" },
-  audio: { variant: "accent", label: "Audio" },
-};
-
-const ROUTE_FOR = {
-  video: (id) => `/render?id=${id}`,
-  course: (id) => `/courses/${id}`,
-  audio: () => `/audio`,
-};
+import { rowKeyOf } from "./constants";
+import { useJobActions } from "./useJobActions";
+import { buildJobColumns } from "./jobColumns";
+import { JobFilters } from "./JobFilters";
+import { JobDetailModal } from "./JobDetailModal";
 
 const PAGE_SIZE = 20;
 // Safety net only. Socket events invalidate this page's query (see
@@ -76,8 +35,6 @@ const JobsPage = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [bulkLoading, setBulkLoading] = useState(false);
-  const [rowActionKey, setRowActionKey] = useState(null);
   const [detailJob, setDetailJob] = useState(null);
 
   // The input stays bound to `search` (instant typing); only the query key uses
@@ -98,8 +55,6 @@ const JobsPage = () => {
     activePollMs: ACTIVE_POLL_MS,
   });
 
-  const invalidateJobs = useInvalidateJobs();
-
   const filtered = useMemo(() => {
     if (statusFilter === "all") return jobs;
     return jobs.filter((j) => classifyStatus(j.status) === statusFilter);
@@ -111,12 +66,12 @@ const JobsPage = () => {
     if (error) toast.error(error.friendlyMessage || "Failed to load jobs");
   }, [error]);
 
+  const clearSelection = () => setSelectedIds(new Set());
+
   const goToPage = (next) => {
     setPage(next);
-    setSelectedIds(new Set());
+    clearSelection();
   };
-
-  const rowKeyOf = (job) => `${job.type}:${job.id}`;
 
   const toggleSelect = (job) => {
     const key = rowKeyOf(job);
@@ -135,248 +90,19 @@ const JobsPage = () => {
   };
 
   const selectedJobs = filtered.filter((j) => selectedIds.has(rowKeyOf(j)));
-
-  // Fetched by the drawer's own query rather than an imperative loader, so
-  // a socket event for this job refreshes the open drawer too - the old
-  // version only ever showed what was true when it was opened.
-  const { detail: fetchedDetail, loading: detailLoading } = useJobDetail(
-    detailJob?.type,
-    detailJob?.id,
-    { enabled: Boolean(detailJob) }
-  );
-
-  // Render the clicked row immediately while its full record loads, which
-  // is what the old openDetail's optimistic setDetail was doing.
-  const detail = fetchedDetail || (detailJob ? { job: detailJob, logs: [], lessons: [] } : null);
-
-  // Only the video pipeline records JobEvents today; other types fall back
-  // to the human-readable activity log below.
-  const detailHasEvents = detail?.job?.type === "video";
-  const { events: detailEvents, loading: detailEventsLoading } = useJobEvents(
-    detail?.job?.type,
-    detail?.job?.id,
-    { enabled: detailHasEvents }
-  );
-
-  const openDetail = (job) => setDetailJob(job);
-
-  const handleCancel = async (job) => {
-    const ok = await confirmDialog({
-      title: "Cancel this job?",
-      content: `"${job.title}" will be marked cancelled.`,
-      confirmText: "Cancel Job",
-      danger: true,
-    });
-    if (!ok) return;
-    setRowActionKey(rowKeyOf(job));
-    try {
-      await cancelJob(job.type, job.id);
-      toast.success(`Cancelled "${job.title}"`);
-      invalidateJobs();
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to cancel job");
-    } finally {
-      setRowActionKey(null);
-    }
-  };
-
-  const handleRetry = async (job) => {
-    const ok = await confirmDialog({
-      title: "Retry this job?",
-      content: `"${job.title}" will be re-queued from where it left off.`,
-      confirmText: "Retry",
-    });
-    if (!ok) return;
-    setRowActionKey(rowKeyOf(job));
-    try {
-      await retryJob(job.type, job.id);
-      toast.success(`Retried "${job.title}"`);
-      invalidateJobs();
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to retry job");
-    } finally {
-      setRowActionKey(null);
-    }
-  };
-
-  const handleDelete = async (job) => {
-    const ok = await confirmDialog({
-      title: `Delete "${job.title}"?`,
-      content: "This can't be undone.",
-      confirmText: "Delete",
-      danger: true,
-    });
-    if (!ok) return;
-    setRowActionKey(rowKeyOf(job));
-    try {
-      await bulkJobAction([{ type: job.type, id: job.id }], "delete");
-      toast.success(`Deleted "${job.title}"`);
-      invalidateJobs();
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to delete job");
-    } finally {
-      setRowActionKey(null);
-    }
-  };
-
-  const handleBulkAction = async (action) => {
-    const items = selectedJobs.map((j) => ({ type: j.type, id: j.id }));
-    if (items.length === 0) return;
-
-    const label = { cancel: "Cancel", retry: "Retry", delete: "Delete" }[action];
-    const ok = await confirmDialog({
-      title: `${label} ${items.length} selected job${items.length === 1 ? "" : "s"}?`,
-      content:
-        action === "delete"
-          ? "This can't be undone. Jobs that don't support this action will be skipped."
-          : "Jobs that don't support this action will be skipped.",
-      confirmText: label,
-      danger: action !== "retry",
-    });
-    if (!ok) return;
-
-    setBulkLoading(true);
-    try {
-      const res = await bulkJobAction(items, action);
-      const { succeeded = [], failed = [] } = res.data;
-      if (failed.length === 0) {
-        toast.success(`${label}d ${succeeded.length}/${items.length} job${items.length === 1 ? "" : "s"}`);
-      } else {
-        toast.error(`${label}d ${succeeded.length}/${items.length} jobs - ${failed.length} skipped/failed`);
-      }
-      invalidateJobs();
-      setSelectedIds(new Set());
-    } catch (err) {
-      toast.error(err.friendlyMessage || `Failed to ${action} jobs`);
-    } finally {
-      setBulkLoading(false);
-    }
-  };
+  const actions = useJobActions({ selectedJobs, clearSelection });
 
   const totalPages = pagination.pages || 1;
 
-  const columns = [
-    {
-      key: "select",
-      title: "",
-      width: 36,
-      render: (job) => (
-        <input
-          type="checkbox"
-          className="size-4 shrink-0 cursor-pointer accent-accent"
-          aria-label={`Select ${job.title}`}
-          checked={selectedIds.has(rowKeyOf(job))}
-          onClick={(e) => e.stopPropagation()}
-          onChange={() => toggleSelect(job)}
-        />
-      ),
-    },
-    {
-      key: "type",
-      title: "Type",
-      width: 90,
-      render: (job) => <Badge variant={TYPE_BADGE[job.type].variant}>{TYPE_BADGE[job.type].label}</Badge>,
-    },
-    {
-      key: "title",
-      title: "Title",
-      render: (job) => <span className="block max-w-xs truncate text-[13px] font-medium text-text-primary">{job.title}</span>,
-    },
-    {
-      key: "status",
-      title: "Status",
-      render: (job) => <StatusTag status={job.status} />,
-    },
-    {
-      key: "progress",
-      title: "Progress",
-      width: 140,
-      render: (job) =>
-        job.progress > 0 && job.progress < 100 ? (
-          <Progress percent={job.progress} size="sm" status="active" />
-        ) : (
-          <span className="text-xs text-text-tertiary">—</span>
-        ),
-    },
-    {
-      key: "updatedAt",
-      title: "Updated",
-      width: 150,
-      render: (job) => <span className="text-xs text-text-tertiary">{job.updatedAt ? new Date(job.updatedAt).toLocaleString() : "—"}</span>,
-    },
-    {
-      key: "actions",
-      title: "",
-      align: "right",
-      width: 56,
-      render: (job) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <Dropdown
-            trigger={({ toggle }) => (
-              <Button
-                variant="ghost"
-                size="sm"
-                iconOnly
-                loading={rowActionKey === rowKeyOf(job)}
-                icon={<MoreVertical className="size-4" />}
-                onClick={toggle}
-                aria-label={`Actions for ${job.title}`}
-              />
-            )}
-          >
-            {({ close }) => (
-              <>
-                <DropdownItem
-                  icon={<Eye />}
-                  onClick={() => {
-                    close();
-                    navigate(ROUTE_FOR[job.type](job.id));
-                  }}
-                >
-                  Open
-                </DropdownItem>
-                {job.capabilities?.canCancel && (
-                  <DropdownItem
-                    icon={<Square />}
-                    danger
-                    onClick={() => {
-                      close();
-                      handleCancel(job);
-                    }}
-                  >
-                    Cancel
-                  </DropdownItem>
-                )}
-                {job.capabilities?.canRetry && (
-                  <DropdownItem
-                    icon={<Redo2 />}
-                    onClick={() => {
-                      close();
-                      handleRetry(job);
-                    }}
-                  >
-                    Retry
-                  </DropdownItem>
-                )}
-                {job.capabilities?.canDelete && (
-                  <DropdownItem
-                    icon={<Trash2 />}
-                    danger
-                    onClick={() => {
-                      close();
-                      handleDelete(job);
-                    }}
-                  >
-                    Delete
-                  </DropdownItem>
-                )}
-              </>
-            )}
-          </Dropdown>
-        </div>
-      ),
-    },
-  ];
+  const columns = buildJobColumns({
+    selectedIds,
+    toggleSelect,
+    rowActionKey: actions.rowActionKey,
+    navigate,
+    onCancel: actions.handleCancel,
+    onRetry: actions.handleRetry,
+    onDelete: actions.handleDelete,
+  });
 
   return (
     <div>
@@ -385,58 +111,31 @@ const JobsPage = () => {
         description="Every video job, course, and audio generation in one place - filter, cancel, retry, and drill into details."
       />
 
-      <Card className="mb-4 p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <Input
-            icon={<Search className="size-4" />}
-            placeholder="Search by title..."
-            className="min-w-56 flex-1"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <Select value={typeFilter} onChange={setTypeFilter} options={TYPE_OPTIONS} className="w-full sm:w-44" />
-          <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-border bg-surface-hover/50 p-1 [scrollbar-width:none]">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => setStatusFilter(f.value)}
-                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                  statusFilter === f.value
-                    ? "bg-surface text-text-primary shadow-sm"
-                    : "text-text-tertiary hover:text-text-secondary"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            iconOnly
-            aria-label="Refresh jobs"
-            loading={loading || refreshing}
-            icon={<RefreshCw className="size-4" />}
-            onClick={() => refetch()}
-          />
-        </div>
-      </Card>
+      <JobFilters
+        search={search}
+        onSearch={setSearch}
+        typeFilter={typeFilter}
+        onTypeFilter={setTypeFilter}
+        statusFilter={statusFilter}
+        onStatusFilter={setStatusFilter}
+        refreshing={loading || refreshing}
+        onRefresh={() => refetch()}
+      />
 
       {selectedIds.size > 0 && (
         <Card className="mb-4 flex flex-wrap items-center gap-3 p-3">
           <span className="text-[13px] font-semibold text-text-primary">{selectedIds.size} selected</span>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+          <Button variant="ghost" size="sm" onClick={clearSelection}>
             Clear
           </Button>
           <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-            <Button variant="secondary" size="sm" icon={<Square className="size-3.5" />} loading={bulkLoading} onClick={() => handleBulkAction("cancel")}>
+            <Button variant="secondary" size="sm" icon={<Square className="size-3.5" />} loading={actions.bulkLoading} onClick={() => actions.handleBulkAction("cancel")}>
               Cancel Selected
             </Button>
-            <Button variant="secondary" size="sm" icon={<Redo2 className="size-3.5" />} loading={bulkLoading} onClick={() => handleBulkAction("retry")}>
+            <Button variant="secondary" size="sm" icon={<Redo2 className="size-3.5" />} loading={actions.bulkLoading} onClick={() => actions.handleBulkAction("retry")}>
               Retry Selected
             </Button>
-            <Button variant="danger" size="sm" icon={<Trash2 className="size-3.5" />} loading={bulkLoading} onClick={() => handleBulkAction("delete")}>
+            <Button variant="danger" size="sm" icon={<Trash2 className="size-3.5" />} loading={actions.bulkLoading} onClick={() => actions.handleBulkAction("delete")}>
               Delete Selected
             </Button>
           </div>
@@ -466,7 +165,7 @@ const JobsPage = () => {
             columns={columns}
             data={filtered.map((j) => ({ ...j, _rowKey: rowKeyOf(j) }))}
             rowKey="_rowKey"
-            onRowClick={openDetail}
+            onRowClick={setDetailJob}
           />
         )}
 
@@ -495,67 +194,7 @@ const JobsPage = () => {
         )}
       </Card>
 
-      <Modal open={!!detailJob} onClose={() => setDetailJob(null)} title={detail?.job?.title} width="lg">
-        {detailLoading ? (
-          <LoadingState label="Loading details..." />
-        ) : detail ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={TYPE_BADGE[detail.job.type].variant}>{TYPE_BADGE[detail.job.type].label}</Badge>
-              <StatusTag status={detail.job.status} />
-              {detail.job.error && <span className="text-xs text-danger-500">{detail.job.error}</span>}
-            </div>
-
-            {detail.job.type === "course" ? (
-              <div>
-                <h4 className="mb-2 text-[13px] font-semibold text-text-primary">Lessons</h4>
-                {detail.lessons.length === 0 ? (
-                  <p className="text-sm text-text-tertiary">No lessons yet.</p>
-                ) : (
-                  <div className="max-h-80 divide-y divide-border-light overflow-y-auto">
-                    {detail.lessons.map((lesson) => (
-                      <div key={lesson._id} className="flex items-center justify-between gap-3 py-2">
-                        <span className="truncate text-sm text-text-secondary">{lesson.title}</span>
-                        <StatusTag status={lesson.status} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : detailHasEvents ? (
-              <div>
-                <h4 className="mb-2 text-[13px] font-semibold text-text-primary">Events</h4>
-                <div className="max-h-80 overflow-y-auto pr-1">
-                  <JobEventTimeline
-                    events={detailEvents}
-                    emptyText={detailEventsLoading ? "Loading events..." : "No events recorded yet"}
-                  />
-                </div>
-              </div>
-            ) : detail.logs.length > 0 ? (
-              <div>
-                <h4 className="mb-2 text-[13px] font-semibold text-text-primary">Activity</h4>
-                <div className="max-h-80 divide-y divide-border-light overflow-y-auto">
-                  {detail.logs.map((log) => (
-                    <div key={log._id} className="py-2">
-                      <p className="text-sm text-text-secondary">{log.text}</p>
-                      <p className="mt-0.5 text-xs text-text-tertiary">{new Date(log.timestamp).toLocaleString()}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-text-tertiary">No activity recorded yet.</p>
-            )}
-
-            <div className="flex justify-end border-t border-border-light pt-3">
-              <Button variant="secondary" size="sm" onClick={() => navigate(ROUTE_FOR[detail.job.type](detail.job.id))}>
-                Open
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+      <JobDetailModal job={detailJob} onClose={() => setDetailJob(null)} navigate={navigate} />
     </div>
   );
 };

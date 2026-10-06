@@ -2,7 +2,6 @@ const fs = require('fs').promises;
 const path = require('path');
 const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
-const { VIDEO_TYPES } = require('../../constants');
 const templateRegistry = require('../../ir/templateRegistry');
 
 /**
@@ -59,7 +58,7 @@ class ScriptParserService {
   static GENERATIVE_SUPPORTED_SCENE_TYPES = templateRegistry.GENERATIVE_SUPPORTED_SCENE_TYPES;
 
   static validate(scriptData, videoType = 'educational', options = {}) {
-    const { hostVoice = '', guestVoice = '', hostName = '', guestName = '', seed = '', disableCaptions = false } = options;
+    const { hostVoice = '', guestVoice = '', hostName = '', guestName = '', disableCaptions = false } = options;
     const errors = [];
 
     if (!scriptData.title || typeof scriptData.title !== 'string') {
@@ -160,7 +159,7 @@ class ScriptParserService {
           scene_meta = scene.scene_meta;
         } else {
           const audioText = scene.audio?.text || '';
-          const sentences = audioText.match(/[^\.!\?]+[\.!\?]+/g) || [audioText].filter(Boolean);
+          const sentences = audioText.match(/[^.!?]+[.!?]+/g) || [audioText].filter(Boolean);
           scene_meta = {
             content: sentences.map((s) => s.trim()).filter((s) => s.length > 0),
           };
@@ -303,7 +302,7 @@ class ScriptParserService {
    * body paragraph) - the other 3 (title/image/podcast) don't render
    * scene_meta.content at all, so this only needs 2 branches.
    */
-  static _createContentElementsFromMeta(templateId, contentItems, scene, options = {}, explicitSceneType = null) {
+  static _createContentElementsFromMeta(templateId, contentItems, scene, _options = {}, explicitSceneType = null) {
     // GENERATIVE_TEMPLATE_ID can't be reverse-looked-up from
     // SCENE_TYPE_TEMPLATE_IDS (see _createDefaultElements) - callers that
     // already know the sceneType pass it explicitly instead.

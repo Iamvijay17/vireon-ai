@@ -1,4 +1,4 @@
-const { execFile, spawn } = require('child_process');
+const { execFile } = require('child_process');
 const { promisify } = require('util');
 const crypto = require('crypto');
 const fs = require('fs').promises;
@@ -10,133 +10,10 @@ const MetricsService = require('../common/MetricsService');
 const { abortableDelay, makeAbortError } = require('../../utils/abortableDelay');
 const { toRenderProps, diffRenderProps } = require('../../ir');
 const { checkSceneGraph } = require('./sceneGraphCheck');
-const { checkImageUrl, buildAllowedHosts } = require('../../utils/assetUrlGuard');
+const { parseRemotionProgressLine, remotionProgressFraction, runRemotionCommandStreaming } = require('./remotionCli');
+const assetChecks = require('./remotionAssetChecks');
 
 const execFileAsync = promisify(execFile);
-
-/**
- * Matches the plain-text progress lines Remotion's CLI writes to stdout
- * when it isn't attached to a TTY (see @remotion/cli's
- * shouldUseNonOverlayingLogger + getGuiProgressSubtitle) - which is always
- * true here since execFile/spawn never gives the child a pty. Each is its
- * own line (no ANSI cursor tricks), so line-buffered parsing is reliable.
- */
-const REMOTION_PROGRESS_PATTERNS = {
-  bundling: /^Bundling (\d+)%/,
-  rendering: /^Rendered (\d+)\/(\d+)/,
-  stitching: /^Encoded (\d+)\/(\d+)/,
-};
-
-/**
- * Weights mirror @remotion/cli's own aggregate progress formula
- * (bundling*0.3 + rendering*0.6 + stitching*0.1) so the fraction handed to
- * `onProgress` tracks what Remotion itself considers "done" rather than an
- * arbitrary approximation.
- */
-function parseRemotionProgressLine(line, state) {
-  const bundlingMatch = line.match(REMOTION_PROGRESS_PATTERNS.bundling);
-  if (bundlingMatch) {
-    state.bundling = Number(bundlingMatch[1]) / 100;
-    return true;
-  }
-
-  const renderingMatch = line.match(REMOTION_PROGRESS_PATTERNS.rendering);
-  if (renderingMatch) {
-    state.bundling = 1;
-    state.rendering = Number(renderingMatch[1]) / Number(renderingMatch[2]);
-    return true;
-  }
-
-  const stitchingMatch = line.match(REMOTION_PROGRESS_PATTERNS.stitching);
-  if (stitchingMatch) {
-    state.bundling = 1;
-    state.rendering = 1;
-    state.stitching = Number(stitchingMatch[1]) / Number(stitchingMatch[2]);
-    return true;
-  }
-
-  return false;
-}
-
-function remotionProgressFraction(state) {
-  return state.bundling * 0.3 + state.rendering * 0.6 + state.stitching * 0.1;
-}
-
-/**
- * Runs a Remotion CLI command with the child's stdout streamed line-by-line
- * to `onLine`, instead of execFile's buffer-until-exit behavior - needed so
- * render progress can be reported while the (multi-minute) render is still
- * running rather than only once it finishes. Mirrors execFileAsync's
- * contract otherwise: resolves {stdout, stderr} on exit code 0, rejects
- * with stdout/stderr/code attached on failure or timeout.
- */
-function runRemotionCommandStreaming(binaryPath, args, { cwd, timeout, onLine, signal }) {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(makeAbortError());
-      return;
-    }
-
-    // Passing `signal` lets Node kill the child itself the moment the job
-    // is cancelled (SIGTERM, then rejects with a standard AbortError below)
-    // instead of only noticing between whole render attempts - a single
-    // attempt can run for the full config.remotion.timeout (minutes).
-    const child = spawn(process.execPath, [binaryPath, ...args], { cwd, windowsHide: true, signal });
-
-    let stdout = '';
-    let stderr = '';
-    let lineBuffer = '';
-    let settled = false;
-
-    const timer = timeout
-      ? setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          child.kill();
-          const err = new Error(`Command timed out after ${timeout}ms`);
-          Object.assign(err, { stdout, stderr, code: 'ETIMEDOUT' });
-          reject(err);
-        }, timeout)
-      : null;
-
-    child.stdout.on('data', (chunk) => {
-      const str = chunk.toString('utf8');
-      stdout += str;
-      lineBuffer += str;
-      let newlineIndex;
-      while ((newlineIndex = lineBuffer.indexOf('\n')) !== -1) {
-        const line = lineBuffer.slice(0, newlineIndex).trim();
-        lineBuffer = lineBuffer.slice(newlineIndex + 1);
-        if (line && onLine) onLine(line);
-      }
-    });
-
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk.toString('utf8');
-    });
-
-    child.on('error', (err) => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      Object.assign(err, { stdout, stderr });
-      reject(err);
-    });
-
-    child.on('close', (code) => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      if (code === 0) {
-        resolve({ stdout, stderr });
-      } else {
-        const err = new Error(`Command failed with exit code ${code}`);
-        Object.assign(err, { stdout, stderr, code, status: code });
-        reject(err);
-      }
-    });
-  });
-}
 
 /**
  * Service for rendering videos using Remotion.
@@ -288,123 +165,14 @@ class RemotionService {
     return legacyAssets;
   }
 
-  /**
-   * Verify every scene that's expected to have audio (audio.duration > 0
-   * in assets.json) actually made it to storage. Scenes with no audio text
-   * legitimately have duration 0 and are skipped. Checks storage rather
-   * than local disk since scene audio is uploaded (and backend/jobs/ may
-   * already be cleaned up) well before rendering runs.
-   */
+  /** See remotionAssetChecks.verifySceneAudioFiles. */
   static async _verifySceneAudioFiles(jobId, scenes) {
-    const provider = getStorageProvider();
-    const missing = [];
-
-    for (const scene of scenes) {
-      if (!(scene.audio?.duration > 0)) continue;
-      const exists = await provider.objectExists(jobId, 'audio', `scene${scene.sceneNumber}.mp3`);
-      if (!exists) missing.push(scene.sceneNumber);
-    }
-
-    if (missing.length > 0) {
-      throw new Error(
-        `Missing audio file(s) for scene(s) ${missing.join(', ')} - audio generation must complete before rendering`
-      );
-    }
+    return assetChecks.verifySceneAudioFiles(jobId, scenes);
   }
 
-  /**
-   * Pre-render validation: catches the cheap, structural failure modes
-   * that would otherwise only surface as a wasted multi-minute Remotion
-   * render (or a broken-looking output video) - missing/duplicate scene
-   * numbers, a scene with no duration, narration text whose TTS pass
-   * produced a 0-duration clip, an image prompt whose image never got
-   * generated, or scene audio that was recorded but never made it to
-   * storage. Collects every issue instead of failing on the first, so a
-   * job with several broken scenes reports all of them in one pass.
-   *
-   * `scenes` should be the source script's scene array (job.script.scenes
-   * or CourseVideo's equivalent) - not the transformed assets.json shape,
-   * since prepareAssets strips scene.audio.text, which this needs to tell
-   * "no narration expected" apart from "TTS produced an empty clip".
-   */
+  /** Pre-render validation - see remotionAssetChecks.validateAssets. */
   static async validateAssets(jobId, scenes) {
-    const issues = [];
-
-    if (!Array.isArray(scenes) || scenes.length === 0) {
-      throw new Error('Pre-render validation failed: script has no scenes');
-    }
-
-    const provider = getStorageProvider();
-    const seenSceneNumbers = new Set();
-    const imageRefs = [];
-
-    for (const scene of scenes) {
-      const sceneNum = scene.sceneNumber;
-      const label = `Scene ${sceneNum ?? '?'}`;
-
-      if (sceneNum == null) {
-        issues.push(`${label}: missing sceneNumber`);
-      } else if (seenSceneNumbers.has(sceneNum)) {
-        issues.push(`${label}: duplicate sceneNumber`);
-      } else {
-        seenSceneNumbers.add(sceneNum);
-      }
-
-      if (!scene.templateId && !scene.sceneType) {
-        issues.push(`${label}: missing templateId/sceneType`);
-      }
-
-      const duration = scene.audio?.duration || scene.duration;
-      if (!(duration > 0)) {
-        issues.push(`${label}: duration must be greater than 0`);
-      }
-
-      const narrationText = scene.audio?.text?.trim();
-      if (narrationText) {
-        if (!(scene.audio?.duration > 0)) {
-          issues.push(`${label}: has narration text but audio duration is 0 - TTS likely produced an empty clip`);
-        }
-        if (sceneNum != null) {
-          const exists = await provider.objectExists(jobId, 'audio', `scene${sceneNum}.mp3`);
-          if (!exists) issues.push(`${label}: audio file is missing from storage`);
-        }
-      }
-
-      // scene.imagePrompt is only ever set when the script generator chose
-      // an image-bearing template for this scene (see TemplateCategories.js's
-      // 'image'/'contentwithimage' categories) - a scene with no image
-      // prompt legitimately has no image and isn't checked here.
-      if (scene.imagePrompt && !scene.imageUrl) {
-        issues.push(`${label}: image prompt set but no image was generated`);
-      }
-
-      for (const [field, url] of [
-        ['imageUrl', scene.imageUrl],
-        ['elements.image', scene.elements?.image],
-        ['elements.hostImage', scene.elements?.hostImage],
-      ]) {
-        if (typeof url === 'string' && url.trim()) imageRefs.push({ label, field, url });
-      }
-    }
-
-    // The render machine's Chromium fetches these - refuse private/internal
-    // targets before spending a multi-minute render on them. Each distinct URL
-    // is resolved once however many scenes share it (podcast turns all share
-    // one cover image).
-    const allowedHosts = buildAllowedHosts(config);
-    const verdicts = new Map();
-    for (const { url } of imageRefs) {
-      if (!verdicts.has(url)) verdicts.set(url, checkImageUrl(url, { allowedHosts }));
-    }
-    await Promise.all(verdicts.values());
-    for (const { label, field, url } of imageRefs) {
-      const problem = await verdicts.get(url);
-      if (problem) issues.push(`${label}: ${field} ${problem}`);
-    }
-
-    if (issues.length > 0) {
-      throw new Error(`Pre-render validation failed:\n- ${issues.join('\n- ')}`);
-    }
+    return assetChecks.validateAssets(jobId, scenes);
   }
 
   /**
@@ -705,3 +473,4 @@ class RemotionService {
 }
 
 module.exports = RemotionService;
+

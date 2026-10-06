@@ -95,7 +95,7 @@ npm run worker:dev       # video worker (separate terminal)
 npm run course-worker:dev
 ```
 
-`start`, `dev`, `worker*` and `course-worker*` run MinIO alongside the process through the `minio` script, which points at `D:\Programs\minio\start-minio.ps1`. Edit that path in `package.json` if MinIO is elsewhere. If MinIO is already running, the extra start attempt fails to bind the port and exits harmlessly. To skip MinIO, use the `:only` scripts (`server:only`, `server:only:dev`, `worker:only`, `worker:only:dev`, `course-worker:only`, `course-worker:only:dev`).
+`start`, `dev`, `worker*` and `course-worker*` run MinIO alongside the process through the `minio` script (`scripts/start-minio.js`), which launches `MINIO_EXE` against `MINIO_DATA_DIR` from `.env`; with `MINIO_DATA_DIR` unset it does nothing. If MinIO is already running, the extra start attempt fails to bind the port and exits harmlessly. To skip MinIO, use the `:only` scripts (`server:only`, `server:only:dev`, `worker:only`, `worker:only:dev`, `course-worker:only`, `course-worker:only:dev`).
 
 | Script | Purpose |
 |--------|---------|

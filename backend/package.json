@@ -4,7 +4,7 @@
   "description": "Vireon AI - AI-powered video generation platform backend",
   "main": "src/server.js",
   "scripts": {
-    "minio": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Programs\\minio\\start-minio.ps1\"",
+    "minio": "node scripts/start-minio.js",
     "server:only": "node src/server.js",
     "server:only:dev": "node --watch src/server.js",
     "worker:only": "node src/workers/videoWorker.js",
@@ -20,7 +20,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "lint": "eslint src/"
+    "lint": "eslint src/ tests/ --max-warnings 0"
   },
   "keywords": [
     "vireon",
@@ -54,8 +54,10 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "concurrently": "^10.0.5",
     "eslint": "^9.18.0",
+    "globals": "^17.13.0",
     "jest": "^29.7.0"
   }
 }

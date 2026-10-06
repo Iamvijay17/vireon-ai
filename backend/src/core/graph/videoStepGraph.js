@@ -25,7 +25,7 @@ const IMAGE_BEARING = new Set(['image', 'contentwithimage']);
  * topology - see shadowHandlers below for the read-only variant used by
  * scripts/graphShadowRun.js.
  */
-function compileVideoGraph({ jobId, ir, videoJob, handlers }) {
+function compileVideoGraph({ ir, handlers }) {
   const nodes = [];
 
   for (const scene of ir.scenes) {
@@ -99,7 +99,7 @@ function realHandlers({ jobId, videoJob }) {
     sceneImage: async () => {
       throw new Error('Image generation has no standalone service call yet - not wired into the step graph');
     },
-    compose: async (ctx) => {
+    compose: async () => {
       // Re-read is deliberate: scene.audio nodes just persisted new
       // durations/files that the freshest script reflects.
       const VideoService = require('../../services/video/VideoService');
