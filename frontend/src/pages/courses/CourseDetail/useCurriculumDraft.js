@@ -43,6 +43,11 @@ export function useCurriculumDraft(course, id) {
     hydratedDraftIdRef.current = course._id;
     const draft = course.curriculumDraft;
     if (draft?.lessons?.length > 0) {
+      // Seeding editable state from the server copy once per course id
+      // (guarded by hydratedDraftIdRef) is deliberate: deriving it during
+      // render instead would re-seed on every course refetch and clobber
+      // in-progress edits.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(draft.form || EMPTY_FORM);
       setLessons(draft.lessons);
       setSubtitle(draft.subtitle || "");
