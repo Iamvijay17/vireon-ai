@@ -13,6 +13,8 @@ import { ThemeContext } from "../../shared/themeContextValue";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../../shared/settingsStorage";
 import { getVoices, getHealth, getCourseWorkerStatus } from "../../services/api";
 import { connect, onCourseWorkerStatus } from "../../services/socket";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "../../lib/queryClient";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 
 const FALLBACK_VOICE_OPTIONS = [
@@ -98,11 +100,22 @@ const SettingsPage = () => {
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
-  const [health, setHealth] = useState(null);
-  const [healthError, setHealthError] = useState(false);
-  const [healthLoading, setHealthLoading] = useState(true);
-  const [workerRunning, setWorkerRunning] = useState(null);
-  const [statusLoading, setStatusLoading] = useState(true);
+  const queryClient = useQueryClient();
+  // No retry: a failed health check *is* the answer ("Offline"), and
+  // retrying only delays showing it.
+  const healthQuery = useQuery({
+    queryKey: queryKeys.system.health,
+    queryFn: async () => (await getHealth()).data,
+    retry: false,
+  });
+  const workerQuery = useQuery({
+    queryKey: queryKeys.system.courseWorker,
+    queryFn: () => getCourseWorkerStatus().then((res) => res.data.running).catch(() => false),
+  });
+  const health = healthQuery.data ?? null;
+  const healthError = Boolean(healthQuery.error);
+  const workerRunning = workerQuery.data ?? null;
+  const statusLoading = healthQuery.isFetching || workerQuery.isFetching;
 
   useEffect(() => {
     let cancelled = false;
@@ -139,30 +152,16 @@ const SettingsPage = () => {
   };
 
   const fetchStatus = () => {
-    setHealthLoading(true);
-    setStatusLoading(true);
-    getHealth()
-      .then((res) => {
-        setHealth(res.data);
-        setHealthError(false);
-      })
-      .catch(() => setHealthError(true))
-      .finally(() => setHealthLoading(false));
-    getCourseWorkerStatus()
-      .then((res) => setWorkerRunning(res.data.running))
-      .catch(() => setWorkerRunning(false))
-      .finally(() => setStatusLoading(false));
+    healthQuery.refetch();
+    workerQuery.refetch();
   };
 
+  // After the initial fetch, keep the worker indicator live via the socket
+  // push instead of re-polling on a timer.
   useEffect(() => {
-    fetchStatus();
-
-    // Once the initial REST fetch above resolves, keep the worker indicator
-    // live via the socket push instead of re-polling on a timer.
     connect();
-    const unsubscribe = onCourseWorkerStatus((data) => setWorkerRunning(data.running));
-    return unsubscribe;
-  }, []);
+    return onCourseWorkerStatus((data) => queryClient.setQueryData(queryKeys.system.courseWorker, data.running));
+  }, [queryClient]);
 
   return (
     <div>
@@ -264,7 +263,7 @@ const SettingsPage = () => {
             title="System Status"
             subtitle="Live health of the backend API and the course video worker"
             extra={
-              <Button variant="secondary" size="sm" loading={healthLoading || statusLoading} icon={<RefreshCw className="size-3.5" />} onClick={fetchStatus}>
+              <Button variant="secondary" size="sm" loading={statusLoading} icon={<RefreshCw className="size-3.5" />} onClick={fetchStatus}>
                 Refresh
               </Button>
             }

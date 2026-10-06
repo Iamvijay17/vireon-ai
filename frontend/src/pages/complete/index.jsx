@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, PlayCircle, Download, Eye, ChevronLeft, ChevronRight, Film } from "lucide-react";
 import { getVideoJobs, resolveMediaUrl } from "../../services/api";
@@ -9,7 +9,8 @@ import { Button } from "../../components/ui/Button";
 import { Select } from "../../components/ui/Select";
 import { Input } from "../../components/ui/Input";
 import { Badge } from "../../components/ui/Badge";
-import { toast } from "../../components/ui/toastBus";
+import { useApiQuery } from "../../lib/useApiQuery";
+import { queryKeys } from "../../lib/queryClient";
 
 const TYPE_OPTIONS = [
   { value: "", label: "All types" },
@@ -26,33 +27,31 @@ const PAGE_SIZE = 12;
 
 const CompletedVideos = () => {
   const navigate = useNavigate();
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 0 });
+  const [page, setPage] = useState(1);
   const [type, setType] = useState("");
+  // `search` is the box as typed; `appliedSearch` only changes on submit,
+  // so typing doesn't fire a request per keystroke.
   const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
 
-  const fetchJobs = async (page = 1) => {
-    try {
-      setLoading(true);
-      const res = await getVideoJobs(page, PAGE_SIZE, { status: "COMPLETED", type: type || undefined, search: search || undefined });
-      setJobs(res.data.jobs);
-      setPagination(res.data.pagination);
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to fetch completed videos");
-    } finally {
-      setLoading(false);
-    }
+  const filters = { status: "COMPLETED", type: type || undefined, search: appliedSearch || undefined };
+  const { data, loading, refreshing, refetch } = useApiQuery(
+    queryKeys.videos.list(page, { limit: PAGE_SIZE, ...filters }),
+    () => getVideoJobs(page, PAGE_SIZE, filters),
+    { errorMessage: "Failed to fetch completed videos" }
+  );
+  const jobs = data?.jobs || [];
+  const pagination = data?.pagination || { page, total: 0, pages: 0 };
+
+  const changeType = (value) => {
+    setType(value);
+    setPage(1);
   };
-
-  useEffect(() => {
-    fetchJobs(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchJobs(1);
+    setAppliedSearch(search);
+    setPage(1);
   };
 
   const totalPages = pagination.pages || 1;
@@ -71,8 +70,8 @@ const CompletedVideos = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
           </form>
-          <Select value={type} onChange={setType} options={TYPE_OPTIONS} className="w-44" />
-          <Button variant="secondary" size="sm" onClick={() => fetchJobs(1)} loading={loading}>
+          <Select value={type} onChange={changeType} options={TYPE_OPTIONS} className="w-44" />
+          <Button variant="secondary" size="sm" onClick={() => refetch()} loading={loading || refreshing}>
             Apply
           </Button>
         </div>
@@ -174,7 +173,7 @@ const CompletedVideos = () => {
                 size="sm"
                 iconOnly
                 disabled={pagination.page <= 1}
-                onClick={() => fetchJobs(pagination.page - 1)}
+                onClick={() => setPage(pagination.page - 1)}
                 icon={<ChevronLeft className="size-4" />}
               />
               <Button
@@ -182,7 +181,7 @@ const CompletedVideos = () => {
                 size="sm"
                 iconOnly
                 disabled={pagination.page >= totalPages}
-                onClick={() => fetchJobs(pagination.page + 1)}
+                onClick={() => setPage(pagination.page + 1)}
                 icon={<ChevronRight className="size-4" />}
               />
             </div>

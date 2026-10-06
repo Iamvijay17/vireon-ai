@@ -51,7 +51,10 @@ const CourseVideoStudio = () => {
   useForceSidebarCollapsed(true);
 
   const [video, setVideo] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Derived from which video has finished its first fetch, so the refetch
+  // after a save doesn't blank the editor.
+  const [loadedId, setLoadedId] = useState(null);
+  const loading = loadedId !== videoId;
   const [saving, setSaving] = useState(false);
   const [scriptMeta, setScriptMeta] = useState(null);
   const [editedScenes, setEditedScenes] = useState([]);
@@ -61,22 +64,22 @@ const CourseVideoStudio = () => {
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
 
-  const fetchVideo = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await getCourseVideo(videoId);
-      const v = res.data.video || res.data;
-      setVideo(v);
-      setScriptMeta(v.script || null);
-      setEditedScenes(v.script?.scenes || []);
-      setHasChanges(false);
-      setSelectedSceneIndex(0);
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to load video");
-    } finally {
-      setLoading(false);
-    }
-  }, [videoId]);
+  // State is only set in the promise callbacks (see the effect below).
+  const fetchVideo = useCallback(
+    () =>
+      getCourseVideo(videoId)
+        .then((res) => {
+          const v = res.data.video || res.data;
+          setVideo(v);
+          setScriptMeta(v.script || null);
+          setEditedScenes(v.script?.scenes || []);
+          setHasChanges(false);
+          setSelectedSceneIndex(0);
+        })
+        .catch((err) => toast.error(err.friendlyMessage || "Failed to load video"))
+        .finally(() => setLoadedId(videoId)),
+    [videoId]
+  );
 
   useEffect(() => {
     fetchVideo();

@@ -45,6 +45,10 @@ export const queryKeys = {
     overview: (days) => ['analytics', 'overview', days],
     videoMetrics: (page) => ['analytics', 'videoMetrics', page],
   },
+  system: {
+    health: ['system', 'health'],
+    courseWorker: ['system', 'courseWorker'],
+  },
 };
 
 export const queryClient = new QueryClient({
