@@ -89,7 +89,8 @@ function Stop-Workers {
   Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
     Where-Object { $_.CommandLine -match $pattern } |
     ForEach-Object {
-      Log "Stopping worker process $($_.ProcessId) ($($Matches[1]))"
+      $name = if ($_.CommandLine -match $pattern) { $Matches[1] } else { 'worker' }
+      Log "Stopping worker process $($_.ProcessId) ($name)"
       Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
     }
 }
