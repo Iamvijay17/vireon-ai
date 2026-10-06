@@ -160,7 +160,7 @@ class ScriptParserService {
           scene_meta = scene.scene_meta;
         } else {
           const audioText = scene.audio?.text || '';
-          const sentences = audioText.match(/[^\.!\?]+[\.!\?]+/g) || [audioText].filter(Boolean);
+          const sentences = audioText.match(/[^.!?]+[.!?]+/g) || [audioText].filter(Boolean);
           scene_meta = {
             content: sentences.map((s) => s.trim()).filter((s) => s.length > 0),
           };

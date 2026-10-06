@@ -26,7 +26,7 @@ Job stages, in order: `QUEUED` → `SCRIPT_GENERATION` → `SCRIPT_COMPLETED` �
 | `deploy/` | PowerShell scripts for the production PC: deploy, backup, watchdog, worker install, Tailscale config. |
 | `docker-compose.yml` | Production stack: Redis, API, frontend (nginx), optional Tailscale / quick tunnel. |
 | `DEPLOYMENT.md` | Full deployment guide. |
-| `PERFORMANCE-AUDIT.md` | Frontend performance audit. |
+| `docs/` | Audits (`docs/audits/`), the course-workflow design prompt, Pinokio API notes. |
 
 The root `package.json` is an npm workspace (`frontend`, `backend/remotion`) with scripts that start everything at once.
 
