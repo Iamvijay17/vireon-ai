@@ -1,6 +1,6 @@
 import { isJobRunning } from "../../lib/jobStatus";
 
-const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
+export const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 // Unfinished but blocked on a person, not on the worker: these are not "in the
 // queue" in the sense of waiting for their turn.
 const NEEDS_PERSON = new Set(["SCRIPT_COMPLETED", "AWAITING_APPROVAL"]);
@@ -37,11 +37,14 @@ export function buildQueue(jobs) {
   return { running, waiting, approval };
 }
 
+/** True once a job can no longer change (finished, failed or cancelled). */
+export const isTerminal = (job) => TERMINAL.has(upper(job.status));
+
 /** Why a not-yet-running job is not running, in plain words. */
 export function waitReason(job, running) {
   const status = upper(job.status);
   if (status === "RETRY_SCHEDULED") return "Retry scheduled";
-  if (status === "AUDIO_COMPLETED") return "Between stages";
+  if (status === "AUDIO_COMPLETED" || status === "IMAGE_COMPLETED") return "Between stages";
   const ahead = running?.[0];
   if (ahead) {
     const phrase = STAGE_PHRASE[upper(ahead.status)] || "working";

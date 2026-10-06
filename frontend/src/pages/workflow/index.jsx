@@ -16,6 +16,7 @@ import { getVideoJob } from "../../services/api";
 import { useWorkflowJobLive } from "./useWorkflowJobLive";
 import { QueuePanel } from "./QueuePanel";
 import { NowRunningPanel } from "./NowRunningPanel";
+import { isTerminal } from "./queue";
 import {
   NODES, EDGES, NODE_W, NODE_H, BOUNDS, NODE_BY_ID, STATE, STATE_COLOR, STAGE_COLOR, SKIPPED,
   edgePath, nodeStates, portOf,
@@ -69,7 +70,7 @@ const WorkflowPage = () => {
     page: 1,
     limit: 30,
     filters: { type: "video" },
-    isActive: (j) => !["COMPLETED", "FAILED", "CANCELLED"].includes(String(j.status || "").toUpperCase()),
+    isActive: (j) => !isTerminal(j),
   });
 
   const { data: job } = useQuery({

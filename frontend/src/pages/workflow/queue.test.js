@@ -44,6 +44,7 @@ describe("waitReason", () => {
   it("has distinct reasons for retries and between-stage jobs", () => {
     expect(waitReason(job("b", "RETRY_SCHEDULED"), running)).toBe("Retry scheduled");
     expect(waitReason(job("b", "AUDIO_COMPLETED"), running)).toBe("Between stages");
+    expect(waitReason(job("b", "IMAGE_COMPLETED"), running)).toBe("Between stages");
   });
 
   it("does not invent a blocker when nothing is running", () => {

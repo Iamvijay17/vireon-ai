@@ -48,7 +48,10 @@ export const NowRunningPanel = ({ job, jobId, states }) => {
   if (!jobId || !job) {
     return (
       <Card>
-        <CardHeader title="Current stage" subtitle="Pick a job from the queue or the selector to follow it" />
+        <CardHeader
+          title="Current stage"
+          subtitle={jobId ? "Loading job..." : "Pick a job from the queue or the selector to follow it"}
+        />
       </Card>
     );
   }
