@@ -178,7 +178,7 @@ const Analytics = () => {
             <Stat label="Concurrency" value={data?.worker?.concurrency ?? "—"} />
             <Stat label="Active Jobs" value={data?.worker?.activeJobs ?? 0} />
             <Stat label="Waiting Jobs" value={data?.worker?.waitingJobs ?? 0} />
-            <Stat label="Retry Rate" value={formatPercent(data?.worker?.retryRate)} />
+            <Stat label="Jobs Retried" value={formatPercent(data?.worker?.retryRate)} />
           </div>
         </Card>
       </div>
