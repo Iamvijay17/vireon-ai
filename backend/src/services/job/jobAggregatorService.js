@@ -26,7 +26,8 @@ function normalizeVideo(job) {
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     error: job.error?.message || null,
-    meta: { videoType: job.type, resolution: job.resolution },
+    // fastGeneration: false means the pipeline pauses for the user after audio.
+    meta: { videoType: job.type, resolution: job.resolution, fastGeneration: job.fastGeneration !== false },
     capabilities: {
       canCancel: !TERMINAL_VIDEO_STATUSES.includes(job.status),
       canRetry: job.status === JOB_STATUS.FAILED || job.status === JOB_STATUS.CANCELLED,

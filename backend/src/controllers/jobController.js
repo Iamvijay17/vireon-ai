@@ -7,6 +7,7 @@ const ActivityLogService = require('../services/common/ActivityLogService');
 const JobEventService = require('../services/common/JobEventService');
 const { getPipelineTimeline } = require('../services/video/videoService/pipelineTimeline');
 const videoQueue = require('../queues/videoQueue');
+const videoQueueJobs = require('../services/video/videoQueueJobs');
 const LoggerService = require('../services/common/LoggerService');
 const SocketService = require('../services/common/SocketService');
 const { getStorageProvider } = require('../services/storage/providers');
@@ -35,13 +36,7 @@ async function cancelOne(type, id) {
     const job = await VideoService.stop(id);
     await ActivityLogService.add(id, 'Stopped by user');
     try {
-      const bullJob = await videoQueue.getJob(id);
-      if (bullJob) {
-        const state = await bullJob.getState();
-        if (['waiting', 'delayed', 'paused'].includes(state)) {
-          await bullJob.remove();
-        }
-      }
+      await videoQueueJobs.removePending(id);
     } catch (queueErr) {
       LoggerService.warn('Could not remove queued job during cancel', { jobId: id, error: queueErr.message });
     }
@@ -66,8 +61,7 @@ async function retryOne(type, id) {
   assertValidType(type);
 
   if (type === 'video') {
-    const existingBullJob = await videoQueue.getJob(id);
-    if (existingBullJob && (await existingBullJob.getState()) === 'active') {
+    if (await videoQueueJobs.isActive(id)) {
       throw new ValidationError('Job is still actively being processed and cannot be restarted.');
     }
     const job = await VideoService.restart(id);
@@ -75,6 +69,7 @@ async function retryOne(type, id) {
     SocketService.emitJobCreated(job);
 
     try {
+      await videoQueueJobs.removePending(id);
       const existing = await videoQueue.getJob(id);
       if (existing) await existing.remove();
     } catch (err) {

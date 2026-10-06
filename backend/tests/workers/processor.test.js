@@ -185,4 +185,36 @@ describe('resuming an automatic retry', () => {
     await processVideoJob({ data: { jobId: 'job-1' } });
     expect(VideoService.updateStatus).toHaveBeenCalledWith('job-1', JOB_STATUS.GENERATING_IMAGES, { progress: 56 });
   });
+
+  // The resume above goes through updateStatus, which clears `error` (the
+  // mock returns error: null, as the real one does). Reading retryCount after
+  // that counted every retry as attempt 1 and re-queued it under the still-
+  // running ":retry:1" id, which BullMQ dropped - the job sat at
+  // RETRY_SCHEDULED forever.
+  it('counts a retry that fails again as the next attempt, under a new BullMQ id', async () => {
+    VideoService.getById.mockResolvedValue(job({
+      status: JOB_STATUS.RETRY_SCHEDULED,
+      error: { step: JOB_STATUS.GENERATING_AUDIO, retryCount: 1 },
+    }));
+    audioStep.run.mockImplementation(async () => { throw new Error('TTS timed out'); });
+
+    const result = await processVideoJob({ data: { jobId: 'job-1' } });
+
+    expect(result).toMatchObject({ retryScheduled: true, attempt: 2 });
+    expect(VideoService.scheduleRetry).toHaveBeenCalledWith('job-1', expect.objectContaining({ retryCount: 2 }));
+    expect(videoQueue.add.mock.calls[0][2].jobId).toMatch(/^job-1:retry:2-\d+$/);
+  });
+
+  it('fails for good when the last allowed retry fails again', async () => {
+    VideoService.getById.mockResolvedValue(job({
+      status: JOB_STATUS.RETRY_SCHEDULED,
+      error: { step: JOB_STATUS.GENERATING_AUDIO, retryCount: 3 },
+      maxRetries: 3,
+    }));
+    audioStep.run.mockImplementation(async () => { throw new Error('TTS timed out'); });
+
+    await expect(processVideoJob({ data: { jobId: 'job-1' } })).rejects.toThrow('TTS timed out');
+    expect(VideoService.fail).toHaveBeenCalledWith('job-1', expect.any(String), expect.any(String), expect.objectContaining({ retryCount: 4 }));
+    expect(videoQueue.add).not.toHaveBeenCalled();
+  });
 });

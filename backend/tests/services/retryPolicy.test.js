@@ -81,11 +81,21 @@ describe('retryJobId', () => {
   it('never collides with the entity id itself', () => {
     // BullMQ drops a duplicate job id silently - a retry that is "scheduled"
     // and then never runs.
-    expect(retryJobId('job-ABCD1234', 1)).toBe('job-ABCD1234:retry:1');
+    expect(retryJobId('job-ABCD1234', 1, 1000)).toBe('job-ABCD1234:retry:1-1000');
     expect(retryJobId('job-ABCD1234', 1)).not.toBe('job-ABCD1234');
   });
 
   it('is distinct per attempt', () => {
-    expect(retryJobId('v1', 1)).not.toBe(retryJobId('v1', 2));
+    expect(retryJobId('v1', 1, 1000)).not.toBe(retryJobId('v1', 2, 1000));
+  });
+
+  it('is distinct for the same attempt in a later run', () => {
+    // A retry counted as attempt 1 again (or a new run within the 24h that
+    // completed jobs are kept) must not reuse an id BullMQ still holds.
+    expect(retryJobId('v1', 1, 1000)).not.toBe(retryJobId('v1', 1, 2000));
+  });
+
+  it('has the three-part shape BullMQ accepts for custom ids', () => {
+    expect(retryJobId('job-ABCD1234', 2).split(':')).toHaveLength(3);
   });
 });

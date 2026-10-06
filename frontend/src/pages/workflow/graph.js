@@ -241,3 +241,10 @@ export function nodeStates(job) {
 
   return states;
 }
+
+/** The node the job is on: the working one, else one it is blocked or failed at. */
+export const activeNode = (states) =>
+  NODES.find((n) => states[n.id] === STATE.RUN) ||
+  NODES.find((n) => states[n.id] === STATE.WAIT) ||
+  NODES.find((n) => states[n.id] === STATE.FAIL) ||
+  null;

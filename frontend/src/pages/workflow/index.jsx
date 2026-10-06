@@ -14,6 +14,9 @@ import { useJobs } from "../../lib/useJobs";
 import { queryKeys } from "../../lib/queryClient";
 import { getVideoJob } from "../../services/api";
 import { useWorkflowJobLive } from "./useWorkflowJobLive";
+import { QueuePanel } from "./QueuePanel";
+import { NowRunningPanel } from "./NowRunningPanel";
+import { isTerminal } from "./queue";
 import {
   NODES, EDGES, NODE_W, NODE_H, BOUNDS, NODE_BY_ID, STATE, STATE_COLOR, STAGE_COLOR, SKIPPED,
   edgePath, nodeStates, portOf,
@@ -61,7 +64,14 @@ const WorkflowPage = () => {
 
   useWorkflowJobLive(jobId || null);
 
-  const { jobs } = useJobs({ page: 1, limit: 30, filters: { type: "video" } });
+  // isActive turns on the safety-net refetch while anything is unfinished, so
+  // the queue stays current for jobs whose rooms this page has not joined.
+  const { jobs } = useJobs({
+    page: 1,
+    limit: 30,
+    filters: { type: "video" },
+    isActive: (j) => !isTerminal(j),
+  });
 
   const { data: job } = useQuery({
     queryKey: queryKeys.videos.detail(jobId),
@@ -101,28 +111,40 @@ const WorkflowPage = () => {
         }
       />
 
-      <Card className="relative h-[calc(100vh-17rem)] min-h-[460px] overflow-hidden">
-        <Canvas states={states} selectedId={selectedId} onSelect={setSelectedId} />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0">
+          <Card className="relative h-[calc(100vh-17rem)] min-h-[460px] overflow-hidden">
+            <Canvas states={states} selectedId={selectedId} onSelect={setSelectedId} />
 
-        {job && jobId && (
-          <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-2 rounded-lg border border-border bg-surface/90 px-2.5 py-1.5 backdrop-blur">
-            <StatusTag status={job.status} />
-            <span className="max-w-[220px] truncate text-[13px] font-medium text-text-primary">{job.title || job.topic}</span>
+            {job && jobId && (
+              <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-2 rounded-lg border border-border bg-surface/90 px-2.5 py-1.5 backdrop-blur">
+                <StatusTag status={job.status} />
+                <span className="max-w-[220px] truncate text-[13px] font-medium text-text-primary">{job.title || job.topic}</span>
+              </div>
+            )}
+
+            {selected && <Inspector node={selected} state={states[selected.id]} onClose={() => setSelectedId(null)} />}
+          </Card>
+
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-text-tertiary">
+            {STAGE_LEGEND.map(([id, label]) => (
+              <span key={id} className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full" style={{ backgroundColor: STAGE_COLOR[id] }} />
+                {label}
+              </span>
+            ))}
+            <span className="hidden h-3 w-px bg-border sm:block" />
+            <span>Scroll to zoom · drag to pan · click a step for details</span>
           </div>
-        )}
 
-        {selected && <Inspector node={selected} state={states[selected.id]} onClose={() => setSelectedId(null)} />}
-      </Card>
+          <div className="mt-4">
+            <NowRunningPanel job={jobId ? job : null} jobId={jobId} states={states} />
+          </div>
+        </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-text-tertiary">
-        {STAGE_LEGEND.map(([id, label]) => (
-          <span key={id} className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full" style={{ backgroundColor: STAGE_COLOR[id] }} />
-            {label}
-          </span>
-        ))}
-        <span className="hidden h-3 w-px bg-border sm:block" />
-        <span>Scroll to zoom · drag to pan · click a step for details</span>
+        <aside className="min-w-0 xl:sticky xl:top-4 xl:self-start">
+          <QueuePanel jobs={jobs} selectedJobId={jobId} onPick={pickJob} />
+        </aside>
       </div>
     </div>
   );

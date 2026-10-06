@@ -236,24 +236,24 @@ async function reapStuckVideoJobs() {
   const videoQueue = require('./queues/videoQueue');
   const ActivityLogService = require('./services/common/ActivityLogService');
 
+  const videoQueueJobs = require('./services/video/videoQueueJobs');
+
   const candidates = await VideoJob.find({ status: { $in: STUCK_VIDEO_STATUSES } });
   let reaped = 0;
 
   for (const job of candidates) {
-    let liveJob;
+    // findLiveJobs, not getJob(job._id): an automatic retry runs under its
+    // own `:retry:` id, and looking only at the base id would reap a retry
+    // that is legitimately mid-run.
     try {
-      liveJob = await videoQueue.getJob(job._id);
+      if ((await videoQueueJobs.findLiveJobs(job._id)).length > 0) {
+        continue; // Worker will still pick this up normally - not orphaned.
+      }
+      const finished = await videoQueue.getJob(job._id);
+      if (finished) await finished.remove().catch(() => {});
     } catch (err) {
       LoggerService.warn('Could not check BullMQ state for stuck job during boot sweep', { jobId: job._id, error: err.message });
       continue;
-    }
-
-    if (liveJob) {
-      const state = await liveJob.getState();
-      if (['active', 'waiting', 'delayed', 'paused'].includes(state)) {
-        continue; // Worker will still pick this up normally - not orphaned.
-      }
-      await liveJob.remove().catch(() => {});
     }
 
     const previousStatus = job.status;
@@ -269,6 +269,39 @@ async function reapStuckVideoJobs() {
 
   if (reaped > 0) {
     LoggerService.warn(`Marked ${reaped} stuck video job(s) as failed after restart`);
+  }
+}
+
+// A RETRY_SCHEDULED job is waiting for a delayed BullMQ job to bring it back.
+// If that job is gone (Redis lost it, or a bug dropped it - see the retry id
+// note in retryPolicy.js) nothing will ever move the job again, so queue the
+// retry it is waiting for. Unlike the sweep above this resumes rather than
+// fails: the job still had retries left. Runs at boot and on an interval,
+// since a stranded retry needs no restart to happen. Safe to run from more
+// than one process at once - see videoQueueJobs.scheduledRetryId.
+const RETRY_SWEEP_MS = 5 * 60 * 1000;
+
+async function recoverStrandedRetries() {
+  const VideoJob = require('./models/VideoJob');
+  const videoQueueJobs = require('./services/video/videoQueueJobs');
+  const ActivityLogService = require('./services/common/ActivityLogService');
+
+  const candidates = await VideoJob.find({ status: JOB_STATUS.RETRY_SCHEDULED }).lean();
+  let recovered = 0;
+
+  for (const job of candidates) {
+    try {
+      if (await videoQueueJobs.ensureScheduledRetry(job)) {
+        await ActivityLogService.add(job._id, 'Scheduled retry was missing from the queue - re-queued it');
+        recovered += 1;
+      }
+    } catch (err) {
+      LoggerService.warn('Could not recover stranded retry', { jobId: job._id, error: err.message });
+    }
+  }
+
+  if (recovered > 0) {
+    LoggerService.warn(`Re-queued ${recovered} video job(s) stranded at RETRY_SCHEDULED`);
   }
 }
 
@@ -367,6 +400,10 @@ async function startServer() {
     SocketService.initRedis();
     await reapOrphanedAudioGenerations();
     await reapStuckVideoJobs();
+    await recoverStrandedRetries();
+    setInterval(() => {
+      recoverStrandedRetries().catch((err) => LoggerService.warn('Retry sweep failed', { error: err.message }));
+    }, RETRY_SWEEP_MS).unref();
     await reapStuckCourseVideoJobs();
     await healCancelledStageStatuses();
 

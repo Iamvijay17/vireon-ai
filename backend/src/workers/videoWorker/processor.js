@@ -58,6 +58,13 @@ async function processVideoJob(job) {
   // now, the same way a manual Restart click would (see
   // videoService/lifecycle.js's restart()), then continue as a normal
   // resume from there.
+  // Read before the resume below: updateStatus() clears `error` (and with it
+  // retryCount), so reading it at failure time would count every retry as
+  // attempt 1 - the budget would never run out, and the next retry would
+  // reuse the still-running attempt's BullMQ id and be silently dropped,
+  // leaving the job at RETRY_SCHEDULED with nothing queued.
+  const retriesTaken = videoJob.error?.retryCount || 0;
+
   if (currentStatus === JOB_STATUS.RETRY_SCHEDULED) {
     const resumeInfo = getResumeStep(videoJob);
     videoJob = await VideoService.updateStatus(jobId, resumeInfo.status, { progress: resumeInfo.progress });
@@ -169,7 +176,7 @@ async function processVideoJob(job) {
     // retryCount stores retries already taken, so the attempt that just
     // failed is one past it. See services/common/retryPolicy.js for the
     // budget/backoff rules both workers now share.
-    const attempt = (videoJob.error?.retryCount || 0) + 1;
+    const attempt = retriesTaken + 1;
     const maxRetries = videoJob.maxRetries || 3;
     const retry = decideRetry({ attempt, maxRetries });
 
@@ -193,7 +200,12 @@ async function processVideoJob(job) {
           jobId,
           describeRetry({ step, attempt, maxRetries, delayMs: retry.delayMs, reason: friendly })
         );
-        await videoQueue.add('render-video', { jobId }, { jobId: retryJobId(jobId, attempt), delay: retry.delayMs });
+        // Same id videoQueueJobs.scheduledRetryId derives from the saved
+        // nextRetryAt, so the recovery sweep can't queue it a second time.
+        await videoQueue.add('render-video', { jobId }, {
+          jobId: retryJobId(jobId, attempt, retry.nextRetryAt.getTime()),
+          delay: retry.delayMs,
+        });
         MetricsService.increment('job.retries');
       } catch (dbErr) {
         LoggerService.error('Failed to schedule automatic retry', { error: dbErr.message });
