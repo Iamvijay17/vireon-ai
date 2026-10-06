@@ -7,6 +7,19 @@ const NEEDS_PERSON = new Set(["SCRIPT_COMPLETED", "AWAITING_APPROVAL"]);
 
 const upper = (status) => String(status || "").toUpperCase();
 
+// A manual-mode job (fastGeneration: false) pauses after audio until someone
+// starts the render, so its AUDIO_COMPLETED is a wait on a person too. In
+// fast mode the same status is a brief hand-off between worker stages.
+const needsPerson = (job) =>
+  NEEDS_PERSON.has(upper(job.status)) ||
+  (upper(job.status) === "AUDIO_COMPLETED" && job.meta?.fastGeneration === false);
+
+/** What the person has to do to move a job in the "needs you" group along. */
+export function personAction(job) {
+  if (upper(job.status) === "AUDIO_COMPLETED") return "Narration is ready - start the render to continue";
+  return "Review and approve the script to continue";
+}
+
 /** Short present-tense phrase for what a running job is doing. */
 export const STAGE_PHRASE = {
   SCRIPT_GENERATION: "writing the script",
@@ -30,10 +43,8 @@ const byAge = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);
 export function buildQueue(jobs) {
   const active = (jobs || []).filter((job) => !TERMINAL.has(upper(job.status)));
   const running = active.filter((job) => isJobRunning(job.status)).sort(byAge);
-  const approval = active.filter((job) => NEEDS_PERSON.has(upper(job.status))).sort(byAge);
-  const waiting = active
-    .filter((job) => !isJobRunning(job.status) && !NEEDS_PERSON.has(upper(job.status)))
-    .sort(byAge);
+  const approval = active.filter(needsPerson).sort(byAge);
+  const waiting = active.filter((job) => !isJobRunning(job.status) && !needsPerson(job)).sort(byAge);
   return { running, waiting, approval };
 }
 

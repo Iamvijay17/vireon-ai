@@ -1,6 +1,7 @@
 const VideoService = require('../services/video/VideoService');
 const ActivityLogService = require('../services/common/ActivityLogService');
 const videoQueue = require('../queues/videoQueue');
+const videoQueueJobs = require('../services/video/videoQueueJobs');
 const LoggerService = require('../services/common/LoggerService');
 const SocketService = require('../services/common/SocketService');
 const { validate, createVideoSchema, updateVideoJobSchema, regenerateImageSchema, jobIdSchema, jobIdArraySchema } = require('../validators');
@@ -19,6 +20,9 @@ const { sendSubtitles } = require('../utils/subtitleResponse');
  */
 async function enqueueJob(jobId) {
   try {
+    // A pending automatic retry (its own `:retry:` id) would otherwise fire
+    // later and run the job a second time.
+    await videoQueueJobs.removePending(jobId);
     const existing = await videoQueue.getJob(jobId);
     if (existing) {
       await existing.remove();
@@ -160,8 +164,7 @@ class VideoController {
       // locked), but it would leave misleading status in the UI/API until
       // the real worker finishes and overwrites it again - reject up front
       // instead.
-      const existingBullJob = await videoQueue.getJob(id);
-      if (existingBullJob && (await existingBullJob.getState()) === 'active') {
+      if (await videoQueueJobs.isActive(id)) {
         throw new ValidationError('Job is still actively being processed and cannot be restarted. If it appears stuck, wait a few minutes for automatic crash recovery, or stop it first.');
       }
 
@@ -371,8 +374,7 @@ class VideoController {
       // (enqueueJob's re-add is a no-op while the old record is still
       // locked), but it would leave misleading status in the UI until the
       // real worker finishes and overwrites it again.
-      const existingBullJob = await videoQueue.getJob(id);
-      if (existingBullJob && (await existingBullJob.getState()) === 'active') {
+      if (await videoQueueJobs.isActive(id)) {
         throw new ValidationError('Job is still actively being processed and cannot regenerate its script. Stop it first if it appears stuck.');
       }
 
@@ -412,13 +414,10 @@ class VideoController {
       await ActivityLogService.add(id, 'Stopped by user');
 
       try {
-        const bullJob = await videoQueue.getJob(id);
-        if (bullJob) {
-          const state = await bullJob.getState();
-          if (['waiting', 'delayed', 'paused'].includes(state)) {
-            await bullJob.remove();
-            LoggerService.info('Removed not-yet-started job from queue', { jobId: id, state });
-          }
+        // Includes a pending automatic retry, which runs under its own id.
+        const removed = await videoQueueJobs.removePending(id);
+        if (removed > 0) {
+          LoggerService.info('Removed not-yet-started job from queue', { jobId: id, removed });
         }
       } catch (queueErr) {
         LoggerService.warn('Could not remove queued job during stop', { jobId: id, error: queueErr.message });

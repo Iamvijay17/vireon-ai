@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildQueue, waitReason } from "./queue";
+import { buildQueue, waitReason, personAction } from "./queue";
 
 const job = (id, status, createdAt, title = id) => ({ id, status, createdAt, title });
 
@@ -25,6 +25,16 @@ describe("buildQueue", () => {
     const ids = [...q.running, ...q.waiting, ...q.approval].map((j) => j.id);
     expect(ids).not.toContain("e");
     expect(ids).not.toContain("f");
+  });
+
+  it("puts a manual-mode job waiting for its render under needs-you, not up next", () => {
+    const manual = { ...job("m", "AUDIO_COMPLETED", "2026-10-06T07:00:00Z"), meta: { fastGeneration: false } };
+    const fast = { ...job("f2", "AUDIO_COMPLETED", "2026-10-06T07:30:00Z"), meta: { fastGeneration: true } };
+    const split = buildQueue([manual, fast]);
+    expect(split.approval.map((j) => j.id)).toEqual(["m"]);
+    expect(split.waiting.map((j) => j.id)).toEqual(["f2"]);
+    expect(personAction(manual)).toMatch(/start the render/);
+    expect(personAction(job("d", "AWAITING_APPROVAL"))).toMatch(/approve the script/);
   });
 
   it("copes with an empty or missing list", () => {

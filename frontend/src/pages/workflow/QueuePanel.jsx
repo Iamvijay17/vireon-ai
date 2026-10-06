@@ -2,7 +2,7 @@ import { Card, CardHeader } from "../../components/ui/Card";
 import { Progress } from "../../components/ui/Progress";
 import { cn } from "../../components/ui/cn";
 import { StatusTag } from "../../components";
-import { buildQueue, waitReason, STAGE_PHRASE } from "./queue";
+import { buildQueue, waitReason, personAction, STAGE_PHRASE } from "./queue";
 
 const Row = ({ job, selected, onPick, index, note, running }) => (
   <button
@@ -88,14 +88,14 @@ export const QueuePanel = ({ jobs, selectedJobId, onPick }) => {
         )}
 
         {approval.length > 0 && (
-          <Group title="Needs your approval">
+          <Group title="Needs you">
             {approval.map((job) => (
               <Row
                 key={job.id}
                 job={job}
                 selected={job.id === selectedJobId}
                 onPick={onPick}
-                note="Review and approve the script to continue"
+                note={personAction(job)}
               />
             ))}
           </Group>

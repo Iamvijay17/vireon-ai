@@ -200,7 +200,12 @@ async function processVideoJob(job) {
           jobId,
           describeRetry({ step, attempt, maxRetries, delayMs: retry.delayMs, reason: friendly })
         );
-        await videoQueue.add('render-video', { jobId }, { jobId: retryJobId(jobId, attempt), delay: retry.delayMs });
+        // Same id videoQueueJobs.scheduledRetryId derives from the saved
+        // nextRetryAt, so the recovery sweep can't queue it a second time.
+        await videoQueue.add('render-video', { jobId }, {
+          jobId: retryJobId(jobId, attempt, retry.nextRetryAt.getTime()),
+          delay: retry.delayMs,
+        });
         MetricsService.increment('job.retries');
       } catch (dbErr) {
         LoggerService.error('Failed to schedule automatic retry', { error: dbErr.message });
