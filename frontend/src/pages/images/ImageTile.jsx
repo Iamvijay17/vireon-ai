@@ -4,7 +4,7 @@ import { Badge } from "../../components/ui/Badge";
 import { RelativeTime } from "../../components/ui/RelativeTime";
 import { resolveMediaUrl } from "../../services/api";
 import { GenerationProgress } from "./GenerationProgress";
-import { STYLE_LABEL } from "./constants";
+import { RESOLUTION_LABEL, STYLE_LABEL } from "./constants";
 
 const ratioStyle = (item) => ({ aspectRatio: `${item.width || 16} / ${item.height || 9}` });
 
@@ -56,6 +56,7 @@ export const ImageTile = ({ item, progress, deleting, onOpen, onDelete, onDownlo
         <div className="mt-2.5 flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Badge variant="neutral">{item.aspectRatio}</Badge>
+            {item.resolution && item.resolution !== "1k" && <Badge variant="accent">{RESOLUTION_LABEL[item.resolution]}</Badge>}
             {item.quality === "fast" && <Badge variant="warning">Fast</Badge>}
             {item.quality === "high" && <Badge variant="info">High</Badge>}
             {item.text && <Badge variant="neutral" title={`Text: ${item.text.split("\n").join(" | ")}`}>Text</Badge>}

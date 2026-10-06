@@ -68,7 +68,7 @@ class ImageController {
    */
   static async generate(req, res, next) {
     try {
-      const { prompt, aspectRatio, quality, style, negative, text, count, seed } = validate(createImageSchema)(req.body);
+      const { prompt, aspectRatio, resolution, quality, style, negative, text, count, seed } = validate(createImageSchema)(req.body);
 
       if (!config.imageGen.enabled) {
         return res.status(503).json({
@@ -82,7 +82,7 @@ class ImageController {
       // (A pinned seed ignores the variant, and the schema keeps count at 1 then.)
       const last = await ImageGeneration.findOne({ prompt, aspectRatio, style }).sort({ variant: -1 }).select('variant').lean();
       const firstVariant = last ? last.variant + 1 : 0;
-      const { width, height } = ImageGenerationService.sizeFor(aspectRatio);
+      const { width, height } = ImageGenerationService.outputSizeFor(aspectRatio, resolution);
 
       const records = [];
       try {
@@ -102,6 +102,7 @@ class ImageController {
               negative,
               text,
               aspectRatio,
+              resolution,
               quality,
               seed: seed ?? null,
               variant: seed == null ? firstVariant + i : 0,
@@ -145,6 +146,7 @@ class ImageController {
           jobId: id,
           prompt: composeFinalPrompt(record.prompt, record.style, record.text),
           aspectRatio: record.aspectRatio,
+          resolution: record.resolution || '1k',
           variant: record.variant,
           steps: stepsFor(record.quality),
           seed: record.seed ?? null,

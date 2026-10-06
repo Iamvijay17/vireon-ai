@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Download, Trash2, Loader2, Mic2, RefreshCw } from "lucide-react";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -29,6 +30,72 @@ const PendingPieces = ({ pieces, label }) => {
   );
 };
 
+// Real progress for multi-piece generations (chunked single-voice or
+// dialogue): share of characters already synthesized, weighted by text length
+// so a long turn counts for more than a short one. A single-call generation
+// has no intermediate signal from the TTS server, so for that case we show an
+// estimate - an ease-out curve over elapsed time, held below 95% until the
+// completed event actually arrives.
+const useNow = (active) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [active]);
+  return now;
+};
+
+const computeProgress = (item, pieces, now) => {
+  if (pieces?.length > 1) {
+    const total = pieces.reduce((sum, p) => sum + Math.max(p.text?.length || 0, 1), 0);
+    const done = pieces.reduce((sum, p) => sum + (p.file ? Math.max(p.text?.length || 0, 1) : 0), 0);
+    return { percent: Math.min(99, Math.round((done / total) * 100)), estimated: false };
+  }
+  const elapsed = Math.max(0, (now - new Date(item.createdAt).getTime()) / 1000);
+  const tau = Math.max(8, (item.text?.length || 0) * 0.08);
+  return { percent: Math.min(95, Math.round((1 - Math.exp(-elapsed / tau)) * 100)), estimated: true };
+};
+
+const PendingProgress = ({ item, pieces, isDialogue }) => {
+  const now = useNow(true);
+  const { percent, estimated } = computeProgress(item, pieces, now);
+  const total = pieces?.length || 0;
+  const done = pieces?.filter((p) => p.file).length || 0;
+  const label =
+    total > 1
+      ? `Generating ${isDialogue ? "turn" : "part"} ${Math.min(done + 1, total)} of ${total}`
+      : "Generating";
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between text-[11px] text-text-tertiary">
+        <span className="flex items-center gap-1.5">
+          <Loader2 className="size-3 animate-spin" />
+          {label}
+        </span>
+        <span className="font-medium tabular-nums text-text-secondary">
+          {estimated ? "~" : ""}
+          {percent}%
+        </span>
+      </div>
+      <div
+        className="h-1.5 w-full overflow-hidden rounded-full bg-border"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-label="Audio generation progress"
+      >
+        <div
+          className="h-full rounded-full bg-accent transition-[width] duration-700 ease-out"
+          style={{ width: `${Math.max(percent, 2)}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
 const HistoryItem = ({ item, deletingId, onDelete }) => {
   const isDialogue = item.mode === "dialogue";
   const pieces = isDialogue ? item.turns : item.chunks;
@@ -56,15 +123,7 @@ const HistoryItem = ({ item, deletingId, onDelete }) => {
       ) : (
         <>
           <PendingPieces pieces={pieces} label={isDialogue ? "Turn" : "Part"} />
-          <Badge variant="neutral" icon={<Loader2 className="size-3 animate-spin" />}>
-            {(() => {
-              const total = pieces?.length || 0;
-              const done = pieces?.filter((p) => p.file).length || 0;
-              return total > 0
-                ? `Generating ${isDialogue ? "turn" : "part"} ${Math.min(done + 1, total)} of ${total}`
-                : "Pending";
-            })()}
-          </Badge>
+          <PendingProgress item={item} pieces={pieces} isDialogue={isDialogue} />
         </>
       )}
 

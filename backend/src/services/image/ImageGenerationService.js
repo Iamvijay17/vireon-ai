@@ -20,6 +20,9 @@ const { fillWorkflow, placeholdersIn, firstOutputImage } = require('./workflow')
 // Misconfiguration, not a transient failure - retrying cannot fix it.
 const configError = (message) => Object.assign(new Error(message), { permanent: true });
 
+// Long edge of the saved picture per Image Studio resolution; "1k" is the native size.
+const OUTPUT_LONG_EDGE = { '2k': 2048, '4k': 3840 };
+
 class ImageGenerationService {
   /** Native generation size for a video aspect ratio ("16:9", "9:16", "1:1", "4:5"). */
   static sizeFor(aspectRatio) {
@@ -28,6 +31,22 @@ class ImageGenerationService {
     const key = ratio > 1.2 ? 'landscapeSize' : ratio < 0.85 ? 'portraitSize' : 'squareSize';
     const [width, height] = String(config.imageGen[key]).split('x').map(Number);
     return { width, height };
+  }
+
+  /**
+   * Size of the saved picture. The model always samples at sizeFor() (a 6GB card
+   * cannot sample 2K/4K), and the workflow's ImageScale node enlarges the result
+   * so its long edge is 2048 ("2k") or 3840 ("4k", i.e. 3840x2160 for 16:9).
+   * "1k" keeps the native size.
+   */
+  static outputSizeFor(aspectRatio, resolution = '1k') {
+    const native = this.sizeFor(aspectRatio);
+    const longEdge = OUTPUT_LONG_EDGE[resolution];
+    if (!longEdge) return native;
+    const scale = longEdge / Math.max(native.width, native.height);
+    // Even dimensions: the picture may end up in a video frame later.
+    const even = (n) => Math.round((n * scale) / 2) * 2;
+    return { width: even(native.width), height: even(native.height) };
   }
 
   /**
@@ -53,8 +72,9 @@ class ImageGenerationService {
   }
 
   /** Everything that decides what the image looks like - the cache key's inputs. */
-  static _params(prompt, aspectRatio, variant = 0, { steps = null, seed = null, negative = null, cfg = null } = {}) {
+  static _params(prompt, aspectRatio, variant = 0, { steps = null, seed = null, negative = null, cfg = null, resolution = '1k' } = {}) {
     const { width, height } = this.sizeFor(aspectRatio);
+    const { width: outWidth, height: outHeight } = this.outputSizeFor(aspectRatio, resolution);
     const g = config.imageGen;
     return {
       prompt,
@@ -64,6 +84,9 @@ class ImageGenerationService {
       seed: seed ?? this.seedFor(prompt, variant),
       width,
       height,
+      // Size of the saved picture (the workflow scales the sampled one to it); part of the cache key.
+      outWidth,
+      outHeight,
       // A caller-chosen step count (Image Studio's "fast") is part of the cache key like any other setting.
       steps: steps || g.steps,
       // Guidance only matters if the model does a negative pass (see config.imageGen.guidedCfg).
@@ -78,9 +101,9 @@ class ImageGenerationService {
    * Generate (or fetch from cache) the image for `prompt` and return its public URL.
    * @returns {Promise<{ url, fileName, cacheKey, fromCache, durationMs }>}
    */
-  static async generate({ jobId, prompt, aspectRatio, variant = 0, steps = null, seed = null, negative = null, cfg = null, signal, onProgress }) {
+  static async generate({ jobId, prompt, aspectRatio, variant = 0, steps = null, seed = null, negative = null, cfg = null, resolution = '1k', signal, onProgress }) {
     const { template, raw } = await this._loadWorkflow();
-    const params = this._params(prompt, aspectRatio, variant, { steps, seed, negative, cfg });
+    const params = this._params(prompt, aspectRatio, variant, { steps, seed, negative, cfg, resolution });
 
     if (placeholdersIn(template).has('checkpoint') && !params.checkpoint) {
       throw configError('COMFYUI_CHECKPOINT is not set - name the checkpoint file ComfyUI should generate with (see backend/workflows/README.md)');
@@ -111,12 +134,12 @@ class ImageGenerationService {
 
     const url = await provider.uploadFile(jobId, localPath, 'image', { cacheKey });
     await CacheService.putImage(cacheKey, localPath, {
-      width: params.width, height: params.height, seed: params.seed, checkpoint: params.checkpoint,
+      width: params.outWidth, height: params.outHeight, seed: params.seed, checkpoint: params.checkpoint,
     });
 
     const durationMs = Date.now() - startedAt;
     MetricsService.recordDuration('image.duration', durationMs);
-    LoggerService.info('Scene image generated', { jobId, fileName, durationMs, width: params.width, height: params.height });
+    LoggerService.info('Scene image generated', { jobId, fileName, durationMs, width: params.outWidth, height: params.outHeight });
     return { url, fileName, cacheKey, fromCache: false, durationMs, seed: params.seed };
   }
 

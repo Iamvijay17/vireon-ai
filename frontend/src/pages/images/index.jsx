@@ -127,6 +127,7 @@ const ImagesPage = () => {
     startGeneration({
       prompt: promptText,
       aspectRatio: opts.aspectRatio,
+      resolution: opts.resolution,
       quality: opts.quality,
       style: opts.style,
       negative: negative.trim(),
@@ -142,6 +143,7 @@ const ImagesPage = () => {
     startGeneration({
       prompt: item.prompt,
       aspectRatio: item.aspectRatio,
+      resolution: item.resolution || "1k",
       quality: item.quality || "standard",
       style: item.style || "none",
       negative: item.negative || "",
@@ -156,6 +158,7 @@ const ImagesPage = () => {
     setText(linesToPipes(item.text));
     setOpts({
       aspectRatio: item.aspectRatio === "4:5" ? "9:16" : item.aspectRatio,
+      resolution: item.resolution || "1k",
       quality: item.quality || "standard",
       style: item.style || "none",
       count: 1,

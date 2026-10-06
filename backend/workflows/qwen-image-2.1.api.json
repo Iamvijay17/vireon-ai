@@ -38,8 +38,12 @@
     "class_type": "VAEDecode",
     "inputs": { "samples": ["458", 0], "vae": ["454", 0] }
   },
+  "459": {
+    "class_type": "ImageScale",
+    "inputs": { "image": ["457", 0], "upscale_method": "lanczos", "width": "{{outWidth}}", "height": "{{outHeight}}", "crop": "disabled" }
+  },
   "461": {
     "class_type": "SaveImage",
-    "inputs": { "filename_prefix": "vireon", "images": ["457", 0] }
+    "inputs": { "filename_prefix": "vireon", "images": ["459", 0] }
   }
 }

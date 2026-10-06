@@ -4,6 +4,7 @@ jest.mock('../../src/services/common/LoggerService', () => ({
 jest.mock('../../src/services/image/ImageGenerationService', () => ({
   generate: jest.fn(),
   sizeFor: jest.fn(() => ({ width: 1024, height: 576 })),
+  outputSizeFor: jest.fn((_aspect, resolution) => (resolution === '4k' ? { width: 3840, height: 2160 } : { width: 1024, height: 576 })),
 }));
 jest.mock('../../src/services/localAI', () => ({
   gpu: { withGPU: jest.fn((_name, fn) => fn()) },
