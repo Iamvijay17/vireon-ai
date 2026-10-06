@@ -71,8 +71,12 @@ function describeExhausted({ step, attempt, reason }) {
  * job as a duplicate - which presents as a retry that was "scheduled" and
  * then never ran.
  */
-function retryJobId(entityId, attempt) {
-  return `${entityId}:retry:${attempt}`;
+function retryJobId(entityId, attempt, now = Date.now()) {
+  // The timestamp keeps it unique across runs too: completed BullMQ jobs are
+  // kept for 24h, so a bare `:retry:1` from an earlier run (or a retry
+  // attempt that was counted wrongly) would be dropped as a duplicate.
+  // Exactly three ':'-separated parts - BullMQ rejects any other count.
+  return `${entityId}:retry:${attempt}-${now}`;
 }
 
 module.exports = { decideRetry, describeRetry, describeExhausted, retryJobId, DEFAULT_MAX_RETRIES };
