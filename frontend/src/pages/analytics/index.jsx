@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Video, Mic2, Activity, HardDrive, Layers, BookOpen, MonitorPlay, Tag, LayoutGrid, Cpu, RefreshCw,
 } from "lucide-react";
@@ -13,7 +13,8 @@ import { CATEGORICAL_PALETTE } from "../../lib/chartPalette";
 import { StatusStackedBar } from "../../components/charts/StatusStackedBar";
 import { StatusDonut } from "../../components/charts/StatusDonut";
 import { GaugeRing } from "../../components/charts/GaugeRing";
-import { toast } from "../../components/ui/toastBus";
+import { useApiQuery } from "../../lib/useApiQuery";
+import { queryKeys } from "../../lib/queryClient";
 import { formatBytes, formatPercent } from "./format";
 import { KpiTiles, ProcessingTimeCard } from "./StatTiles";
 import { ChartCard } from "./ChartCard";
@@ -47,25 +48,11 @@ const Stat = ({ label, value }) => (
  */
 const Analytics = () => {
   const [days, setDays] = useState("30");
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchData = async (range = days) => {
-    try {
-      setLoading(true);
-      const res = await getAnalyticsOverview(Number(range));
-      setData(res.data);
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to load analytics");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData(days);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days]);
+  const { data, loading, refreshing, refetch } = useApiQuery(
+    queryKeys.analytics.overview(days),
+    () => getAnalyticsOverview(Number(days)),
+    { errorMessage: "Failed to load analytics" }
+  );
 
   const summary = data?.summary || {};
   const trend = useMemo(() => data?.trend || [], [data]);
@@ -92,7 +79,7 @@ const Analytics = () => {
         extra={
           <>
             <Select value={days} onChange={setDays} options={RANGE_OPTIONS} className="w-40" />
-            <Button variant="secondary" size="sm" loading={loading} onClick={() => fetchData(days)} icon={<RefreshCw className="size-4" />}>
+            <Button variant="secondary" size="sm" loading={loading || refreshing} onClick={() => refetch()} icon={<RefreshCw className="size-4" />}>
               Refresh
             </Button>
           </>

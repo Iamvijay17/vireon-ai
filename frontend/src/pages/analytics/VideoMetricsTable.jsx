@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ListVideo, ChevronLeft, ChevronRight } from "lucide-react";
 import { getVideoMetrics } from "../../services/api";
 import { LoadingState, EmptyState } from "../../components";
@@ -6,7 +6,8 @@ import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { Table } from "../../components/ui/Table";
-import { toast } from "../../components/ui/toastBus";
+import { useApiQuery } from "../../lib/useApiQuery";
+import { queryKeys } from "../../lib/queryClient";
 import { formatDuration } from "./format";
 
 // Mirrors AnalyticsService's STAGE_BUCKETS (backend/src/services/common/AnalyticsService.js)
@@ -63,26 +64,14 @@ const COLUMNS = [
  * (independent of the page's date range), most recent jobs first.
  */
 export function VideoMetricsTable() {
-  const [rows, setRows] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
-  const [loading, setLoading] = useState(true);
-
-  const fetchPage = async (page = 1) => {
-    try {
-      setLoading(true);
-      const res = await getVideoMetrics({ page, limit: 10 });
-      setRows(res.data.rows || []);
-      setPagination(res.data.pagination || { page, total: 0, totalPages: 0 });
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to load per-video metrics");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPage(1);
-  }, []);
+  const [page, setPage] = useState(1);
+  const { data, loading, refreshing } = useApiQuery(
+    queryKeys.analytics.videoMetrics(page),
+    () => getVideoMetrics({ page, limit: 10 }),
+    { errorMessage: "Failed to load per-video metrics" }
+  );
+  const rows = data?.rows || [];
+  const pagination = data?.pagination || { page, total: 0, totalPages: 0 };
 
   return (
     <Card className="mt-4 animate-slide-up overflow-hidden rounded-2xl shadow-sm" style={{ "--stagger-index": 17 }}>
@@ -99,7 +88,7 @@ export function VideoMetricsTable() {
       ) : rows.length === 0 ? (
         <EmptyState description="No video jobs yet." />
       ) : (
-        <Table rowKey="id" loading={loading} data={rows} columns={COLUMNS} />
+        <Table rowKey="id" loading={loading || refreshing} data={rows} columns={COLUMNS} />
       )}
       {pagination.totalPages > 1 && (
         <div className="flex items-center justify-end gap-2 border-t border-border-light px-4 py-3">
@@ -111,7 +100,7 @@ export function VideoMetricsTable() {
             size="sm"
             iconOnly
             disabled={pagination.page <= 1}
-            onClick={() => fetchPage(pagination.page - 1)}
+            onClick={() => setPage(pagination.page - 1)}
             icon={<ChevronLeft className="size-4" />}
           />
           <Button
@@ -119,7 +108,7 @@ export function VideoMetricsTable() {
             size="sm"
             iconOnly
             disabled={pagination.page >= pagination.totalPages}
-            onClick={() => fetchPage(pagination.page + 1)}
+            onClick={() => setPage(pagination.page + 1)}
             icon={<ChevronRight className="size-4" />}
           />
         </div>
