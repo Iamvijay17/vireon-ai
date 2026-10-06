@@ -77,6 +77,24 @@ function Active-Jobs {
   return $n
 }
 
+# Stopping a worker task only ends its wscript.exe host (run-hidden.vbs); the
+# node.exe worker it started keeps running, orphaned, on the old code. Every
+# deploy used to leave one more pair of stale workers on the shared queue. So
+# after stopping the tasks, also end the node processes in the form the tasks
+# launch them - `node.exe  src\workers\<name>.js` with a backslash and no
+# --watch. Dev workers (`node --watch src/workers/...`) never match.
+function Stop-Workers {
+  foreach ($w in $workers) { Stop-ScheduledTask $w -ErrorAction SilentlyContinue }
+  $pattern = '^"?[^"]*node\.exe"?\s+src\\workers\\(videoWorker|courseVideoWorker)\.js\s*$'
+  Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+    Where-Object { $_.CommandLine -match $pattern } |
+    ForEach-Object {
+      $name = if ($_.CommandLine -match $pattern) { $Matches[1] } else { 'worker' }
+      Log "Stopping worker process $($_.ProcessId) ($name)"
+      Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Apply([string]$tag, [string]$sha) {
   Log "Deploying $tag"
   $env:IMAGE_TAG = $tag
@@ -93,7 +111,7 @@ function Apply([string]$tag, [string]$sha) {
   }
   docker compose up -d --remove-orphans
   if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed' }
-  foreach ($w in $workers) { Stop-ScheduledTask $w -ErrorAction SilentlyContinue }
+  Stop-Workers
   Start-Sleep 3
   foreach ($w in $workers) { Start-ScheduledTask $w -ErrorAction SilentlyContinue }
   if (-not (Wait-Healthy)) { throw 'health check failed' }

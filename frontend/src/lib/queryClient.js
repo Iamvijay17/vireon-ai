@@ -40,6 +40,18 @@ export const queryKeys = {
     detail: (id) => ['courses', 'detail', id],
     videos: (courseId) => ['courses', courseId, 'videos'],
   },
+  analytics: {
+    all: ['analytics'],
+    overview: (days) => ['analytics', 'overview', days],
+    videoMetrics: (page) => ['analytics', 'videoMetrics', page],
+  },
+  voices: {
+    catalog: ['voices', 'catalog'],
+  },
+  system: {
+    health: ['system', 'health'],
+    courseWorker: ['system', 'courseWorker'],
+  },
 };
 
 export const queryClient = new QueryClient({

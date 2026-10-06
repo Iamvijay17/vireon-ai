@@ -34,6 +34,7 @@ const assetRoutes = require('./routes/assets');
 const analyticsRoutes = require('./routes/analytics');
 const logsRoutes = require('./routes/logs');
 const aiServicesRoutes = require('./routes/aiServices');
+const systemWorkerRoutes = require('./routes/systemWorkers');
 
 // Binding to anything outside this set exposes an unauthenticated API to
 // the network - see the warning at listen() below.
@@ -165,6 +166,7 @@ app.use('/api/assets', assetRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/system/ai-services', aiServicesRoutes);
+app.use('/api/system/workers', systemWorkerRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

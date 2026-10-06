@@ -17,34 +17,38 @@ export function useCourseData(id, navigate) {
   const [course, setCourse] = useState(null);
   const [videos, setVideos] = useState([]);
   const [videoStatusSummary, setVideoStatusSummary] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [videosLoading, setVideosLoading] = useState(true);
+  // Loading flags cover the first load of this course only, so the refetch
+  // after an action updates the page in place instead of blanking it.
+  const [courseLoadedId, setCourseLoadedId] = useState(null);
+  const [videosLoadedId, setVideosLoadedId] = useState(null);
+  const loading = courseLoadedId !== id;
+  const videosLoading = videosLoadedId !== id;
 
-  const fetchCourse = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await getCourse(id);
-      setCourse(res.data.course);
-      setVideoStatusSummary(res.data.videoStatusSummary || {});
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to load course");
-      navigate("/courses");
-    } finally {
-      setLoading(false);
-    }
-  }, [id, navigate]);
+  // State is only set in the promise callbacks, so the mount effect below
+  // can call these without cascading renders.
+  const fetchCourse = useCallback(
+    () =>
+      getCourse(id)
+        .then((res) => {
+          setCourse(res.data.course);
+          setVideoStatusSummary(res.data.videoStatusSummary || {});
+        })
+        .catch((err) => {
+          toast.error(err.friendlyMessage || "Failed to load course");
+          navigate("/courses");
+        })
+        .finally(() => setCourseLoadedId(id)),
+    [id, navigate]
+  );
 
-  const fetchVideos = useCallback(async () => {
-    setVideosLoading(true);
-    try {
-      const res = await getCourseVideos(id);
-      setVideos(res.data.videos);
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to load videos");
-    } finally {
-      setVideosLoading(false);
-    }
-  }, [id]);
+  const fetchVideos = useCallback(
+    () =>
+      getCourseVideos(id)
+        .then((res) => setVideos(res.data.videos))
+        .catch((err) => toast.error(err.friendlyMessage || "Failed to load videos"))
+        .finally(() => setVideosLoadedId(id)),
+    [id]
+  );
 
   useEffect(() => {
     fetchCourse();

@@ -15,6 +15,7 @@ const SocketService = require('../services/common/SocketService');
 const courseQueue = require('../queues/courseQueue');
 const { decideRetry, describeRetry, retryJobId } = require('../services/common/retryPolicy');
 const ActivityLogService = require('../services/common/ActivityLogService');
+const { workerName } = require('./workerIdentity');
 
 // See videoWorker.js's identical handlers for why this process needs them
 // (it shares the same AudioService, which is where the unhandled-rejection
@@ -147,7 +148,12 @@ const courseVideoWorker = new Worker(
             videoId,
             describeRetry({ step, attempt, maxRetries, delayMs: retry.delayMs })
           );
-          await courseQueue.add(action, { videoId, action }, { jobId: retryJobId(videoId, attempt), delay: retry.delayMs });
+          // Same id courseQueueJobs.scheduledRetryId derives from the saved
+          // nextRetryAt, so the recovery sweep can't queue it a second time.
+          await courseQueue.add(action, { videoId, action }, {
+            jobId: retryJobId(videoId, attempt, retry.nextRetryAt.getTime()),
+            delay: retry.delayMs,
+          });
           LoggerService.info('Course video job scheduled for automatic retry', { videoId, action, attempt, delay: retry.delayMs });
           return { success: false, videoId, retryScheduled: true, attempt };
         }
@@ -160,6 +166,8 @@ const courseVideoWorker = new Worker(
   },
   {
     connection,
+    // Role, environment, commit and pid - see workerIdentity.js.
+    name: workerName('course'),
     // Strict sequential processing: bulk actions from the lesson table rely
     // on this being 1 so one lesson's job fully completes before the next
     // starts (also what makes 'generate-full' correctly chain script ->

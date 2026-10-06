@@ -23,21 +23,23 @@ import { toast } from "../../components/ui/toastBus";
  */
 export function useStudioJob(jobId, onLoaded) {
   const [job, setJob] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Loading is derived from which job has finished its first fetch, so a
+  // refetch never blanks the editor and a missing ?id isn't stuck loading.
+  const [loadedId, setLoadedId] = useState(null);
+  const loading = Boolean(jobId) && loadedId !== jobId;
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
 
-  const fetchJob = useCallback(async () => {
-    if (!jobId) return;
-    try {
-      setLoading(true);
-      const res = await getVideoJob(jobId);
-      setJob(res.data.job);
-      onLoaded(res.data.job.script?.scenes || []);
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to fetch job");
-    } finally {
-      setLoading(false);
-    }
+  // State is only set in the promise callbacks, so calling this from the
+  // effect below syncs with the server instead of cascading renders.
+  const fetchJob = useCallback(() => {
+    if (!jobId) return Promise.resolve();
+    return getVideoJob(jobId)
+      .then((res) => {
+        setJob(res.data.job);
+        onLoaded(res.data.job.script?.scenes || []);
+      })
+      .catch((err) => toast.error(err.friendlyMessage || "Failed to fetch job"))
+      .finally(() => setLoadedId(jobId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 

@@ -150,6 +150,37 @@ if (Get-Process redis-server -ErrorAction SilentlyContinue) {
 }
 Report 'Stray Redis' $p
 
+# --- 4c. Worker fleet: orphans, stale code, duplicates ----------------------
+# A worker task runs run-hidden.vbs (wscript) which starts node. Ending the
+# task ends only wscript, so a restart can leave the old node worker running
+# on old code, still taking jobs from the shared queue. A prod worker whose
+# wscript parent is gone is such an orphan: nothing will ever stop it, so end
+# it here. Matches only the exact form the tasks launch (backslash path, no
+# --watch), never dev workers.
+$workerPattern = '^"?[^"]*node\.exe"?\s+src\\workers\\(videoWorker|courseVideoWorker)\.js\s*$'
+Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
+  Where-Object { $_.CommandLine -match $workerPattern } |
+  Where-Object { -not (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.ParentProcessId)" -ErrorAction SilentlyContinue) } |
+  ForEach-Object {
+    $name = if ($_.CommandLine -match $workerPattern) { $Matches[1] } else { 'worker' }
+    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    Notify 'Vireon: orphaned worker stopped' "Stopped a leftover $name (pid $($_.ProcessId), started $($_.CreationDate)) whose launcher was gone - it was still taking jobs on old code." 'default' 'broom'
+  }
+
+# Then ask the API what is actually on its queues (see /api/system/workers):
+# a prod worker on another commit than the API, more than one prod worker of
+# a role, or a worker too old to report who it is.
+$p = $null
+try {
+  $fleet = Invoke-RestMethod "$api/api/system/workers" -TimeoutSec 8 -ErrorAction Stop
+  $issues = @()
+  foreach ($w in @($fleet.stale)) { $issues += "$($w.role) worker pid $($w.pid) runs $($w.commit), API runs $($fleet.api.commit)" }
+  foreach ($d in @($fleet.duplicates | Where-Object { $_.key -match '/production/' })) { $issues += "$($d.count) workers for $($d.key)" }
+  if (@($fleet.unidentified).Count -gt 0) { $issues += "$(@($fleet.unidentified).Count) worker(s) on code too old to identify itself" }
+  if ($issues.Count -gt 0) { $p = 'Worker fleet: ' + ($issues -join '; ') + '. Restart the worker tasks (or redeploy).' }
+} catch { $p = $null }   # API unreachable is reported by the API check
+Report 'Worker fleet' $p
+
 # --- 5. Tailscale -----------------------------------------------------------
 $p = $null
 try {

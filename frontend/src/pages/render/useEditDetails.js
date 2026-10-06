@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
-import { updateVideoJob, getVoices } from "../../services/api";
+import { useState } from "react";
+import { updateVideoJob } from "../../services/api";
 import { toast } from "../../components/ui/toastBus";
 import { FALLBACK_VOICES } from "./constants";
+import { useVoiceOptions } from "../../shared/useVoiceOptions";
 
 /**
  * The Edit Details modal: form state seeded from the job, validation, and the
@@ -13,27 +14,8 @@ export function useEditDetails({ jobId, job, fetchJob }) {
   const [editForm, setEditForm] = useState(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState("");
-  const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
 
-  useEffect(() => {
-    let cancelled = false;
-    getVoices()
-      .then((res) => {
-        if (!cancelled) setVoiceCatalog(res.data || { custom: [], clone: [] });
-      })
-      .catch(() => {
-        // Keep FALLBACK_VOICES if the catalog can't be loaded.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const voiceOptions = [
-    ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom", previewUrl: v.previewUrl })),
-    ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
-  ];
-  if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
+  const { voiceOptions } = useVoiceOptions(FALLBACK_VOICES);
 
   const openEditModal = () => {
     if (!job) return;
