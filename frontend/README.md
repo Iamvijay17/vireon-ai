@@ -7,7 +7,7 @@ For the project overview and deployment, see the [root README](../README.md).
 ## Tech stack
 
 - **Framework:** React 19, Vite 8
-- **Styling:** Tailwind CSS 4 with in-house UI primitives (`src/components/ui`, `src/v2/ui`); icons from lucide-react
+- **Styling:** Tailwind CSS 4 with in-house UI primitives (`src/components/ui`); icons from lucide-react
 - **Routing:** React Router 7
 - **Data:** TanStack Query, Axios
 - **Realtime:** Socket.IO client. One subscription (`useSocketQuerySync`) turns server events into query-cache invalidations
@@ -15,14 +15,7 @@ For the project overview and deployment, see the [root README](../README.md).
 - **Charts:** Chart.js
 - **Tests:** Vitest + Testing Library (jsdom)
 
-## Two UIs in one app
-
-The app is mid-migration. Both shells ship in the same bundle:
-
-- **v1** (`src/layout`, `src/pages`) is the complete, working UI and handles every route except `/v2/*`.
-- **v2** (`src/v2`) is a rebuild mounted at `/v2/*` with its own shell, loaded lazily. Only some screens exist; the rest show a "Coming in v2" placeholder.
-
-### v1 routes
+## Routes
 
 | Route | Page |
 |-------|------|
@@ -41,19 +34,13 @@ The app is mid-migration. Both shells ship in the same bundle:
 | `/courses`, `/courses/:id`, `/courses/:id/curriculum` | Course list, detail, curriculum |
 | `/courses/:courseId/videos/:videoId` (and `/studio`) | Course video editor and studio |
 
-### v2 routes
-
-Built: `/v2` (overview), `/v2/new` (create video), `/v2/jobs`, `/v2/jobs/:id`.
-Placeholders: `/v2/studio`, `/v2/courses`, `/v2/audio`, `/v2/assets`, `/v2/analytics`, `/v2/logs`, `/v2/settings`.
-
 ## Layout
 
 ```
 src/
 ├── components/   # shared components and UI primitives (Button, Modal, Toast, Table, ...)
-├── layout/       # v1 shell: sidebar, navbar, breadcrumbs, command palette, route table
-├── pages/        # v1 pages, one folder each
-├── v2/           # v2 shell, pages and UI kit
+├── layout/       # app shell: sidebar, navbar, breadcrumbs, command palette, route table
+├── pages/        # pages, one folder each
 ├── shared/       # contexts (theme, sidebar, breadcrumbs) and hooks (job events, socket rooms, voices)
 ├── services/     # api.js (Axios + media URL helpers), socket.js
 └── lib/          # query client, socket sync, formatters, small utilities
