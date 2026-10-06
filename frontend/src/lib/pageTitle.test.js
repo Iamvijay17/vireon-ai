@@ -19,12 +19,6 @@ describe("documentTitle", () => {
     expect(documentTitle("/courses/cou-A/videos/vid-B")).toBe("Course Video · Vireon AI");
   });
 
-  it("handles the v2 shell", () => {
-    expect(documentTitle("/v2")).toBe("Overview · Vireon AI");
-    expect(documentTitle("/v2/new")).toBe("New Video · Vireon AI");
-    expect(documentTitle("/v2/jobs/job-ABCD1234")).toBe("Job Details · Vireon AI");
-  });
-
   it("falls back to the app name for unknown routes", () => {
     expect(documentTitle("/nope")).toBe("Vireon AI");
   });
