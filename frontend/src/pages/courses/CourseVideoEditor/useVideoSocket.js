@@ -65,13 +65,16 @@ export function useVideoSocket({
                   }
                 : prev
             );
-            if (data.message) addActivity(data.message);
+            // Deliberately no addActivity here: progress events fire per
+            // scene / per render tick and would flood the timeline with
+            // near-identical lines. Milestones are logged by the backend
+            // and pulled in via fetchActivityLogs on the events below.
           })
         ),
 
         onCourseVideoScriptReady(
           forThisVideo((data) => {
-            setVideo((prev) => (prev ? { ...prev, status: data.status, script: data.script } : prev));
+            setVideo((prev) => (prev ? { ...prev, status: data.status, script: data.script, liveProgress: undefined } : prev));
             setScriptText(scriptToText(data.script));
             setActionLoading({});
             addActivity(data.message || "Script ready", data.updatedAt);
@@ -99,7 +102,13 @@ export function useVideoSocket({
           forThisVideo((data) => {
             setVideo((prev) =>
               prev
-                ? { ...prev, status: data.status, audioUrl: data.audioUrl, audioDuration: data.audioDuration }
+                ? {
+                    ...prev,
+                    status: data.status,
+                    audioUrl: data.audioUrl,
+                    audioDuration: data.audioDuration,
+                    liveProgress: undefined,
+                  }
                 : prev
             );
             setActionLoading({});
@@ -117,6 +126,7 @@ export function useVideoSocket({
                     status: data.status,
                     renderUrl: data.renderUrl,
                     renderedAt: data.renderedAt || new Date().toISOString(),
+                    liveProgress: undefined,
                   }
                 : prev
             );
@@ -139,7 +149,9 @@ export function useVideoSocket({
         onJobFailed(
           forThisVideo((data) => {
             setVideo((prev) =>
-              prev ? { ...prev, status: data.status, error: { message: data.error, step: data.step } } : prev
+              prev
+                ? { ...prev, status: data.status, error: { message: data.error, step: data.step }, liveProgress: undefined }
+                : prev
             );
             setActionLoading({});
             toast.error(data.error || "Step failed");

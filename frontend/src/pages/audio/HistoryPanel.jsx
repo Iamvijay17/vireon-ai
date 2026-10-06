@@ -36,6 +36,8 @@ const PendingPieces = ({ pieces, label }) => {
 // has no intermediate signal from the TTS server, so for that case we show an
 // estimate - an ease-out curve over elapsed time, held below 95% until the
 // completed event actually arrives.
+const STALL_AFTER_SECONDS = 15 * 60;
+
 const useNow = (active) => {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -54,12 +56,21 @@ const computeProgress = (item, pieces, now) => {
   }
   const elapsed = Math.max(0, (now - new Date(item.createdAt).getTime()) / 1000);
   const tau = Math.max(8, (item.text?.length || 0) * 0.08);
-  return { percent: Math.min(95, Math.round((1 - Math.exp(-elapsed / tau)) * 100)), estimated: true };
+  return {
+    percent: Math.min(95, Math.round((1 - Math.exp(-elapsed / tau)) * 100)),
+    estimated: true,
+    stalled: elapsed > STALL_AFTER_SECONDS,
+  };
 };
 
 const PendingProgress = ({ item, pieces, isDialogue }) => {
   const now = useNow(true);
-  const { percent, estimated } = computeProgress(item, pieces, now);
+  const { percent, estimated, stalled } = computeProgress(item, pieces, now);
+  if (stalled) {
+    // The server marks orphaned records FAILED on restart; this covers the
+    // rest (e.g. a hung TTS call) so the bar doesn't creep at ~95% forever.
+    return <Badge variant="warning">Taking longer than expected - this may have stalled</Badge>;
+  }
   const total = pieces?.length || 0;
   const done = pieces?.filter((p) => p.file).length || 0;
   const label =
