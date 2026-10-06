@@ -111,6 +111,8 @@ const WorkflowPage = () => {
         }
       />
 
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="min-w-0">
       <Card className="relative h-[calc(100vh-17rem)] min-h-[460px] overflow-hidden">
         <Canvas states={states} selectedId={selectedId} onSelect={setSelectedId} />
 
@@ -135,9 +137,14 @@ const WorkflowPage = () => {
         <span>Scroll to zoom · drag to pan · click a step for details</span>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="mt-4">
         <NowRunningPanel job={jobId ? job : null} jobId={jobId} states={states} />
+      </div>
+      </div>
+
+      <aside className="min-w-0 xl:sticky xl:top-4 xl:self-start">
         <QueuePanel jobs={jobs} selectedJobId={jobId} onPick={pickJob} />
+      </aside>
       </div>
     </div>
   );

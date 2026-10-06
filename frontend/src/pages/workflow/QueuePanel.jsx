@@ -54,7 +54,7 @@ export const QueuePanel = ({ jobs, selectedJobId, onPick }) => {
         title="Queue"
         subtitle={empty ? "Nothing in progress" : `${running.length} running · ${waiting.length} waiting`}
       />
-      <div className="flex max-h-[420px] flex-col gap-4 overflow-y-auto p-4">
+      <div className="flex max-h-[calc(100vh-17rem)] min-h-[200px] flex-col gap-4 overflow-y-auto p-4">
         {empty && <p className="text-[13px] text-text-tertiary">New video requests will show up here.</p>}
 
         {running.length > 0 && (
