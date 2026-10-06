@@ -4,7 +4,7 @@
   "description": "Vireon AI - AI-powered video generation platform backend",
   "main": "src/server.js",
   "scripts": {
-    "minio": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\Programs\\minio\\start-minio.ps1\"",
+    "minio": "node scripts/start-minio.js",
     "server:only": "node src/server.js",
     "server:only:dev": "node --watch src/server.js",
     "worker:only": "node src/workers/videoWorker.js",
