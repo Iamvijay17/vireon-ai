@@ -6,6 +6,7 @@ import { Badge } from "../../components/ui/Badge";
 import { AudioPlayer } from "../../components/ui/AudioPlayer";
 import { Spinner } from "../../components/ui/Spinner";
 import { resolveMediaUrl } from "../../services/api";
+import { computeProgress, resolveStartedAt } from "./audioProgress";
 
 // Progressive item list: while an item is COMPLETED it plays the single
 // merged file as before; while it's still PENDING, any turns/chunks that
@@ -30,14 +31,6 @@ const PendingPieces = ({ pieces, label }) => {
   );
 };
 
-// Real progress for multi-piece generations (chunked single-voice or
-// dialogue): share of characters already synthesized, weighted by text length
-// so a long turn counts for more than a short one. A single-call generation
-// has no intermediate signal from the TTS server, so for that case we show an
-// estimate - an ease-out curve over elapsed time, held below 95% until the
-// completed event actually arrives.
-const STALL_AFTER_SECONDS = 15 * 60;
-
 const useNow = (active) => {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -48,24 +41,11 @@ const useNow = (active) => {
   return now;
 };
 
-const computeProgress = (item, pieces, now) => {
-  if (pieces?.length > 1) {
-    const total = pieces.reduce((sum, p) => sum + Math.max(p.text?.length || 0, 1), 0);
-    const done = pieces.reduce((sum, p) => sum + (p.file ? Math.max(p.text?.length || 0, 1) : 0), 0);
-    return { percent: Math.min(99, Math.round((done / total) * 100)), estimated: false };
-  }
-  const elapsed = Math.max(0, (now - new Date(item.createdAt).getTime()) / 1000);
-  const tau = Math.max(8, (item.text?.length || 0) * 0.08);
-  return {
-    percent: Math.min(95, Math.round((1 - Math.exp(-elapsed / tau)) * 100)),
-    estimated: true,
-    stalled: elapsed > STALL_AFTER_SECONDS,
-  };
-};
-
 const PendingProgress = ({ item, pieces, isDialogue }) => {
   const now = useNow(true);
-  const { percent, estimated, stalled } = computeProgress(item, pieces, now);
+  const [mountedAt] = useState(() => Date.now());
+  const startedAt = resolveStartedAt(item.createdAt, mountedAt);
+  const { percent, estimated, stalled } = computeProgress(item, pieces, startedAt, now);
   if (stalled) {
     // The server marks orphaned records FAILED on restart; this covers the
     // rest (e.g. a hung TTS call) so the bar doesn't creep at ~95% forever.

@@ -8,6 +8,7 @@ const ScriptParserService = require('../../video/ScriptParserService');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
 const { classifyError } = require('../../../utils/errorMessages');
+const { PROGRESS_BANDS, mapToBand } = require('../../../utils/progressBands');
 const { bailIfCancelled } = require('./shared');
 const { NotFoundError, ValidationError } = require('../../../utils/errors');
 
@@ -86,11 +87,10 @@ async function generateAudio(videoId) {
             `Scene ${sceneNumber} audio generated (${sceneAudioDoneCount}/${audioScenes.length})`
           );
           SocketService.emitCourseVideoSceneAudioReady(video, sceneNumber, result);
-          // Audio owns the 40-50% band of the overall pipeline.
           SocketService.emitCourseVideoProgress(
             video,
             VIDEO_STATUS.GENERATING_AUDIO,
-            40 + Math.round((sceneAudioDoneCount / audioScenes.length) * 10),
+            mapToBand(PROGRESS_BANDS.course.audio, sceneAudioDoneCount / audioScenes.length),
             `Generating audio (${sceneAudioDoneCount}/${audioScenes.length})`
           );
         },

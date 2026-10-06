@@ -16,6 +16,7 @@ const StorageService = require('../../storage/StorageService');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
 const { classifyError } = require('../../../utils/errorMessages');
+const { PROGRESS_BANDS, mapToBand } = require('../../../utils/progressBands');
 const { bailIfCancelled } = require('./shared');
 const { NotFoundError, ValidationError } = require('../../../utils/errors');
 
@@ -79,7 +80,7 @@ async function renderVideo(videoId) {
           await video.save();
         },
         onProgress: (done, total) =>
-          SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_IMAGES, 61 + Math.round((done / total) * 3), 'Generating scene images...'),
+          SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_IMAGES, mapToBand(PROGRESS_BANDS.course.images, done / total), 'Generating scene images...'),
       });
       const imageResult = await (config.imageGen.enabled ? LocalAIService.gpu.withGPU('comfyui', generate) : generate());
 
@@ -174,10 +175,10 @@ async function renderVideo(videoId) {
     let lastEmittedProgress = -1;
     let lastEmitTime = 0;
     const onRenderProgress = (fraction) => {
-      const mapped = 80 + Math.round(Math.min(1, Math.max(0, fraction)) * 9);
+      const mapped = mapToBand(PROGRESS_BANDS.course.render, fraction);
       if (mapped === lastEmittedProgress) return;
       const now = Date.now();
-      if (mapped < 89 && now - lastEmitTime < 1500) return;
+      if (mapped < PROGRESS_BANDS.course.render[1] && now - lastEmitTime < 1500) return;
       lastEmittedProgress = mapped;
       lastEmitTime = now;
       SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.RENDERING_VIDEO, mapped, 'Rendering video...');
