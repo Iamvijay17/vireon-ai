@@ -1,6 +1,7 @@
 const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
 const config = require('../../config');
+const { workerName } = require('../workerIdentity');
 // Same fail-fast guard server.js applies - a worker started against a bad
 // .env would otherwise pick up jobs and fail them one by one.
 require('../../config/validate').assertValidOrExit(config);
@@ -66,6 +67,8 @@ const worker = new Worker(
   processVideoJob,
   {
     connection,
+    // Role, environment, commit and pid - see workerIdentity.js.
+    name: workerName('video'),
     // See config/index.js's videoWorker.concurrency comment - scales with
     // CPU count (capped at 3) instead of a flat number, since each job's
     // Remotion render step is CPU-bound.

@@ -49,11 +49,11 @@ const CourseCurriculum = () => {
   const [course, setCourse] = useState(null);
   useSetBreadcrumbLabel(course?.title ? `${course.title} - Structure` : null);
   const [curriculum, setCurriculum] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loadedId, setLoadedId] = useState(null);
+  const loading = loadedId !== id;
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     Promise.all([getCourse(id), getCourseCurriculumHistory(id, { page: 1, limit: 1 })])
       .then(([courseRes, curriculumRes]) => {
         if (cancelled) return;
@@ -66,7 +66,7 @@ const CourseCurriculum = () => {
         navigate(`/courses/${id}`);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setLoadedId(id);
       });
     return () => {
       cancelled = true;

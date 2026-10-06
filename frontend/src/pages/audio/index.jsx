@@ -63,7 +63,10 @@ const AudioPage = () => {
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
   const [generating, setGenerating] = useState(false);
   const [history, setHistory] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  // Spinner only until the first load: the safety polls and post-generate
+  // refreshes update the list in place instead of flashing it away.
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const historyLoading = !historyLoaded;
   const [historyError, setHistoryError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
@@ -98,26 +101,29 @@ const AudioPage = () => {
   ];
   if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
 
-  const fetchHistory = useCallback(async () => {
-    try {
-      setHistoryLoading(true);
-      const res = await getAudioGenerations(1, 50);
-      const items = res.data?.items || [];
-      setHistory(items);
-      setHistoryError(null);
-      return items;
-    } catch (err) {
-      // Deliberately don't clear `history` here - a transient failure (the
-      // backend restarting, a network blip) would otherwise render exactly
-      // like "no generations yet" and make already-generated audio look
-      // like it vanished, when it's still safely in the DB. Show an
-      // explicit retry instead of silently looking empty.
-      setHistoryError(err.friendlyMessage || "Failed to load audio history");
-      return null;
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, []);
+  // State is only set in the promise callbacks, so the mount effect below
+  // can call this without cascading renders. Resolves to the items, or null.
+  const fetchHistory = useCallback(
+    () =>
+      getAudioGenerations(1, 50)
+        .then((res) => {
+          const items = res.data?.items || [];
+          setHistory(items);
+          setHistoryError(null);
+          return items;
+        })
+        .catch((err) => {
+          // Deliberately don't clear `history` here - a transient failure (the
+          // backend restarting, a network blip) would otherwise render exactly
+          // like "no generations yet" and make already-generated audio look
+          // like it vanished, when it's still safely in the DB. Show an
+          // explicit retry instead of silently looking empty.
+          setHistoryError(err.friendlyMessage || "Failed to load audio history");
+          return null;
+        })
+        .finally(() => setHistoryLoaded(true)),
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
