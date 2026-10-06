@@ -3,7 +3,7 @@ import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
 import { CopyButton } from "../../components/ui/CopyButton";
 import { resolveMediaUrl } from "../../services/api";
-import { STYLE_LABEL } from "./constants";
+import { RESOLUTION_LABEL, STYLE_LABEL } from "./constants";
 
 const Detail = ({ label, children }) => (
   <div className="min-w-0">
@@ -64,6 +64,10 @@ export const ImagePreview = ({ item, onClose, onDownload, onReuseSettings }) => 
 
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border-light pt-4 sm:grid-cols-3">
           <Detail label="Shape">{item.aspectRatio}</Detail>
+          <Detail label="Size">
+            {RESOLUTION_LABEL[item.resolution] || "1K"}
+            {item.width && item.height ? ` (${item.width}x${item.height})` : ""}
+          </Detail>
           <Detail label="Quality">{QUALITY_LABEL[item.quality] || "Standard"}</Detail>
           <Detail label="Style">{STYLE_LABEL[item.style] || "No style"}</Detail>
           <Detail label="Seed">

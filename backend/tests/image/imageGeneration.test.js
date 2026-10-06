@@ -63,6 +63,26 @@ describe('sizeFor', () => {
   });
 });
 
+describe('outputSizeFor', () => {
+  it('keeps the native size at 1k', () => {
+    expect(ImageGenerationService.outputSizeFor('16:9')).toEqual({ width: 1024, height: 576 });
+    expect(ImageGenerationService.outputSizeFor('16:9', '1k')).toEqual({ width: 1024, height: 576 });
+  });
+
+  it('scales the long edge to 2048 for 2k and 3840 for 4k, keeping the aspect', () => {
+    expect(ImageGenerationService.outputSizeFor('16:9', '2k')).toEqual({ width: 2048, height: 1152 });
+    expect(ImageGenerationService.outputSizeFor('16:9', '4k')).toEqual({ width: 3840, height: 2160 });
+    expect(ImageGenerationService.outputSizeFor('9:16', '4k')).toEqual({ width: 2160, height: 3840 });
+    expect(ImageGenerationService.outputSizeFor('1:1', '2k')).toEqual({ width: 2048, height: 2048 });
+  });
+
+  it('hands the scaled size to the workflow while sampling stays native', () => {
+    expect(ImageGenerationService._params('a cat', '16:9', 0, { resolution: '4k' })).toMatchObject({
+      width: 1024, height: 576, outWidth: 3840, outHeight: 2160,
+    });
+  });
+});
+
 describe('seedFor', () => {
   it('is stable for a prompt and different between prompts', () => {
     expect(ImageGenerationService.seedFor('a cat')).toBe(ImageGenerationService.seedFor('a cat'));

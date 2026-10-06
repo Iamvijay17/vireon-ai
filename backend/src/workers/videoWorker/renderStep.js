@@ -7,6 +7,7 @@ const RemotionStatus = require('../../services/localAI/remotionStatus');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS, JOB_STEPS } = require('../../constants');
+const { PROGRESS_BANDS, mapToBand } = require('../../utils/progressBands');
 const { runLayoutQc } = require('../../services/qc/runLayoutQc');
 const { JobCancelledError, renderConfigFor } = require('./shared');
 
@@ -86,10 +87,10 @@ async function render(jobId, assets, ctx, script) {
       let lastEmittedProgress = -1;
       let lastEmitTime = 0;
       const onRenderProgress = (fraction) => {
-        const mapped = 85 + Math.round(Math.min(1, Math.max(0, fraction)) * 9);
+        const mapped = mapToBand(PROGRESS_BANDS.job.render, fraction);
         if (mapped === lastEmittedProgress) return;
         const now = Date.now();
-        if (mapped < 94 && now - lastEmitTime < 1500) return;
+        if (mapped < PROGRESS_BANDS.job.render[1] && now - lastEmitTime < 1500) return;
         lastEmittedProgress = mapped;
         lastEmitTime = now;
         SocketService.emitJobProgress({ _id: jobId, progress: mapped, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });

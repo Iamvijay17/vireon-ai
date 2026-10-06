@@ -6,6 +6,7 @@ const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { ensureSceneImages, needsImage } = require('../../services/image/sceneImages');
 const { JOB_STATUS, getAspectRatioForResolution } = require('../../constants');
+const { PROGRESS_BANDS, mapToBand } = require('../../utils/progressBands');
 const { bailIfCancelled, JobCancelledError } = require('./shared');
 
 const plain = (scene) => (typeof scene.toObject === 'function' ? scene.toObject() : scene);
@@ -43,7 +44,7 @@ async function run(jobId, ctx) {
     persist: (changed) => VideoService.updateSceneImages(jobId, changed),
     // GENERATING_IMAGES spans 56-59% (60 is IMAGE_COMPLETED).
     onProgress: async (done, total) => {
-      const progress = 56 + Math.round((done / total) * 3);
+      const progress = mapToBand(PROGRESS_BANDS.job.images, done / total);
       SocketService.emitJobProgress({ _id: jobId, progress, status: JOB_STATUS.GENERATING_IMAGES, currentStep: JOB_STATUS.GENERATING_IMAGES, currentScene: done });
       VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_IMAGES, { progress }).catch((err) => {
         LoggerService.warn('Failed to persist image progress', { jobId, error: err.message });

@@ -10,6 +10,7 @@ import { Badge } from "../../../components/ui/Badge";
 import { Tooltip } from "../../../components/ui/Tooltip";
 import { Alert } from "../../../components/ui/Alert";
 import { Steps } from "../../../components/ui/Steps";
+import { Progress } from "../../../components/ui/Progress";
 import { DescriptionList } from "../../../components/ui/DescriptionList";
 import { Timeline } from "../../../components/ui/Timeline";
 import { toast } from "../../../components/ui/toastBus";
@@ -401,6 +402,12 @@ const CourseVideoEditor = () => {
       {/* Progress + Video Info */}
       <Card className="mb-4 p-4 sm:p-6">
         <Steps items={stepItems} current={Math.max(currentStep, 0)} status={isFailed ? "error" : "process"} />
+        {isProcessing && (video.liveProgress ?? 0) > 0 && (
+          <div className="mt-5">
+            <p className="mb-1 text-xs text-text-tertiary">{video.status} - overall progress</p>
+            <Progress percent={video.liveProgress} trickle />
+          </div>
+        )}
         <div className="mt-6 border-t border-border-light pt-5">
           <DescriptionList items={infoItems} columns={4} />
           {video.additionalInstructions && (

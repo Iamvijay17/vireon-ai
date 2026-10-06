@@ -21,6 +21,15 @@ export const ASPECTS = [
   { value: "1:1", label: "Square", box: "h-3 w-3" },
 ];
 
+// Size of the saved picture. The model samples at 1K either way (a 6GB card can't
+// sample 2K/4K); 2K/4K enlarge it afterwards to a 2048 / 3840 px long edge.
+export const RESOLUTIONS = [
+  { value: "1k", label: "1K", title: "As generated (about 1024 px long edge)" },
+  { value: "2k", label: "2K", title: "Enlarged to a 2048 px long edge" },
+  { value: "4k", label: "4K", title: "Enlarged to a 3840 px long edge (3840x2160 for landscape); large file" },
+];
+export const RESOLUTION_LABEL = Object.fromEntries(RESOLUTIONS.map((r) => [r.value, r.label]));
+
 export const COUNTS = [1, 2, 3, 4].map((n) => ({ value: n, label: `${n}` }));
 
 export const MAX_SEED = 2 ** 48 - 1;
@@ -48,7 +57,7 @@ export const EXAMPLES = [
 ];
 
 const STORAGE_KEY = "vireon-image-studio";
-const DEFAULTS = { aspectRatio: "16:9", quality: "standard", style: "none", count: 1 };
+const DEFAULTS = { aspectRatio: "16:9", resolution: "1k", quality: "standard", style: "none", count: 1 };
 
 const oneOf = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
 
@@ -58,6 +67,7 @@ export const loadStudioSettings = () => {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
     return {
       aspectRatio: oneOf(saved.aspectRatio, ASPECTS.map((a) => a.value), DEFAULTS.aspectRatio),
+      resolution: oneOf(saved.resolution, RESOLUTIONS.map((r) => r.value), DEFAULTS.resolution),
       quality: oneOf(saved.quality, ["fast", "standard", "high"], DEFAULTS.quality),
       style: oneOf(saved.style, STYLES.map((s) => s.value), DEFAULTS.style),
       count: oneOf(saved.count, COUNTS.map((c) => c.value), DEFAULTS.count),

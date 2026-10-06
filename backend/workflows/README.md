@@ -46,6 +46,7 @@ text-only scenes instead - the job never fails because of images unless
 | `{{negative}}` | `IMAGE_NEGATIVE_PROMPT` |
 | `{{seed}}` | derived from the prompt, so a prompt always renders the same image |
 | `{{width}}` / `{{height}}` | `IMAGE_SIZE_LANDSCAPE` / `_PORTRAIT` / `_SQUARE`, chosen by the video's aspect ratio |
+| `{{outWidth}}` / `{{outHeight}}` | Size of the *saved* picture: same as width/height, or the 2K (2048 long edge) / 4K (3840) size Image Studio asks for. The Qwen workflow feeds them to an `ImageScale` (lanczos) node between VAEDecode and SaveImage; sampling stays at width x height. Optional in other workflows (unused placeholders are ignored) |
 | `{{steps}}` `{{cfg}}` `{{sampler}}` `{{scheduler}}` | `IMAGE_STEPS` `IMAGE_CFG` `IMAGE_SAMPLER` `IMAGE_SCHEDULER` |
 | `{{checkpoint}}` | `COMFYUI_CHECKPOINT` |
 

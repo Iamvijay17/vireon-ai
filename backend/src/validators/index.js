@@ -142,6 +142,7 @@ const audioIdSchema = z.object({
 });
 
 const IMAGE_ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5'];
+const IMAGE_RESOLUTIONS = ['1k', '2k', '4k'];
 
 // The service derives seeds as 48-bit integers (see ImageGenerationService.seedFor).
 const MAX_IMAGE_SEED = 2 ** 48 - 1;
@@ -152,6 +153,8 @@ const createImageSchema = z
     aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).optional().default('16:9'),
     // How many sampling steps: 'fast' fewer, 'high' more (see imageController.stepsFor).
     quality: z.enum(['fast', 'standard', 'high']).optional().default('standard'),
+    // Size of the saved picture: 1k is what the model samples, 2k/4k enlarge it (see ImageGenerationService.outputSizeFor).
+    resolution: z.enum(IMAGE_RESOLUTIONS).optional().default('1k'),
     // Appended to the prompt - see services/image/styles.js.
     style: z.enum(IMAGE_STYLE_KEYS).optional().default('none'),
     // Things to leave out. Only has an effect with guidance above 1 (see config.imageGen.guidedCfg),

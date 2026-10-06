@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Download, Trash2, Loader2, Mic2, RefreshCw } from "lucide-react";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -5,6 +6,7 @@ import { Badge } from "../../components/ui/Badge";
 import { AudioPlayer } from "../../components/ui/AudioPlayer";
 import { Spinner } from "../../components/ui/Spinner";
 import { resolveMediaUrl } from "../../services/api";
+import { computeProgress, resolveStartedAt } from "./audioProgress";
 
 // Progressive item list: while an item is COMPLETED it plays the single
 // merged file as before; while it's still PENDING, any turns/chunks that
@@ -25,6 +27,62 @@ const PendingPieces = ({ pieces, label }) => {
           <AudioPlayer src={resolveMediaUrl(p.file)} />
         </div>
       ))}
+    </div>
+  );
+};
+
+const useNow = (active) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [active]);
+  return now;
+};
+
+const PendingProgress = ({ item, pieces, isDialogue }) => {
+  const now = useNow(true);
+  const [mountedAt] = useState(() => Date.now());
+  const startedAt = resolveStartedAt(item.createdAt, mountedAt);
+  const { percent, estimated, stalled } = computeProgress(item, pieces, startedAt, now);
+  if (stalled) {
+    // The server marks orphaned records FAILED on restart; this covers the
+    // rest (e.g. a hung TTS call) so the bar doesn't creep at ~95% forever.
+    return <Badge variant="warning">Taking longer than expected - this may have stalled</Badge>;
+  }
+  const total = pieces?.length || 0;
+  const done = pieces?.filter((p) => p.file).length || 0;
+  const label =
+    total > 1
+      ? `Generating ${isDialogue ? "turn" : "part"} ${Math.min(done + 1, total)} of ${total}`
+      : "Generating";
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between text-[11px] text-text-tertiary">
+        <span className="flex items-center gap-1.5">
+          <Loader2 className="size-3 animate-spin" />
+          {label}
+        </span>
+        <span className="font-medium tabular-nums text-text-secondary">
+          {estimated ? "~" : ""}
+          {percent}%
+        </span>
+      </div>
+      <div
+        className="h-1.5 w-full overflow-hidden rounded-full bg-border"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-label="Audio generation progress"
+      >
+        <div
+          className="h-full rounded-full bg-accent transition-[width] duration-700 ease-out"
+          style={{ width: `${Math.max(percent, 2)}%` }}
+        />
+      </div>
     </div>
   );
 };
@@ -56,15 +114,7 @@ const HistoryItem = ({ item, deletingId, onDelete }) => {
       ) : (
         <>
           <PendingPieces pieces={pieces} label={isDialogue ? "Turn" : "Part"} />
-          <Badge variant="neutral" icon={<Loader2 className="size-3 animate-spin" />}>
-            {(() => {
-              const total = pieces?.length || 0;
-              const done = pieces?.filter((p) => p.file).length || 0;
-              return total > 0
-                ? `Generating ${isDialogue ? "turn" : "part"} ${Math.min(done + 1, total)} of ${total}`
-                : "Pending";
-            })()}
-          </Badge>
+          <PendingProgress item={item} pieces={pieces} isDialogue={isDialogue} />
         </>
       )}
 

@@ -4,7 +4,7 @@ import { Button } from "../../components/ui/Button";
 import { Select } from "../../components/ui/Select";
 import { Textarea, Input } from "../../components/ui/Input";
 import { Segmented } from "./Segmented";
-import { ASPECTS, COUNTS, STYLES, EXAMPLES, MAX_SEED } from "./constants";
+import { ASPECTS, COUNTS, RESOLUTIONS, STYLES, EXAMPLES, MAX_SEED } from "./constants";
 
 const MAX_CHARS = 1000;
 
@@ -91,6 +91,9 @@ export const PromptBar = ({ promptRef, prompt, setPrompt, negative, setNegative,
       <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
         <Field label="Shape" className="w-full sm:w-auto">
           <Segmented label="Shape" options={ASPECTS} value={opts.aspectRatio} onChange={(v) => setOpt("aspectRatio", v)} className="sm:w-64" />
+        </Field>
+        <Field label="Size" className="w-full sm:w-auto">
+          <Segmented label="Size" options={RESOLUTIONS} value={opts.resolution} onChange={(v) => setOpt("resolution", v)} className="sm:w-40" />
         </Field>
         <Field label="Quality" className="w-full sm:w-auto">
           <Segmented label="Quality" options={QUALITIES} value={opts.quality} onChange={(v) => setOpt("quality", v)} className="sm:w-72" />

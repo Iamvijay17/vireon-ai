@@ -8,6 +8,7 @@ const ScriptParserService = require('../../video/ScriptParserService');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
 const { classifyError } = require('../../../utils/errorMessages');
+const { PROGRESS_BANDS, mapToBand } = require('../../../utils/progressBands');
 const { bailIfCancelled } = require('./shared');
 const { NotFoundError, ValidationError } = require('../../../utils/errors');
 
@@ -86,6 +87,12 @@ async function generateAudio(videoId) {
             `Scene ${sceneNumber} audio generated (${sceneAudioDoneCount}/${audioScenes.length})`
           );
           SocketService.emitCourseVideoSceneAudioReady(video, sceneNumber, result);
+          SocketService.emitCourseVideoProgress(
+            video,
+            VIDEO_STATUS.GENERATING_AUDIO,
+            mapToBand(PROGRESS_BANDS.course.audio, sceneAudioDoneCount / audioScenes.length),
+            `Generating audio (${sceneAudioDoneCount}/${audioScenes.length})`
+          );
         },
         () => bailIfCancelled(videoId),
         video.fastAudio
