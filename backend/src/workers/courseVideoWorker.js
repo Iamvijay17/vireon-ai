@@ -148,7 +148,12 @@ const courseVideoWorker = new Worker(
             videoId,
             describeRetry({ step, attempt, maxRetries, delayMs: retry.delayMs })
           );
-          await courseQueue.add(action, { videoId, action }, { jobId: retryJobId(videoId, attempt), delay: retry.delayMs });
+          // Same id courseQueueJobs.scheduledRetryId derives from the saved
+          // nextRetryAt, so the recovery sweep can't queue it a second time.
+          await courseQueue.add(action, { videoId, action }, {
+            jobId: retryJobId(videoId, attempt, retry.nextRetryAt.getTime()),
+            delay: retry.delayMs,
+          });
           LoggerService.info('Course video job scheduled for automatic retry', { videoId, action, attempt, delay: retry.delayMs });
           return { success: false, videoId, retryScheduled: true, attempt };
         }

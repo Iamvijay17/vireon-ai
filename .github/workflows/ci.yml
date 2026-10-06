@@ -18,6 +18,17 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    # Real Redis for tests/integration (RUN_REDIS_TESTS below): the retry path
+    # depends on BullMQ behaviour a mocked queue can't reproduce.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
@@ -37,6 +48,9 @@ jobs:
         run: npm test -- --ci
         env:
           NODE_ENV: test
+          RUN_REDIS_TESTS: '1'
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: '6379'
           # validate.test.js boots the real config; CI has no .env, so dummy values
           MINIO_ROOT_USER: ci-user
           MINIO_ROOT_PASSWORD: ci-password-1234

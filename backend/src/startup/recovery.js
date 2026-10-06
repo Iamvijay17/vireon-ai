@@ -135,6 +135,38 @@ async function recoverStrandedRetries() {
   if (recovered > 0) {
     LoggerService.warn(`Re-queued ${recovered} video job(s) stranded at RETRY_SCHEDULED`);
   }
+
+  await recoverStrandedCourseRetries();
+}
+
+// Course videos have the same automatic-retry state (see
+// courseVideoWorker.js's outer catch) and so the same failure mode: if the
+// delayed BullMQ job is gone, the lesson sits at Retry Scheduled forever.
+async function recoverStrandedCourseRetries() {
+  const CourseVideo = require('../models/CourseVideo');
+  const courseQueueJobs = require('../services/course/courseQueueJobs');
+  const ActivityLogService = require('../services/common/ActivityLogService');
+
+  const candidates = await CourseVideo.find({ status: VIDEO_STATUS.RETRY_SCHEDULED }).lean();
+  let recovered = 0;
+
+  for (const video of candidates) {
+    try {
+      const action = await courseQueueJobs.ensureScheduledRetry(video);
+      if (action) {
+        await ActivityLogService.add(video._id, `Scheduled retry was missing from the queue - re-queued ${action}`);
+        recovered += 1;
+      } else if (!courseQueueJobs.actionForRetry(video)) {
+        LoggerService.warn('Stranded course retry has no known step to re-run', { videoId: video._id, step: video.error?.step });
+      }
+    } catch (err) {
+      LoggerService.warn('Could not recover stranded course retry', { videoId: video._id, error: err.message });
+    }
+  }
+
+  if (recovered > 0) {
+    LoggerService.warn(`Re-queued ${recovered} course video(s) stranded at Retry Scheduled`);
+  }
 }
 
 // Same problem as STUCK_VIDEO_STATUSES above, for course videos - each
@@ -229,6 +261,7 @@ module.exports = {
   reapOrphanedAudioGenerations,
   reapStuckVideoJobs,
   recoverStrandedRetries,
+  recoverStrandedCourseRetries,
   reapStuckCourseVideoJobs,
   healCancelledStageStatuses,
 };
