@@ -30,7 +30,7 @@ describe('workerName / parseWorkerClient', () => {
 });
 
 describe('assessWorkers', () => {
-  const w = (role, env, commit, pid) => ({ role, env, commit, pid });
+  const w = (role, env, commit, pid, queue = role === 'course' ? 'course' : 'video') => ({ role, env, commit, pid, queue });
   const api = { apiEnv: 'production', apiCommit: 'ea91bf1' };
 
   it('is healthy with one current worker per role, plus dev workers on any commit', () => {
@@ -40,12 +40,30 @@ describe('assessWorkers', () => {
     );
     expect(r.duplicates).toEqual([]);
     expect(r.stale).toEqual([]);
+    expect(r.healthy).toBe(true);
+  });
+
+  it('does not judge commits in development, where workers lag the checkout', () => {
+    const r = assessWorkers([w('video', 'development', 'dce8304', 1)], { apiEnv: 'development', apiCommit: '956cf7e' });
+    expect(r.stale).toEqual([]);
+    expect(r.healthy).toBe(true);
+  });
+
+  it('lists workers without an identity separately, not as duplicates', () => {
+    const r = assessWorkers(
+      [w('unnamed', 'unknown', '', null, 'video'), w('unnamed', 'unknown', '', null, 'course'), w('video', 'production', 'ea91bf1', 9)],
+      api
+    );
+    expect(r.unidentified).toHaveLength(2);
+    expect(r.duplicates).toEqual([]);
+    expect(r.healthy).toBe(false);
   });
 
   it('flags a prod worker left on old code', () => {
     const r = assessWorkers([w('video', 'production', 'f8fd748', 13784), w('video', 'production', 'ea91bf1', 22960)], api);
     expect(r.stale.map((x) => x.pid)).toEqual([13784]);
-    expect(r.duplicates).toEqual([{ key: 'production/video', count: 2 }]);
+    expect(r.duplicates).toEqual([{ key: 'video/production/video', count: 2 }]);
+    expect(r.healthy).toBe(false);
   });
 
   it("can't call anything stale when the API doesn't know its own commit", () => {

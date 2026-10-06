@@ -33,26 +33,40 @@ function parseWorkerClient(client) {
 }
 
 /**
- * Health of the workers on a queue, from the API's point of view: which are
- * running other code than this API (same environment only - a dev worker on
- * a different commit is normal), and whether an environment has more than
- * one worker of a role (each should run exactly one; an extra one is almost
- * always a leftover process from a restart).
+ * Health of the workers on the queues, from the API's point of view:
+ * - stale: a production worker on another commit than a production API. Only
+ *   judged in production, where each deploy pins one commit; in dev the
+ *   checkout moves with every commit and --watch workers lag behind it.
+ * - unidentified: a worker with no identity name, i.e. started from code older
+ *   than workerIdentity - so by definition not current.
+ * - duplicates: more than one worker of a role, per queue and environment.
+ *   Each should run exactly one; an extra one is almost always a process left
+ *   behind by a restart.
  */
 function assessWorkers(workers, { apiEnv, apiCommit }) {
+  const judgeCommits = apiEnv === 'production' && Boolean(apiCommit);
   const list = workers.map((w) => ({
     ...w,
-    stale: Boolean(apiCommit && w.commit && w.env === apiEnv && w.commit !== apiCommit),
+    stale: judgeCommits && w.env === 'production' && Boolean(w.commit) && w.commit !== apiCommit,
   }));
+  const identified = list.filter((w) => w.role !== 'unnamed');
   const counts = {};
-  for (const w of list) {
-    const key = `${w.env}/${w.role}`;
+  for (const w of identified) {
+    const key = `${w.queue || '-'}/${w.env}/${w.role}`;
     counts[key] = (counts[key] || 0) + 1;
   }
   const duplicates = Object.entries(counts)
     .filter(([, n]) => n > 1)
     .map(([key, count]) => ({ key, count }));
-  return { workers: list, duplicates, stale: list.filter((w) => w.stale) };
+  const stale = list.filter((w) => w.stale);
+  const unidentified = list.filter((w) => w.role === 'unnamed');
+  return {
+    workers: list,
+    duplicates,
+    stale,
+    unidentified,
+    healthy: duplicates.length === 0 && stale.length === 0 && unidentified.length === 0,
+  };
 }
 
 module.exports = { workerName, parseWorkerClient, assessWorkers };

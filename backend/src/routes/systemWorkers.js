@@ -16,7 +16,7 @@ const router = Router();
  *     tags: [System]
  *     responses:
  *       200:
- *         description: api {env, commit}, workers[], duplicates[], stale[], healthy
+ *         description: api {env, commit}, workers[], duplicates[], stale[], unidentified[], healthy
  */
 router.get('/', authenticate, async (req, res, next) => {
   try {
@@ -29,7 +29,7 @@ router.get('/', authenticate, async (req, res, next) => {
     const workers = [...videoClients.map(parse('video-rendering')), ...courseClients.map(parse('course-video-processing'))];
     const api = { env: config.nodeEnv, commit: appVersion.commit };
     const result = assessWorkers(workers, { apiEnv: api.env, apiCommit: api.commit });
-    res.json({ api, ...result, healthy: result.duplicates.length === 0 && result.stale.length === 0 });
+    res.json({ api, ...result });
   } catch (err) {
     next(err);
   }
