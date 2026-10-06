@@ -14,6 +14,8 @@ import { useJobs } from "../../lib/useJobs";
 import { queryKeys } from "../../lib/queryClient";
 import { getVideoJob } from "../../services/api";
 import { useWorkflowJobLive } from "./useWorkflowJobLive";
+import { QueuePanel } from "./QueuePanel";
+import { NowRunningPanel } from "./NowRunningPanel";
 import {
   NODES, EDGES, NODE_W, NODE_H, BOUNDS, NODE_BY_ID, STATE, STATE_COLOR, STAGE_COLOR, SKIPPED,
   edgePath, nodeStates, portOf,
@@ -61,7 +63,14 @@ const WorkflowPage = () => {
 
   useWorkflowJobLive(jobId || null);
 
-  const { jobs } = useJobs({ page: 1, limit: 30, filters: { type: "video" } });
+  // isActive turns on the safety-net refetch while anything is unfinished, so
+  // the queue stays current for jobs whose rooms this page has not joined.
+  const { jobs } = useJobs({
+    page: 1,
+    limit: 30,
+    filters: { type: "video" },
+    isActive: (j) => !["COMPLETED", "FAILED", "CANCELLED"].includes(String(j.status || "").toUpperCase()),
+  });
 
   const { data: job } = useQuery({
     queryKey: queryKeys.videos.detail(jobId),
@@ -123,6 +132,11 @@ const WorkflowPage = () => {
         ))}
         <span className="hidden h-3 w-px bg-border sm:block" />
         <span>Scroll to zoom · drag to pan · click a step for details</span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <NowRunningPanel job={jobId ? job : null} jobId={jobId} states={states} />
+        <QueuePanel jobs={jobs} selectedJobId={jobId} onPick={pickJob} />
       </div>
     </div>
   );
