@@ -89,6 +89,9 @@ async function updateSceneAudio(jobId, sceneNumber, audioData) {
     scene.audio.file = audioData.file;
     scene.audio.duration = audioData.duration;
     scene.audio.captionTimestamps = audioData.captionTimestamps || null;
+    // Only the segmented pipeline supplies these; the legacy path leaves them untouched.
+    if (audioData.segments) scene.audio.segments = audioData.segments;
+    if (audioData.ttsMeta) scene.audio.ttsMeta = audioData.ttsMeta;
     // The audio file duration is the actual scene duration
     scene.duration = audioData.duration;
     // `elements` was built at script-validation time, before audio (and
@@ -101,6 +104,23 @@ async function updateSceneAudio(jobId, sceneNumber, audioData) {
   }
 
   await job.save();
+  return job;
+}
+
+/**
+ * Record per-segment narration state on a scene without touching its audio
+ * file or duration - used when a scene's TTS partly failed, so the UI can
+ * show which segments need a retry. See services/audio/pipeline.
+ */
+async function updateSceneSegments(jobId, sceneNumber, segments) {
+  const job = await VideoJob.findById(jobId);
+  if (!job) throw new NotFoundError('Job not found');
+
+  const scene = job.script.scenes.find((s) => s.sceneNumber === sceneNumber);
+  if (scene) {
+    scene.audio.segments = segments;
+    await job.save();
+  }
   return job;
 }
 
@@ -176,6 +196,7 @@ module.exports = {
   updateScript,
   updateSceneImages,
   updateSceneAudio,
+  updateSceneSegments,
   complete,
   fail,
   scheduleRetry,

@@ -56,10 +56,39 @@ async function getReferenceText(client, filePath, cacheKey) {
   }
 }
 
-async function generateCustom(client, resolved, text, seed, instruct = "", fastMode = false) {
+// Qwen3-TTS's Gradio endpoints take a capitalised language name ("Auto" lets
+// the model detect). Unknown values fall back to "Auto".
+const QWEN_LANGUAGES = Object.freeze({
+  auto: "Auto", english: "English", chinese: "Chinese", japanese: "Japanese", korean: "Korean",
+  german: "German", french: "French", russian: "Russian", portuguese: "Portuguese", spanish: "Spanish", italian: "Italian",
+});
+const qwenLanguage = (language) => QWEN_LANGUAGES[String(language || "auto").toLowerCase()] || "Auto";
+
+/**
+ * Connects to the Gradio Qwen3-TTS server, starting it first if needed. A
+ * job's scenes share one connection (see sceneSynthesis's clientHolder)
+ * instead of paying Gradio's websocket handshake per scene.
+ */
+async function connect(signal = null) {
+  const LocalAIService = require("../../localAI");
+  await LocalAIService.tts.ensureRunning();
+  const { Client } = require("@gradio/client");
+  // A health check passing only proves the web server is up - Gradio's own
+  // queue/session setup inside Client.connect() can still hang indefinitely
+  // if that subsystem is wedged, with no error and no way to recover short
+  // of killing the whole process. See withTimeout's doc comment.
+  return withTimeout(
+    Client.connect(config.tts.url.replace(/\/generate$/, "").replace(/\/$/, "")),
+    config.tts.timeout,
+    "Connecting to TTS server timed out",
+    signal
+  );
+}
+
+async function generateCustom(client, resolved, text, seed, instruct = "", fastMode = false, language = "Auto") {
   return client.predict("/generate_custom_voice", {
     text,
-    language: "Auto",
+    language,
     speaker: resolved.speaker,
     instruct,
     model_size: fastMode ? config.tts.fastModelSize : config.tts.modelSize,
@@ -77,18 +106,18 @@ async function generateCustom(client, resolved, text, seed, instruct = "", fastM
  * the same seed is what keeps the identity from drifting turn to turn;
  * only the appended delivery clause should vary.
  */
-async function generateDesign(client, resolved, text, seed, instruct = "", fastMode = false) {
+async function generateDesign(client, resolved, text, seed, instruct = "", fastMode = false, language = "Auto") {
   const voiceDescription = instruct ? `${resolved.description}. ${instruct}` : resolved.description;
   return client.predict("/generate_voice_design", {
     text,
-    language: "Auto",
+    language,
     voice_description: voiceDescription,
     model_size: fastMode ? config.tts.fastModelSize : config.tts.modelSize,
     seed,
   });
 }
 
-async function generateClone(client, resolved, text, seed, fastMode = false) {
+async function generateClone(client, resolved, text, seed, fastMode = false, language = "Auto") {
   const fs = require("fs").promises;
   const refText = await getReferenceText(client, resolved.filePath, resolved.file);
   const refAudioBuffer = await fs.readFile(resolved.filePath);
@@ -99,7 +128,7 @@ async function generateClone(client, resolved, text, seed, fastMode = false) {
     ref_audio: refAudioBlob,
     ref_text: refText,
     target_text: text,
-    language: "Auto",
+    language,
     use_xvector_only: !refText,
     model_size: fastMode ? config.tts.fastModelSize : config.tts.modelSize,
     max_chunk_chars: 200,
@@ -115,16 +144,17 @@ async function generateClone(client, resolved, text, seed, fastMode = false) {
  * would kill it out from under the next scene. The caller that owns the
  * connection is responsible for closing it.
  */
-async function generate(client, resolved, text, seed, instruct, fastMode) {
+async function generate(client, resolved, text, seed, instruct, fastMode, language = "auto") {
   const startedAt = Date.now();
+  const lang = qwenLanguage(language);
   const result =
     resolved.mode === "clone"
-      ? await generateClone(client, resolved, text, seed, fastMode)
+      ? await generateClone(client, resolved, text, seed, fastMode, lang)
       : resolved.mode === "design"
-        ? await generateDesign(client, resolved, text, seed, instruct, fastMode)
-        : await generateCustom(client, resolved, text, seed, instruct, fastMode);
+        ? await generateDesign(client, resolved, text, seed, instruct, fastMode, lang)
+        : await generateCustom(client, resolved, text, seed, instruct, fastMode, lang);
   MetricsService.recordDuration("tts.duration", Date.now() - startedAt);
   return result;
 }
 
-module.exports = { generate, getReferenceText };
+module.exports = { generate, connect, qwenLanguage, getReferenceText };

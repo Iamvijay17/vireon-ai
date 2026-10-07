@@ -66,6 +66,27 @@ Terminal/recovery states: `FAILED`, `CANCELLED`, `RETRY_SCHEDULED` (a step faile
 
 The same stages are grouped into 9 named macro-stages for reporting in [`pipelineStages.js`](src/constants/pipelineStages.js). Course videos follow a parallel flow handled by `courseVideoWorker.js`.
 
+### Narration pipeline (opt-in: `TTS_SEGMENTED=true`)
+
+With the flag off, narration is one TTS call per scene exactly as before. With it on, each scene goes through [`src/services/audio/pipeline/`](src/services/audio/pipeline):
+
+```
+scene text → segmenter → pronunciation → Voice Director → pause engine → voice profile
+          → cache lookup (processed → raw) → Qwen3-TTS (cache miss only, one request at a time)
+          → ffmpeg post-processing → word alignment → assembly → scene track + timeline
+```
+
+- **Segments** are sentence-packed pieces up to `TTS_SEGMENT_MAX_CHARS` (not one request per sentence). Each has an id (`s03-seg002`), `sourceText` (original, used for captions/UI) and `spokenText` (respelled, the only text sent to TTS), its instruction, pauses, timing, cache result, status and a user-safe error.
+- **Pronunciation** ([`pronunciation/dictionary.json`](src/services/audio/pipeline/pronunciation/dictionary.json), versioned) respells tech terms, URLs, numbers and symbols. Caption timing is mapped back onto the original words, so a respelling never shifts later captions.
+- **Voice Director** is rule-based (style preset + light per-sentence cues + the script LLM's own delivery note). Qwen3-TTS has no speed/pitch/emotion parameters: emotion/style go in the `instruct` text, speed and pitch are applied by ffmpeg (pitch only if ffmpeg has `rubberband`; skipped otherwise, never faked).
+- **Cache** has two layers (`tts-seg/raw/…`, `tts-seg/processed/…` in the cache bucket): changing loudness settings re-processes cached raw audio instead of re-running the GPU.
+- **Failures** are per segment. The scene fails after the other segments are cached, so a retry (re-running the job, or `POST /api/videos/:id/scenes/:n/segments/:segmentId/retry`) regenerates only the failed segment.
+- **GPU safety**: unchanged strategy - one lease held across the audio step, strictly sequential requests, per-request timeout, restart-on-timeout, crash recovery. ffmpeg and word alignment run on CPU outside the GPU path.
+- **Needs** ffmpeg for post-processing/speed (`FFMPEG_PATH`); without it audio is passed through unprocessed and a warning is logged. Word alignment needs the existing `faster-whisper` install.
+- `GET /api/tts/stats` reports cache hit rates, average stage times, failures and GPU load.
+
+Check it against the real stack with `node scripts/smokeNarration.js` (TTS + cache) and `node scripts/e2eNarration.js` (script to rendered mp4).
+
 ### Storage
 
 Three MinIO buckets (names overridable via `MINIO_*_BUCKET`):
@@ -116,6 +137,7 @@ Interactive docs: `http://localhost:3000/api-docs` (raw spec at `/api-docs.json`
 | `/api/jobs` | cross-type job list, detail, events, cancel, retry, bulk actions |
 | `/api/audio` | standalone TTS: `generate`, `generate-dialogue`, history |
 | `/api/voices` | available voices and favorites |
+| `/api/tts` | Voice Studio: `voices` (profiles, styles, limits), `preview` (audio for a line, no video), `stats` (cache/timing/failure metrics) |
 | `/api/assets` | asset library (list, delete) |
 | `/api/analytics` | `overview`, `videos` |
 | `/api/logs` | `recent` application logs |

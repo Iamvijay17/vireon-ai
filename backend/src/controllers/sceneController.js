@@ -224,6 +224,26 @@ class SceneController {
       next(err);
     }
   }
+
+  /**
+   * POST /api/videos/:id/scenes/:sceneNumber/segments/:segmentId/retry -
+   * Re-synthesize one narration segment (segmented TTS pipeline only). The
+   * scene's other segments come from the cache, so only this one uses the GPU.
+   */
+  static async retrySceneSegment(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const sceneNumber = parseInt(req.params.sceneNumber, 10);
+      if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
+        throw new ValidationError('sceneNumber must be a positive integer');
+      }
+
+      const result = await VideoService.retrySceneSegment(id, sceneNumber, String(req.params.segmentId));
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = SceneController;

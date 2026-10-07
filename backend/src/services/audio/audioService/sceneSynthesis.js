@@ -56,23 +56,10 @@ function instructFor(scene) {
 /**
  * Connects to the Gradio Qwen3-TTS server. Broken out so a job's scenes can
  * share one connection (see clientHolder below) instead of paying Gradio's
- * websocket handshake cost per scene.
+ * websocket handshake cost per scene. Lives in ttsClient.connect so the
+ * segmented pipeline shares the exact same connection logic.
  */
-async function connectTtsClient(signal = null) {
-  const LocalAIService = require("../../localAI");
-  await LocalAIService.tts.ensureRunning();
-  const { Client } = require("@gradio/client");
-  // A health check passing only proves the web server is up - Gradio's own
-  // queue/session setup inside Client.connect() can still hang indefinitely
-  // if that subsystem is wedged, with no error and no way to recover short
-  // of killing the whole process. See withTimeout's doc comment.
-  return withTimeout(
-    Client.connect(config.tts.url.replace(/\/generate$/, "").replace(/\/$/, "")),
-    config.tts.timeout,
-    "Connecting to TTS server timed out",
-    signal
-  );
-}
+const connectTtsClient = (signal = null) => ttsClient.connect(signal);
 
 /**
  * Synthesize + download a single scene's audio and resolve its final
@@ -327,7 +314,12 @@ async function synthesizeSceneAudio(jobId, scene, voice, fastMode = false, skipC
  * gets written back into the cache afterward, becoming the new cached
  * version for that content hash.
  */
-async function generateSceneAudio(jobId, scene, voice, fastMode = false, skipCache = false) {
+async function generateSceneAudio(jobId, scene, voice, fastMode = false, skipCache = false, options = {}) {
+  // TTS_SEGMENTED=true: the Voice Director / segment pipeline owns narration.
+  if (config.audio.segmentedTts) {
+    return require("../pipeline/batch").generateSceneAudioSegmented(jobId, scene, voice, fastMode, skipCache, options);
+  }
+
   const result = await synthesizeSceneAudio(jobId, scene, voice, fastMode, skipCache);
   if (!result) return null;
 
@@ -364,12 +356,20 @@ async function generateSceneAudio(jobId, scene, voice, fastMode = false, skipCac
  * paying the websocket-connect cost, since they're already serialized onto
  * a single TTS call at a time anyway.
  *
+ * `options` is only read by the segmented pipeline (see pipeline/batch.js);
+ * the legacy path below ignores it.
+ *
  * `signal`, if provided, is threaded into each scene's TTS/download/decode
  * calls (see synthesizeSceneAudio) so a cancellation interrupts whichever
  * one is currently in flight immediately, instead of only being noticed by
  * `checkCancelled` at the next scene boundary.
  */
-async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled, fastMode = false, skipCache = false, signal = null) {
+async function generateAllAudio(jobId, scenes, voice, onSceneComplete, checkCancelled, fastMode = false, skipCache = false, signal = null, options = {}) {
+  // TTS_SEGMENTED=true: the Voice Director / segment pipeline owns narration.
+  if (config.audio.segmentedTts) {
+    return require("../pipeline/batch").generateAllAudioSegmented(jobId, scenes, voice, onSceneComplete, checkCancelled, fastMode, skipCache, signal, options);
+  }
+
   LoggerService.tts("Starting batch audio generation", {
     jobId,
     scenes: scenes.length,

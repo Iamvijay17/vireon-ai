@@ -28,6 +28,13 @@ const validConfig = () => ({
   cors: { origins: ['http://localhost:5173'] },
   rateLimit: { windowMs: 60000, max: 600 },
   videoWorker: { concurrency: 3 },
+  audio: {
+    segmentedTts: false, segmentMaxChars: 240, segmentMinChars: 40, previewMaxChars: 600,
+    ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', speedMin: 0.85, speedMax: 1.2, pitchLimit: 2,
+    pauses: { min: 0, max: 1500, comma: 120, sentence: 320, paragraph: 700, sceneTransition: 500 },
+    processing: { targetLoudness: -16, truePeakLimit: -1.5 },
+    ducking: { duckAmount: 0.65, attackMs: 120, releaseMs: 400 },
+  },
 });
 
 /** Run validateConfig on a config mutated by `mutate`, return the issues. */
@@ -134,6 +141,30 @@ describe('validateConfig', () => {
       // Otherwise they would throw on the very fields the schema rejected.
       const issues = issuesFor((c) => { c.minio.publicUrl = 'not a url'; c.remotion.qualityCrf.hd = 'x'; });
       expect(issues.every((i) => i.path !== 'remotion.qualityCrf')).toBe(true);
+    });
+  });
+  describe('audio pipeline config', () => {
+    it('rejects a loudness target outside a sane LUFS range', () => {
+      expect(issuesFor((c) => { c.audio.processing.targetLoudness = 3; })[0].path).toBe('audio.processing.targetLoudness');
+    });
+
+    it('rejects a positive true-peak ceiling', () => {
+      expect(issuesFor((c) => { c.audio.processing.truePeakLimit = 1; })[0].path).toBe('audio.processing.truePeakLimit');
+    });
+
+    it('rejects an inverted pause range', () => {
+      const issues = issuesFor((c) => { c.audio.pauses.min = 2000; });
+      expect(issues.map((i) => i.path)).toContain('audio.pauses');
+    });
+
+    it('rejects a pause longer than the maximum', () => {
+      const issues = issuesFor((c) => { c.audio.pauses.paragraph = 5000; });
+      expect(issues[0].path).toBe('audio.pauses.paragraph');
+    });
+
+    it('rejects a minimum segment length that is not below the maximum', () => {
+      const issues = issuesFor((c) => { c.audio.segmentMinChars = 300; });
+      expect(issues[0].path).toBe('audio.segmentMinChars');
     });
   });
 });

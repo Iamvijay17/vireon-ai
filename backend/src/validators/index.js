@@ -12,6 +12,7 @@ const {
   getAspectRatioForResolution,
 } = require('../constants');
 const { ID_PATTERN } = require('../utils/id');
+const { STYLES: VOICE_STYLES } = require('../services/audio/pipeline/schemas');
 const { STYLE_KEYS: IMAGE_STYLE_KEYS, MAX_TEXT_LINES: MAX_IMAGE_TEXT_LINES } = require('../services/image/styles');
 
 const createVideoSchema = z
@@ -60,6 +61,12 @@ const createVideoSchema = z
     // 0.6B model for this job's narration instead of the default 1.7B -
     // trades some audio quality for speed.
     fastAudio: z.boolean().optional().default(false),
+    // Narration direction for the segmented TTS pipeline (see
+    // services/audio/pipeline). Both optional: omitted means "choose from the
+    // video type". voiceProfile is a profile id from GET /api/voices.
+    // The wizard sends '' for "Auto"; treat it as not provided.
+    voiceProfile: z.preprocess((v) => (v === '' ? undefined : v), z.string().max(64).optional()),
+    voiceStyle: z.preprocess((v) => (v === '' ? undefined : v), z.enum(VOICE_STYLES).optional()),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'podcast') {

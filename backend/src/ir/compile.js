@@ -1,5 +1,6 @@
 const { SceneGraph, IR_VERSION } = require('./schema');
 const { SCENE_TYPES, resolveTemplate } = require('./templateRegistry');
+const { toRenderTimeline } = require('../services/audio/pipeline/timeline');
 
 // Mirrors remotion/src/calculateVideoMetadata.js's FPS - the composition
 // derives its frame count from scene seconds at this rate.
@@ -125,6 +126,7 @@ function compile({ jobId, script, jobConfig = {}, stage = 'render', audioUrlFor 
         voice: scene.audio?.voice || '',
         emotion: scene.audio?.emotion || '',
         captionTimestamps: scene.audio?.captionTimestamps ?? null,
+        timeline: toRenderTimeline(scene.audio?.segments),
       },
       elements,
     };

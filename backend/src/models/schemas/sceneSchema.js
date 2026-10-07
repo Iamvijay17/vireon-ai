@@ -46,6 +46,14 @@ const sceneSchema = new mongoose.Schema(
       // Real per-word timestamps from forced alignment (AudioService._alignCaptions),
       // null when alignment wasn't run or failed - see CaptionRenderer's estimated-pace fallback.
       captionTimestamps: { type: mongoose.Schema.Types.Mixed, default: null },
+      // Segmented TTS pipeline (services/audio/pipeline): one entry per
+      // narration segment - ids, original/spoken text, instruction, timing
+      // inside this scene's track (startMs/endMs), cache result, status and
+      // any user-safe error. Absent for scenes made by the legacy path.
+      segments: { type: [mongoose.Schema.Types.Mixed], default: undefined },
+      // Rollup for the scene: voice profile, TTS model, director/pronunciation
+      // versions, cache hits/misses and the generation/processing/assembly times.
+      ttsMeta: { type: mongoose.Schema.Types.Mixed, default: undefined },
     },
   },
   { _id: false }

@@ -1,6 +1,6 @@
 const crud = require('./crud');
 const statusUpdates = require('./statusUpdates');
-const { regenerateSceneAudio } = require('./scenePipeline');
+const { regenerateSceneAudio, retrySceneSegment } = require('./scenePipeline');
 const lifecycle = require('./lifecycle');
 const resumeLogic = require('./resumeLogic');
 
@@ -18,6 +18,7 @@ module.exports = {
   ...crud,
   ...statusUpdates,
   regenerateSceneAudio,
+  retrySceneSegment,
   ...lifecycle,
   ...resumeLogic,
 };

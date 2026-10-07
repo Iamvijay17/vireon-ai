@@ -4,6 +4,7 @@ const AudioService = require('../../services/audio/audioService');
 const LocalAIService = require('../../services/localAI');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
+const MetricsService = require('../../services/common/MetricsService');
 const { JOB_STATUS } = require('../../constants');
 const { PROGRESS_BANDS, mapToBand } = require('../../utils/progressBands');
 const { bailIfCancelled, JobCancelledError } = require('./shared');
@@ -56,8 +57,10 @@ async function run(jobId, videoJob, script, ctx) {
   // start/stop against Ollama/ComfyUI for no benefit, since this stage
   // owns TTS work start-to-finish anyway.
   try {
-    await LocalAIService.gpu.withGPU('tts', () =>
-      AudioService.generateAllAudio(
+    const gpuRequestedAt = Date.now();
+    await LocalAIService.gpu.withGPU('tts', () => {
+      MetricsService.recordDuration('tts.queueWait', Date.now() - gpuRequestedAt);
+      return AudioService.generateAllAudio(
         jobId,
         scenesToProcess,
         jobVoice,
@@ -82,9 +85,34 @@ async function run(jobId, videoJob, script, ctx) {
         () => bailIfCancelled(jobId),
         videoJob.fastAudio,
         false,
-        ctx.signal
-      )
-    );
+        ctx.signal,
+        // Read only by the segmented TTS pipeline (TTS_SEGMENTED=true).
+        {
+          videoType: videoJob.type,
+          style: videoJob.voiceStyle || undefined,
+          voiceProfile: videoJob.voiceProfile || undefined,
+          totalScenes,
+          // Narration sub-stages ride the same jobProgress event the step
+          // already emits (ttsStage field) - no second channel. Progress inside
+          // the audio band advances with segments, not just whole scenes.
+          onProgress: ({ stage, current, total, sceneNumber, progress }) => {
+            const within = (completedScenes + progress / 100) / totalScenes;
+            SocketService.emitJobProgress({
+              _id: jobId,
+              progress: mapToBand(PROGRESS_BANDS.job.audio, Math.min(within, 0.99)),
+              status: JOB_STATUS.GENERATING_AUDIO,
+              currentStep: JOB_STATUS.GENERATING_AUDIO,
+              currentScene: sceneNumber,
+              ttsStage: { stage, current, total, progress },
+            });
+          },
+          onSceneFailed: (sceneNumber, segments) =>
+            VideoService.updateSceneSegments(jobId, sceneNumber, segments).catch((err) => {
+              LoggerService.warn('Failed to persist failed segments', { jobId, sceneNumber, error: err.message });
+            }),
+        }
+      );
+    });
   } catch (err) {
     // ctx.signal (see processor.js) is aborted the moment a Stop request
     // reaches this process - see cancellationBus - which interrupts

@@ -22,6 +22,7 @@ import { chooseBackground, chooseDecoration } from '../chooseVisuals';
 import { LAYOUT_IDS, isLayoutCompatible, resolveLayoutHint } from '../layoutHint';
 import { computeCameraTransform, cameraTransformToCss, resolveCameraMotion } from '../../camera';
 import { analyzeLayout, sortIssues } from '../../qc/analyzeLayout';
+import { getActiveSegment, getSegmentIndexAt, getSegmentProgress, isSpeaking, segmentStartFrame } from '../../audioTimeline';
 
 // ---------------------------------------------------------------------------
 // Scene routing - representative ContentProfiles should route through
@@ -675,4 +676,39 @@ test('layout QC: failed images and empty scenes', () => {
 test('layout QC: sortIssues puts errors first', () => {
   const sorted = sortIssues([{ type: 'small-text', severity: 'warn' }, { type: 'clipped', severity: 'error' }]);
   assert.deepEqual(sorted.map((i) => i.type), ['clipped', 'small-text']);
+});
+
+// ---------------------------------------------------------------------------
+// Voice timeline helpers - visuals follow the narration's segments.
+// ---------------------------------------------------------------------------
+
+const TIMELINE = [
+  { segmentId: 's1', startMs: 0, endMs: 1000, durationMs: 1000 },
+  { segmentId: 's2', startMs: 1500, endMs: 2500, durationMs: 1000 },
+];
+
+test('audioTimeline: finds the segment being spoken and goes quiet in pauses', () => {
+  assert.equal(getActiveSegment(TIMELINE, 15, 30).segmentId, 's1'); // 500ms
+  assert.equal(getActiveSegment(TIMELINE, 38, 30), null); // ~1267ms, pause
+  assert.equal(getActiveSegment(TIMELINE, 60, 30).segmentId, 's2'); // 2000ms
+  assert.equal(isSpeaking(TIMELINE, 38, 30), false);
+  assert.equal(isSpeaking(TIMELINE, 15, 30), true);
+});
+
+test('audioTimeline: progress and index track the voice', () => {
+  assert.equal(getSegmentProgress(TIMELINE, 15, 30), 0.5);
+  assert.equal(getSegmentProgress(TIMELINE, 38, 30), 0);
+  assert.equal(getSegmentIndexAt(TIMELINE, 0, 30), 0);
+  assert.equal(getSegmentIndexAt(TIMELINE, 38, 30), 0);
+  assert.equal(getSegmentIndexAt(TIMELINE, 60, 30), 1);
+  assert.equal(segmentStartFrame(TIMELINE[1], 30), 45);
+});
+
+test('audioTimeline: neutral values when a scene has no timeline', () => {
+  for (const t of [undefined, null, []]) {
+    assert.equal(getActiveSegment(t, 10, 30), null);
+    assert.equal(getSegmentIndexAt(t, 10, 30), -1);
+    assert.equal(getSegmentProgress(t, 10, 30), 0);
+    assert.equal(isSpeaking(t, 10, 30), false);
+  }
 });

@@ -95,7 +95,11 @@ async function generateAudio(videoId) {
           );
         },
         () => bailIfCancelled(videoId),
-        video.fastAudio
+        video.fastAudio,
+        false,
+        null,
+        // Only the segmented TTS pipeline reads this (TTS_SEGMENTED=true).
+        { videoType: 'educational', totalScenes: audioScenes.length }
       )
     );
 
@@ -203,7 +207,10 @@ async function regenerateSceneAudio(videoId, sceneNumber) {
     // skipCache: true - an explicit regenerate must always produce a fresh
     // take, never a cached one. See scenePipeline.regenerateSceneAudio.
     const [result] = await LocalAIService.gpu.withGPU('tts', () =>
-      AudioService.generateAllAudio(jobId, [audioScene], video.voice, undefined, undefined, video.fastAudio, true)
+      AudioService.generateAllAudio(jobId, [audioScene], video.voice, undefined, undefined, video.fastAudio, true, null, {
+        videoType: 'educational',
+        totalScenes: video.script?.scenes?.length,
+      })
     );
     if (!result) {
       throw new Error('Audio generation returned no result');

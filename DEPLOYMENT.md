@@ -31,6 +31,7 @@ Ollama, TTS, ComfyUI, workers.
 ## 1. Prerequisites
 - Windows 11, Node.js 22+, Git, PowerShell 7 or Windows PowerShell 5.1.
 - Already working natively: MinIO (`D:\Programs\minio`), Ollama, Qwen3-TTS.
+- **ffmpeg** on the PC if you enable the narration pipeline (`TTS_SEGMENTED=true`): the workers run as scheduled tasks and may not inherit your shell `PATH`, so set `FFMPEG_PATH`/`FFPROBE_PATH` in `backend/.env` to the full `.exe` paths. Without it narration still works but is not loudness-normalised or speed-adjusted (a warning is logged once).
 - A GitHub repo for this project (Actions + GHCR are free; private repos get 2,000 CI min/month).
 - PC set to **never sleep** (Settings → System → Power) and Docker/Tailscale start at login.
 

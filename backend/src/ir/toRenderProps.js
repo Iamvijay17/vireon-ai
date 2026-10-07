@@ -41,6 +41,7 @@ function toRenderProps(ir) {
       audio: {
         file: scene.audio.url,
         duration: scene.audio.durationSeconds,
+        ...(scene.audio.timeline ? { timeline: scene.audio.timeline } : {}),
       },
       theme: {
         type: ir.video.type,

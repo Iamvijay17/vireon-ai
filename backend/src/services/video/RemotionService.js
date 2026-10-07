@@ -10,6 +10,7 @@ const MetricsService = require('../common/MetricsService');
 const { abortableDelay, makeAbortError } = require('../../utils/abortableDelay');
 const { toRenderProps, diffRenderProps } = require('../../ir');
 const { checkSceneGraph } = require('./sceneGraphCheck');
+const { toRenderTimeline } = require('../audio/pipeline/timeline');
 const { parseRemotionProgressLine, remotionProgressFraction, runRemotionCommandStreaming } = require('./remotionCli');
 const assetChecks = require('./remotionAssetChecks');
 
@@ -99,6 +100,10 @@ class RemotionService {
              // video's own id (see the storage plan's bucket table).
              file: getStorageProvider().getPublicUrl(jobId, 'audio', `scene${scene.sceneNumber}.mp3`),
              duration: scene.audio?.duration || 0,
+             // Segment timing from the segmented TTS pipeline, so templates can
+             // follow the voice. Omitted for legacy audio. Kept in step with
+             // ir/toRenderProps.js so the shadow diff stays clean.
+             ...(toRenderTimeline(scene.audio?.segments) ? { timeline: toRenderTimeline(scene.audio.segments) } : {}),
            },
            theme: {
              type: jobConfig.type || 'educational',

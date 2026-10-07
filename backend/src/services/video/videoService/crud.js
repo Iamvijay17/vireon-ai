@@ -45,6 +45,8 @@ async function create(data) {
     captionAnimation: data.captionAnimation || 'fadeInUp',
     fastGeneration: data.fastGeneration ?? true,
     fastAudio: data.fastAudio ?? false,
+    voiceProfile: data.voiceProfile || '',
+    voiceStyle: data.voiceStyle || '',
     status: JOB_STATUS.QUEUED,
     progress: 0,
   });

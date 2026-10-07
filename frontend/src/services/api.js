@@ -207,6 +207,34 @@ export const generateAudio = (data) => api.post('/api/audio/generate', data, { t
 // longer timeout still, scaled by how many turns a long script can produce.
 export const generateDialogueAudio = (data) => api.post('/api/audio/generate-dialogue', data, { timeout: 300000 });
 
+// ─── Voice Studio (narration pipeline) ──────────────────────────────────────────
+
+// Profiles, styles, emotions and the numeric limits the server enforces.
+export const getTtsVoices = () => api.get('/api/tts/voices');
+
+export const getTtsStats = () => api.get('/api/tts/stats');
+
+// Returns the audio itself (a Blob) with timing/cache details in X-Tts-*
+// headers. The first preview after the TTS model unloads has to load it onto
+// the GPU, so allow several minutes. An error body also arrives as a Blob,
+// so it is decoded here to keep the usual `friendlyMessage` contract.
+export const previewTts = async (data) => {
+  try {
+    return await api.post('/api/tts/preview', data, { responseType: 'blob', timeout: 300000 });
+  } catch (err) {
+    const body = err.response?.data;
+    if (typeof Blob !== 'undefined' && body instanceof Blob) {
+      try {
+        const parsed = JSON.parse(await body.text());
+        err.friendlyMessage = parsed?.details?.[0]?.message || parsed?.error || err.friendlyMessage;
+      } catch {
+        // Not JSON - keep the generic message.
+      }
+    }
+    throw err;
+  }
+};
+
 export const getAudioGenerations = (page = 1, limit = 20) =>
   api.get('/api/audio', { params: { page, limit } });
 
