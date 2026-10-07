@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Send, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { createVideoJob, getVoices } from "../../services/api";
+import { createVideoJob, getVoices, getTtsVoices } from "../../services/api";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 import { LoadingState } from "../../components";
 import { Card } from "../../components/ui/Card";
@@ -29,6 +29,7 @@ const Wizard = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
+  const [voiceStyles, setVoiceStyles] = useState([]);
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
   useEffect(() => {
@@ -50,6 +51,15 @@ const Wizard = () => {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Narration styles come from the server; without them the Style picker simply isn't shown.
+  useEffect(() => {
+    let cancelled = false;
+    getTtsVoices()
+      .then((res) => { if (!cancelled) setVoiceStyles(res.data?.styles || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   const voiceOptions = [
@@ -96,7 +106,10 @@ const Wizard = () => {
     if (!validateAll()) return;
     try {
       setLoading(true);
-      const res = await createVideoJob(values);
+      // "Auto" is sent as nothing at all, so the server derives the style.
+      const payload = { ...values };
+      if (!payload.voiceStyle) delete payload.voiceStyle;
+      const res = await createVideoJob(payload);
       setResult(res.data);
       toast.success("Video job created! Processing started.");
     } catch (err) {
@@ -196,6 +209,7 @@ const Wizard = () => {
           setField={setField}
           errors={errors}
           voiceOptions={voiceOptions}
+          voiceStyles={voiceStyles}
           isFavorite={isFavorite}
           toggleFavorite={toggleFavorite}
         />

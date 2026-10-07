@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const hashInputs = require('../../utils/hashInputs');
 const config = require('../../config');
 const LoggerService = require('./LoggerService');
 const MetricsService = require('./MetricsService');
@@ -28,13 +28,7 @@ class CacheService {
    * are sorted) so callers don't have to worry about property order.
    */
   static hashTtsInputs(inputs) {
-    const sorted = Object.keys(inputs)
-      .sort()
-      .reduce((acc, key) => {
-        acc[key] = inputs[key];
-        return acc;
-      }, {});
-    return crypto.createHash('sha256').update(JSON.stringify(sorted)).digest('hex');
+    return hashInputs(inputs);
   }
 
   // ---- TTS audio: keyed by a content hash of (text, voice, seed, ...) ----
@@ -82,6 +76,70 @@ class CacheService {
       LoggerService.info('Smart Cache stored: TTS audio', { hash });
     } catch (err) {
       LoggerService.warn('Smart Cache failed to store TTS audio', { hash, error: err.message });
+    }
+  }
+
+  // ---- Segment-level TTS audio (segmented narration pipeline). Two kinds,
+  // keyed independently - see services/audio/pipeline/cacheKeys.js:
+  //   'raw'       straight from the TTS model (the expensive GPU result)
+  //   'processed' after speed/loudness/EQ post-processing
+  // Unlike getTtsAudio above these hand back a local file, because the
+  // pipeline works on segments locally and only the assembled scene is
+  // uploaded to the job's storage path.
+
+  static #segmentKeys(kind, hash) {
+    return { audioKey: `tts-seg/${kind}/${hash}.wav`, metaKey: `tts-seg/${kind}/${hash}.json` };
+  }
+
+  /**
+   * On a hit, downloads the cached clip to `destPath` and returns its
+   * metadata. Returns null on a miss. A backend error (not a plain "no such
+   * key") is logged and also treated as a miss - a flaky cache must never
+   * fail narration, it just costs a regeneration.
+   */
+  static async getSegmentAudio(kind, hash, destPath) {
+    if (!config.cache.enabled) return null;
+    const { audioKey, metaKey } = this.#segmentKeys(kind, hash);
+    try {
+      const chunks = [];
+      const stream = await this.#client().getObject(config.minio.cacheBucket, metaKey);
+      for await (const chunk of stream) chunks.push(chunk);
+      const metadata = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      await this.#client().fGetObject(config.minio.cacheBucket, audioKey, destPath);
+      MetricsService.increment(`tts.segment.${kind}.hit`);
+      return metadata;
+    } catch (err) {
+      if (err?.code !== 'NoSuchKey' && err?.code !== 'NotFound') {
+        LoggerService.warn('Smart Cache segment lookup failed', { kind, hash, error: err.message });
+      }
+      MetricsService.increment(`tts.segment.${kind}.miss`);
+      return null;
+    }
+  }
+
+  /** Stores a segment clip + metadata. Returns false (never throws) if the cache is unavailable. */
+  static async putSegmentAudio(kind, hash, localFilePath, metadata) {
+    if (!config.cache.enabled) return false;
+    const { audioKey, metaKey } = this.#segmentKeys(kind, hash);
+    try {
+      await this.#client().fPutObject(config.minio.cacheBucket, audioKey, localFilePath);
+      await this.#client().putObject(config.minio.cacheBucket, metaKey, Buffer.from(JSON.stringify(metadata)));
+      return true;
+    } catch (err) {
+      LoggerService.warn('Smart Cache failed to store TTS segment', { kind, hash, error: err.message });
+      return false;
+    }
+  }
+
+  /** Rewrites only the sidecar metadata of an already-cached segment (e.g. once word timings are known). */
+  static async putSegmentMeta(kind, hash, metadata) {
+    if (!config.cache.enabled) return false;
+    try {
+      await this.#client().putObject(config.minio.cacheBucket, this.#segmentKeys(kind, hash).metaKey, Buffer.from(JSON.stringify(metadata)));
+      return true;
+    } catch (err) {
+      LoggerService.warn('Smart Cache failed to update TTS segment metadata', { kind, hash, error: err.message });
+      return false;
     }
   }
 

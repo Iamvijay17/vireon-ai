@@ -1,0 +1,74 @@
+[
+  {
+    "id": "professional-narrator",
+    "name": "Professional",
+    "description": "Clear, steady narration for business and general explainers.",
+    "voice": "custom:Ryan",
+    "defaultStyle": "professional",
+    "defaultEmotion": "neutral",
+    "tags": [
+      "male",
+      "professional"
+    ]
+  },
+  {
+    "id": "educational-teacher",
+    "name": "Educational",
+    "description": "Patient, warm teaching voice for lessons and courses.",
+    "voice": "custom:Serena",
+    "defaultStyle": "educational",
+    "defaultEmotion": "warm",
+    "tags": [
+      "female",
+      "educational"
+    ]
+  },
+  {
+    "id": "energetic-presenter",
+    "name": "Energetic",
+    "description": "Upbeat delivery for shorts and marketing.",
+    "voice": "custom:Aiden",
+    "defaultStyle": "energetic",
+    "defaultEmotion": "excited",
+    "tags": [
+      "male",
+      "energetic"
+    ]
+  },
+  {
+    "id": "documentary-narrator",
+    "name": "Documentary",
+    "description": "Measured, authoritative narration.",
+    "voice": "custom:Eric",
+    "defaultStyle": "documentary",
+    "defaultEmotion": "serious",
+    "tags": [
+      "male",
+      "documentary"
+    ]
+  },
+  {
+    "id": "calm-guide",
+    "name": "Calm",
+    "description": "Soft, unhurried voice for relaxed content.",
+    "voice": "custom:Sohee",
+    "defaultStyle": "calm",
+    "defaultEmotion": "calm",
+    "tags": [
+      "female",
+      "calm"
+    ]
+  },
+  {
+    "id": "storyteller",
+    "name": "Storyteller",
+    "description": "Smooth, expressive voice for stories.",
+    "voice": "custom:Dylan",
+    "defaultStyle": "storytelling",
+    "defaultEmotion": "warm",
+    "tags": [
+      "male",
+      "storytelling"
+    ]
+  }
+]

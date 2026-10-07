@@ -73,6 +73,81 @@ const config = Object.freeze({
     maxRetries: parseInt(process.env.TTS_MAX_RETRIES, 10) || 3,
   },
 
+  // Narration pipeline (services/audio/pipeline/): Voice Director ->
+  // segmentation -> pronunciation -> TTS -> post-processing -> assembly.
+  // Every stage is additive and individually switchable, so a bad setting
+  // degrades to "narration as before" instead of failing a job.
+  audio: {
+    // Master switch for the segmented pipeline. Off (default) keeps the
+    // original one-TTS-call-per-scene path (sceneSynthesis.js) exactly as
+    // it was; the preview endpoint always uses the pipeline regardless.
+    segmentedTts: process.env.TTS_SEGMENTED === 'true',
+    // Narration is packed into sentence-boundary segments no longer than
+    // this. Qwen3-TTS reads whole sentences best, so this is deliberately
+    // not "one request per sentence" - a short scene stays a single segment.
+    segmentMaxChars: parseInt(process.env.TTS_SEGMENT_MAX_CHARS, 10) || 240,
+    // Pieces shorter than this are merged into a neighbour rather than
+    // synthesized alone (tiny clips sound clipped and waste a GPU round trip).
+    segmentMinChars: parseInt(process.env.TTS_SEGMENT_MIN_CHARS, 10) || 40,
+    // Upper bound on text accepted by the preview endpoint.
+    previewMaxChars: parseInt(process.env.TTS_PREVIEW_MAX_CHARS, 10) || 600,
+    // ffmpeg/ffprobe are only needed for post-processing and speed changes.
+    // Bare names resolve through PATH; point these at the .exe when the
+    // worker's PATH lacks them (scheduled-task workers often do).
+    ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg',
+    ffprobePath: process.env.FFPROBE_PATH || 'ffprobe',
+    // Playback-speed limits. Qwen3-TTS has no speed control, so speed is an
+    // ffmpeg tempo change; beyond this range it audibly degrades the voice.
+    speedMin: parseFloat(process.env.TTS_SPEED_MIN) || 0.85,
+    speedMax: parseFloat(process.env.TTS_SPEED_MAX) || 1.2,
+    // Pitch is in semitones. Applied only when ffmpeg has rubberband.
+    pitchLimit: parseFloat(process.env.TTS_PITCH_LIMIT) || 2,
+    // Pause lengths in ms. See pauseEngine.js.
+    pauses: {
+      min: parseInt(process.env.PAUSE_MIN_MS, 10) || 0,
+      max: parseInt(process.env.PAUSE_MAX_MS, 10) || 1500,
+      comma: parseInt(process.env.PAUSE_COMMA_MS, 10) || 120,
+      sentence: parseInt(process.env.PAUSE_SENTENCE_MS, 10) || 320,
+      paragraph: parseInt(process.env.PAUSE_PARAGRAPH_MS, 10) || 700,
+      sceneTransition: parseInt(process.env.PAUSE_SCENE_TRANSITION_MS, 10) || 400,
+    },
+    director: {
+      // Optional LLM refinement of the rule-based director. Costs an Ollama
+      // call, so off unless asked for.
+      llmEnabled: process.env.VOICE_DIRECTOR_LLM === 'true',
+      defaultStyle: process.env.VOICE_DEFAULT_STYLE || 'professional',
+    },
+    pronunciation: {
+      enabled: process.env.PRONUNCIATION_ENABLED !== 'false',
+    },
+    // Word-level timing for captions. 'faster-whisper' transcribes the
+    // finished clip on CPU; 'none' disables alignment (captions fall back to
+    // estimated pacing). Providers are pluggable - see pipeline/alignment.
+    alignment: {
+      provider: process.env.ALIGNMENT_PROVIDER || 'faster-whisper',
+      model: process.env.ALIGNMENT_MODEL || 'base',
+    },
+    // Post-processing chain (audioProcessor.js). Needs ffmpeg; when ffmpeg
+    // is missing the chain is skipped with a warning, never failing a job.
+    processing: {
+      enabled: process.env.AUDIO_PROCESSING_ENABLED !== 'false',
+      trimSilence: process.env.AUDIO_TRIM_SILENCE !== 'false',
+      noiseReduction: process.env.AUDIO_NOISE_REDUCTION === 'true',
+      eq: process.env.AUDIO_EQ_ENABLED !== 'false',
+      compression: process.env.COMPRESSION_ENABLED !== 'false',
+      normalization: process.env.NORMALIZATION_ENABLED !== 'false',
+      // Integrated loudness target (LUFS) and true-peak ceiling (dBTP).
+      targetLoudness: parseFloat(process.env.TARGET_LOUDNESS) || -16,
+      truePeakLimit: parseFloat(process.env.TRUE_PEAK_LIMIT) || -1.5,
+    },
+    // Music ducking envelope parameters (timeline.buildDuckingEnvelope).
+    ducking: {
+      duckAmount: parseFloat(process.env.DUCK_AMOUNT) || 0.65,
+      attackMs: parseInt(process.env.DUCK_ATTACK_MS, 10) || 120,
+      releaseMs: parseInt(process.env.DUCK_RELEASE_MS, 10) || 400,
+    },
+  },
+
   // Local AI Service Manager (backend/src/services/localAI): auto-starts
   // Ollama and the Qwen3-TTS Gradio server (normally launched by hand)
   // so a job never fails just because the user forgot to open them first.

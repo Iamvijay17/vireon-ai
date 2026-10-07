@@ -123,6 +123,10 @@ const videoJobSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Narration direction for the segmented TTS pipeline. Empty = derive from
+    // the video type / the chosen voice. See services/audio/pipeline.
+    voiceProfile: { type: String, default: '' },
+    voiceStyle: { type: String, default: '' },
     status: {
       type: String,
       enum: Object.values(JOB_STATUS),

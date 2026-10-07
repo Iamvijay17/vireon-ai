@@ -91,6 +91,14 @@ const cases = {
     script.scenes.forEach((s) => { s.imageUrl = 'http://minio/job-1/image/cover.png'; s.elements = { ...s.elements, hostImage: s.imageUrl }; });
     return script;
   },
+  'narration made by the segmented TTS pipeline (carries a segment timeline)': () => {
+    const script = validated([raw(1), raw(2)]);
+    script.scenes[0].audio.segments = [
+      { id: 's01-seg001', sourceText: 'Narration 1.', startMs: 0, endMs: 2000, durationMs: 2000 },
+      { id: 's01-seg002', sourceText: 'More.', startMs: 2300, endMs: 3100, durationMs: 800 },
+    ];
+    return script;
+  },
   'legacy hand-coded templates': () => {
     config.generativeEngine.enabled = false;
     const script = validated([raw(1), raw(2), raw(3, { sceneType: 'contentwithimage', imagePrompt: 'a cat at a desk' })]);
@@ -119,6 +127,16 @@ describe('legacy builder and IR agree', () => {
     expect(ok).toBe(true);
 
     expect(diffRenderProps(legacy, toRenderProps(ir))).toEqual([]);
+  });
+
+  it('passes the segment timeline to the renderer, and only for scenes that have one', async () => {
+    const script = cases['narration made by the segmented TTS pipeline (carries a segment timeline)']();
+    const legacy = await RemotionService.prepareAssets('job-1', script, jobConfig());
+    expect(legacy.scenes[0].audio.timeline).toEqual([
+      { segmentId: 's01-seg001', text: 'Narration 1.', startMs: 0, endMs: 2000, durationMs: 2000 },
+      { segmentId: 's01-seg002', text: 'More.', startMs: 2300, endMs: 3100, durationMs: 800 },
+    ]);
+    expect(legacy.scenes[1].audio).not.toHaveProperty('timeline');
   });
 
   it('actually carries the layout through both builders', async () => {

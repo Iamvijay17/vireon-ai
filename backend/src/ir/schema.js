@@ -26,6 +26,15 @@ const SceneAudio = z.object({
   voice: z.string(),
   emotion: z.string(),
   captionTimestamps: z.any().nullable(),
+  // Where each narration segment sits in the scene's audio (segmented TTS
+  // pipeline only) - lets templates follow the voice. Null for legacy audio.
+  timeline: z.array(z.object({
+    segmentId: z.string(),
+    text: z.string().optional(),
+    startMs: z.number(),
+    endMs: z.number(),
+    durationMs: z.number(),
+  })).nullable().optional(),
 });
 
 const SceneIR = z.object({

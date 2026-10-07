@@ -163,6 +163,8 @@ export const DEFAULT_VALUES = {
   captionAnimation: "fadeInUp",
   fastGeneration: false,
   fastAudio: false,
+  // "" = Auto: the server picks a narration style from the video type.
+  voiceStyle: "",
 };
 
 export const isVerticalResolution = (value) => VERTICAL_RESOLUTIONS.some((r) => r.value === value);

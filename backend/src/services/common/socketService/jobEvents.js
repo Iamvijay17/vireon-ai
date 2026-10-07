@@ -54,6 +54,9 @@ function emitJobProgress(job) {
     status: job.status,
     currentStep: job.currentStep,
     currentScene: job.currentScene,
+    // Sub-stage of narration generation (segmented TTS pipeline):
+    // { stage, current, total, progress } - same event, no extra channel.
+    ...(job.ttsStage ? { ttsStage: job.ttsStage } : {}),
   };
 
   record(job._id, 'jobProgress', data, (payload) => {
@@ -83,6 +86,16 @@ function emitSceneAudioReady(jobId, sceneNumber, audioData) {
       // (see audioService/sceneSynthesis.js) instead of freshly generated -
       // lets the job timeline distinguish cache hits from real work.
       fromCache: audioData.fromCache || false,
+      // Segment timeline (segmented TTS pipeline only): where each segment
+      // sits in the scene track, for per-segment UI / sync.
+      ...(audioData.segments
+        ? {
+            segments: audioData.segments.map((s) => ({
+              id: s.id, index: s.index, status: s.status, cache: s.cache,
+              startMs: s.startMs, endMs: s.endMs, durationMs: s.durationMs,
+            })),
+          }
+        : {}),
     },
   };
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AudioLines, Mic2 } from "lucide-react";
-import { generateAudio, generateDialogueAudio, getVoices } from "../../services/api";
+import { generateAudio, generateDialogueAudio, getVoices, getTtsVoices } from "../../services/api";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Tabs } from "../../components/ui/Tabs";
@@ -8,6 +8,8 @@ import { VoiceLibrary } from "../../components/ui/VoiceLibrary";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 import { toast } from "../../components/ui/toastBus";
 import { loadSettings } from "../../shared/settingsStorage";
+import { DEFAULT_DIRECTION, buildPreviewRequest } from "../../shared/ttsPreview";
+import { useTtsPreview } from "../../shared/useTtsPreview";
 import { SingleVoicePanel } from "./SingleVoicePanel";
 import { DialoguePanel } from "./DialoguePanel";
 import { HistoryPanel } from "./HistoryPanel";
@@ -30,6 +32,12 @@ const AudioPage = () => {
   const [text, setText] = useState("");
   const [voice, setVoice] = useState("");
   const [emotion, setEmotion] = useState("");
+
+  // Voice direction (style / emotion / speed / pitch / pronunciation) - used by
+  // Preview, which runs the narration pipeline. All "Auto" until touched.
+  const [direction, setDirection] = useState(DEFAULT_DIRECTION);
+  const [ttsOptions, setTtsOptions] = useState(null);
+  const preview = useTtsPreview();
 
   // Dialogue mode
   const [speakers, setSpeakers] = useState(DEFAULT_SPEAKERS);
@@ -89,6 +97,40 @@ const AudioPage = () => {
       cancelled = true;
     };
   }, []);
+
+  // The Voice Studio options are an enhancement - if the endpoint is
+  // unavailable the page works exactly as before, just without those controls.
+  useEffect(() => {
+    let cancelled = false;
+    getTtsVoices()
+      .then((res) => { if (!cancelled) setTtsOptions(res.data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const handlePickPreset = (profile) => {
+    setVoice(profile.voice);
+    setDirection((prev) => ({ ...prev, style: profile.defaultStyle }));
+  };
+
+  // A preset reads as selected only while its voice and style are still in effect.
+  const activePreset = ttsOptions?.profiles?.find((p) => p.voice === voice && p.defaultStyle === direction.style)?.id ?? null;
+
+  const handlePreview = () => {
+    if (!text.trim() || !voice || voice.trim() === "design:") {
+      toast.error("Enter some text and select a voice to preview");
+      return;
+    }
+    preview.generate(
+      buildPreviewRequest({
+        text,
+        voice,
+        direction,
+        fastMode,
+        maxChars: ttsOptions?.limits?.previewMaxChars,
+      })
+    );
+  };
 
   // Shared by both modes: validation happens in the caller, this owns the
   // generating flag and the result toasts.
@@ -196,6 +238,13 @@ const AudioPage = () => {
                 onGenerate={handleGenerate}
                 fastMode={fastMode}
                 setFastMode={setFastMode}
+                ttsOptions={ttsOptions}
+                direction={direction}
+                setDirection={setDirection}
+                activePreset={activePreset}
+                onPickPreset={handlePickPreset}
+                preview={preview}
+                onPreview={ttsOptions ? handlePreview : undefined}
               />
             ) : (
               <DialoguePanel

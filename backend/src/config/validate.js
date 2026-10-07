@@ -107,6 +107,35 @@ const configSchema = z.object({
   videoWorker: z.object({
     concurrency: positiveInt('VIDEO_WORKER_CONCURRENCY'),
   }),
+
+  audio: z.object({
+    segmentedTts: z.boolean(),
+    segmentMaxChars: z.number().int().min(40).max(1000, 'TTS_SEGMENT_MAX_CHARS must be at most 1000'),
+    segmentMinChars: z.number().int().min(1),
+    previewMaxChars: positiveInt('TTS_PREVIEW_MAX_CHARS'),
+    ffmpegPath: z.string().min(1),
+    ffprobePath: z.string().min(1),
+    speedMin: z.number().min(0.5).max(1),
+    speedMax: z.number().min(1).max(2),
+    pitchLimit: z.number().min(0).max(12),
+    pauses: z.object({
+      min: z.number().int().min(0),
+      max: z.number().int().min(0).max(10000, 'PAUSE_MAX_MS must be at most 10000'),
+      comma: z.number().int().min(0),
+      sentence: z.number().int().min(0),
+      paragraph: z.number().int().min(0),
+      sceneTransition: z.number().int().min(0),
+    }),
+    processing: z.object({
+      targetLoudness: z.number().min(-40).max(-5, 'TARGET_LOUDNESS must be between -40 and -5 LUFS'),
+      truePeakLimit: z.number().min(-9).max(0, 'TRUE_PEAK_LIMIT must be between -9 and 0 dBTP'),
+    }).passthrough(),
+    ducking: z.object({
+      duckAmount: z.number().min(0).max(1, 'DUCK_AMOUNT must be between 0 and 1'),
+      attackMs: z.number().int().min(0),
+      releaseMs: z.number().int().min(0),
+    }),
+  }).passthrough(),
 }).passthrough();
 
 /**
@@ -142,6 +171,21 @@ function crossFieldIssues(cfg) {
       path: 'remotion.qualityCrf',
       message: `CRF presets must satisfy draft >= standard >= hd (lower CRF = higher quality); got draft=${draft}, standard=${standard}, hd=${hd}`,
     });
+  }
+
+  // Pause bounds the audio pipeline clamps against - an inverted range would
+  // make every computed pause collapse to one end.
+  const { min: pauseMin, max: pauseMax, sentence, paragraph, comma, sceneTransition } = cfg.audio.pauses;
+  if (pauseMin > pauseMax) {
+    issues.push({ path: 'audio.pauses', message: `PAUSE_MIN_MS (${pauseMin}) must not exceed PAUSE_MAX_MS (${pauseMax})` });
+  }
+  for (const [name, value] of Object.entries({ comma, sentence, paragraph, sceneTransition })) {
+    if (value > pauseMax) {
+      issues.push({ path: `audio.pauses.${name}`, message: `pause "${name}" (${value}ms) exceeds PAUSE_MAX_MS (${pauseMax}ms)` });
+    }
+  }
+  if (cfg.audio.segmentMinChars >= cfg.audio.segmentMaxChars) {
+    issues.push({ path: 'audio.segmentMinChars', message: 'TTS_SEGMENT_MIN_CHARS must be smaller than TTS_SEGMENT_MAX_CHARS' });
   }
 
   return issues;

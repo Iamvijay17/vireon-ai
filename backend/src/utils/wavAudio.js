@@ -112,4 +112,4 @@ async function concatWavFiles(filePaths, gapSecondsForIndex) {
   return { buffer: buildWavBuffer(fmt, combinedData), durationSeconds };
 }
 
-module.exports = { parseWav, buildWavBuffer, concatWavFiles };
+module.exports = { parseWav, buildWavBuffer, concatWavFiles, silenceBuffer };

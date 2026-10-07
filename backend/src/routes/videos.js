@@ -298,6 +298,24 @@ router.post('/:id/scenes/:sceneNumber/regenerate-audio', authenticate, SceneCont
 
 /**
  * @swagger
+ * /api/videos/{id}/scenes/{sceneNumber}/segments/{segmentId}/retry:
+ *   post:
+ *     summary: Retry one narration segment of a scene
+ *     description: Segmented TTS pipeline only (TTS_SEGMENTED=true). Re-synthesizes just the named segment; the scene's other segments are served from the cache. Runs synchronously.
+ *     tags: [Scenes]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/VideoJobId' }
+ *       - { $ref: '#/components/parameters/SceneNumber' }
+ *       - { name: segmentId, in: path, required: true, schema: { type: string, example: s03-seg002 } }
+ *     responses:
+ *       200: { description: Segment regenerated and scene audio reassembled }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ *       409: { description: Segmented pipeline is not enabled }
+ */
+router.post('/:id/scenes/:sceneNumber/segments/:segmentId/retry', authenticate, SceneController.retrySceneSegment);
+
+/**
+ * @swagger
  * /api/videos/{id}/captions:
  *   get:
  *     summary: Download the captions as SRT or WebVTT

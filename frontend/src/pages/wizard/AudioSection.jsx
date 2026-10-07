@@ -1,5 +1,6 @@
 import { Mic2 } from "lucide-react";
 import { VoiceSelect } from "../../components/ui/VoiceSelect";
+import { Select } from "../../components/ui/Select";
 import { Label, FieldHint } from "../../components/ui/Input";
 import { cn } from "../../components/ui/cn";
 import { PODCAST_VOICE_PAIRS, deriveNameFromVoiceLabel } from "./constants";
@@ -10,7 +11,7 @@ import { Section } from "./Section";
  * Voice settings: one narrator voice, or for a podcast a host and a guest
  * (each with a name), plus one-click Quick Pairs of contrasting voices.
  */
-export function AudioSection({ values, setValues, setField, errors, voiceOptions, isFavorite, toggleFavorite }) {
+export function AudioSection({ values, setValues, setField, errors, voiceOptions, voiceStyles = [], isFavorite, toggleFavorite }) {
   const voiceIds = new Set(voiceOptions.map((o) => o.value));
   const availableVoicePairs = PODCAST_VOICE_PAIRS.filter(
     (p) => voiceIds.has(p.hostVoice) && voiceIds.has(p.guestVoice)
@@ -125,6 +126,21 @@ export function AudioSection({ values, setValues, setField, errors, voiceOptions
             onToggleFavorite={toggleFavorite}
           />
           <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/. Click the play button to hear a sample.</FieldHint>
+
+          {voiceStyles.length > 0 && (
+            <div className="mt-4">
+              <Label>Narration style</Label>
+              <Select
+                value={values.voiceStyle || ""}
+                onChange={(v) => setField("voiceStyle", v)}
+                options={[
+                  { value: "", label: "Auto", description: "chosen from the video type" },
+                  ...voiceStyles.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) })),
+                ]}
+              />
+              <FieldHint>How the narrator delivers the script. Auto picks a natural style for the video type; the Audio Studio can preview any style.</FieldHint>
+            </div>
+          )}
         </div>
       )}
     </Section>
