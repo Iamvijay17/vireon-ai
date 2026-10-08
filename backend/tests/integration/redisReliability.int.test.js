@@ -242,12 +242,14 @@ describeRedis('worker -> API pub/sub bridge across a Redis outage', () => {
       // The bridge's own publisher is disconnected right now. ioredis holds the
       // command and sends it on reconnect; nothing is dropped and nothing throws.
       expect(() => bridge.publish('job-abc12345', 'jobProgress', { eventId: 'evt-during-outage', seq: 12 })).not.toThrow();
+
+      // Make sure the publisher really had to wait out a refused reconnect.
+      await waitUntil(() => proxy.refused > refusedBefore, 'a reconnect attempt was refused');
       expect(arrived).not.toContain('evt-during-outage');
 
       proxy.restore();
       await waitUntil(() => arrived.includes('evt-during-outage'), 'queued event reached Redis after recovery');
       expect(arrived.filter((id) => id === 'evt-during-outage')).toHaveLength(1); // delivered once, not once per reconnect
-      expect(proxy.refused).toBeGreaterThan(refusedBefore); // it really did wait out refused reconnects
     } finally {
       proxy.restore();
       probe.disconnect();
