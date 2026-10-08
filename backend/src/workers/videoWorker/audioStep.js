@@ -26,6 +26,7 @@ async function run(jobId, videoJob, script, ctx) {
     return;
   }
 
+  const stageStartedAt = Date.now();
   ctx.currentStep = JOB_STATUS.GENERATING_AUDIO;
   await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_AUDIO, { progress: 40 });
   SocketService.emitJobProgress({ _id: jobId, progress: 40, status: JOB_STATUS.GENERATING_AUDIO, currentStep: JOB_STATUS.GENERATING_AUDIO, currentScene: 0 });
@@ -33,7 +34,8 @@ async function run(jobId, videoJob, script, ctx) {
   // Get scenes that need audio (those without audio file)
   const scenesToProcess = script.scenes.filter(s => !s.audio?.file);
 
-  LoggerService.info('Generating audio for scenes', {
+  LoggerService.info('[TTS] Audio generation started', {
+    stage: 'audio',
     totalScenes: script.scenes.length,
     alreadyGenerated: scenesWithAudio.length,
     pendingScenes: scenesToProcess.length,
@@ -86,9 +88,13 @@ async function run(jobId, videoJob, script, ctx) {
             LoggerService.warn('Failed to persist audio progress', { jobId, error: err.message });
           });
 
-          LoggerService.info(`Scene ${sceneNumber} audio ready`, {
+          LoggerService.info(`[TTS] Scene ${sceneNumber} completed`, {
+            stage: 'audio',
+            sceneNumber,
             file: result.file,
-            duration: result.duration,
+            audioSeconds: result.duration,
+            fromCache: result.fromCache || false,
+            elapsedMs: Date.now() - stageStartedAt,
           });
         },
         () => bailIfCancelled(jobId),

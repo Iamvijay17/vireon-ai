@@ -26,9 +26,10 @@ async function prepareAssets(jobId, videoJob, script, ctx) {
   await VideoService.updateStatus(jobId, JOB_STATUS.PREPARING_ASSETS);
   SocketService.emitJobProgress({ _id: jobId, progress: JOB_STEPS[JOB_STATUS.PREPARING_ASSETS].progress, status: JOB_STATUS.PREPARING_ASSETS, currentStep: JOB_STATUS.PREPARING_ASSETS, currentScene: 0 });
 
+  const assetsStartedAt = Date.now();
   const assets = await RemotionService.prepareAssets(jobId, script, renderConfigFor(videoJob));
 
-  LoggerService.success('Assets prepared');
+  LoggerService.success('[Render] Assets prepared', { stage: 'assets', durationMs: Date.now() - assetsStartedAt });
 
   return assets;
 }
@@ -101,8 +102,11 @@ async function render(jobId, assets, ctx, script) {
         });
       };
 
+      LoggerService.info('[Render] Remotion started', { stage: 'render' });
+      const renderStartedAt = Date.now();
       try {
         renderResult = await RemotionService.renderVideo(jobId, assets, onRenderProgress, ctx.signal);
+        renderResult = { ...renderResult, durationMs: Date.now() - renderStartedAt };
       } catch (err) {
         // ctx.signal (see processor.js) is aborted the moment a Stop
         // request reaches this process - see cancellationBus - which kills
@@ -115,7 +119,7 @@ async function render(jobId, assets, ctx, script) {
       RemotionStatus.end();
     }
 
-    LoggerService.success('Video rendered', renderResult);
+    LoggerService.success('[Render] Video rendered successfully', { stage: 'render', ...renderResult });
     emitSpeechStage(SocketService, jobId, SPEECH_EVENTS.RENDER_COMPLETE);
   }
 }

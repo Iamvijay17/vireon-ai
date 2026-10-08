@@ -31,11 +31,12 @@ async function run(jobId, videoJob, currentStatus, ctx) {
     return null;
   }
 
+  const stageStartedAt = Date.now();
   ctx.currentStep = JOB_STATUS.SCRIPT_GENERATION;
   await VideoService.updateStatus(jobId, JOB_STATUS.SCRIPT_GENERATION, { progress: 10 });
   SocketService.emitJobProgress({ _id: jobId, progress: 10, status: JOB_STATUS.SCRIPT_GENERATION, currentStep: JOB_STATUS.SCRIPT_GENERATION, currentScene: 0 });
 
-  LoggerService.info('Starting script generation', { topic: videoJob.topic, type: videoJob.type });
+  LoggerService.info('[LLM] Script generation started', { stage: 'script', topic: videoJob.topic, type: videoJob.type });
   await ActivityLogService.add(jobId, 'Script generation started');
 
   // Scene count and word budget from the requested duration (see
@@ -113,9 +114,11 @@ async function run(jobId, videoJob, currentStatus, ctx) {
   // Update job with script
   await VideoService.updateScript(jobId, validatedScript);
 
-  LoggerService.success('Script generated and saved', {
+  LoggerService.success('[LLM] Script generation completed', {
+    stage: 'script',
     title: validatedScript.title,
     scenes: validatedScript.scenes.length,
+    durationMs: Date.now() - stageStartedAt,
   });
 
   // A stop request that arrived while the Ollama call was in flight

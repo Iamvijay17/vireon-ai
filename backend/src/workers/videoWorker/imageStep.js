@@ -28,11 +28,12 @@ async function run(jobId, ctx) {
 
   const distinct = new Set(scenes.filter(needsImage).map((s) => s.imagePrompt.trim())).size;
 
+  const stageStartedAt = Date.now();
   ctx.currentStep = JOB_STATUS.GENERATING_IMAGES;
   await VideoService.updateStatus(jobId, JOB_STATUS.GENERATING_IMAGES, { progress: 56 });
   SocketService.emitJobProgress({ _id: jobId, progress: 56, status: JOB_STATUS.GENERATING_IMAGES, currentStep: JOB_STATUS.GENERATING_IMAGES, currentScene: 0 });
 
-  LoggerService.info('Starting scene image generation', { jobId, images: distinct, enabled: config.imageGen.enabled });
+  LoggerService.info('[ComfyUI] Scene image generation started', { stage: 'images', images: distinct, enabled: config.imageGen.enabled });
   await ActivityLogService.add(jobId, `Image generation started (${distinct} image${distinct === 1 ? '' : 's'})`);
 
   const generate = () => ensureSceneImages({
@@ -79,7 +80,13 @@ async function run(jobId, ctx) {
       `${result.degraded.length} scene(s) rendered as text instead of an image (${result.reasons.join('; ').slice(0, 300)}).`
     );
   }
-  LoggerService.success('Scene images done', { jobId, generated: result.generated, cached: result.cached, degraded: result.degraded.length });
+  LoggerService.success('[ComfyUI] Scene image generation completed', {
+    stage: 'images',
+    generated: result.generated,
+    cached: result.cached,
+    degraded: result.degraded.length,
+    durationMs: Date.now() - stageStartedAt,
+  });
 }
 
 module.exports = { run };
