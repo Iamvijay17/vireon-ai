@@ -36,6 +36,10 @@ const SLOT_HOLDING_STATES = new Set([STATE.STARTING, STATE.BUSY, STATE.READY, ST
 // this single slot, matching the physical reality of one card.
 const GPU_LEASE_NAME = 'gpu-slot';
 
+// A lease wait shorter than this is just the normal claim round-trip; only a
+// wait that outlasts it is worth an INFO "Waiting for lease" line.
+const LEASE_WAIT_NOTICE_MS = 1000;
+
 class GPUResourceManager {
   /**
    * `lease` (a RedisLease) upgrades this from in-process-only sequencing to
@@ -58,6 +62,10 @@ class GPUResourceManager {
 
     this._lease = lease;
     this._held = null; // the lease token this process currently holds, if any
+    // Which service's acquire() took the lease, and when - observability
+    // only, so "Lease released" can say who triggered the hold and for how long.
+    this._heldBy = null;
+    this._heldSince = 0;
     this._renewTimer = null;
     this._demandPending = false; // another process asked while we were busy
     // Bridges the window between claiming the lease and a service
@@ -98,7 +106,7 @@ class GPUResourceManager {
     if (managedProcess && typeof managedProcess.on === 'function') {
       managedProcess.on('exit', ({ expected }) => {
         if (expected) return; // stop()/eviction already accounts for this
-        LoggerService.error(`[GPU] ${name} process crashed - force-releasing its GPU slot`);
+        LoggerService.error('[GPU] Service process crashed - force-releasing its GPU slot', { service: name });
         this._forceRelease(name, STATE.FAILED);
       });
     }
@@ -128,11 +136,32 @@ class GPUResourceManager {
     if (!this._lease) return;
 
     await this._serialize(async () => {
-      if (this._held) return; // this process already owns the card
+      if (this._held) {
+        LoggerService.debug('[GPU] Lease already held by this process', { service: name, heldBy: this._heldBy });
+        return; // this process already owns the card
+      }
 
       const ttlMs = config.gpu.leaseTtlMs;
-      LoggerService.info(`[GPU] ${name} waiting for the cross-process GPU lease`);
-      this._held = await this._lease.acquire(GPU_LEASE_NAME, { ttlMs });
+      const waitStartedAt = Date.now();
+      LoggerService.debug('[GPU] Requesting lease', { service: name, ttlMs });
+
+      // A free card is claimed in a few ms and needs no "waiting" line. Only
+      // say we're queued once the wait is real (someone else holds it).
+      const waitingNotice = setTimeout(() => {
+        LoggerService.info('[GPU] Waiting for lease', { service: name });
+      }, LEASE_WAIT_NOTICE_MS);
+      try {
+        this._held = await this._lease.acquire(GPU_LEASE_NAME, { ttlMs });
+      } catch (err) {
+        LoggerService.error('[GPU] Failed to acquire lease', {
+          service: name, waitMs: Date.now() - waitStartedAt, error: err.message,
+        });
+        throw err;
+      } finally {
+        clearTimeout(waitingNotice);
+      }
+      this._heldBy = name;
+      this._heldSince = Date.now();
 
       // Renew at a third of the TTL so one slow round-trip never costs us
       // the lease we are actively using.
@@ -147,7 +176,7 @@ class GPUResourceManager {
       this._renewTimer.unref?.();
 
       await this._subscribeToDemand();
-      LoggerService.info(`[GPU] ${name} holds the cross-process GPU lease`);
+      LoggerService.info('[GPU] Lease acquired', { service: name, waitMs: this._heldSince - waitStartedAt });
     });
   }
 
@@ -160,12 +189,17 @@ class GPUResourceManager {
       clearInterval(this._renewTimer);
       this._renewTimer = null;
       const held = this._held;
+      const heldBy = this._heldBy;
+      const durationMs = Date.now() - this._heldSince;
       this._held = null;
+      this._heldBy = null;
       this._demandPending = false;
-      await this._lease.release(held).catch((err) =>
-        LoggerService.error('[GPU] Failed to release the cross-process GPU lease', { error: err.message })
-      );
-      LoggerService.info('[GPU] Released the cross-process GPU lease');
+      let released = true;
+      await this._lease.release(held).catch((err) => {
+        released = false;
+        LoggerService.error('[GPU] Failed to release lease', { service: heldBy, durationMs, error: err.message });
+      });
+      if (released) LoggerService.info('[GPU] Lease released', { service: heldBy, durationMs });
     });
   }
 
@@ -194,7 +228,7 @@ class GPUResourceManager {
 
     if (this._hasActiveWork()) {
       this._demandPending = true;
-      LoggerService.info('[GPU] Another process wants the GPU - handing off as soon as the current operation finishes');
+      LoggerService.info('[GPU] Another process wants the GPU - handing off when the current operation finishes', { heldBy: this._heldBy });
       return;
     }
 
@@ -292,7 +326,10 @@ class GPUResourceManager {
   _wait(name) {
     return new Promise((resolve) => {
       this.waiters.push({ name, resolve });
-      LoggerService.warn(`[GPU] ${name} waiting for GPU`, {
+      // Queuing behind another service in this process is normal
+      // contention, not a fault - info, not warn.
+      LoggerService.info('[GPU] Waiting for GPU slot', {
+        service: name,
         currentOwner: this.getCurrentOwner(),
         queueLength: this.waiters.length,
       });
@@ -313,7 +350,7 @@ class GPUResourceManager {
 
     this._clearIdleTimer(entry);
     entry.state = STATE.STOPPING;
-    LoggerService.info(`[GPU] Releasing ${name} GPU resources`);
+    LoggerService.info('[GPU] Releasing GPU resources', { service: name });
 
     try {
       if (typeof entry.manager.unload === 'function') {
@@ -322,7 +359,7 @@ class GPUResourceManager {
         await entry.manager.stop();
       }
     } catch (err) {
-      LoggerService.error(`[GPU] Failed to unload/stop ${name}`, { error: err.message });
+      LoggerService.error('[GPU] Failed to unload/stop service', { service: name, error: err.message });
     }
 
     entry.state = STATE.STOPPED;
@@ -395,7 +432,7 @@ class GPUResourceManager {
       await this._acquireProcessLease(name);
 
       entry.state = STATE.STARTING;
-      LoggerService.info(`[GPU] ${name} acquiring GPU`, { mode: config.gpu.mode });
+      LoggerService.debug('[GPU] Acquiring GPU', { service: name, mode: config.gpu.mode });
       try {
         await entry.manager.ensureRunning();
         entry.state = STATE.BUSY;
@@ -431,7 +468,7 @@ class GPUResourceManager {
 
     if (entry.autoStop) {
       entry.idleTimer = setTimeout(() => {
-        this._evict(name).catch((err) => LoggerService.error(`[GPU] Idle-timeout eviction of ${name} failed`, { error: err.message }));
+        this._evict(name).catch((err) => LoggerService.error('[GPU] Idle-timeout eviction failed', { service: name, error: err.message }));
       }, config.gpu.idleTimeoutMs);
       entry.idleTimer.unref?.();
     }

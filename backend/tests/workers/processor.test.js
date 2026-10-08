@@ -5,6 +5,7 @@
  */
 jest.mock('../../src/services/common/LoggerService', () => ({
   info: jest.fn(), warn: jest.fn(), debug: jest.fn(), error: jest.fn(), success: jest.fn(), border: jest.fn(),
+  runWithContext: (ctx, fn) => fn(),
 }));
 jest.mock('../../src/services/common/ActivityLogService', () => ({ add: jest.fn().mockResolvedValue() }));
 jest.mock('../../src/services/common/MetricsService', () => ({ recordDuration: jest.fn(), increment: jest.fn() }));

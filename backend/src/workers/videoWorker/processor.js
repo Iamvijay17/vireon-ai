@@ -36,9 +36,11 @@ const PRE_AUDIO_STATUSES = [
  * (returns a `cancelled` result instead); does throw - and lets BullMQ
  * retry - for a genuine failure.
  */
-async function processVideoJob(job) {
+async function runVideoJob(job) {
   const { jobId } = job.data;
+  const startedAt = Date.now();
   LoggerService.border(`🎬 Processing Job: ${jobId}`, 'event');
+  LoggerService.info('[Pipeline] Started', { stage: 'pipeline', attemptsMade: job.attemptsMade });
 
   // Get job details to check current state
   let videoJob = await VideoService.getById(jobId);
@@ -93,7 +95,10 @@ async function processVideoJob(job) {
 
     // ── Step 1-3: Script Generation (only if starting fresh or restarting from QUEUED)
     const scriptPauseResult = await scriptStep.run(jobId, videoJob, currentStatus, ctx);
-    if (scriptPauseResult) return scriptPauseResult;
+    if (scriptPauseResult) {
+      LoggerService.info('[Pipeline] Paused for script approval', { stage: 'pipeline', durationMs: Date.now() - startedAt });
+      return scriptPauseResult;
+    }
 
     // An auto-approved job generates its script in this very run and falls straight
     // through, so the copy fetched at the top has no script yet - reload it.
@@ -154,7 +159,9 @@ async function processVideoJob(job) {
     await bailIfCancelled(jobId);
 
     // ── Step 8-9: Upload output, complete job, cleanup
-    return await uploadStep.run(jobId, renderScript, ctx);
+    const result = await uploadStep.run(jobId, renderScript, ctx);
+    LoggerService.info('[Pipeline] Completed', { stage: 'pipeline', totalDurationMs: Date.now() - startedAt });
+    return result;
   } catch (err) {
     if (err.cancelled) {
       // Status is already CANCELLED (set by VideoService.stop, which is
@@ -234,6 +241,16 @@ async function processVideoJob(job) {
   } finally {
     unregisterAbort();
   }
+}
+
+/**
+ * Entry point for the BullMQ worker. Runs the pipeline inside a log context
+ * so every line any module emits for this job - LLM, TTS, GPU lease,
+ * ComfyUI, render, upload - carries its jobId without each call site
+ * passing it (see LoggerService.runWithContext).
+ */
+function processVideoJob(job) {
+  return LoggerService.runWithContext({ jobId: job.data.jobId }, () => runVideoJob(job));
 }
 
 module.exports = { processVideoJob };

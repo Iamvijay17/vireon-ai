@@ -165,7 +165,9 @@ function publish(jobId, type, data) {
 
   const message = JSON.stringify({ type, jobId, data });
   publisher.publish(REDIS_CHANNEL, message).catch((err) => {
-    LoggerService.error('Failed to publish Redis pub/sub message', { error: err.message });
+    // The event itself is already persisted (JobEventService), so a client
+    // that misses this live packet recovers it by replay on its next join.
+    LoggerService.error('[Socket] failed to publish event over Redis', { jobId, type, eventId: data?.eventId, seq: data?.seq, error: err.message });
   });
 }
 
