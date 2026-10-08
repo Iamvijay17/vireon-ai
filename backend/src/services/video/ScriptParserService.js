@@ -3,6 +3,7 @@ const path = require('path');
 const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
 const templateRegistry = require('../../ir/templateRegistry');
+const { sanitizeComposition } = require('../../ir/compositionRegistry');
 
 /**
  * Service for parsing, validating and saving generated scripts.
@@ -189,6 +190,8 @@ class ScriptParserService {
         // The Director's per-scene plan (layout, image, motion intent). Carried through
         // untouched; null for scripts that were never storyboarded.
         storyboard: scene.storyboard && typeof scene.storyboard === 'object' ? scene.storyboard : null,
+        // The Director's composable motion slots, restricted to ids the renderer has.
+        ...(Object.keys(sanitizeComposition(scene.composition)).length > 0 ? { composition: sanitizeComposition(scene.composition) } : {}),
         // Template-based rendering fields
         templateId,
         elements,

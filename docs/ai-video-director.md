@@ -194,3 +194,58 @@ changes; its other assertions are unchanged.
 
 **Stored on the script's `brief`:** `directorPlan` (validated), `directorVersion`, `llmModel`.
 Per scene: `storyboard.{purpose, strategy, layout, density, estimatedDuration}`.
+
+## Phase 6 — Composable motion engine
+
+**No new templates.** The 50 templates stay; the generative engine's pieces become
+independently selectable slots, each from an existing registry:
+
+```
+Scene
+├── layout       where things go             12 layouts          scene.layout  (storyboard.layout)
+├── background   environment behind          8  backgrounds      scene.composition.background
+├── decoration   vector accents              7  decorations      scene.composition.decoration
+├── textMotion   how text enters             10 entrances        scene.composition.textMotion
+├── imageMotion  how a picture drifts        4  (new)            scene.composition.imageMotion
+├── camera       slow whole-scene move       5  moves            scene.cameraMotion
+└── transition   how the scene ends          9  transitions      scene.transition
+```
+
+The brief's example names map onto existing ids: `gradientMesh` → `meshGradient`,
+`floatingParticles` → `particles`/`floatingShapes`, `subtlePushIn` → camera `zoom-in`,
+`slowZoom` → imageMotion `slowZoom`. The registries (`LAYOUT/BACKGROUND/DECORATION/
+TEXT_MOTION/IMAGE_MOTION/CAMERA/TRANSITION_REGISTRY`) live in
+`backend/src/ir/compositionRegistry.js` (backend) and `remotion/src/engine/` (renderer),
+and the id lists are pinned by tests on both sides.
+
+**What is new.** Only `imageMotion` (`engine/imageMotion.js`: `slowZoom`, `slowPan`,
+`driftUp`, `none`) and `composition.js`, which resolves the overrides. GSAP and Remotion are
+untouched.
+
+**Backwards compatible.** `scene.composition` is optional; an unset slot keeps the engine's
+deterministic pick, so every existing scene renders exactly as before. Unknown ids are
+dropped (`sanitizeComposition`) at every boundary — script validation, the IR compile, the
+legacy props builder — so a stored composition can never name something Remotion would have
+to guess at. The numbered legacy templates have their own fixed look and ignore it.
+Verified with real stills: a scene with an invalid composition renders byte-identical to one
+with none; a valid one renders aurora + orbit and a zoomed picture.
+
+**Avoiding conflicts and excess motion.**
+- Picture drift and camera move would compound, so the Director picks `imageMotion: none`
+  when the camera is moving, and the engine halves a drift if both ever coincide.
+- Every image move keeps `scale >= 1` (no empty edges) and is a pure function of progress —
+  preview, final render and thumbnail agree on every frame.
+- `textMotion` replaces only the *type* of each text slot's entrance; the choreographer's
+  delay, duration and reading-order stagger are kept. Speech-driven timing still applies on
+  top of it.
+- A Director-chosen background/decoration replaces the id but keeps the engine's intensity,
+  which already scales down as content covers more of the canvas.
+
+**The Director fills the slots** (`CompositionPlanner.js`): backgrounds and decorations from
+the engine's own mood pools for the layout, rotated so neighbours differ; text motion by the
+scene's purpose (loud entrances only for hooks and calls to action; dense text gets only the
+quiet ones and the plainest decoration); a picture drifts only when the camera is still.
+Podcasts keep their fixed look.
+
+**Render props.** `composition` rides in `assets.json` per scene (omitted when empty), through
+both the legacy builder and the IR, which `shadowEquivalence.test.js` keeps identical.

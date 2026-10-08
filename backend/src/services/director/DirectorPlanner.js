@@ -5,6 +5,7 @@ const {
   planLayouts, planCameraMotions, planTransitions, mergeItems, densityOf, diversityReport, LAYOUT_ITEM_CAP,
 } = require('./DiversityPlanner');
 const { planAssets, AUDIENCE_BY_TYPE } = require('./AssetPlanner');
+const { planComposition } = require('./CompositionPlanner');
 const { DirectorPlanSchema, formatIssues } = require('./schemas');
 const StoryStructureService = require('./StoryStructureService');
 
@@ -19,7 +20,8 @@ const StoryStructureService = require('./StoryStructureService');
  * stays readable and every choice is one the renderer actually has.
  *
  *   proposals ─▶ purpose + strategy ─▶ layouts (variety) ─▶ density guard
- *             ─▶ camera ─▶ transitions ─▶ image prompts ─▶ DirectorPlan
+ *             ─▶ camera ─▶ transitions ─▶ background / decoration / motion
+ *             ─▶ image prompts ─▶ DirectorPlan
  *
  * Pure and deterministic - no LLM, no clock, no randomness - so it is testable
  * without a model and a re-plan never reshuffles an approved video. It also means
@@ -108,6 +110,7 @@ function refine({ scenes, structure, videoType, source = 'default', repairs = 0,
   const layouts = planLayouts(entries);
   const cameras = planCameraMotions(entries, layouts);
   const transitions = planTransitions(entries.map((e, i) => ({ ...e, layout: layouts[i] })));
+  const compositions = planComposition(entries, layouts, cameras);
   const assets = planAssets(
     entries.map((e, i) => ({
       sceneNumber: e.sceneNumber,
@@ -166,7 +169,7 @@ function refine({ scenes, structure, videoType, source = 'default', repairs = 0,
         sceneNumber: scene.sceneNumber,
         cameraMotion: cameras[i],
         transition: transitions[i],
-        composition: {},
+        composition: compositions[i],
       },
       asset,
       source: scene.storyboard?.source === 'director' ? 'director' : 'default',
@@ -180,6 +183,7 @@ function refine({ scenes, structure, videoType, source = 'default', repairs = 0,
       imagePrompt,
       cameraMotion: cameras[i],
       transition: transitions[i],
+      ...(Object.keys(compositions[i]).length > 0 ? { composition: compositions[i] } : {}),
       storyboard: {
         ...scene.storyboard,
         purpose: e.purpose,

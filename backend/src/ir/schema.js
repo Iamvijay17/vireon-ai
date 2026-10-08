@@ -58,6 +58,9 @@ const SceneIR = z.object({
   // Composition the storyboard asked for ('' = let the engine decide). Reaches
   // the renderer; the engine ignores it when the scene's content doesn't fit.
   layout: z.string(),
+  // Composable motion slots (background / decoration / textMotion / imageMotion),
+  // already restricted to ids the renderer has - see compositionRegistry.sanitizeComposition.
+  composition: z.record(z.string()),
   // Full storyboard entry, kept for diagnostics and regeneration. Not part of
   // the render props.
   storyboard: z.record(z.any()).nullable(),

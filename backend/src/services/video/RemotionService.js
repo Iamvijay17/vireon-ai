@@ -9,6 +9,7 @@ const { getStorageProvider } = require('../storage/providers');
 const MetricsService = require('../common/MetricsService');
 const { abortableDelay, makeAbortError } = require('../../utils/abortableDelay');
 const { toRenderProps, diffRenderProps } = require('../../ir');
+const { sanitizeComposition } = require('../../ir/compositionRegistry');
 const { checkSceneGraph } = require('./sceneGraphCheck');
 const { toRenderTimeline } = require('../audio/pipeline/timeline');
 const { toRenderSpeech, toRenderSpeechTiming } = require('../audio/pipeline/speech/renderProps');
@@ -89,6 +90,9 @@ class RemotionService {
            // Storyboard's composition choice - kept in step with ir/toRenderProps.js
            // so the shadow diff stays clean.
            layout: typeof scene.storyboard?.layout === 'string' ? scene.storyboard.layout : '',
+           // Composable motion slots (background / decoration / text + image motion),
+           // restricted to ids the renderer has. Omitted when empty, like the IR path.
+           ...(Object.keys(sanitizeComposition(scene.composition)).length > 0 ? { composition: sanitizeComposition(scene.composition) } : {}),
             // Template-based rendering fields
             templateId: scene.templateId || '',
             elements: scene.elements || null,

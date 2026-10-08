@@ -33,6 +33,11 @@ const sceneSchema = new mongoose.Schema(
     // written before the storyboard existed. See services/director/.
     storyboard: { type: mongoose.Schema.Types.Mixed, default: null },
     imageUrl: { type: String, default: '' },
+    // Composable motion slots the generative engine reads (ir/compositionRegistry.js):
+    // { background, decoration, textMotion, imageMotion }. Each is an id the renderer
+    // has; absent slots keep the engine's deterministic pick. Layout, camera and
+    // transition live in their own fields (storyboard.layout, cameraMotion, transition).
+    composition: { type: mongoose.Schema.Types.Mixed, default: undefined },
     templateId: { type: String, default: '' },
     elements: { type: mongoose.Schema.Types.Mixed, default: null },
     scene_meta: { type: mongoose.Schema.Types.Mixed, default: null },

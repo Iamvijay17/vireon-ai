@@ -36,6 +36,7 @@ function toRenderProps(ir) {
       animation: scene.animation,
       imageUrl: scene.imageUrl,
       layout: scene.layout || '',
+      ...(Object.keys(scene.composition || {}).length > 0 ? { composition: scene.composition } : {}),
       templateId: scene.templateId,
       elements: scene.elements,
       ...(scene.speechTiming ? { speechTiming: scene.speechTiming } : {}),

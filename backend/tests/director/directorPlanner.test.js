@@ -170,6 +170,44 @@ describe('refine - variety and readability of the scenes it returns', () => {
   });
 });
 
+describe('refine - composable motion slots', () => {
+  const { sanitizeComposition } = require('../../src/ir/compositionRegistry');
+  const ScriptParserService = require('../../src/services/video/ScriptParserService');
+
+  it('gives every scene a background, decoration and text motion, and pictures an image motion', () => {
+    const { scenes } = refine([scene(1), imageScene(2), scene(3)]);
+    for (const s of scenes) {
+      expect(s.composition).toMatchObject({ background: expect.any(String), decoration: expect.any(String), textMotion: expect.any(String) });
+    }
+    expect(scenes[1].composition.imageMotion).toBeDefined();
+    expect(scenes[0].composition).not.toHaveProperty('imageMotion');
+  });
+
+  it('only names ids the renderer has', () => {
+    const { scenes } = refine(Array.from({ length: 10 }, (_, i) => scene(i + 1)));
+    for (const s of scenes) expect(sanitizeComposition(s.composition)).toEqual(s.composition);
+  });
+
+  it('records the same slots in the plan', () => {
+    const { scenes, plan } = refine([scene(1), imageScene(2)]);
+    expect(plan.scenes[0].motion.composition).toEqual(scenes[0].composition);
+    expect(plan.scenes[1].motion.composition).toEqual(scenes[1].composition);
+  });
+
+  it('survives ScriptParserService.validate, which rebuilds each scene', () => {
+    const { scenes } = refine([1, 2, 3].map((n) => scene(n)));
+    const raw = scenes.map((s) => ({ ...s, scene_meta: s.scene_meta, audio: { ...s.audio, voice: '', emotion: '' } }));
+    const validated = ScriptParserService.validate({ title: 'T', description: '', tags: [], scenes: raw }, 'educational', { seed: 'job-1' });
+    validated.scenes.forEach((s, i) => expect(s.composition).toEqual(scenes[i].composition));
+  });
+
+  it('a podcast keeps its fixed look', () => {
+    const turns = [1, 2].map((n) => scene(n, { sceneType: 'podcast', scene_meta: undefined }));
+    const { scenes } = DirectorPlanner.refine({ scenes: turns, structure, videoType: 'podcast', source: 'default' });
+    expect(scenes.every((s) => !s.composition)).toBe(true);
+  });
+});
+
 describe('refine - pictures', () => {
   it('builds a dedicated prompt from the scene\'s subject, purpose, style and audience', () => {
     const { scenes, plan } = refine([scene(1), imageScene(2), scene(3)]);
