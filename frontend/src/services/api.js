@@ -407,6 +407,10 @@ export const deleteAsset = (id) => api.delete(`/api/assets/${id}`);
 export const getAnalyticsOverview = (days = 30) =>
   api.get('/api/analytics/overview', { params: { days } });
 
+// Control center: videos, stage timing, cache, failures by stage and worker queues - persisted data only.
+export const getControlCenter = (days = 30) =>
+  api.get('/api/analytics/control-center', { params: { days } });
+
 export const getVideoMetrics = (params = {}) =>
   api.get('/api/analytics/videos', { params });
 

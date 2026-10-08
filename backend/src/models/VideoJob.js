@@ -252,6 +252,8 @@ const videoJobSchema = new mongoose.Schema(
 );
 
 videoJobSchema.index({ status: 1, createdAt: -1 });
+// Windowed analytics ("jobs created in the last N days") filter on createdAt alone.
+videoJobSchema.index({ createdAt: -1 });
 
 /**
  * Build the $set/$push additions for a status transition - shared by both
