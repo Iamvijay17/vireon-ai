@@ -174,12 +174,16 @@ describeRedis('worker -> API pub/sub bridge across a Redis outage', () => {
   });
 
   afterAll(async () => {
+    // Restore first: closing a client whose connection is down waits for the
+    // reconnect, so a test that failed mid-outage must not hang the suite.
+    proxy?.restore();
     await bridge?.close().catch(() => {});
     direct?.disconnect();
     await proxy?.stop();
   });
 
   beforeEach(() => {
+    proxy.restore();
     received.length = 0;
   });
 
@@ -232,22 +236,26 @@ describeRedis('worker -> API pub/sub bridge across a Redis outage', () => {
     try {
       const refusedBefore = proxy.refused;
       proxy.outage();
-      await waitUntil(async () => (await subscribers()) === 0, 'both bridge connections severed');
+      // Only the probe (which bypasses the proxy) is left subscribed.
+      await waitUntil(async () => (await subscribers()) === 1, 'bridge connections severed');
 
       // The bridge's own publisher is disconnected right now. ioredis holds the
       // command and sends it on reconnect; nothing is dropped and nothing throws.
       expect(() => bridge.publish('job-abc12345', 'jobProgress', { eventId: 'evt-during-outage', seq: 12 })).not.toThrow();
+
+      // Make sure the publisher really had to wait out a refused reconnect.
+      await waitUntil(() => proxy.refused > refusedBefore, 'a reconnect attempt was refused');
       expect(arrived).not.toContain('evt-during-outage');
 
       proxy.restore();
       await waitUntil(() => arrived.includes('evt-during-outage'), 'queued event reached Redis after recovery');
       expect(arrived.filter((id) => id === 'evt-during-outage')).toHaveLength(1); // delivered once, not once per reconnect
-      expect(proxy.refused).toBeGreaterThan(refusedBefore); // it really did wait out refused reconnects
     } finally {
+      proxy.restore();
       probe.disconnect();
-      // Leave the bridge subscribed again for any test that follows.
-      await waitUntil(async () => (await subscribers()) === 1, 'bridge resubscribed');
     }
+    // The bridge is back too (probe gone, so exactly the bridge remains).
+    await waitUntil(async () => (await subscribers()) === 1, 'bridge resubscribed');
   });
 });
 
