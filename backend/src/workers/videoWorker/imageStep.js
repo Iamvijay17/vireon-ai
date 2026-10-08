@@ -24,7 +24,10 @@ const plain = (scene) => (typeof scene.toObject === 'function' ? scene.toObject(
 async function run(jobId, ctx) {
   const job = await VideoService.getById(jobId);
   const scenes = (job.script?.scenes || []).map(plain);
-  if (!scenes.some(needsImage)) return;
+  if (!scenes.some(needsImage)) {
+    ctx.reused = true;
+    return;
+  }
 
   const distinct = new Set(scenes.filter(needsImage).map((s) => s.imagePrompt.trim())).size;
 

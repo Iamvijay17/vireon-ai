@@ -2,6 +2,9 @@ const LoggerService = require('../services/common/LoggerService');
 const VideoService = require('../services/video/VideoService');
 const SocketService = require('../services/common/SocketService');
 const { JOB_STATUS, VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../constants');
+const { IN_FLIGHT_VIDEO_STATUSES } = require('../constants/jobTransitions');
+const stageTracker = require('../services/pipeline/stageTracker');
+const { JobStalledError, toStructuredError } = require('../services/pipeline/pipelineErrors');
 
 // Boot-time (and, for stranded retries, periodic) recovery sweeps: put
 // records a crashed or restarted process left mid-flight back into a state
@@ -53,15 +56,7 @@ async function reapOrphanedAudioGenerations() {
 // can hit Restart Job (which already knows how to resume each of these
 // statuses - see resumeLogic.js's getStepForResume) instead of it silently
 // looking "in progress" forever.
-const STUCK_VIDEO_STATUSES = [
-  JOB_STATUS.QUEUED,
-  JOB_STATUS.SCRIPT_GENERATION,
-  JOB_STATUS.GENERATING_AUDIO,
-  JOB_STATUS.GENERATING_IMAGES,
-  JOB_STATUS.PREPARING_ASSETS,
-  JOB_STATUS.RENDERING,
-  JOB_STATUS.UPLOADING,
-];
+const STUCK_VIDEO_STATUSES = IN_FLIGHT_VIDEO_STATUSES;
 
 async function reapStuckVideoJobs() {
   const VideoJob = require('../models/VideoJob');
@@ -89,11 +84,14 @@ async function reapStuckVideoJobs() {
     }
 
     const previousStatus = job.status;
-    const failedJob = await VideoService.fail(
-      job._id,
-      'Job was interrupted by a server restart. Click Restart Job to resume.',
-      previousStatus
-    );
+    const message = 'Job was interrupted by a server restart. Click Restart Job to resume.';
+    // The stage that was mid-run did not finish: record that on the stage itself
+    // and on the job, so Restart resumes exactly there rather than guessing.
+    const structured = toStructuredError(new JobStalledError(message), { stage: null, attempt: job.error?.retryCount || 1 });
+    const interruptedStage = await stageTracker.markInterrupted(job._id, structured);
+    const failedJob = await VideoService.fail(job._id, message, previousStatus, {
+      structured: { ...structured, stage: interruptedStage || structured.stage },
+    });
     SocketService.emitJobFailed(failedJob, failedJob.error.message);
     await ActivityLogService.add(job._id, `Interrupted by server restart while ${previousStatus} - marked failed`);
     reaped += 1;

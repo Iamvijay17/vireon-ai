@@ -12,6 +12,16 @@ const os = require('os');
 // node --watch restarts on 2026-09-13.
 dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: true });
 
+// STAGE_TIMEOUT_<NAME>_MS: a non-negative integer; 0 turns that stage's timeout
+// off. Anything unparseable falls back to the default rather than silently
+// disabling the safety net.
+function stageTimeout(name, fallback) {
+  const raw = process.env[`STAGE_TIMEOUT_${name}_MS`];
+  if (raw === undefined || raw === '') return fallback;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : fallback;
+}
+
 const config = Object.freeze({
   port: parseInt(process.env.PORT, 10) || 3000,
   // Interface to bind. Defaults to 0.0.0.0 because LAN access is an
@@ -460,6 +470,23 @@ const config = Object.freeze({
     concurrency:
       parseInt(process.env.VIDEO_WORKER_CONCURRENCY, 10) ||
       Math.max(1, Math.min(os.cpus().length - 1, 3)),
+  },
+
+  // Per-stage wall-clock budgets for the video worker (services/pipeline/
+  // stageRunner.js). These are safety nets for a hung call, NOT tuning knobs:
+  // each sits far above what a healthy stage takes on the 6GB dev card, so a
+  // slow-but-progressing stage is never killed. A stage over budget is aborted
+  // and retried like any other transient failure. 0 disables a stage's
+  // timeout; STAGE_TIMEOUT_<STAGE>_MS overrides it.
+  pipeline: {
+    stageTimeoutMs: {
+      script: stageTimeout('SCRIPT', 30 * 60_000),
+      audio: stageTimeout('AUDIO', 120 * 60_000),
+      images: stageTimeout('IMAGES', 120 * 60_000),
+      assets: stageTimeout('ASSETS', 15 * 60_000),
+      render: stageTimeout('RENDER', 120 * 60_000),
+      upload: stageTimeout('UPLOAD', 30 * 60_000),
+    },
   },
 });
 

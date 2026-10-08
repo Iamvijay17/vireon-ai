@@ -14,6 +14,14 @@ jest.mock('../../src/services/common/cancellationBus', () => ({
   register: jest.fn(() => jest.fn()),
   listenForCancellation: jest.fn(),
 }));
+// Stage state is persisted through Mongo; these tests pin orchestration only (the
+// tracker and runner have their own suites), so the tracker is a no-op here.
+jest.mock('../../src/services/pipeline/stageTracker', () => ({
+  begin: jest.fn().mockResolvedValue({ attempt: 1 }),
+  complete: jest.fn().mockResolvedValue(null),
+  fail: jest.fn().mockResolvedValue(null),
+  cancel: jest.fn().mockResolvedValue(null),
+}));
 jest.mock('../../src/queues/videoQueue', () => ({ add: jest.fn().mockResolvedValue() }));
 jest.mock('../../src/services/video/VideoService', () => ({
   getById: jest.fn(),
@@ -217,5 +225,55 @@ describe('resuming an automatic retry', () => {
     await expect(processVideoJob({ data: { jobId: 'job-1' } })).rejects.toThrow('TTS timed out');
     expect(VideoService.fail).toHaveBeenCalledWith('job-1', expect.any(String), expect.any(String), expect.objectContaining({ retryCount: 4 }));
     expect(videoQueue.add).not.toHaveBeenCalled();
+  });
+});
+
+describe('structured failures and stage-specific retry', () => {
+  it('stores the structured error (code, stage, retryable) with a scheduled retry', async () => {
+    audioStep.run.mockImplementation(async () => { throw new Error('TTS failed: no response'); });
+    await processVideoJob({ data: { jobId: 'job-1' } });
+
+    const { structured } = VideoService.scheduleRetry.mock.calls[0][1];
+    expect(structured).toMatchObject({ code: 'TTS_FAILED', stage: 'audio', retryable: true });
+    expect(structured).toEqual(expect.objectContaining({ attempt: expect.any(Number), timestamp: expect.any(String) }));
+  });
+
+  it('does not retry a permanent failure - it goes straight to FAILED with the reason', async () => {
+    renderStep.render.mockImplementation(async () => { throw new Error('Pre-render validation failed: scene 2 has no audio'); });
+
+    await expect(processVideoJob({ data: { jobId: 'job-1' } })).rejects.toThrow(/validation failed/i);
+
+    expect(VideoService.scheduleRetry).not.toHaveBeenCalled();
+    expect(videoQueue.add).not.toHaveBeenCalled();
+    expect(VideoService.fail).toHaveBeenCalledWith(
+      'job-1',
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ structured: expect.objectContaining({ retryable: false, stage: 'render' }) })
+    );
+    expect(ActivityLogService.add).toHaveBeenCalledWith('job-1', expect.stringMatching(/cannot be retried/));
+  });
+
+  it('a failed TTS stage resumes at audio and does not re-enter script generation', async () => {
+    VideoService.getById.mockResolvedValue(job({
+      status: JOB_STATUS.RETRY_SCHEDULED,
+      error: { step: JOB_STATUS.GENERATING_AUDIO, stage: 'audio', retryCount: 1 },
+      script: scriptBeforeImages,
+    }));
+    await processVideoJob({ data: { jobId: 'job-1' } });
+
+    expect(VideoService.updateStatus).toHaveBeenCalledWith('job-1', JOB_STATUS.GENERATING_AUDIO, { progress: 40 });
+    // The script step is handed the resumed status, which is what tells it to reuse the stored script.
+    expect(scriptStep.run.mock.calls[0][2]).toBe(JOB_STATUS.GENERATING_AUDIO);
+  });
+
+  it('a failed render stage resumes at render, with audio and images already past', async () => {
+    VideoService.getById.mockResolvedValue(job({
+      status: JOB_STATUS.RETRY_SCHEDULED,
+      error: { step: 'Validation', stage: 'render', retryCount: 1 },
+      script: scriptBeforeImages,
+    }));
+    await processVideoJob({ data: { jobId: 'job-1' } });
+    expect(VideoService.updateStatus).toHaveBeenCalledWith('job-1', JOB_STATUS.RENDERING, { progress: 80 });
   });
 });

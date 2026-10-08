@@ -7,7 +7,9 @@ const SocketService = require('../../services/common/SocketService');
 const videoQueue = require('../../queues/videoQueue');
 const { JOB_STATUS } = require('../../constants');
 const { decideRetry, describeRetry, describeExhausted, retryJobId } = require('../../services/common/retryPolicy');
-const { classifyError } = require('../../utils/errorMessages');
+const { runStage } = require('../../services/pipeline/stageRunner');
+const { STAGES } = require('../../services/pipeline/stages');
+const { toStructuredError } = require('../../services/pipeline/pipelineErrors');
 const { bailIfCancelled } = require('./shared');
 const cancellationBus = require('../../services/common/cancellationBus');
 const { getResumeStep } = require('../../services/video/videoService/resumeLogic');
@@ -94,7 +96,11 @@ async function runVideoJob(job) {
     await bailIfCancelled(jobId);
 
     // ── Step 1-3: Script Generation (only if starting fresh or restarting from QUEUED)
-    const scriptPauseResult = await scriptStep.run(jobId, videoJob, currentStatus, ctx);
+    const scriptPauseResult = await runStage(STAGES.SCRIPT, {
+      jobId,
+      ctx,
+      fn: () => scriptStep.run(jobId, videoJob, currentStatus, ctx),
+    });
     if (scriptPauseResult) {
       LoggerService.info('[Pipeline] Paused for script approval', { stage: 'pipeline', durationMs: Date.now() - startedAt });
       return scriptPauseResult;
@@ -109,7 +115,7 @@ async function runVideoJob(job) {
     await bailIfCancelled(jobId);
 
     // ── Step 4: Audio Generation (skipped if all scenes already have audio files)
-    await audioStep.run(jobId, videoJob, videoJob.script, ctx);
+    await runStage(STAGES.AUDIO, { jobId, ctx, fn: () => audioStep.run(jobId, videoJob, videoJob.script, ctx) });
 
     // Catches a cancellation that landed after the last scene's audio
     // finished but before AUDIO_COMPLETED gets written below.
@@ -140,7 +146,7 @@ async function runVideoJob(job) {
     await bailIfCancelled(jobId);
 
     // ── Step 5.7: Scene images (or their text-only fallbacks)
-    await imageStep.run(jobId, ctx);
+    await runStage(STAGES.IMAGES, { jobId, ctx, fn: () => imageStep.run(jobId, ctx) });
 
     await bailIfCancelled(jobId);
 
@@ -149,17 +155,21 @@ async function runVideoJob(job) {
     const renderScript = (await VideoService.getById(jobId)).script;
 
     // ── Step 6: Prepare Assets
-    const assets = await renderStep.prepareAssets(jobId, videoJob, renderScript, ctx);
+    const assets = await runStage(STAGES.ASSETS, {
+      jobId,
+      ctx,
+      fn: () => renderStep.prepareAssets(jobId, videoJob, renderScript, ctx),
+    });
 
     await bailIfCancelled(jobId);
 
     // ── Step 7: Render Video
-    await renderStep.render(jobId, assets, ctx, renderScript);
+    await runStage(STAGES.RENDER, { jobId, ctx, fn: () => renderStep.render(jobId, assets, ctx, renderScript) });
 
     await bailIfCancelled(jobId);
 
     // ── Step 8-9: Upload output, complete job, cleanup
-    const result = await uploadStep.run(jobId, renderScript, ctx);
+    const result = await runStage(STAGES.UPLOAD, { jobId, ctx, fn: () => uploadStep.run(jobId, renderScript, ctx) });
     LoggerService.info('[Pipeline] Completed', { stage: 'pipeline', totalDurationMs: Date.now() - startedAt });
     return result;
   } catch (err) {
@@ -185,13 +195,18 @@ async function runVideoJob(job) {
       stack: config.isDev ? err.stack : undefined,
     });
 
-    const { friendly, detail } = classifyError(err, step);
+    // stageRunner already classified anything a stage threw; this covers what
+    // escaped outside a stage (the retry-resume lookup, a cancellation poll).
     // retryCount stores retries already taken, so the attempt that just
     // failed is one past it. See services/common/retryPolicy.js for the
     // budget/backoff rules both workers now share.
     const attempt = retriesTaken + 1;
+    const structured = err.structured || toStructuredError(err, { stage: null, attempt, step });
+    const { message: friendly, detail } = structured;
     const maxRetries = videoJob.maxRetries || 3;
-    const retry = decideRetry({ attempt, maxRetries });
+    // A permanent failure (bad input, bad setup) is not retried - the same
+    // attempt would fail the same way - so it goes straight to FAILED.
+    const retry = decideRetry({ attempt, maxRetries, eligible: structured.retryable });
 
     if (retry.shouldRetry) {
       // Retries remain - schedule an automatic resume instead of leaving
@@ -207,6 +222,7 @@ async function runVideoJob(job) {
           step,
           retryCount: attempt,
           nextRetryAt: retry.nextRetryAt,
+          structured,
         });
         SocketService.emitJobProgress(scheduledJob);
         await ActivityLogService.add(
@@ -226,11 +242,16 @@ async function runVideoJob(job) {
       return { success: false, jobId, retryScheduled: true, attempt };
     }
 
-    // Retries exhausted - mark job as terminally failed.
+    // Retries exhausted (or the failure is permanent) - mark job as terminally failed.
     try {
-      const failedJob = await VideoService.fail(jobId, friendly, step, { detail, retryCount: attempt });
+      const failedJob = await VideoService.fail(jobId, friendly, step, { detail, retryCount: attempt, structured });
       SocketService.emitJobFailed(failedJob, friendly);
-      await ActivityLogService.add(jobId, describeExhausted({ step, attempt, reason: friendly }));
+      await ActivityLogService.add(
+        jobId,
+        structured.retryable
+          ? describeExhausted({ step, attempt, reason: friendly })
+          : `${step} failed and cannot be retried (${structured.code}): ${friendly}`
+      );
     } catch (dbErr) {
       LoggerService.error('Failed to update job status in DB', { error: dbErr.message });
     }

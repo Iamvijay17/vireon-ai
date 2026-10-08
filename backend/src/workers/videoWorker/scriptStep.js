@@ -23,6 +23,7 @@ async function run(jobId, videoJob, currentStatus, ctx) {
   const needsScriptGeneration = !script?.scenes?.length || currentStatus === JOB_STATUS.QUEUED;
 
   if (!needsScriptGeneration) {
+    ctx.reused = true;
     LoggerService.info('Using existing script (skipping script generation)', {
       title: script.title,
       scenes: script.scenes.length,

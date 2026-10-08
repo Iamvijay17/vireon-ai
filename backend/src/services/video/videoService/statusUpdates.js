@@ -146,9 +146,25 @@ async function complete(jobId, urls) {
 }
 
 /**
+ * The structured-failure fields (services/pipeline/pipelineErrors.js) as they
+ * are stored on `VideoJob.error`. Empty when the caller has none - older call
+ * sites keep working.
+ */
+function structuredFields(structured) {
+  if (!structured) return {};
+  return {
+    code: structured.code,
+    stage: structured.stage,
+    retryable: structured.retryable,
+    attempt: structured.attempt,
+    timestamp: structured.timestamp ? new Date(structured.timestamp) : new Date(),
+  };
+}
+
+/**
  * Mark job as failed (terminal - retries exhausted or none configured).
  */
-async function fail(jobId, errorMessage, step, { detail, retryCount } = {}) {
+async function fail(jobId, errorMessage, step, { detail, retryCount, structured } = {}) {
   return VideoJob.findByIdAndUpdate(
     jobId,
     {
@@ -160,6 +176,7 @@ async function fail(jobId, errorMessage, step, { detail, retryCount } = {}) {
           detail: detail ?? errorMessage,
           step,
           retryCount: retryCount ?? 0,
+          ...structuredFields(structured),
         },
       },
       $unset: { nextRetryAt: '' },
@@ -174,7 +191,7 @@ async function fail(jobId, errorMessage, step, { detail, retryCount } = {}) {
  * instead of requiring a manual Restart click. Unlike `fail()`, this is not
  * terminal - `retryCount` here is the attempt number just consumed.
  */
-async function scheduleRetry(jobId, { message, detail, step, retryCount, nextRetryAt }) {
+async function scheduleRetry(jobId, { message, detail, step, retryCount, nextRetryAt, structured }) {
   return VideoJob.findByIdAndUpdate(
     jobId,
     {
@@ -187,6 +204,7 @@ async function scheduleRetry(jobId, { message, detail, step, retryCount, nextRet
           detail: detail ?? message,
           step,
           retryCount,
+          ...structuredFields(structured),
         },
       },
     },

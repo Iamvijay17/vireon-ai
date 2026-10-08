@@ -44,6 +44,7 @@ mongoose.connect(config.mongodb.uri, {
 });
 
 const { processVideoJob } = require('./processor');
+const { recordUnhandledFailure } = require('./failureHandler');
 const cancellationBus = require('../../services/common/cancellationBus');
 
 // Lets a Stop request published from the API server process (see
@@ -100,6 +101,9 @@ worker.on('completed', (job) => {
 
 worker.on('failed', (job, err) => {
   LoggerService.error(`Worker failed job ${job.id}`, { error: err.message });
+  // Covers failures the processor never recorded (stalled-job limit, a throw
+  // before its own try block); a no-op for jobs it already marked FAILED.
+  recordUnhandledFailure(job, err);
 });
 
 worker.on('error', (err) => {

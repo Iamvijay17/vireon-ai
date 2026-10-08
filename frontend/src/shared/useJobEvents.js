@@ -7,6 +7,7 @@ import {
   onJobFailed,
   onSceneAudioReady,
   onSpeechStage,
+  onStageUpdate,
   onConnect,
   onDisconnect,
 } from "../services/socket";
@@ -20,6 +21,7 @@ const LIVE_SOURCES = [
   ["jobFailed", onJobFailed],
   ["sceneAudioReady", onSceneAudioReady],
   ["speechStage", onSpeechStage],
+  ["stageUpdate", onStageUpdate],
 ];
 
 /**
