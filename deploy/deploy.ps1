@@ -134,12 +134,21 @@ function Get-ImageRefs([string]$tag) {
 }
 function Get-ImageInfo([string]$ref) {
   if (-not $ref) { return $null }
-  $raw = docker image inspect $ref --format '{{index .Config.Labels "org.opencontainers.image.revision"}}|{{index .Config.Labels "org.opencontainers.image.version"}}|{{index .Config.Labels "org.opencontainers.image.created"}}|{{json .RepoDigests}}' 2>$null
-  if ($LASTEXITCODE -ne 0 -or -not $raw) { return $null }
-  $p = ([string]$raw).Trim() -split '\|', 4
+  # Parsed from the full JSON rather than a --format template: Windows
+  # PowerShell 5.1 (what the scheduled task runs) mangles the double quotes a
+  # label lookup template needs.
+  $json = docker image inspect $ref 2>$null
+  if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
+  try { $img = @($json | ConvertFrom-Json)[0] } catch { return $null }
+  $labels = $img.Config.Labels
   $digest = ''
-  try { $d = @($p[3] | ConvertFrom-Json); if ($d.Count -gt 0) { $digest = [string]$d[0] } } catch { }
-  [pscustomobject]@{ Revision = $p[0]; Version = $p[1]; Created = $p[2]; Digest = $digest }
+  if ($img.RepoDigests -and @($img.RepoDigests).Count -gt 0) { $digest = [string]@($img.RepoDigests)[0] }
+  [pscustomobject]@{
+    Revision = $(if ($labels) { [string]$labels.'org.opencontainers.image.revision' } else { '' })
+    Version  = $(if ($labels) { [string]$labels.'org.opencontainers.image.version' } else { '' })
+    Created  = $(if ($labels) { [string]$labels.'org.opencontainers.image.created' } else { '' })
+    Digest   = $digest
+  }
 }
 # Backend and frontend must both come from the commit being deployed. Images
 # built before revision labels existed (rollback targets from older deploys)
