@@ -167,6 +167,22 @@ export const updateVideoScenes = (id, scenes) => api.put(`/api/videos/${id}/scen
 export const regenerateVideoSceneAudio = (id, sceneNumber) =>
   api.post(`/api/videos/${id}/scenes/${sceneNumber}/regenerate-audio`);
 
+// Scene-level regeneration (backend/src/services/scene): change or redo ONE part of one scene
+// and rebuild only what depends on it. `body.target` is one of image | voice | script | layout |
+// style | scene (plus prompt / voice / text / layout / preset for the ones that take a value).
+export const getVideoSceneOptions = (id, sceneNumber) =>
+  api.get(`/api/videos/${id}/scenes/${sceneNumber}/options`);
+
+export const regenerateVideoScenePart = (id, sceneNumber, body) =>
+  api.post(`/api/videos/${id}/scenes/${sceneNumber}/regenerate`, body);
+
+// A scene's immutable version history (newest first), and restoring one of them.
+export const getVideoSceneVersions = (id, sceneNumber) =>
+  api.get(`/api/videos/${id}/scenes/${sceneNumber}/versions`);
+
+export const revertVideoScene = (id, sceneNumber, version) =>
+  api.post(`/api/videos/${id}/scenes/${sceneNumber}/revert`, { version });
+
 export const remapSceneElementsForTemplate = (id, sceneNumber, templateId, currentScene) =>
   api.post(`/api/videos/${id}/scenes/${sceneNumber}/remap-template`, {
     templateId,

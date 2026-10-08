@@ -100,7 +100,9 @@ async function run(jobId, videoJob, script, ctx) {
         },
         () => bailIfCancelled(jobId),
         videoJob.fastAudio,
-        false,
+        // skipCache: only a scene a person asked to have recorded again carries the marker
+        // (SceneRegenerationService); every other scene is pending because it is new.
+        scenesToProcess.some((s) => s.audio?.fresh),
         ctx.signal,
         // Read only by the segmented TTS pipeline (TTS_SEGMENTED=true).
         {

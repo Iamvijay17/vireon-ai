@@ -249,3 +249,50 @@ Podcasts keep their fixed look.
 
 **Render props.** `composition` rides in `assets.json` per scene (omitted when empty), through
 both the legacy builder and the IR, which `shadowEquivalence.test.js` keeps identical.
+
+## Phase 7 — Scene-level regeneration
+
+Change or redo ONE part of ONE scene and rebuild only what depends on it. Nothing else is
+regenerated, and every result is a new immutable version.
+
+| Action | Endpoint body | What it does | Rebuilds | Reuses |
+| --- | --- | --- | --- | --- |
+| Regenerate image | `{target:"image", prompt?}` | redraws the picture (existing image regeneration; handles a podcast's shared cover) | composition, render | script, voice, captions |
+| Regenerate voice | `{target:"voice", voice?}` | clears this scene's narration; the worker records it again | captions, composition, render | script, image |
+| Change script | `{target:"script", text}` | new narration, then voice | voice, captions, composition, render | image |
+| Change layout | `{target:"layout", layout}` | sets the layout (must fit the content) | composition, render | everything generated |
+| Apply a look | `{target:"style", preset}` | cinematic / minimal / dynamic: camera, transition, composable slots | composition, render | everything generated |
+| Regenerate scene | `{target:"scene"}` | a fresh voice and picture; script and layout kept | voice, image, … | script, layout |
+| Revert | `POST …/revert {version}` | restores the scene from a version (neither version is modified) | composition, render | everything |
+
+`POST /api/videos/:id/scenes/:n/regenerate` answers with the plan from the dependency graph
+(`{changed, regenerate, reusable, produce, stages}`); `GET …/options` says what the Studio may
+offer right now (and why not), which layouts can show the scene's content, and the looks.
+
+**How it stays correct and cheap** (`services/scene/SceneRegenerationService.js`):
+- The scene's current state is recorded as a version *before* it is changed, so the change can
+  always be undone — including for videos finished before versions existed (this is their v1).
+  Revert records the state it leaves, too, so you can go back and forth.
+- Only the target scene's fields change. The worker's audio and image steps skip any scene whose
+  output is already stored, so unrelated scenes cost nothing; `audioStep.test.js` pins that
+  clearing one scene's narration re-records exactly that scene.
+- The job is rewound to the first stage the plan needs, never further, and the Phase 2 stage
+  state from there on is invalidated, so everything before it is reused. Voice resumes at
+  `AUDIO_COMPLETED` (the audio step still runs — it is gated on what is stored) so a manual-mode
+  job does not stop and wait for a "Generate Render" click it never needed.
+- The previous video stays in place until the new render replaces it; a failed regeneration does
+  not lose it. (The older image-only endpoint blanked the URL; the new path does not.)
+- Same text and voice would be served from the TTS cache, so "regenerate voice" with an unchanged
+  voice sets `scene.audio.fresh` and the audio step bypasses the cache for it. A *different*
+  voice is a different recording on its own and may be served from the cache. Honest limit: TTS
+  seeds are content-derived, so a fresh synthesis is not guaranteed to differ from the last.
+- A layout is only accepted if the engine can show the scene's content in it — otherwise 400 with
+  the list that fits — so a click can never silently drop on-screen text. `image-fullbleed` shows
+  only the headline over the picture, so the Director never picks it on its own for a scene with
+  a paragraph beside the picture (an explicit user/Director choice still can).
+- Refused while the video is mid-pipeline or being processed (no clobbering a live worker).
+
+**Studio.** A "Regenerate scene N" card in the inspector: Image / Voice / Scene buttons, Change
+layout, Change the look, Revert to version. It is disabled while there are unsaved edits (the
+actions work from what is saved) and says why. After an action the toast reports what is being
+rebuilt and what is reused, then the page moves to the render view, which already follows the job.

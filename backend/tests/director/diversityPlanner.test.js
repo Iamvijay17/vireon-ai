@@ -65,6 +65,18 @@ describe('planLayouts - variety across neighbours', () => {
     expect(layouts).toEqual(['split-image', 'image-fullbleed', 'split-image', 'image-fullbleed']);
   });
 
+  it('does not hide a paragraph behind a full-bleed picture on its own initiative', () => {
+    const longBody = 'A fairly long paragraph that sits beside the picture. '.repeat(4);
+    const layouts = planLayouts(run(3, () => ({ hasImage: true, scene: { scene_meta: { content: [longBody] } }, entry: { strategy: 'split-visual' } })));
+    expect(layouts).toEqual(['split-image', 'split-image', 'split-image']);
+  });
+
+  it('but honours the Director asking for one', () => {
+    const longBody = 'A fairly long paragraph that sits beside the picture. '.repeat(4);
+    const layouts = planLayouts([entry({ hasImage: true, scene: { scene_meta: { content: [longBody] } }, entry: { directorLayout: 'image-fullbleed' } })]);
+    expect(layouts).toEqual(['image-fullbleed']);
+  });
+
   it('overrides the Director\'s own repeated pick when a fitting alternative exists', () => {
     const layouts = planLayouts(run(3, () => ({ entry: { directorLayout: 'stack-list' } })));
     expect(layouts[0]).toBe('stack-list');
