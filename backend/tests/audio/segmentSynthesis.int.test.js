@@ -62,6 +62,8 @@ jest.mock('../../src/services/audio/pipeline/alignment', () => ({
     mockAlignCalls.push(files.map((f) => require('path').basename(f)));
     return files.map((f) => mockWordsById.get(require('path').basename(f).replace('.wav', '')) || null);
   }),
+  getProvider: () => ({ name: 'faster-whisper' }),
+  getAlignmentVersion: () => 'mock-aligner:1',
 }));
 
 const { planScene } = require('../../src/services/audio/pipeline/segmentPlanner');

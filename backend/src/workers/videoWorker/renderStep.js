@@ -9,6 +9,7 @@ const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS, JOB_STEPS } = require('../../constants');
 const { PROGRESS_BANDS, mapToBand } = require('../../utils/progressBands');
 const { runLayoutQc } = require('../../services/qc/runLayoutQc');
+const { SPEECH_EVENTS, emitSpeechStage } = require('../../services/audio/pipeline/speech/events');
 const { JobCancelledError, renderConfigFor } = require('./shared');
 
 /**
@@ -76,6 +77,7 @@ async function render(jobId, assets, ctx, script) {
     try { await fs.rm(path.resolve(__dirname, '../../../jobs', jobId, 'render'), { recursive: true, force: true }); } catch {}
 
     await ActivityLogService.add(jobId, 'Rendering started');
+    emitSpeechStage(SocketService, jobId, SPEECH_EVENTS.RENDER_START);
 
     RemotionStatus.begin();
     let renderResult;
@@ -114,6 +116,7 @@ async function render(jobId, assets, ctx, script) {
     }
 
     LoggerService.success('Video rendered', renderResult);
+    emitSpeechStage(SocketService, jobId, SPEECH_EVENTS.RENDER_COMPLETE);
   }
 }
 

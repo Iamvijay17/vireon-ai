@@ -92,6 +92,9 @@ async function updateSceneAudio(jobId, sceneNumber, audioData) {
     // Only the segmented pipeline supplies these; the legacy path leaves them untouched.
     if (audioData.segments) scene.audio.segments = audioData.segments;
     if (audioData.ttsMeta) scene.audio.ttsMeta = audioData.ttsMeta;
+    // Canonical speech timeline: written only by the ENABLE_SPEECH_ALIGNMENT path.
+    // A stale timeline for audio that no longer exists must never survive a regeneration.
+    scene.audio.speechTimeline = audioData.speechTimeline || undefined;
     // The audio file duration is the actual scene duration
     scene.duration = audioData.duration;
     // `elements` was built at script-validation time, before audio (and

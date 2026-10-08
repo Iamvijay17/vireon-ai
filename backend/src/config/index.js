@@ -81,7 +81,10 @@ const config = Object.freeze({
     // Master switch for the segmented pipeline. Off (default) keeps the
     // original one-TTS-call-per-scene path (sceneSynthesis.js) exactly as
     // it was; the preview endpoint always uses the pipeline regardless.
-    segmentedTts: process.env.TTS_SEGMENTED === 'true',
+    //
+    // ENABLE_SPEECH_ALIGNMENT implies it: the canonical speech timeline is
+    // built from the per-segment clips, which only this path produces.
+    segmentedTts: process.env.TTS_SEGMENTED === 'true' || process.env.ENABLE_SPEECH_ALIGNMENT === 'true',
     // Narration is packed into sentence-boundary segments no longer than
     // this. Qwen3-TTS reads whole sentences best, so this is deliberately
     // not "one request per sentence" - a short scene stays a single segment.
@@ -126,6 +129,14 @@ const config = Object.freeze({
     alignment: {
       provider: process.env.ALIGNMENT_PROVIDER || 'faster-whisper',
       model: process.env.ALIGNMENT_MODEL || 'base',
+      // The aligner runs on CPU and shares the box with the GPU workers and
+      // Remotion. One at a time, below-normal priority, and a thread cap keep
+      // it from freezing the machine while a render is going.
+      concurrency: parseInt(process.env.ALIGNMENT_CONCURRENCY, 10) || 1,
+      cpuThreads: parseInt(process.env.ALIGNMENT_CPU_THREADS, 10) || 4,
+      // Bias the recogniser toward the script's own vocabulary (product names,
+      // acronyms). Still measures real audio - it only improves what is heard.
+      textPrompt: process.env.ALIGNMENT_TEXT_PROMPT !== 'false',
     },
     // Post-processing chain (audioProcessor.js). Needs ffmpeg; when ffmpeg
     // is missing the chain is skipped with a warning, never failing a job.
@@ -146,6 +157,30 @@ const config = Object.freeze({
       attackMs: parseInt(process.env.DUCK_ATTACK_MS, 10) || 120,
       releaseMs: parseInt(process.env.DUCK_RELEASE_MS, 10) || 400,
     },
+  },
+
+  // Speech-driven timing (services/audio/pipeline/speech): real word/phrase
+  // timestamps from the finished audio become ONE canonical timeline that
+  // captions, Remotion animation and scene timing all read. Both flags are
+  // off by default - off means Vireon behaves exactly as before.
+  speech: {
+    // Build + persist the canonical speech timeline (implies the segmented
+    // narration pipeline, see audio.segmentedTts).
+    alignmentEnabled: process.env.ENABLE_SPEECH_ALIGNMENT === 'true',
+    // Hand the timeline to Remotion so captions/animation follow the voice.
+    // Without a timeline for a scene it silently falls back to fixed timing.
+    drivenAnimationEnabled: process.env.ENABLE_SPEECH_DRIVEN_ANIMATION === 'true',
+    // Fail the job when a scene cannot be word-aligned. Off: alignment is a
+    // refinement and the (valid) audio still renders with segment-level timing.
+    alignmentRequired: process.env.SPEECH_ALIGNMENT_REQUIRED === 'true',
+    // A segment counts as fully aligned when at least this share of its caption
+    // words got a measured (not estimated) timestamp.
+    completeRatio: parseFloat(process.env.SPEECH_COMPLETE_RATIO) || 0.9,
+    // Silence inside a segment at least this long is reported as a pause.
+    minPauseMs: parseInt(process.env.SPEECH_PAUSE_MIN_MS, 10) || 250,
+    // A silence this long inside a sentence also starts a new phrase.
+    phraseGapMs: parseInt(process.env.SPEECH_PHRASE_GAP_MS, 10) || 180,
+    maxPhraseWords: parseInt(process.env.SPEECH_MAX_PHRASE_WORDS, 10) || 8,
   },
 
   // Local AI Service Manager (backend/src/services/localAI): auto-starts

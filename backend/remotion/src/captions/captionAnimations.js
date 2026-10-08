@@ -2,8 +2,11 @@
  * Caption Animation Hooks
  *
  * Provides per-word animation hooks for caption rendering.
- * Each hook returns a getWordStyle(wordIndex, activeIndex, frame) function
- * that produces inline styles for each word at the current frame.
+ * Each hook returns a getWordStyle(wordIndex, activeIndex, wordText, startFrame)
+ * function that produces inline styles for each word at the current frame.
+ * `startFrame` (optional) is the frame the word is actually spoken - the
+ * speech-timed captions pass it so entrances land on the voice; without it a
+ * word enters at the steady pace wordIndex * framesPerWord, as always.
  *
  * All animations target 60 FPS via Remotion's native interpolation.
  */
@@ -16,8 +19,8 @@ import { spring, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 export const useFadeInUpAnimation = ({ framesPerWord = 3, slideDistance = 20 } = {}) => {
   const frame = useCurrentFrame();
 
-  const getWordStyle = (wordIndex, activeIndex) => {
-    const wordFrame = wordIndex * framesPerWord;
+  const getWordStyle = (wordIndex, activeIndex, _wordText, startFrame) => {
+    const wordFrame = startFrame ?? wordIndex * framesPerWord;
     const localFrame = frame - wordFrame;
 
     if (localFrame < 0) return { opacity: 0, transform: `translateY(${slideDistance}px)` };
@@ -46,8 +49,8 @@ export const usePopScaleAnimation = ({ framesPerWord = 3 } = {}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const getWordStyle = (wordIndex, activeIndex) => {
-    const wordFrame = wordIndex * framesPerWord;
+  const getWordStyle = (wordIndex, activeIndex, _wordText, startFrame) => {
+    const wordFrame = startFrame ?? wordIndex * framesPerWord;
     const localFrame = frame - wordFrame;
 
     if (localFrame < 0) return { opacity: 0, transform: 'scale(0.3)' };
@@ -82,8 +85,8 @@ export const usePopScaleAnimation = ({ framesPerWord = 3 } = {}) => {
 export const useSlideLeftAnimation = ({ framesPerWord = 3, slideDistance = 60 } = {}) => {
   const frame = useCurrentFrame();
 
-  const getWordStyle = (wordIndex, activeIndex) => {
-    const wordFrame = wordIndex * framesPerWord;
+  const getWordStyle = (wordIndex, activeIndex, _wordText, startFrame) => {
+    const wordFrame = startFrame ?? wordIndex * framesPerWord;
     const localFrame = frame - wordFrame;
 
     if (localFrame < 0) return { opacity: 0, transform: `translateX(${slideDistance}px)` };
@@ -111,8 +114,8 @@ export const useSlideLeftAnimation = ({ framesPerWord = 3, slideDistance = 60 } 
 export const useSlideRightAnimation = ({ framesPerWord = 3, slideDistance = 60 } = {}) => {
   const frame = useCurrentFrame();
 
-  const getWordStyle = (wordIndex, activeIndex) => {
-    const wordFrame = wordIndex * framesPerWord;
+  const getWordStyle = (wordIndex, activeIndex, _wordText, startFrame) => {
+    const wordFrame = startFrame ?? wordIndex * framesPerWord;
     const localFrame = frame - wordFrame;
 
     if (localFrame < 0) return { opacity: 0, transform: `translateX(-${slideDistance}px)` };
@@ -141,8 +144,8 @@ export const useBounceAnimation = ({ framesPerWord = 4 } = {}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const getWordStyle = (wordIndex, activeIndex) => {
-    const wordFrame = wordIndex * framesPerWord;
+  const getWordStyle = (wordIndex, activeIndex, _wordText, startFrame) => {
+    const wordFrame = startFrame ?? wordIndex * framesPerWord;
     const localFrame = frame - wordFrame;
 
     if (localFrame < 0) return { opacity: 0, transform: 'translateY(40px) scale(0.8)' };
@@ -237,8 +240,8 @@ export const useHighlightCurrentAnimation = ({ dimOpacity = 0.35, highlightColor
 export const useGlowActiveAnimation = ({ glowColor = '#60a5fa', framesPerWord = 3 } = {}) => {
   const frame = useCurrentFrame();
 
-  const getWordStyle = (wordIndex, activeIndex) => {
-    const wordFrame = wordIndex * framesPerWord;
+  const getWordStyle = (wordIndex, activeIndex, _wordText, startFrame) => {
+    const wordFrame = startFrame ?? wordIndex * framesPerWord;
     const localFrame = frame - wordFrame;
 
     if (wordIndex < activeIndex) {
@@ -270,8 +273,8 @@ export const useGlowActiveAnimation = ({ glowColor = '#60a5fa', framesPerWord = 
 export const useZoomAnimation = ({ framesPerWord = 3, zoomFrom = 0.5, zoomTo = 1 } = {}) => {
   const frame = useCurrentFrame();
 
-  const getWordStyle = (wordIndex, activeIndex) => {
-    const wordFrame = wordIndex * framesPerWord;
+  const getWordStyle = (wordIndex, activeIndex, _wordText, startFrame) => {
+    const wordFrame = startFrame ?? wordIndex * framesPerWord;
     const localFrame = frame - wordFrame;
 
     if (localFrame < 0) return { opacity: 0, transform: `scale(${zoomFrom})` };
@@ -299,8 +302,8 @@ export const useZoomAnimation = ({ framesPerWord = 3, zoomFrom = 0.5, zoomTo = 1
 export const useBlurToSharpAnimation = ({ framesPerWord = 3 } = {}) => {
   const frame = useCurrentFrame();
 
-  const getWordStyle = (wordIndex, activeIndex) => {
-    const wordFrame = wordIndex * framesPerWord;
+  const getWordStyle = (wordIndex, activeIndex, _wordText, startFrame) => {
+    const wordFrame = startFrame ?? wordIndex * framesPerWord;
     const localFrame = frame - wordFrame;
 
     if (localFrame < 0) return { opacity: 0, filter: 'blur(15px)' };

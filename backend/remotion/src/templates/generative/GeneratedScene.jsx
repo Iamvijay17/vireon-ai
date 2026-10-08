@@ -13,6 +13,8 @@ import { SlotText, SlotImage, Waveform } from '../../engine/primitives';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
 import { getCaptionStyle } from '../../captions/captionStyles';
 import { mergeStyle } from '../../theme';
+import { useSpeechTimeline } from '../../speech/SpeechContext';
+import { applySpeechTimingToPlan } from '../../speech/speechTiming';
 
 /**
  * GeneratedScene - the renderer layer of the generative scene engine.
@@ -33,7 +35,8 @@ import { mergeStyle } from '../../theme';
  */
 const GeneratedScene = React.memo(({ scene, jobId }) => {
   const frame = useCurrentFrame();
-  const { width } = useVideoConfig();
+  const { width, fps } = useVideoConfig();
+  const { timeline: speechTimeline, timing: speechTiming } = useSpeechTimeline();
   const elements = scene?.elements || {};
   const overrides = elements.styleConfig || {};
   const scale = width / 1920;
@@ -55,7 +58,15 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
   const profile = useMemo(() => analyzeContent(scene), [scene]);
   const layoutPlan = useMemo(() => solveLayout(profile, seed), [profile, seed]);
   const stylePlan = useMemo(() => generateStyle(styleSeed), [styleSeed]);
-  const motionPlan = useMemo(() => choreograph(layoutPlan, seed), [layoutPlan, seed]);
+  const baseMotionPlan = useMemo(() => choreograph(layoutPlan, seed), [layoutPlan, seed]);
+  // Speech-driven scenes ({ timingMode: 'speech', trigger, ... }) enter their
+  // targeted slots on the narration cue, through the same Motion Design System
+  // animations. Any other timing mode - or a cue not found in the speech - returns
+  // the choreographed plan untouched.
+  const motionPlan = useMemo(
+    () => applySpeechTimingToPlan(baseMotionPlan, layoutPlan.slots, speechTiming, speechTimeline, fps),
+    [baseMotionPlan, layoutPlan, speechTiming, speechTimeline, fps],
+  );
 
   // Visual style (Phase 5): a small curated mood enum, not part of
   // generateStyle.js's continuous palette/font system - see visualStyle.js's

@@ -109,6 +109,21 @@ function emitSceneAudioReady(jobId, sceneNumber, audioData) {
 }
 
 /**
+ * Emit a speech-timing stage event ({ jobId, event, label, ... } - see
+ * audio/pipeline/speech/events.js). Stored on the job's timeline like every
+ * other job event, so a client that reconnects mid-job replays it.
+ */
+function emitSpeechStage(data) {
+  record(data.jobId, 'speechStage', data, (payload) => {
+    if (state.io) {
+      emitToJob(data.jobId, SOCKET_EVENTS.SPEECH_STAGE, payload);
+    } else {
+      publish(data.jobId, 'speechStage', payload);
+    }
+  });
+}
+
+/**
  * Emit job completed event.
  */
 function emitJobCompleted(job) {
@@ -152,6 +167,7 @@ module.exports = {
   emitJobCreated,
   emitJobProgress,
   emitSceneAudioReady,
+  emitSpeechStage,
   emitJobCompleted,
   emitJobFailed,
 };

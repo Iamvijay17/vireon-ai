@@ -16,9 +16,14 @@ import { deriveJobView } from "./jobView";
 import { PipelineActionsCard } from "./PipelineActionsCard";
 import { ProgressCard } from "./ProgressCard";
 import { SceneAudioCard } from "./SceneAudioCard";
+import { SpeechProgressCard } from "./SpeechProgressCard";
+import { SpeechTimelineDebug } from "../../components/speech/SpeechTimelineDebug";
 import { VideoPlayerCard } from "./VideoPlayerCard";
 import { JobSidebar } from "./JobSidebar";
 import { EditDetailsModal } from "./EditDetailsModal";
+
+// The speech timing preview is for developers: dev builds, or ?dev=1 on any build.
+const showSpeechDebug = (searchParams) => import.meta.env.DEV || searchParams.has("dev");
 
 const SOCKET_DOT_CLS = { connected: "bg-success-500", reconnecting: "bg-warning-500", disconnected: "bg-text-tertiary" };
 const SOCKET_LABEL = { connected: "Live", reconnecting: "Reconnecting...", disconnected: "Offline" };
@@ -157,6 +162,8 @@ const RenderPage = () => {
             isActive={v.isActive}
           />
 
+          {v.isActive && <SpeechProgressCard events={jobEvents} />}
+
           {v.hasScript && (
             <SceneAudioCard
               job={job}
@@ -167,6 +174,8 @@ const RenderPage = () => {
           )}
 
           {v.isComplete && job?.videoUrl && <VideoPlayerCard job={job} videoRef={videoRef} />}
+
+          {v.hasScript && showSpeechDebug(searchParams) && <SpeechTimelineDebug jobId={jobId} />}
         </div>
 
         {/* Right Column - details + activity log */}

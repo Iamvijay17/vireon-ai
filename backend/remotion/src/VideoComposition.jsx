@@ -5,6 +5,7 @@ import DefaultTemplate from "./templates/DefaultTemplate";
 import { applyFontPairing } from "./theme";
 import { isHardCut, getTransitionStyle, resolveTransitionId } from "./transitions";
 import { computeCameraTransform, cameraTransformToCss } from "./camera";
+import { SpeechProvider } from "./speech/SpeechContext";
 
 const Text = ({ children, style }) => <div style={style}>{children}</div>;
 
@@ -197,12 +198,18 @@ const Scene = React.memo(({ scene, jobId, qc = false }) => {
       data-scene-number={scene?.sceneNumber ?? ""}
       style={{ overflow: "hidden" }}
     >
-      <CameraMotion motion={scene?.cameraMotion}>
-        <Suspense fallback={<TemplateLoadingFallback />}>
-          <Template scene={scene} jobId={jobId} />
-          {qc && <QcReadyMarker />}
-        </Suspense>
-      </CameraMotion>
+      {/* Speech-driven timing (ENABLE_SPEECH_DRIVEN_ANIMATION): the scene's canonical
+          speech timeline, shared by captions and the speech-aware primitives. With the
+          flag off the scene carries no timeline, the provider holds null, and nothing
+          below changes. */}
+      <SpeechProvider timeline={scene?.audio?.speech ?? null} timing={scene?.speechTiming ?? null}>
+        <CameraMotion motion={scene?.cameraMotion}>
+          <Suspense fallback={<TemplateLoadingFallback />}>
+            <Template scene={scene} jobId={jobId} />
+            {qc && <QcReadyMarker />}
+          </Suspense>
+        </CameraMotion>
+      </SpeechProvider>
     </AbsoluteFill>
   );
 });

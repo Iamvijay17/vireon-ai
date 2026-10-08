@@ -9,8 +9,9 @@ const { makeAbortError } = require('../../../utils/abortableDelay');
 const { synthesizeRaw } = require('./rawSynthesis');
 const { processClip } = require('./audioProcessor');
 const { assembleScene } = require('./assembler');
-const { alignBatch } = require('./alignment');
-const { mapToOriginalWords } = require('./alignment/mapWords');
+const { alignClips, isCurrentAlignment, getAlignmentVersion } = require('./speech/alignmentService');
+const { buildAudioTimeline } = require('./speech/timelineBuilder');
+const { validateTimeline } = require('./speech/schemas');
 const { toSegmentError } = require('./errors');
 const { toPersisted } = require('./segmentPlanner');
 const { buildSceneTimeline } = require('./timeline');
@@ -45,9 +46,16 @@ class SceneAudioError extends Error {
 
 const noop = () => {};
 
-/** Cached word timings are only trusted if they cover exactly this segment's caption words. */
-function usableWords(meta, seg) {
-  return Array.isArray(meta?.words) && meta.words.length === seg.internal.wordMap.length ? meta.words : null;
+/**
+ * Cached alignment is only trusted if it was measured by what would measure
+ * the clip today (provider, model and mapper version) and covers exactly this
+ * segment's caption words. Anything else is re-aligned: cheap CPU work, and
+ * the cache entry is then upgraded in place.
+ */
+function usableAlignment(meta, seg) {
+  if (!isCurrentAlignment(meta?.alignment)) return null;
+  if (!Array.isArray(meta.words) || meta.words.length !== seg.internal.wordMap.length) return null;
+  return { words: meta.words, alignment: meta.alignment };
 }
 
 /**
@@ -68,9 +76,10 @@ async function synthesizeScene({ jobId, sceneNumber, plan, workDir, outputPath, 
   const segments = plan.segments;
   const total = segments.length;
   const force = new Set(forceSegmentIds);
-  const stats = { cacheHits: 0, cacheMisses: 0, generationMs: 0, processingMs: 0, alignmentMs: 0, assemblyMs: 0, degraded: false };
+  const stats = { cacheHits: 0, cacheMisses: 0, generationMs: 0, processingMs: 0, alignmentMs: 0, alignmentCacheHits: 0, timelineMs: 0, assemblyMs: 0, degraded: false };
   const meta = new Map(); // segment id -> cached processed metadata (may carry words)
   const words = new Map(); // segment id -> mapped original words, seconds relative to the clip start
+  const alignments = new Map(); // segment id -> normalised AlignmentResult (measured words only)
   const emit = (stage, current) => onProgress({ stage, current, total, sceneNumber, progress: Math.round((current / total) * 100) });
 
   await fs.mkdir(workDir, { recursive: true });
@@ -93,8 +102,12 @@ async function synthesizeScene({ jobId, sceneNumber, plan, workDir, outputPath, 
         seg.cache = 'hit';
         stats.cacheHits++;
         meta.set(seg.id, cached);
-        const cachedWords = usableWords(cached, seg);
-        if (cachedWords) words.set(seg.id, cachedWords);
+        const reusable = usableAlignment(cached, seg);
+        if (reusable) {
+          words.set(seg.id, reusable.words);
+          alignments.set(seg.id, { ...reusable.alignment, captionWords: reusable.words });
+          stats.alignmentCacheHits++;
+        }
         seg.durationMs = cached.durationMs ?? null;
         seg.audioFile = processedPath;
         seg.status = 'completed';
@@ -178,19 +191,36 @@ async function synthesizeScene({ jobId, sceneNumber, plan, workDir, outputPath, 
   if (segments.some((s) => s.status === 'failed')) throw new SceneAudioError(sceneNumber, segments);
 
   // ---- Phase 2: word timing for clips that do not have it yet --------------
-  const needAlignment = segments.filter((s) => !words.has(s.id));
+  const needAlignment = segments.filter((s) => !alignments.has(s.id));
   if (align && needAlignment.length > 0 && config.audio.alignment.provider !== 'none') {
+    emit('speech-aligning', 0);
     const alignStart = Date.now();
-    const heardPerClip = await alignBatch(needAlignment.map((s) => s.audioFile), { signal });
+    const results = await alignClips(
+      needAlignment.map((seg) => ({
+        id: seg.id,
+        audioPath: seg.audioFile,
+        text: seg.sourceText,
+        spokenText: seg.spokenText,
+        spokenTokens: seg.internal.spokenTokens,
+        wordMap: seg.internal.wordMap,
+        language: seg.language,
+        durationSec: seg.durationMs / 1000,
+      })),
+      { signal }
+    );
     needAlignment.forEach((seg, k) => {
-      const mapped = mapToOriginalWords(heardPerClip[k], seg.internal.spokenTokens, seg.internal.wordMap);
-      if (!mapped) return;
-      words.set(seg.id, mapped.words);
-      const segMeta = { ...(meta.get(seg.id) || {}), words: mapped.words, alignedWith: config.audio.alignment.provider };
+      const { captionWords, ...alignment } = results[k];
+      // Failed attempts are kept for the timeline's fallback reasons but never cached:
+      // a crashed aligner must not poison a clip that would align fine next time.
+      alignments.set(seg.id, results[k]);
+      if (!captionWords) return;
+      words.set(seg.id, captionWords);
+      const segMeta = { ...(meta.get(seg.id) || {}), words: captionWords, alignedWith: config.audio.alignment.provider, alignment };
       meta.set(seg.id, segMeta);
       if (!stats.degraded) CacheService.putSegmentMeta('processed', seg.processedCacheKey, segMeta);
     });
     stats.alignmentMs = Date.now() - alignStart;
+    emit('speech-aligned', total);
   }
 
   // ---- Phase 3: assemble the scene track ------------------------------------
@@ -212,6 +242,31 @@ async function synthesizeScene({ jobId, sceneNumber, plan, workDir, outputPath, 
 
   const timeline = buildSceneTimeline(segments, words);
 
+  // The canonical speech timeline (ENABLE_SPEECH_ALIGNMENT). Built even when
+  // alignment produced nothing: segment-level timing is real (clip bounds come
+  // from the assembled audio) and is the documented fallback.
+  let speechTimeline = null;
+  if (align && config.speech.alignmentEnabled) {
+    emit('speech-timeline', total);
+    const timelineStart = Date.now();
+    speechTimeline = buildAudioTimeline({
+      sceneNumber,
+      segments,
+      alignments,
+      durationMs: assembled.durationMs,
+      provider: config.audio.alignment.provider,
+      version: getAlignmentVersion(),
+    });
+    stats.timelineMs = Date.now() - timelineStart;
+    const problems = validateTimeline(speechTimeline);
+    if (problems.length > 0) LoggerService.warn('Speech timeline failed its own invariants', { jobId, sceneNumber, problems: problems.slice(0, 5) });
+    MetricsService.recordDuration('speech.timeline', stats.timelineMs);
+  }
+  if (stats.alignmentMs > 0) {
+    MetricsService.recordDuration('speech.alignment', stats.alignmentMs);
+    if (assembled.durationMs > 0) MetricsService.recordDuration('speech.alignmentRatioPermille', Math.round((stats.alignmentMs / assembled.durationMs) * 1000));
+  }
+
   await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
   emit('audio-complete', total);
 
@@ -220,6 +275,7 @@ async function synthesizeScene({ jobId, sceneNumber, plan, workDir, outputPath, 
     durationMs: assembled.durationMs,
     segments: segments.map(toPersisted),
     captionTimestamps: timeline.captionTimestamps,
+    speechTimeline,
     speechRanges: timeline.speechRanges,
     fromCache: stats.cacheMisses === 0,
     stats,

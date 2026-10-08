@@ -51,6 +51,7 @@ const JOB_EVENT_NAMES = [
   'jobCompleted',
   'jobFailed',
   'sceneAudioReady',
+  'speechStage',
 ];
 
 JOB_EVENT_NAMES.forEach((name) => {
@@ -111,6 +112,13 @@ export const onJobFailed = (callback) => {
 export const onSceneAudioReady = (callback) => {
   socket.on('sceneAudioReady', callback);
   return () => socket.off('sceneAudioReady', callback);
+};
+
+// Speech-timing stages (tts:start ... render:complete) of a job; see
+// lib/speechStages.js for how they become the plain-language checklist.
+export const onSpeechStage = (callback) => {
+  socket.on('speechStage', callback);
+  return () => socket.off('speechStage', callback);
 };
 
 // ─── Audio Studio (standalone TTS) Progressive Generation ──────────────────────

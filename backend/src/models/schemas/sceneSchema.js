@@ -54,7 +54,18 @@ const sceneSchema = new mongoose.Schema(
       // Rollup for the scene: voice profile, TTS model, director/pronunciation
       // versions, cache hits/misses and the generation/processing/assembly times.
       ttsMeta: { type: mongoose.Schema.Types.Mixed, default: undefined },
+      // Canonical speech timeline (ENABLE_SPEECH_ALIGNMENT, services/audio/pipeline/speech):
+      // alignmentStatus/Provider/Version, duration, segments, phrases, words (measured
+      // only) and pauses, all in seconds from the start of this scene's audio. The one
+      // timing source captions, animation and scene timing read. Absent when the
+      // flag was off for this scene's audio.
+      speechTimeline: { type: mongoose.Schema.Types.Mixed, default: undefined },
     },
+    // Optional speech-driven timing for this scene's visuals, e.g.
+    // { timingMode: 'speech', trigger: 'phrase', phrase: 'artificial intelligence', animation: 'scaleIn' }.
+    // Only read when ENABLE_SPEECH_DRIVEN_ANIMATION is on; 'fixed' | 'duration' |
+    // 'manual' (or absent) keep the scene's existing timing. See renderProps.js.
+    speechTiming: { type: mongoose.Schema.Types.Mixed, default: undefined },
   },
   { _id: false }
 );

@@ -186,6 +186,10 @@ export const convertVideoSceneType = (id, sceneNumber, sceneType, scene) =>
 
 export const getVideoJobActivityLogs = (id) => api.get(`/api/videos/${id}/activity-logs`);
 
+// Canonical speech timeline(s) of a video's scenes (developer speech-timing preview).
+export const getSpeechTimeline = (id, scene) =>
+  api.get(`/api/videos/${id}/speech-timeline`, { params: scene ? { scene } : {} });
+
 // ─── Voices ─────────────────────────────────────────────────────────────────────
 
 export const getVoices = () => api.get('/api/voices');

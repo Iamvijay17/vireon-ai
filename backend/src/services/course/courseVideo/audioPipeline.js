@@ -78,6 +78,8 @@ async function generateAudio(videoId) {
                 'script.scenes.$.audio.file': result.file,
                 'script.scenes.$.audio.duration': result.duration,
                 'script.scenes.$.duration': result.duration,
+                // Canonical speech timeline (ENABLE_SPEECH_ALIGNMENT only; absent otherwise).
+                ...(result.speechTimeline ? { 'script.scenes.$.audio.speechTimeline': result.speechTimeline } : {}),
               },
             }
           );
@@ -113,6 +115,7 @@ async function generateAudio(videoId) {
           ...scene.audio,
           file: result.file,
           duration: result.duration,
+          ...(result.speechTimeline ? { speechTimeline: result.speechTimeline } : {}),
         };
         // Update scene duration to match actual audio duration
         scene.duration = result.duration;

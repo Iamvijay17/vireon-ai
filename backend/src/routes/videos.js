@@ -298,6 +298,25 @@ router.post('/:id/scenes/:sceneNumber/regenerate-audio', authenticate, SceneCont
 
 /**
  * @swagger
+ * /api/videos/{id}/speech-timeline:
+ *   get:
+ *     summary: Canonical speech timeline of a video's scenes
+ *     description: >
+ *       Word / phrase / segment / pause timings (seconds from each scene's audio start) measured from the generated narration,
+ *       with the alignment status, provider and version. Present only for audio made with ENABLE_SPEECH_ALIGNMENT=true;
+ *       otherwise each scene reports `timeline: null`. `issues` lists any violated timing invariant (empty when sound).
+ *     tags: [Scenes]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/VideoJobId' }
+ *       - { in: query, name: scene, schema: { type: integer, minimum: 1 }, description: Only this scene }
+ *     responses:
+ *       200: { description: Per-scene timelines }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.get('/:id/speech-timeline', authenticate, SceneController.getSpeechTimeline);
+
+/**
+ * @swagger
  * /api/videos/{id}/scenes/{sceneNumber}/segments/{segmentId}/retry:
  *   post:
  *     summary: Retry one narration segment of a scene
