@@ -44,29 +44,35 @@ cleanup() {
 trap cleanup EXIT
 
 echo "==> starting redis, mongo, backend, frontend (project $PROJECT)"
-compose up -d --no-build --pull never --wait --wait-timeout 240 redis mongo backend frontend
+# Default pull policy ("missing"): redis/mongo are pulled on a fresh runner, while
+# the ghcr.io/ci/* images built just before this step already exist locally and
+# are used as-is. (--pull never would fail on a runner without redis/mongo cached.)
+compose up -d --no-build --wait --wait-timeout 240 redis mongo backend frontend
 compose ps
 
 fetch() { curl --silent --show-error --fail --max-time 5 --retry 10 --retry-connrefused --retry-delay 2 "$@"; }
 
 echo "==> backend /health through nginx"
-fetch "$BASE/health" | grep -q '"status":"ok"'
+HEALTH_JSON="$(fetch "$BASE/health")"
+echo "$HEALTH_JSON"
+grep -q '"status":"ok"' <<<"$HEALTH_JSON"
 
 echo "==> backend /api/version"
 VERSION_JSON="$(fetch "$BASE/api/version")"
 echo "$VERSION_JSON"
 if [ -n "${SMOKE_COMMIT:-}" ]; then
-  echo "$VERSION_JSON" | grep -q "\"commit\":\"${SMOKE_COMMIT:0:7}\""
+  grep -q "\"commit\":\"${SMOKE_COMMIT:0:7}\"" <<<"$VERSION_JSON"
 fi
 
 echo "==> frontend serves the app shell"
-fetch "$BASE/" | grep -q '<div id="root"'
+INDEX_HTML="$(fetch "$BASE/")"
+grep -q '<div id="root"' <<<"$INDEX_HTML"
 
 echo "==> frontend build stamp /version.json"
 STAMP="$(fetch "$BASE/version.json")"
 echo "$STAMP"
 if [ -n "${SMOKE_COMMIT:-}" ]; then
-  echo "$STAMP" | grep -q "\"commit\":\"${SMOKE_COMMIT}\""
+  grep -q "\"commit\":\"${SMOKE_COMMIT}\"" <<<"$STAMP"
 fi
 
 echo "==> all containers still running after the checks"
