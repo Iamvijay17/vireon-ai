@@ -20,6 +20,7 @@ import { KpiTiles, ProcessingTimeCard } from "./StatTiles";
 import { ChartCard } from "./ChartCard";
 import { VideoMetricsTable } from "./VideoMetricsTable";
 import { RecentFailures } from "./RecentFailures";
+import { ControlCenter } from "./ControlCenter";
 
 const RANGE_OPTIONS = [
   { value: "7", label: "Last 7 days" },
@@ -179,6 +180,8 @@ const Analytics = () => {
           <StatusStackedBar label="Video" rows={data?.courseVideoStages?.video || []} />
         </div>
       </Card>
+
+      <ControlCenter days={days} />
 
       <VideoMetricsTable />
 

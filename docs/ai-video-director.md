@@ -350,3 +350,33 @@ the coordinator expects it. It does not need to: that path runs under the exclus
 the cache after taking it, so a second process waits for the card and finds the first's result. Likewise
 images and segments. The coordinator covers what the lease does not — identical requests racing inside one
 lease window or outside any lease (Image Studio double-submits, a bigger `GPU_MAX_CONCURRENT_AI_SERVICES`).
+
+## Phase 9 — Control Center (analytics)
+
+`GET /api/analytics/control-center?days=30` and a "Control center" section on the Analytics page.
+Everything comes from data the system already persists; nothing is estimated.
+
+| Section | Source | Notes |
+| --- | --- | --- |
+| Videos: total / successful / failed / cancelled / processing | `VideoJob.status` in the window | "waiting on you" (approval, next step) is separate from "processing" |
+| Pipeline: per-stage avg / slowest / timed runs / reused | `VideoJob.stages` (Phase 2) | only completed, non-reused runs are timed — a reuse did no work, so it is not averaged in as a fast one |
+| Pipeline: avg generation time, queue wait | `statusHistory` active time; `queue.wait` metric | |
+| Cache: hits, misses, shared, stale, hit rate, time saved, per kind | `CacheEntry` ledger (Phase 8) | time saved = reuses × measured average generation time; unknown cost is not 0 |
+| Failures: attempts, failures, failure rate, retries per stage | `JobEvent` stage stream | rate is over attempts that reached a result (cancelled is neither) |
+| Failures: top errors | `JobEvent` failed stage events (code, stage, last message, retryable) | falls back to failed jobs by code for jobs that predate the stream |
+| Workers: depth, active, completed, failed, workers online | BullMQ `getJobCounts` / `getWorkers` | a queue that cannot be read says "Unavailable", not an empty healthy queue |
+
+**Honesty rules, enforced in code and tests.** A figure with nothing behind it is `null` and shows "—",
+never 0; the UI distinguishes a measured `0%` from no data. Jobs from before stage tracking are *counted*
+(`jobsWithoutStageData`) and *left out* of the stage averages, and the page says so ("Stage averages cover
+5 jobs; 14 earlier jobs predate stage tracking and are not included"). On the real database at the time of
+writing all 19 existing jobs predate it, so the stage table is empty until new jobs run — that is the
+correct answer, not a bug.
+
+**Indexes added** for the new reads: `JobEvent {type, at}` (the stage stream across jobs),
+`VideoJob {createdAt}` (windowed counts); `CacheEntry` carries `{kind, status}` and `{lastHitAt}`.
+
+**Verified against a real MongoDB.** `scripts/verifyControlCenter.js` runs every pipeline on inline
+synthetic documents (`$documents`) — nothing read from or written to a collection, `autoIndex` off —
+so the aggregation expressions are checked by Mongo itself, and a run against the live data confirmed the
+overview's real figures. Unit tests pin each pipeline's windowing and the pure shapers.

@@ -52,6 +52,9 @@ const jobEventSchema = new mongoose.Schema(
 );
 
 jobEventSchema.index({ jobId: 1, seq: 1 }, { unique: true });
+// The Control Center reads the stage stream across jobs by type and time
+// (services/common/ControlCenterService.js) - without this it scans every event.
+jobEventSchema.index({ type: 1, at: -1 });
 jobEventSchema.index(
   { jobId: 1, eventId: 1 },
   { unique: true, partialFilterExpression: { eventId: { $type: 'string' } } }

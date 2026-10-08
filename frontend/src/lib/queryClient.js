@@ -43,6 +43,7 @@ export const queryKeys = {
   analytics: {
     all: ['analytics'],
     overview: (days) => ['analytics', 'overview', days],
+    controlCenter: (days) => ['analytics', 'controlCenter', days],
     videoMetrics: (page) => ['analytics', 'videoMetrics', page],
   },
   voices: {
