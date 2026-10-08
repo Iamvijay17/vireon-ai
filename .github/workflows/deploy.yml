@@ -1,9 +1,12 @@
 name: Deploy
 
 # Runs only after CI succeeded on main. It does NOT touch your PC: it builds
-# and publishes images (sha-<commit>) to GHCR. The Windows server pulls them
-# (deploy/deploy.ps1, scheduled every minute). No secrets and no self-hosted
-# runner are needed - GITHUB_TOKEN is provided automatically.
+# and publishes images to GHCR, tagged with the immutable commit
+# (sha-<40 hex>). The Windows server pulls exactly that tag
+# (deploy/deploy.ps1, scheduled every minute), verifies health and rolls back
+# on failure. `latest` is moved only AFTER both images are pushed and is never
+# what production runs. No secrets and no self-hosted runner are needed -
+# GITHUB_TOKEN is provided automatically.
 on:
   workflow_run:
     workflows: [CI]
@@ -11,53 +14,77 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Nothing is writable unless a job asks for it (see `publish`).
 permissions:
   contents: read
-  packages: write
 
+# Deploys queue behind each other and are never cancelled half-way: a cancelled
+# publish could leave sha-<x> pushed for the backend but not the frontend.
 concurrency:
   group: deploy
   cancel-in-progress: false
 
 jobs:
   publish:
+    # Only a successful CI *push* run on main of THIS repository (never a fork
+    # or a pull request), or a manual run that was started on main.
     if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write   # push to GHCR; the only write permission in the pipeline
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - name: Compute names
+          persist-credentials: false
+      - name: Compute names and version
+        env:
+          RUN_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
+          [[ "$RUN_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::unexpected commit '$RUN_SHA'"; exit 1; }
           echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
-          echo "SHA=${{ github.event.workflow_run.head_sha || github.sha }}" >> "$GITHUB_ENV"
+          echo "SHA=${RUN_SHA}" >> "$GITHUB_ENV"
+          # When this build was made (UTC). Before, the CI run's updated_at was
+          # used, which is not the build time.
+          echo "APP_BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
           # App version shown in the UI: major.minor from the root package.json
           # (bump by hand for a feature release) + this workflow's run number,
-          # so every deploy gets a new, ever-increasing version.
+          # so every deploy gets a new, ever-increasing version. The commit is
+          # tracked separately (APP_COMMIT) - the version is only a label.
           BASE=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
-          echo "APP_VERSION=${BASE}.${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "APP_VERSION=${BASE}.${RUN_NUMBER}" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      # Both images are pushed under the immutable tag only. The server needs
+      # BOTH sha-<commit> tags to exist before it deploys, so it can never mix
+      # a backend and a frontend from different commits.
+      - name: Build and push backend (sha tag)
+        id: backend
+        uses: docker/build-push-action@v6
         with:
           context: backend
           push: true
           build-args: |
             APP_VERSION=${{ env.APP_VERSION }}
             APP_COMMIT=${{ env.SHA }}
-            APP_BUILD_DATE=${{ github.event.workflow_run.updated_at || github.event.repository.updated_at }}
-          tags: |
-            ghcr.io/${{ env.OWNER }}/vireon-backend:sha-${{ env.SHA }}
-            ghcr.io/${{ env.OWNER }}/vireon-backend:latest
+            APP_BUILD_DATE=${{ env.APP_BUILD_DATE }}
+          tags: ghcr.io/${{ env.OWNER }}/vireon-backend:sha-${{ env.SHA }}
           cache-from: type=gha,scope=backend
-      - uses: docker/build-push-action@v6
+      - name: Build and push frontend (sha tag)
+        id: frontend
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: frontend/Dockerfile
@@ -65,11 +92,49 @@ jobs:
           build-args: |
             APP_VERSION=${{ env.APP_VERSION }}
             APP_COMMIT=${{ env.SHA }}
-            APP_BUILD_DATE=${{ github.event.workflow_run.updated_at || github.event.repository.updated_at }}
-          tags: |
-            ghcr.io/${{ env.OWNER }}/vireon-frontend:sha-${{ env.SHA }}
-            ghcr.io/${{ env.OWNER }}/vireon-frontend:latest
+            APP_BUILD_DATE=${{ env.APP_BUILD_DATE }}
+          tags: ghcr.io/${{ env.OWNER }}/vireon-frontend:sha-${{ env.SHA }}
           cache-from: type=gha,scope=frontend
-      - name: Summary
+      # `latest` is a convenience for manual testing. Pointing it at the exact
+      # digests just pushed (a registry-side retag, no rebuild) and only after
+      # both pushes succeeded keeps it from ever pairing mismatched images.
+      - name: Move latest to this build
+        env:
+          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
+          FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
         run: |
-          echo "Published v${APP_VERSION} (sha-${SHA}). The server deploys it on its next poll (<=1 min)." >> "$GITHUB_STEP_SUMMARY"
+          docker buildx imagetools create -t "ghcr.io/${OWNER}/vireon-backend:latest" "ghcr.io/${OWNER}/vireon-backend@${BACKEND_DIGEST}"
+          docker buildx imagetools create -t "ghcr.io/${OWNER}/vireon-frontend:latest" "ghcr.io/${OWNER}/vireon-frontend@${FRONTEND_DIGEST}"
+      - name: Release manifest
+        env:
+          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
+          FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          jq -n \
+            --arg commit "$SHA" \
+            --arg version "$APP_VERSION" \
+            --argjson runNumber "$RUN_NUMBER" \
+            --arg buildTimestamp "$APP_BUILD_DATE" \
+            --arg backendImage "ghcr.io/${OWNER}/vireon-backend:sha-${SHA}" \
+            --arg backendDigest "$BACKEND_DIGEST" \
+            --arg frontendImage "ghcr.io/${OWNER}/vireon-frontend:sha-${SHA}" \
+            --arg frontendDigest "$FRONTEND_DIGEST" \
+            '{schema: 1, commit: $commit, version: $version, runNumber: $runNumber, buildTimestamp: $buildTimestamp,
+              backend: {image: $backendImage, digest: $backendDigest},
+              frontend: {image: $frontendImage, digest: $frontendDigest}}' > release-manifest.json
+          cat release-manifest.json
+          {
+            echo "### Published v${APP_VERSION} (sha-${SHA})"
+            echo
+            echo '```json'
+            cat release-manifest.json
+            echo '```'
+            echo
+            echo "The server deploys exactly \`sha-${SHA}\` on its next poll (<=1 min), verifies health and rolls back automatically on failure."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest-${{ env.SHA }}
+          path: release-manifest.json
+          retention-days: 30
