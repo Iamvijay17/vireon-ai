@@ -66,7 +66,7 @@ const definition = {
       VideoJob: {
         type: 'object',
         properties: {
-          _id: { type: 'string', example: 'job-A1B2C3D4' },
+          _id: { type: 'string', example: 'job-a1b2c3d4' },
           topic: { type: 'string' },
           type: { type: 'string', enum: VIDEO_TYPES },
           language: { type: 'string', enum: LANGUAGES },
@@ -307,7 +307,7 @@ const definition = {
       AudioGeneration: {
         type: 'object',
         properties: {
-          _id: { type: 'string', example: 'aud-A1B2C3D4' },
+          _id: { type: 'string', example: 'aud-a1b2c3d4' },
           mode: { type: 'string', enum: ['single', 'dialogue'] },
           text: { type: 'string', description: 'Raw text (single mode) or full script (dialogue mode)' },
           voice: { type: 'string', description: 'Single mode only' },
@@ -389,8 +389,8 @@ const definition = {
         name: 'id',
         in: 'path',
         required: true,
-        description: 'Video job id (format job-XXXXXXXX)',
-        schema: { type: 'string', example: 'job-A1B2C3D4' },
+        description: 'Video job id (format job-xxxxxxxx: lowercase a-z0-9; legacy uppercase ids are still accepted)',
+        schema: { type: 'string', example: 'job-a1b2c3d4' },
       },
       EntityId: {
         name: 'id',

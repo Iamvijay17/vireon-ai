@@ -2,6 +2,7 @@ import { useContext } from "react";
 import { ChevronRight } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BreadcrumbContext } from "../shared/breadcrumbContextValue";
+import { isEntityId } from "../lib/entityId";
 
 const STATIC_LABELS = {
   wizard: "Create Video",
@@ -16,10 +17,6 @@ const STATIC_LABELS = {
   complete: "Complete",
   videos: null, // structural segment, not shown
 };
-
-// Matches our own generated ids (cou-/job-/vid- + 8 uppercase alnum chars),
-// not raw MongoDB ObjectIds - those aren't used anywhere in this app anymore.
-const isEntityId = (segment) => /^[a-z]{3}-[0-9A-Z]{8}$/.test(segment);
 
 const Breadcrumbs = () => {
   const location = useLocation();

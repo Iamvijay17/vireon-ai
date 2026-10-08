@@ -103,6 +103,31 @@ Key variables (see [`backend/.env.example`](backend/.env.example) and [`.env.exa
 | `VIDEO_WORKER_CONCURRENCY` | Parallel video jobs (keep at 1 on a 6 GB GPU) |
 | `GPU_COORDINATOR=redis` | Enable the Redis GPU lease when more than one process uses the GPU |
 
+## Resource IDs
+
+Vireon Resource ID Format:
+
+```text
+<prefix>-<lowercase-alphanumeric-id>     e.g. aud-btclnx2w
+```
+
+The suffix is 8 characters from `a-z0-9` (36^8 ≈ 2.8 trillion per prefix), drawn from a cryptographically secure generator (`nanoid`'s `customAlphabet`, already a dependency). IDs are safe as URL segments, MongoDB `_id` strings, Redis/BullMQ keys, MinIO object keys and file names. All new IDs are made by `generateId(prefix)` in [`backend/src/utils/id.js`](backend/src/utils/id.js), the only place ID generation lives; the per-model helpers (`generateAudioGenerationId`, ...) are thin wrappers around it.
+
+| Prefix | Resource |
+| --- | --- |
+| `aud-` | Audio Studio generation |
+| `img-` | Image Studio generation |
+| `job-` | Video job (`VideoJob` / `Project`) |
+| `vid-` | Course video |
+| `sce-` | Scene |
+| `cou-` | Course |
+| `crc-` | Course curriculum |
+| `fav-` | Favourite voice |
+
+Prefixes are the ones the app already used; they were not renamed. A prefix is only added when a persisted resource needs an ID (`generateId` throws on an unregistered prefix). Segment, word and similar IDs inside a timeline (e.g. `s03-seg002`) are positional, not resource IDs.
+
+**Legacy IDs.** IDs created before this convention were uppercase (`aud-BTCLNX2W`). They were not migrated: they remain valid in the database, URLs, MinIO keys and API routes, and every validator accepts both forms (`ID_PATTERN` / `idPatternFor(prefix)`). A suffix is either all-lowercase or all-uppercase; mixed case is rejected. Nothing case-normalizes an ID, so `GET /api/audio/aud-BTCLNX2W` still resolves the old record and `aud-btclnx2w` is a different one. Use `NEW_ID_PATTERN` only to assert freshly generated IDs, never to validate input.
+
 ## Testing
 
 ```bash

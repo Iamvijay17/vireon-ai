@@ -11,7 +11,7 @@ const {
   CAPTION_STYLES,
   getAspectRatioForResolution,
 } = require('../constants');
-const { ID_PATTERN } = require('../utils/id');
+const { ID_PATTERN, PREFIXES, idPatternFor } = require('../utils/id');
 const { STYLES: VOICE_STYLES } = require('../services/audio/pipeline/schemas');
 const { STYLE_KEYS: IMAGE_STYLE_KEYS, MAX_TEXT_LINES: MAX_IMAGE_TEXT_LINES } = require('../services/image/styles');
 
@@ -116,8 +116,12 @@ const regenerateImageSchema = z.object({
   prompt: z.string().trim().max(400).optional(),
 });
 
+// Id patterns come from utils/id.js and accept both the current lowercase ids
+// (job-r8v3k1mx) and legacy uppercase ones (job-R8V3K1MX) still in the DB.
+const JOB_ID_PATTERN = idPatternFor(PREFIXES.job);
+
 const jobIdSchema = z.object({
-  id: z.string().regex(/^job-[0-9A-Z]{8}$/, 'Invalid video job id'),
+  id: z.string().regex(JOB_ID_PATTERN, 'Invalid video job id'),
 });
 
 // Matches any entity id produced by utils/id.js (course, course-video,
@@ -145,7 +149,7 @@ const createAudioSchema = z.object({
 });
 
 const audioIdSchema = z.object({
-  id: z.string().regex(/^aud-[0-9A-Z]{8}$/, 'Invalid audio generation id'),
+  id: z.string().regex(idPatternFor(PREFIXES.audio), 'Invalid audio generation id'),
 });
 
 const IMAGE_ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5'];
@@ -186,7 +190,7 @@ const createImageSchema = z
   });
 
 const imageIdSchema = z.object({
-  id: z.string().regex(/^img-[0-9A-Z]{8}$/, 'Invalid image generation id'),
+  id: z.string().regex(idPatternFor(PREFIXES.image), 'Invalid image generation id'),
 });
 
 const dialogueSpeakerSchema = z.object({
@@ -210,7 +214,7 @@ const createDialogueAudioSchema = z.object({
 });
 
 const jobIdArraySchema = z.object({
-  jobIds: z.array(z.string().regex(/^job-[0-9A-Z]{8}$/, 'Invalid video job id')).min(1, 'jobIds must be a non-empty array'),
+  jobIds: z.array(z.string().regex(JOB_ID_PATTERN, 'Invalid video job id')).min(1, 'jobIds must be a non-empty array'),
 });
 
 const validate = (schema) => (data) => {
