@@ -66,3 +66,59 @@ replayed on reconnect). The Job detail timeline renders it.
 Not touched: the course-video worker keeps its own pipeline; it can adopt the same
 `stageRunner`/`pipelineErrors` later (they take no VideoJob-specific input beyond the
 tracker).
+
+## Phase 3 — Versioned scene graph
+
+**The scene stays the working copy; versions are the history.** A scene
+(`VideoJob.script.scenes[]`, id `sce-xxxxxxxx`) is what the Studio edits and the pipeline
+fills in. `SceneVersion` (`models/SceneVersion.js`) holds immutable v1, v2, v3… of it.
+`scene.activeVersion` says which one the working copy is. Nothing about existing jobs
+changes: a scene with no versions gets its v1 the first time it settles.
+
+**When a version is recorded.** `SceneVersionService.settle(jobId)` runs at the end of the
+upload step (after the job is COMPLETED, best-effort — it never fails a finished render).
+For each scene it fingerprints the parts and compares against the *active* version (not the
+newest, so a reverted scene does not spawn a spurious version). Only a scene whose
+fingerprint moved gets a new version, so unrelated scenes record nothing. Versions are
+settle-points, not stage snapshots: you do not get a version per pipeline stage.
+
+**Immutability is enforced**, not promised: the model's hooks refuse every update/replace
+and any `save()` of an existing document. Changing something creates v(n+1) with
+`parentVersion`. Version ids are `${jobId}:${sceneId}:v${n}` so a retried settle collides on
+the key instead of duplicating.
+
+**Reproducibility.** Each version stores the whole scene snapshot plus `provenance`: the
+narration prompt, LLM model, TTS model + config, image model/prompt/params, template,
+layout, motion, transition and asset references. Per-part `fingerprints` are what make
+"what changed" a comparison (`services/scene/sceneFingerprint.js`). Outputs are deliberately
+excluded from the fingerprints, with two exceptions that keep a re-take visible: the audio
+fingerprint includes the clip duration, the image fingerprint includes the resolved URL.
+Values the pipeline writes back into `elements` (word timings, the image URL) are stripped
+from the layout fingerprint — otherwise every audio change would look like a layout change.
+
+**Narration archive.** The renderer reads `scene{N}.mp3` and regenerating overwrites it, so
+each distinct recording is server-side-copied to `{job}/audio/versions/scene{N}.{fp12}.mp3`
+when its version is recorded. Images are already content-addressed (`img-{cacheKey}`), so
+they need nothing. Revert copies the archived recording back; if it is gone, the current
+recording is kept and the response says so.
+
+**Dependency graph** (`services/scene/dependencyGraph.js`):
+
+```
+script ─▶ audio ─▶ captions ─┐
+script ──────────────────────┤
+image ───────────────────────┼─▶ scene-composition ─▶ render
+layout / motion / transition ┘
+```
+
+`getRegenerationPlan(sceneId, changeType)` returns
+`{ changed, regenerate, reusable, produce, stages }`. `produce` is the subset that needs a
+model run (audio, captions, image); `stages` maps the plan onto the Phase 2 worker stages.
+Change types: `script`, `voice`, `image`, `layout`, `motion`, `transition`, `style`
+("more cinematic"), `scene`. Image changed → rebuild composition + render, reuse
+script/audio/captions. Script changed → audio → captions → composition → render, not the
+image. `restorePlan` is the revert case: only composition + render, nothing produced.
+
+**API.** `GET /api/videos/:id/scenes/:n/versions`;
+`GET /api/videos/:id/scenes/:n/regeneration-plan[?changeType=]` (without `changeType` it
+diffs the working copy against the active version).
