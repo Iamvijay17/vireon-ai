@@ -6,6 +6,8 @@ const ScriptParserService = require('../services/video/ScriptParserService');
 const { convertSceneType } = require('../services/video/sceneConversion');
 const { JOB_STATUS } = require('../constants');
 const { NotFoundError, ValidationError } = require('../utils/errors');
+const config = require('../config');
+const { speechTimelineQuerySchema, validateTimeline } = require('../services/audio/pipeline/speech/schemas');
 
 // Cross-cutting fields that aren't part of any template's per-template shape
 // in ScriptParserService._createDefaultElements, but should still carry over
@@ -220,6 +222,45 @@ class SceneController {
 
       const result = await VideoService.regenerateSceneAudio(id, sceneNumber);
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/videos/:id/speech-timeline[?scene=N] - the canonical speech
+   * timeline(s) stored with the scenes' audio, plus the invariant check of each
+   * (empty `issues` = sound). Developer/debug use: the speech timing preview
+   * reads this. A scene without a timeline (flag off when its audio was made,
+   * or legacy audio) reports `timeline: null` rather than inventing one.
+   */
+  static async getSpeechTimeline(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const { scene: onlyScene } = validate(speechTimelineQuerySchema)(req.query);
+
+      const job = await VideoJob.findById(id).select('script.scenes.sceneNumber script.scenes.audio').lean();
+      if (!job) throw new NotFoundError('Job not found');
+
+      const scenes = (job.script?.scenes || [])
+        .filter((s) => onlyScene === undefined || s.sceneNumber === onlyScene)
+        .map((s) => {
+          const timeline = s.audio?.speechTimeline || null;
+          return {
+            sceneNumber: s.sceneNumber,
+            audioFile: s.audio?.file || null,
+            duration: s.audio?.duration || 0,
+            timeline,
+            issues: timeline ? validateTimeline(timeline) : [],
+          };
+        });
+      if (onlyScene !== undefined && scenes.length === 0) throw new NotFoundError(`Scene ${onlyScene} not found`);
+
+      res.json({
+        alignmentEnabled: config.speech.alignmentEnabled,
+        drivenAnimationEnabled: config.speech.drivenAnimationEnabled,
+        scenes,
+      });
     } catch (err) {
       next(err);
     }

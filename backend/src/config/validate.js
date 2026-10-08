@@ -108,6 +108,16 @@ const configSchema = z.object({
     concurrency: positiveInt('VIDEO_WORKER_CONCURRENCY'),
   }),
 
+  speech: z.object({
+    alignmentEnabled: z.boolean(),
+    drivenAnimationEnabled: z.boolean(),
+    alignmentRequired: z.boolean(),
+    completeRatio: z.number().gt(0).max(1, 'SPEECH_COMPLETE_RATIO must be between 0 and 1'),
+    minPauseMs: positiveInt('SPEECH_PAUSE_MIN_MS'),
+    phraseGapMs: positiveInt('SPEECH_PHRASE_GAP_MS'),
+    maxPhraseWords: positiveInt('SPEECH_MAX_PHRASE_WORDS'),
+  }).passthrough(),
+
   audio: z.object({
     segmentedTts: z.boolean(),
     segmentMaxChars: z.number().int().min(40).max(1000, 'TTS_SEGMENT_MAX_CHARS must be at most 1000'),

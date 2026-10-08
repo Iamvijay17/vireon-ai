@@ -11,6 +11,7 @@ const { abortableDelay, makeAbortError } = require('../../utils/abortableDelay')
 const { toRenderProps, diffRenderProps } = require('../../ir');
 const { checkSceneGraph } = require('./sceneGraphCheck');
 const { toRenderTimeline } = require('../audio/pipeline/timeline');
+const { toRenderSpeech, toRenderSpeechTiming } = require('../audio/pipeline/speech/renderProps');
 const { parseRemotionProgressLine, remotionProgressFraction, runRemotionCommandStreaming } = require('./remotionCli');
 const assetChecks = require('./remotionAssetChecks');
 
@@ -92,6 +93,9 @@ class RemotionService {
             templateId: scene.templateId || '',
             elements: scene.elements || null,
             scene_meta: scene.scene_meta || null,
+            // Speech-driven scene timing config; absent unless ENABLE_SPEECH_DRIVEN_ANIMATION
+            // is on. Kept in step with ir/toRenderProps.js so the shadow diff stays clean.
+            ...(toRenderSpeechTiming(scene) ? { speechTiming: toRenderSpeechTiming(scene) } : {}),
             audio: {
              // Storage URL, not a local file path - scene audio is uploaded
              // to storage the moment AudioService synthesizes it (see
@@ -104,6 +108,8 @@ class RemotionService {
              // follow the voice. Omitted for legacy audio. Kept in step with
              // ir/toRenderProps.js so the shadow diff stays clean.
              ...(toRenderTimeline(scene.audio?.segments) ? { timeline: toRenderTimeline(scene.audio.segments) } : {}),
+             // Canonical speech timeline for speech-driven captions/animation (flagged; see speech/renderProps.js).
+             ...(toRenderSpeech(scene.audio) ? { speech: toRenderSpeech(scene.audio) } : {}),
            },
            theme: {
              type: jobConfig.type || 'educational',

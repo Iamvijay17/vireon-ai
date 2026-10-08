@@ -87,6 +87,10 @@ scene text → segmenter → pronunciation → Voice Director → pause engine �
 
 Check it against the real stack with `node scripts/smokeNarration.js` (TTS + cache) and `node scripts/e2eNarration.js` (script to rendered mp4).
 
+### Speech-driven timing (opt-in: `ENABLE_SPEECH_ALIGNMENT`, `ENABLE_SPEECH_DRIVEN_ANIMATION`)
+
+Real word/phrase timestamps measured from the generated audio become one canonical timeline that captions, Remotion animation and scene timing all read. Both flags default off (Vireon behaves exactly as before). Full guide: [`docs/speech-alignment.md`](../docs/speech-alignment.md). Check it against the real stack with `node scripts/smokeSpeechAlignment.js --cleanup`.
+
 ### Storage
 
 Three MinIO buckets (names overridable via `MINIO_*_BUCKET`):

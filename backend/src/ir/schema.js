@@ -35,6 +35,10 @@ const SceneAudio = z.object({
     endMs: z.number(),
     durationMs: z.number(),
   })).nullable().optional(),
+  // Canonical speech timeline (words/phrases/pauses, seconds) for speech-driven
+  // captions and animation. Null unless ENABLE_SPEECH_DRIVEN_ANIMATION is on
+  // and this scene has one - see services/audio/pipeline/speech/renderProps.js.
+  speech: z.record(z.any()).nullable().optional(),
 });
 
 const SceneIR = z.object({
@@ -57,6 +61,9 @@ const SceneIR = z.object({
   // Full storyboard entry, kept for diagnostics and regeneration. Not part of
   // the render props.
   storyboard: z.record(z.any()).nullable(),
+  // Validated speech timing config (timingMode 'speech' + trigger); null when
+  // the flag is off or the scene has none.
+  speechTiming: z.record(z.any()).nullable().optional(),
   timing: SceneTiming,
   audio: SceneAudio,
   // Validated separately against the resolved template's own schema in

@@ -1,7 +1,7 @@
 const { ID_PATTERN } = require('../../../utils/id');
 
-// Matches both entity ids (utils/id.js's "prefix-XXXXXXXX" shape) and the
-// legacy "job-XXXXXXXX"/standalone-job style ids already in use elsewhere,
+// Matches entity ids (utils/id.js's "prefix-xxxxxxxx" shape, lowercase, plus
+// the legacy uppercase "prefix-XXXXXXXX" ids still stored),
 // so join/joinCourse reject garbage room names instead of letting a socket
 // join an arbitrary string-keyed room. This is NOT an ownership/authz
 // check - there's no user/session concept in this single-user app, so any

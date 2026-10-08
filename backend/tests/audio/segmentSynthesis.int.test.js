@@ -62,7 +62,18 @@ jest.mock('../../src/services/audio/pipeline/alignment', () => ({
     mockAlignCalls.push(files.map((f) => require('path').basename(f)));
     return files.map((f) => mockWordsById.get(require('path').basename(f).replace('.wav', '')) || null);
   }),
+  getProvider: () => ({ name: 'faster-whisper' }),
+  getAlignmentVersion: () => 'mock-aligner:1',
 }));
+
+// The pipeline caches a clip as "processed" only when ffmpeg really processed it (or processing is
+// switched off); on a host without ffmpeg (CI) a clip is "degraded" and never cached, which would make
+// every cache-reuse assertion below fail. These tests are about caching/alignment, not ffmpeg, so they
+// use the pass-through path.
+const processingConfig = require('../../src/config').audio.processing;
+const originalProcessingEnabled = processingConfig.enabled;
+beforeAll(() => { processingConfig.enabled = false; });
+afterAll(() => { processingConfig.enabled = originalProcessingEnabled; });
 
 const { planScene } = require('../../src/services/audio/pipeline/segmentPlanner');
 const { synthesizeScene, SceneAudioError } = require('../../src/services/audio/pipeline/segmentSynthesis');

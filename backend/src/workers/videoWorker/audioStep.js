@@ -7,6 +7,7 @@ const SocketService = require('../../services/common/SocketService');
 const MetricsService = require('../../services/common/MetricsService');
 const { JOB_STATUS } = require('../../constants');
 const { PROGRESS_BANDS, mapToBand } = require('../../utils/progressBands');
+const { SPEECH_EVENTS, emitSpeechStage, speechEventsEnabled } = require('../../services/audio/pipeline/speech/events');
 const { bailIfCancelled, JobCancelledError } = require('./shared');
 
 /**
@@ -52,6 +53,14 @@ async function run(jobId, videoJob, script, ctx) {
   let completedScenes = scenesWithAudio.length;
   const totalScenes = script.scenes.length;
 
+  // Speech-timing progress (ENABLE_SPEECH_ALIGNMENT only; no-ops otherwise).
+  // Alignment runs inside each scene's synthesis, so the job-level stages are:
+  // tts:start -> (per scene: alignment:start/progress) -> tts:complete ->
+  // alignment:complete -> timeline:complete.
+  const speechStage = (event, extra) => emitSpeechStage(SocketService, jobId, event, { total: scenesToProcess.length, ...extra });
+  let alignmentStarted = false;
+  speechStage(SPEECH_EVENTS.TTS_START);
+
   // GPU-sequential: claim the GPU for TTS across the whole batch of scenes
   // (not per-scene) - releasing between scenes would just thrash
   // start/stop against Ollama/ComfyUI for no benefit, since this stage
@@ -96,6 +105,13 @@ async function run(jobId, videoJob, script, ctx) {
           // already emits (ttsStage field) - no second channel. Progress inside
           // the audio band advances with segments, not just whole scenes.
           onProgress: ({ stage, current, total, sceneNumber, progress }) => {
+            if (stage === 'speech-aligning') {
+              if (!alignmentStarted) {
+                alignmentStarted = true;
+                speechStage(SPEECH_EVENTS.ALIGNMENT_START, { sceneNumber });
+              }
+              speechStage(SPEECH_EVENTS.ALIGNMENT_PROGRESS, { sceneNumber, current: completedScenes - scenesWithAudio.length + 1 });
+            }
             const within = (completedScenes + progress / 100) / totalScenes;
             SocketService.emitJobProgress({
               _id: jobId,
@@ -121,6 +137,14 @@ async function run(jobId, videoJob, script, ctx) {
     // do, so the outer pipeline treats it as a cancellation, not a failure.
     if (err.name === 'AbortError') throw new JobCancelledError(jobId);
     throw err;
+  }
+
+  if (speechEventsEnabled()) {
+    speechStage(SPEECH_EVENTS.TTS_COMPLETE);
+    // Every segment served from the cache means there was nothing to align.
+    if (!alignmentStarted) speechStage(SPEECH_EVENTS.ALIGNMENT_START);
+    speechStage(SPEECH_EVENTS.ALIGNMENT_COMPLETE);
+    speechStage(SPEECH_EVENTS.TIMELINE_COMPLETE);
   }
 }
 

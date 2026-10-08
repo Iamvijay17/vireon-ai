@@ -207,7 +207,7 @@ describe('ImageController.generate', () => {
     await ImageController.generate({ body: { prompt: 'a lighthouse' } }, makeRes(), jest.fn());
     await flush();
 
-    expect(idDuringCreate).toMatch(/^img-[0-9A-Z]{8}$/);
+    expect(idDuringCreate).toMatch(/^img-[0-9a-z]{8}$/);
     expect(skippedByPoll).toContain(idDuringCreate);
   });
 

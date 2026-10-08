@@ -38,10 +38,12 @@ function toRenderProps(ir) {
       layout: scene.layout || '',
       templateId: scene.templateId,
       elements: scene.elements,
+      ...(scene.speechTiming ? { speechTiming: scene.speechTiming } : {}),
       audio: {
         file: scene.audio.url,
         duration: scene.audio.durationSeconds,
         ...(scene.audio.timeline ? { timeline: scene.audio.timeline } : {}),
+        ...(scene.audio.speech ? { speech: scene.audio.speech } : {}),
       },
       theme: {
         type: ir.video.type,

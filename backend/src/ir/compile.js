@@ -1,6 +1,7 @@
 const { SceneGraph, IR_VERSION } = require('./schema');
 const { SCENE_TYPES, resolveTemplate } = require('./templateRegistry');
 const { toRenderTimeline } = require('../services/audio/pipeline/timeline');
+const { toRenderSpeech, toRenderSpeechTiming } = require('../services/audio/pipeline/speech/renderProps');
 
 // Mirrors remotion/src/calculateVideoMetadata.js's FPS - the composition
 // derives its frame count from scene seconds at this rate.
@@ -114,6 +115,7 @@ function compile({ jobId, script, jobConfig = {}, stage = 'render', audioUrlFor 
       imageUrl,
       layout: typeof scene.storyboard?.layout === 'string' ? scene.storyboard.layout : '',
       storyboard: scene.storyboard && typeof scene.storyboard === 'object' ? scene.storyboard : null,
+      speechTiming: toRenderSpeechTiming(scene),
       timing: {
         durationSeconds,
         durationFrames: Math.round(durationSeconds * FPS),
@@ -127,6 +129,7 @@ function compile({ jobId, script, jobConfig = {}, stage = 'render', audioUrlFor 
         emotion: scene.audio?.emotion || '',
         captionTimestamps: scene.audio?.captionTimestamps ?? null,
         timeline: toRenderTimeline(scene.audio?.segments),
+        speech: toRenderSpeech(scene.audio),
       },
       elements,
     };

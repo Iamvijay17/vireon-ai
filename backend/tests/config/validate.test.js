@@ -28,6 +28,10 @@ const validConfig = () => ({
   cors: { origins: ['http://localhost:5173'] },
   rateLimit: { windowMs: 60000, max: 600 },
   videoWorker: { concurrency: 3 },
+  speech: {
+    alignmentEnabled: false, drivenAnimationEnabled: false, alignmentRequired: false,
+    completeRatio: 0.9, minPauseMs: 250, phraseGapMs: 180, maxPhraseWords: 8,
+  },
   audio: {
     segmentedTts: false, segmentMaxChars: 240, segmentMinChars: 40, previewMaxChars: 600,
     ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', speedMin: 0.85, speedMax: 1.2, pitchLimit: 2,
@@ -143,7 +147,19 @@ describe('validateConfig', () => {
       expect(issues.every((i) => i.path !== 'remotion.qualityCrf')).toBe(true);
     });
   });
-  describe('audio pipeline config', () => {
+describe('speech timing config', () => {
+  it('rejects a completeness ratio outside 0..1', () => {
+    const issues = issuesFor((c) => { c.speech.completeRatio = 1.5; });
+    expect(issues.map((i) => i.message).join('\n')).toMatch(/SPEECH_COMPLETE_RATIO/);
+  });
+
+  it('rejects a non-positive minimum pause', () => {
+    const issues = issuesFor((c) => { c.speech.minPauseMs = 0; });
+    expect(issues.map((i) => i.message).join('\n')).toMatch(/SPEECH_PAUSE_MIN_MS/);
+  });
+});
+
+describe('audio pipeline config', () => {
     it('rejects a loudness target outside a sane LUFS range', () => {
       expect(issuesFor((c) => { c.audio.processing.targetLoudness = 3; })[0].path).toBe('audio.processing.targetLoudness');
     });

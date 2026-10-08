@@ -1,9 +1,20 @@
 const fs = require('fs').promises;
 const path = require('path');
+const config = require('../../../config');
 const LoggerService = require('../../common/LoggerService');
 const { planScene } = require('./segmentPlanner');
 const { synthesizeScene, uploadSceneTrack, SceneAudioError } = require('./segmentSynthesis');
 const { makeAbortError } = require('../../../utils/abortableDelay');
+
+/** Thrown only when SPEECH_ALIGNMENT_REQUIRED=true and a scene could not be word-aligned. */
+class SpeechAlignmentRequiredError extends Error {
+  constructor(sceneNumber, timeline) {
+    super(`Speech alignment is required but scene ${sceneNumber} could not be fully word-aligned (${timeline.fallbackReasons.map((r) => r.reason).join(', ') || timeline.alignmentStatus})`);
+    this.name = 'SpeechAlignmentRequiredError';
+    this.code = 'SPEECH_ALIGNMENT_REQUIRED';
+    this.sceneNumber = sceneNumber;
+  }
+}
 
 /**
  * Job-level entry points of the segmented pipeline. They are drop-in
@@ -18,6 +29,17 @@ const { makeAbortError } = require('../../../utils/abortableDelay');
  */
 
 const jobsRoot = path.resolve(__dirname, '../../../../jobs');
+
+/**
+ * Alignment is a refinement by default: the audio is valid and the scene falls
+ * back to segment-level timing. Only an explicit "required" mode
+ * (SPEECH_ALIGNMENT_REQUIRED=true) turns a weak alignment into a failure.
+ */
+function assertAlignmentSatisfied(sceneNumber, timeline) {
+  if (config.speech.alignmentRequired && timeline && timeline.alignmentStatus !== 'complete') {
+    throw new SpeechAlignmentRequiredError(sceneNumber, timeline);
+  }
+}
 
 /** Plan + synthesize + upload one scene. Returns the legacy-compatible result. */
 async function runScene({ jobId, scene, index, count, voice, fastMode, skipCache, forceSegmentIds, clientHolder, signal, options }) {
@@ -84,6 +106,15 @@ async function runScene({ jobId, scene, index, count, voice, fastMode, skipCache
     throw err;
   }
 
+  // The finished clips stay cached when this throws, so a retry after fixing
+  // the aligner costs no GPU time.
+  try {
+    assertAlignmentSatisfied(sceneNumber, synthesized.speechTimeline);
+  } catch (err) {
+    await fs.unlink(outputPath).catch(() => {});
+    throw err;
+  }
+
   // Durable copy first, then drop the local scratch file (as the legacy path does).
   await uploadSceneTrack(jobId, outputPath);
   await fs.unlink(outputPath).catch(() => {});
@@ -94,6 +125,7 @@ async function runScene({ jobId, scene, index, count, voice, fastMode, skipCache
     duration: synthesized.durationMs / 1000,
     captionTimestamps: synthesized.captionTimestamps,
     segments: synthesized.segments,
+    ...(synthesized.speechTimeline ? { speechTimeline: synthesized.speechTimeline } : {}),
     ttsMeta: {
       voice: plan.voice,
       voiceProfile: synthesized.segments[0]?.voiceProfile ?? null,
@@ -107,6 +139,11 @@ async function runScene({ jobId, scene, index, count, voice, fastMode, skipCache
       ttsGenerationMs: stats.generationMs,
       audioProcessingMs: stats.processingMs,
       alignmentMs: stats.alignmentMs,
+      alignmentCacheHits: stats.alignmentCacheHits,
+      speechTimelineMs: stats.timelineMs,
+      // alignment cost per second of audio (<1 = faster than real time)
+      alignmentRatio: synthesized.durationMs > 0 ? Math.round((stats.alignmentMs / synthesized.durationMs) * 1000) / 1000 : null,
+      alignmentStatus: synthesized.speechTimeline?.alignmentStatus ?? null,
       audioAssemblyMs: stats.assemblyMs,
       audioDurationMs: synthesized.durationMs,
       processingDegraded: stats.degraded,
@@ -172,4 +209,4 @@ async function generateSceneAudioSegmented(jobId, scene, voice, fastMode = false
   }
 }
 
-module.exports = { generateAllAudioSegmented, generateSceneAudioSegmented };
+module.exports = { generateAllAudioSegmented, generateSceneAudioSegmented, SpeechAlignmentRequiredError, assertAlignmentSatisfied };

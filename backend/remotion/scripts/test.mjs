@@ -14,21 +14,31 @@ import fs from 'node:fs';
 import os from 'node:os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const entry = path.join(__dirname, '..', 'src', 'engine', '__tests__', 'engine.test.js');
-const outfile = path.join(os.tmpdir(), `vireon-engine-tests-${Date.now()}.cjs`);
-
-buildSync({
-  entryPoints: [entry],
-  bundle: true,
-  platform: 'node',
-  format: 'cjs',
-  outfile,
-  external: ['node:test', 'node:assert', 'node:assert/strict'],
-  logLevel: 'silent',
+// Every suite is bundled into its own file and run by Node's test runner together.
+const entries = [
+  path.join(__dirname, '..', 'src', 'engine', '__tests__', 'engine.test.js'),
+  path.join(__dirname, '..', 'src', 'speech', '__tests__', 'speech.test.js'),
+];
+const stamp = Date.now();
+const outfiles = entries.map((entry, i) => {
+  const outfile = path.join(os.tmpdir(), `vireon-tests-${stamp}-${i}.cjs`);
+  buildSync({
+    entryPoints: [entry],
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    outfile,
+    // .js files hold JSX in this project (the same loader Remotion's bundler uses).
+    loader: { '.js': 'jsx' },
+    jsx: 'automatic',
+    external: ['node:test', 'node:assert', 'node:assert/strict'],
+    logLevel: 'silent',
+  });
+  return outfile;
 });
 
-const result = spawnSync(process.execPath, ['--test', outfile], { stdio: 'inherit' });
+const result = spawnSync(process.execPath, ['--test', ...outfiles], { stdio: 'inherit' });
 
-fs.rmSync(outfile, { force: true });
+for (const outfile of outfiles) fs.rmSync(outfile, { force: true });
 
 process.exit(result.status ?? 1);

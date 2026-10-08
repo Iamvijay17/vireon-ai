@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { useCurrentFrame, useVideoConfig } from 'remotion';
 import { captionAnimationRegistry } from './captionAnimations';
 import { typography } from '../theme';
+import { useSpeechTimeline } from '../speech/SpeechContext';
+import { buildCaptionModel, resolveCaptionState } from '../speech/captionSync';
 
 /**
  * Default caption style configuration.
@@ -101,6 +103,9 @@ export const CaptionRenderer = React.memo(
   }) => {
     const frame = useCurrentFrame();
     const { width, height } = useVideoConfig();
+    // Present only with ENABLE_SPEECH_DRIVEN_ANIMATION and a timeline for this
+    // scene; null otherwise, which leaves every code path below as it was.
+    const { timeline: speechTimeline } = useSpeechTimeline();
     // Fixed-px defaults below (fontSize, vertical offsets) were tuned for a
     // 1920x1080 frame - scale them against the shorter canvas dimension so
     // captions aren't disproportionately large/close-to-the-edge on a
@@ -146,11 +151,32 @@ export const CaptionRenderer = React.memo(
       ...animationConfig,
     });
 
+    // Speech-driven captions: the same canonical timeline the animation
+    // primitives read. Used only when it genuinely describes this caption text
+    // (buildCaptionModel checks); otherwise the legacy timestamps below apply.
+    // Options live in styleConfig.speechCaptions:
+    //   { maxWordsPerLine, maxCaptionDuration, highlight: 'word' | 'phrase', hold }
+    const speechOptions = config.speechCaptions || null;
+    const captionModel = useMemo(
+      () => (speechTimeline
+        ? buildCaptionModel(speechTimeline, words, {
+            maxWordsPerLine: speechOptions?.maxWordsPerLine ?? (config.maxVisibleWords > 0 ? config.maxVisibleWords : 6),
+            maxCaptionDuration: speechOptions?.maxCaptionDuration,
+            breakOnPause: speechOptions?.breakOnPause,
+          })
+        : null),
+      [speechTimeline, words, speechOptions, config.maxVisibleWords]
+    );
+    const speechState = captionModel
+      ? resolveCaptionState(captionModel, (frame - sceneStartFrame) / fps, { highlight: speechOptions?.highlight, hold: speechOptions?.hold })
+      : null;
+
     // Compute active word index
-    const activeIndex = useMemo(
+    const timestampIndex = useMemo(
       () => computeActiveWordIndex(words, timestamps, fps, frame, sceneStartFrame, config.framesPerWord),
       [words, timestamps, fps, frame, sceneStartFrame, config.framesPerWord]
     );
+    const activeIndex = speechState ? speechState.activeIndex : timestampIndex;
 
     // Position style for the container. top/bottom offsets are a percentage
     // of frame height (rather than a fixed 60px) so captions sit the same
@@ -172,15 +198,22 @@ export const CaptionRenderer = React.memo(
     // instead of renumbering from 0, so the animation hooks above don't need
     // to know windowing is happening.
     const visibleWords = useMemo(() => {
+      if (speechState) {
+        // The group the speech timeline says is on screen, bounded by real pauses and sentences.
+        return words.slice(speechState.firstIndex, speechState.lastIndex + 1).map((word, i) => ({ word, index: speechState.firstIndex + i }));
+      }
       if (!config.maxVisibleWords || config.maxVisibleWords <= 0) {
         return words.map((word, index) => ({ word, index }));
       }
       const chunkStart = Math.floor(Math.max(0, activeIndex) / config.maxVisibleWords) * config.maxVisibleWords;
       const chunkEnd = Math.min(words.length, chunkStart + config.maxVisibleWords);
       return words.slice(chunkStart, chunkEnd).map((word, i) => ({ word, index: chunkStart + i }));
-    }, [words, activeIndex, config.maxVisibleWords]);
+    }, [words, activeIndex, config.maxVisibleWords, speechState?.firstIndex, speechState?.lastIndex]);
 
     if (!text || words.length === 0) return null;
+    // Speech-driven: no caption while nobody is speaking (before the first word,
+    // or a while after a group ended) instead of holding the last chunk forever.
+    if (captionModel && !speechState) return null;
 
     return (
       <div
@@ -209,7 +242,16 @@ export const CaptionRenderer = React.memo(
           }}
         >
           {visibleWords.map(({ word, index }) => {
-            const wordStyle = animHook.getWordStyle(index, activeIndex, word);
+            // Speech-driven: enter on the frame the word is actually spoken. A word the
+            // aligner could not time enters with its group rather than at an invented time.
+            const measured = captionModel?.wordsByIndex.get(index);
+            const startFrame = captionModel
+              ? Math.round((measured ? measured.start : captionModel.groups.find((g) => index >= g.firstIndex && index <= g.lastIndex)?.start ?? 0) * fps) + sceneStartFrame
+              : undefined;
+            const wordStyle = animHook.getWordStyle(index, activeIndex, word, startFrame);
+            // Voice Director emphasis: a subtle lift on the emphasised word while it is spoken.
+            const emphasised = speechState?.emphasisIndexes.has(index) && index === activeIndex;
+            const wordTransform = emphasised ? `${wordStyle.transform && wordStyle.transform !== 'none' ? `${wordStyle.transform} ` : ''}scale(1.06)` : wordStyle.transform;
 
             return (
               <span
@@ -223,7 +265,7 @@ export const CaptionRenderer = React.memo(
                   display: 'inline-block',
                   whiteSpace: 'nowrap',
                   opacity: wordStyle.opacity ?? 1,
-                  transform: wordStyle.transform || 'none',
+                  transform: wordTransform || 'none',
                   filter: wordStyle.filter || 'none',
                   clipPath: wordStyle.clipPath || 'none',
                   textShadow: wordStyle.textShadow
