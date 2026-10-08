@@ -3,6 +3,7 @@ const { state } = require('./state');
 const { emitToJob } = require('./coreEmit');
 const { publish } = require('./redisBridge');
 const JobEventService = require('../JobEventService');
+const LoggerService = require('../LoggerService');
 
 /**
  * Persist an event to the job's timeline, then emit it carrying the identity
@@ -28,9 +29,18 @@ function record(jobId, type, data, dispatch) {
   const at = new Date();
   const identity = { eventId, timestamp: at.toISOString() };
 
-  JobEventService.append(jobId, type, data, { eventId, at }).then((event) => {
-    dispatch(event ? { ...data, ...identity, seq: event.seq } : { ...data, ...identity });
-  });
+  JobEventService.append(jobId, type, data, { eventId, at })
+    .then((event) => {
+      dispatch(event ? { ...data, ...identity, seq: event.seq } : { ...data, ...identity });
+    })
+    .catch((err) => {
+      // append() never rejects, so this is the dispatch itself throwing (a
+      // Socket.IO emit or a Redis publisher that could not be created). It
+      // used to surface as an unhandled rejection with no jobId or type.
+      LoggerService.error('[Job Event] failed to dispatch live event', {
+        jobId, eventId, type, error: err.message,
+      });
+    });
 }
 
 /**

@@ -59,8 +59,8 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 # and KEY=value / "key": "value" pairs for password-like keys.
 function Redact([string]$s) {
   if (-not $s) { return $s }
-  $s = [regex]::Replace($s, '(?i)([a-z][a-z0-9+.\-]*://)[^/\s:@]+:[^@\s/]+@', '$1***:***@')
-  $s = [regex]::Replace($s, '(?i)\b(pass(?:word|wd)?|secret|token|authkey|api[_-]?key|access[_-]?key|credential|MONGODB_URI)(["'']?\s*[=:]\s*["'']?)[^\s"'',;&]+', '$1$2***')
+  $s = [regex]::Replace($s, '(?i)([a-z][a-z0-9+.\-]*://)[^/\s:@]*:[^@\s/]+@', '$1***:***@')
+  $s = [regex]::Replace($s, '(?i)([a-z0-9_]*(?:pass(?:word|wd)?|secret|token|authkey|api[_-]?key|access[_-]?key|credential|mongodb_uri))(["'']?\s*[=:]\s*["'']?)[^\s"'',;&]+', '$1$2***')
   return $s
 }
 function Log($m) { $l = Redact "$(Get-Date -Format s) $m"; Write-Host $l; Add-Content $logFile $l }
@@ -359,8 +359,12 @@ function Apply([string]$tag) {
     npm ci --prefix backend --omit=dev
     npm ci --workspace=backend/remotion --include-workspace-root=false
   }
-  docker compose up -d --remove-orphans
-  if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed' }
+  $upOut = @(docker compose up -d --remove-orphans 2>&1 | ForEach-Object { "$_" })
+  $upOut | ForEach-Object { Log "  compose| $_" }
+  if ($LASTEXITCODE -ne 0) {
+    $tail = ($upOut | Where-Object { $_.Trim() -and $_ -notmatch '^\s*(Container|Network|Volume) ' } | Select-Object -Last 3) -join ' / '
+    throw "docker compose up failed: $tail"
+  }
   if (-not $SkipWorkers) {
     Stop-Workers
     Start-Sleep 3
