@@ -380,3 +380,51 @@ correct answer, not a bug.
 synthetic documents (`$documents`) — nothing read from or written to a collection, `autoIndex` off —
 so the aggregation expressions are checked by Mongo itself, and a run against the live data confirmed the
 overview's real figures. Unit tests pin each pipeline's windowing and the pure shapers.
+
+## Phase 10 — Performance audit (measured, not guessed)
+
+Two read-only tools, then the numbers they produced on this machine (RTX 2060 6 GB, 12 logical cores,
+16 GB RAM) from the 19 real jobs in the database.
+
+- `node backend/scripts/perfAudit.js [--watch 60]` — per-stage time share, queue wait, time parked on a
+  person, retries and the time they cost, active time per scene, and a snapshot of CPU / RAM / VRAM / disk
+  (`--watch` also samples peak CPU/RAM/VRAM every 2 s while a job runs). Reads `statusHistory`/`stages`;
+  writes nothing.
+- `node backend/scripts/benchRemotionConcurrency.js` — render wall time and RAM cost at several
+  `--concurrency` values on a fixed self-contained composition (no GPU, no network, no DB).
+
+**Where a finished video's time goes** (13 completed jobs, mean active time 17.4 min):
+
+| Stage | Mean | Median | Max | Share | Holds |
+| --- | --- | --- | --- | --- | --- |
+| Voice (TTS) | 8.3 min | 7.3 min | 30 min | **47.9 %** | GPU + CPU alignment |
+| Render | 4.1 min | 2.1 min | 12 min | 23.4 % | CPU |
+| Images | 3.7 min | 1.9 min | 18.9 min | 21.3 % | GPU (ComfyUI) |
+| Script | 62 s | 58 s | 1.8 min | 5.9 % | GPU (Ollama) |
+| Assets | 13 s | 7 s | 82 s | 1.2 % | CPU / disk |
+| Upload | 2.8 s | 0.7 s | 25 s | 0.3 % | network |
+
+Queue wait: median 0.2 s, mean 32 s, max 6.4 min. Active time per scene: median 3.0 min. 6 of 19 jobs
+were retried (18 retries): 11 in the voice stage (a TTS server that was not up — `ECONNREFUSED :9000`),
+3 in render, **4 in the assets stage that failed instantly**. 6.6 % of all active time was spent in
+attempts that failed. Logs are bounded by Winston rotation (245 MB on disk, cap ~350 MB) and the job
+scratch directory is 9 MB, so cleanup is working.
+
+**What the measurements say to do — and not do.**
+
+1. *Keep `VIDEO_WORKER_CONCURRENCY=1`.* 77 % of active time (script, voice, images) holds the one GPU and is
+   serialized by the lease regardless; the queue almost never builds (median wait 0.2 s). Nothing here
+   proves a second concurrent job would help.
+2. *Do not add a Remotion `--concurrency` flag.* Measured on this machine: 3 / 6 (default) / 9 / 12 →
+   36.6 / 34.5 / 34.7 / 35.2 s — flat — while peak extra RAM rose 1.7 → 2.2 → 2.5 → 3.0 GB with only
+   ~4.5 GB free. More Chrome tabs buy nothing and cost memory headroom.
+3. *The four instant assets-stage retries were avoidable work.* They were validation-type failures that
+   the old loop retried with growing backoff; Phase 2 now classifies them as permanent and fails them
+   immediately. That is the one measurable waste this audit found, and it was fixed in Phase 2.
+4. *Voice is the bottleneck (48 %), and nothing in the persisted data says why.* Legacy cache hit rate is
+   14 %; the Phase 8 ledger and Phase 2 stage state have no data yet, so there is no honest basis for
+   changing TTS now. Next step is measurement, not code: after some jobs run, read the Control Center's
+   per-stage timings and cache table, and run `perfAudit.js --watch` during a voice stage to see whether it
+   is GPU-bound or alignment-bound.
+
+No optimisation was applied on speculation; the only changes in this phase are the two measurement tools.
