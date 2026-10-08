@@ -22,6 +22,7 @@ async function run(jobId, videoJob, script, ctx) {
   const needsAudioGeneration = scenesWithAudio.length < script.scenes.length;
 
   if (!needsAudioGeneration) {
+    ctx.reused = true;
     LoggerService.info('All audio already generated, skipping audio step');
     return;
   }

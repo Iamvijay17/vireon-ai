@@ -1,5 +1,6 @@
 const LoggerService = require('../../common/LoggerService');
 const { JOB_STATUS } = require('../../../constants');
+const { STAGE_RESUME } = require('../../pipeline/stages');
 
 /**
  * Map step to resume status for jobs that are stuck.
@@ -78,6 +79,16 @@ function getStepForResume(job) {
  * When a step fails, we resume from the beginning of that step.
  */
 function getResumeStep(job) {
+  // A structured failure names the stage that broke. That is more reliable than
+  // the free-text step label (which can be a sub-step such as 'Validation'), and
+  // resuming exactly there is what keeps a TTS failure from redoing the script
+  // and a render failure from redoing audio.
+  const failedStage = job.error?.stage && STAGE_RESUME[job.error.stage];
+  if (failedStage) {
+    LoggerService.info('Resuming from failed stage', { stage: job.error.stage, resumeStatus: failedStage.status });
+    return { status: failedStage.status, progress: failedStage.progress, currentStep: failedStage.status };
+  }
+
   const failedStep = job.error?.step;
 
   // Map error step to resume status

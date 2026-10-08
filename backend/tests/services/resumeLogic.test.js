@@ -119,3 +119,28 @@ describe('image generation step', () => {
       .toMatchObject({ status: JOB_STATUS.GENERATING_IMAGES, progress: 56 });
   });
 });
+
+describe('getResumeStep (structured stage failures)', () => {
+  const stageCases = [
+    ['script', JOB_STATUS.QUEUED, 0],
+    ['audio', JOB_STATUS.GENERATING_AUDIO, 40],
+    ['images', JOB_STATUS.GENERATING_IMAGES, 56],
+    ['assets', JOB_STATUS.PREPARING_ASSETS, 60],
+    ['render', JOB_STATUS.RENDERING, 80],
+    ['upload', JOB_STATUS.UPLOADING, 90],
+  ];
+
+  it.each(stageCases)('a %s failure resumes at exactly that stage', (stage, status, progress) => {
+    expect(getResumeStep(jobWith({ error: { stage, step: 'anything' } }))).toMatchObject({ status, progress, currentStep: status });
+  });
+
+  it('prefers the failed stage over a free-text sub-step the status map does not know', () => {
+    // 'Validation' is a sub-step of the render stage; without the stage the old map fell back to guessing from audio files.
+    expect(getResumeStep(jobWith({ error: { stage: 'render', step: 'Validation' }, script: { scenes: scenes(3, 1) } })))
+      .toMatchObject({ status: JOB_STATUS.RENDERING });
+  });
+
+  it('still uses the step/fallback logic for errors recorded before stages existed', () => {
+    expect(getResumeStep(jobWith({ error: { step: JOB_STATUS.GENERATING_AUDIO } })).status).toBe(JOB_STATUS.GENERATING_AUDIO);
+  });
+});

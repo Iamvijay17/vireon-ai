@@ -126,6 +126,7 @@ const JOB_EVENT_NAMES = [
   'jobFailed',
   'sceneAudioReady',
   'speechStage',
+  'stageUpdate',
   'jobStatus',
 ];
 
@@ -236,6 +237,11 @@ export const onSceneAudioReady = (callback) => onJobEvent('sceneAudioReady', cal
 // Speech-timing stages (tts:start ... render:complete) of a job; see
 // lib/speechStages.js for how they become the plain-language checklist.
 export const onSpeechStage = (callback) => onJobEvent('speechStage', callback);
+
+// A worker stage (script / audio / images / assets / render / upload) changed
+// state: { stage, status, attempt, durationMs, reused, error }. Each event is a
+// discrete fact, so (like speechStage) only duplicates are filtered.
+export const onStageUpdate = (callback) => onJobEvent('stageUpdate', callback);
 
 // ─── Audio Studio (standalone TTS) Progressive Generation ──────────────────────
 // Fired as each dialogue turn / chunk finishes, ahead of the whole request

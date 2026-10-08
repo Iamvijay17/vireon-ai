@@ -71,6 +71,7 @@ async function render(jobId, assets, ctx, script) {
   const renderIsCurrent = await RemotionService.isRenderCurrent(jobId, assets);
 
   if (renderIsCurrent) {
+    ctx.reused = true;
     LoggerService.info('Existing render already matches current assets - skipping re-render', { jobId });
     await ActivityLogService.add(jobId, 'Using existing render (unchanged since last render)');
   } else {

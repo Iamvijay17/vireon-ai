@@ -143,6 +143,33 @@ function emitSpeechStage(data) {
 }
 
 /**
+ * Emit a worker-stage state change ({ jobId, stage, status, attempt, durationMs,
+ * reused, error }). `error` is already the structured, stack-free shape the
+ * stage tracker stores. Recorded on the job timeline like every other event.
+ */
+function emitStageUpdate(jobId, stageKey, stage) {
+  const data = {
+    jobId,
+    stage: stageKey,
+    status: stage.status,
+    attempt: stage.attempt,
+    startedAt: stage.startedAt,
+    completedAt: stage.completedAt,
+    durationMs: stage.durationMs,
+    reused: stage.reused,
+    error: stage.error || null,
+  };
+
+  record(jobId, 'stageUpdate', data, (payload) => {
+    if (state.io) {
+      emitToJob(jobId, SOCKET_EVENTS.JOB_STAGE_UPDATE, payload);
+    } else {
+      publish(jobId, 'stageUpdate', payload);
+    }
+  });
+}
+
+/**
  * Emit job completed event.
  */
 function emitJobCompleted(job) {
@@ -187,6 +214,7 @@ module.exports = {
   emitJobProgress,
   emitSceneAudioReady,
   emitSpeechStage,
+  emitStageUpdate,
   emitJobCompleted,
   emitJobFailed,
 };

@@ -9,6 +9,8 @@ const { getStepForResume, getResumeStep } = require('./resumeLogic');
 const cancellationBus = require('../../common/cancellationBus');
 const { prepareSceneForImage } = require('../../image/sceneImages');
 const { IMAGE_SCENE_FIELDS } = require('../../image/fields');
+const stageTracker = require('../../pipeline/stageTracker');
+const { STAGES } = require('../../pipeline/stages');
 
 /**
  * Re-render a completed job - resets to PREPARING_ASSETS state
@@ -61,6 +63,8 @@ async function rerender(jobId) {
     },
     { new: true }
   );
+
+  await stageTracker.invalidate(jobId, STAGES.ASSETS);
 
   LoggerService.info('Video job re-rendering', {
     jobId,
@@ -136,6 +140,8 @@ async function regenerateSceneImage(jobId, sceneNumber, { prompt } = {}) {
     { new: true }
   );
 
+  await stageTracker.invalidate(jobId, STAGES.IMAGES);
+
   LoggerService.info('Video job regenerating a scene image', { jobId, sceneNumber, newPrompt: Boolean(prompt) });
   return updatedJob;
 }
@@ -180,6 +186,8 @@ async function regenerateScript(jobId) {
     },
     { new: true }
   );
+
+  await stageTracker.invalidate(jobId, STAGES.SCRIPT);
 
   LoggerService.info('Video job script regeneration triggered', {
     jobId,
@@ -296,6 +304,7 @@ async function generateAudio(jobId) {
     job.progress = 20;
     job.currentStep = JOB_STATUS.SCRIPT_COMPLETED;
     await job.save();
+    await stageTracker.invalidate(jobId, STAGES.AUDIO);
   }
 
   LoggerService.info('Video job manual audio generation triggered', { jobId });

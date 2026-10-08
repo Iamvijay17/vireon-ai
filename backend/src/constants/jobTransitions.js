@@ -59,4 +59,20 @@ function assertTransitionAllowed(job, action, describe) {
   }
 }
 
-module.exports = { VIDEO_JOB_TRANSITIONS, assertTransitionAllowed };
+/**
+ * Statuses in which a worker is (or should be) actively holding the job. A job
+ * sitting in one of these with no live BullMQ job behind it has been orphaned -
+ * the restart sweep (startup/recovery.js) and the worker's failure handler both
+ * key off this one list.
+ */
+const IN_FLIGHT_VIDEO_STATUSES = Object.freeze([
+  JOB_STATUS.QUEUED,
+  JOB_STATUS.SCRIPT_GENERATION,
+  JOB_STATUS.GENERATING_AUDIO,
+  JOB_STATUS.GENERATING_IMAGES,
+  JOB_STATUS.PREPARING_ASSETS,
+  JOB_STATUS.RENDERING,
+  JOB_STATUS.UPLOADING,
+]);
+
+module.exports = { VIDEO_JOB_TRANSITIONS, IN_FLIGHT_VIDEO_STATUSES, assertTransitionAllowed };

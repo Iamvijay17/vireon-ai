@@ -77,6 +77,22 @@ function describe(event) {
       return { Icon: CheckCircle2, tone: "success", title: "Completed", detail: d.videoUrl ? "Video uploaded" : null, cacheHit: false };
     case "jobFailed":
       return { Icon: XCircle, tone: "error", title: "Failed", detail: d.error || null, emphasizeDetail: true, cacheHit: false };
+    case "stageUpdate": {
+      const stage = humanize(d.stage);
+      const attempt = d.attempt > 1 ? `attempt ${d.attempt}` : null;
+      if (d.status === "running") {
+        return { Icon: Activity, tone: "accent", title: `${stage} started`, detail: attempt, cacheHit: false };
+      }
+      if (d.status === "completed") {
+        const parts = [d.reused ? "reused stored result" : fmtDuration(d.durationMs), attempt].filter(Boolean);
+        return { Icon: CheckCircle2, tone: "success", title: `${stage} done`, detail: parts.join(" · ") || null, cacheHit: !!d.reused };
+      }
+      if (d.status === "failed") {
+        const parts = [d.error?.message, d.error && (d.error.retryable ? "will retry" : "cannot be retried")].filter(Boolean);
+        return { Icon: XCircle, tone: "error", title: `${stage} failed`, detail: parts.join(" · ") || null, emphasizeDetail: true, cacheHit: false };
+      }
+      return { Icon: Activity, tone: "neutral", title: `${stage} ${d.status}`, detail: null, cacheHit: false };
+    }
     default:
       return { Icon: Activity, tone: "neutral", title: humanize(event.type), detail: null, cacheHit: false };
   }

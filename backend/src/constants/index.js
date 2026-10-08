@@ -218,6 +218,8 @@ const SOCKET_EVENTS = Object.freeze({
   JOB_COMPLETED: 'jobCompleted',
   JOB_FAILED: 'jobFailed',
   SCENE_AUDIO_READY: 'sceneAudioReady',
+  // A worker stage changed state (script/audio/images/assets/render/upload) - see services/pipeline.
+  JOB_STAGE_UPDATE: 'stageUpdate',
   // Speech-timing stages (tts:start ... render:complete), one channel - see audio/pipeline/speech/events.js
   SPEECH_STAGE: 'speechStage',
   CONNECTION: 'connection',

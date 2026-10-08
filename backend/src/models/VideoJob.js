@@ -2,6 +2,30 @@ const mongoose = require('mongoose');
 const { JOB_STATUS, VIDEO_TYPES, RESOLUTIONS, QUALITY_PRESETS, ASPECT_RATIOS, LANGUAGES, STANDALONE_VIDEO_DURATIONS, SHORTS_VIDEO_DURATIONS, FONT_PAIRINGS, CAPTION_STYLES } = require('../constants');
 const { generateVideoJobId } = require('../utils/id');
 const sceneSchema = require('./schemas/sceneSchema');
+const { STAGE_ORDER, STAGE_STATE } = require('../services/pipeline/stages');
+
+// One worker stage's persisted state (see services/pipeline/stages.js). Written
+// by the stage tracker as the stage starts/finishes, so it survives the BullMQ
+// job: a retry or a restarted worker reads what already completed from here.
+// `error` is the structured { code, stage, message, retryable, attempt,
+// timestamp } - never a stack trace.
+const stageStateSchema = new mongoose.Schema(
+  {
+    status: { type: String, enum: Object.values(STAGE_STATE), default: STAGE_STATE.PENDING },
+    startedAt: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
+    durationMs: { type: Number, default: null },
+    // Times this stage has actually been run (a reuse of stored output is not an attempt).
+    attempt: { type: Number, default: 0 },
+    // True when the stage found its output already stored and did no work.
+    reused: { type: Boolean, default: false },
+    error: { type: mongoose.Schema.Types.Mixed, default: null },
+  },
+  { _id: false }
+);
+const stagesDefinition = Object.fromEntries(
+  STAGE_ORDER.map((key) => [key, { type: stageStateSchema, default: undefined }])
+);
 
 const videoJobSchema = new mongoose.Schema(
   {
@@ -174,7 +198,17 @@ const videoJobSchema = new mongoose.Schema(
       detail: { type: String, default: '' },
       step: { type: String, default: '' },
       retryCount: { type: Number, default: 0 },
+      // Structured failure (services/pipeline/pipelineErrors.js). Absent on
+      // errors recorded before it existed.
+      code: { type: String, default: undefined },
+      stage: { type: String, default: undefined },
+      retryable: { type: Boolean, default: undefined },
+      attempt: { type: Number, default: undefined },
+      timestamp: { type: Date, default: undefined },
     },
+    // Per-stage pipeline state: { script, audio, images, assets, render, upload }.
+    // Absent on jobs created before stage tracking; every reader tolerates that.
+    stages: stagesDefinition,
     retryCount: { type: Number, default: 0 },
     maxRetries: { type: Number, default: 3 },
     // Set while status is RETRY_SCHEDULED so the UI can show a countdown;

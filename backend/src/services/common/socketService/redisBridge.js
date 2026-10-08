@@ -47,6 +47,9 @@ function forwardEvent(event) {
     case 'speechStage':
       emitToJob(jobId, SOCKET_EVENTS.SPEECH_STAGE, data);
       break;
+    case 'stageUpdate':
+      emitToJob(jobId, SOCKET_EVENTS.JOB_STAGE_UPDATE, data);
+      break;
     case 'jobCreated':
       state.io.emit(SOCKET_EVENTS.JOB_CREATED, data);
       break;
