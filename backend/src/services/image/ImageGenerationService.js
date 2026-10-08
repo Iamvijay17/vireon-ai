@@ -5,6 +5,8 @@ const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
 const MetricsService = require('../common/MetricsService');
 const CacheService = require('../common/CacheService');
+const { imageKey } = require('../cache/cacheKeys');
+const { getCoordinator } = require('../cache/GenerationCoordinator');
 const { getStorageProvider } = require('../storage/providers');
 const ComfyUIClient = require('./ComfyUIClient');
 const { fillWorkflow, placeholdersIn, firstOutputImage } = require('./workflow');
@@ -110,37 +112,42 @@ class ImageGenerationService {
     }
 
     // The workflow file's own bytes are part of the key: editing it (a different
-    // sampler graph, an extra LoRA) must not keep serving the old pictures.
-    const cacheKey = CacheService.hashInputs({
-      ...params,
-      workflow: crypto.createHash('sha256').update(raw).digest('hex'),
-    });
+    // sampler graph, an extra LoRA) must not keep serving the old pictures. (Key
+    // definition: services/cache/cacheKeys.js - unchanged, so existing entries still hit.)
+    const cacheKey = imageKey(params, raw);
     const fileName = `img-${cacheKey.slice(0, 16)}.png`;
     const provider = getStorageProvider();
+    const cachedResult = () => ({ url: provider.getPublicUrl(jobId, 'image', fileName), fileName, cacheKey, fromCache: true, durationMs: 0, seed: params.seed });
 
-    const cached = await CacheService.getImage(cacheKey, jobId, fileName);
-    if (cached) {
-      return { url: provider.getPublicUrl(jobId, 'image', fileName), fileName, cacheKey, fromCache: true, durationMs: 0, seed: params.seed };
-    }
+    // Cache hit -> reuse. Miss -> generate, unless an identical request is already
+    // generating this picture (here or in another process), in which case wait for it
+    // and read what it stored: the same picture is never drawn twice at once.
+    const outcome = await getCoordinator().run({
+      kind: 'image',
+      key: cacheKey,
+      lookup: async () => ((await CacheService.getImage(cacheKey, jobId, fileName)) ? cachedResult() : null),
+      produce: async () => {
+        const startedAt = Date.now();
+        const png = await this._render(template, params, signal, onProgress);
+        onProgress?.({ phase: 'saving' });
 
-    const startedAt = Date.now();
-    const png = await this._render(template, params, signal, onProgress);
-    onProgress?.({ phase: 'saving' });
+        const dir = path.resolve(__dirname, '../../../jobs', jobId, 'images');
+        await fs.mkdir(dir, { recursive: true });
+        const localPath = path.join(dir, fileName);
+        await fs.writeFile(localPath, png);
 
-    const dir = path.resolve(__dirname, '../../../jobs', jobId, 'images');
-    await fs.mkdir(dir, { recursive: true });
-    const localPath = path.join(dir, fileName);
-    await fs.writeFile(localPath, png);
+        const url = await provider.uploadFile(jobId, localPath, 'image', { cacheKey });
+        await CacheService.putImage(cacheKey, localPath, {
+          width: params.outWidth, height: params.outHeight, seed: params.seed, checkpoint: params.checkpoint,
+        });
 
-    const url = await provider.uploadFile(jobId, localPath, 'image', { cacheKey });
-    await CacheService.putImage(cacheKey, localPath, {
-      width: params.outWidth, height: params.outHeight, seed: params.seed, checkpoint: params.checkpoint,
+        const durationMs = Date.now() - startedAt;
+        MetricsService.recordDuration('image.duration', durationMs);
+        LoggerService.info('Scene image generated', { jobId, fileName, durationMs, width: params.outWidth, height: params.outHeight });
+        return { url, fileName, cacheKey, fromCache: false, durationMs, seed: params.seed };
+      },
     });
-
-    const durationMs = Date.now() - startedAt;
-    MetricsService.recordDuration('image.duration', durationMs);
-    LoggerService.info('Scene image generated', { jobId, fileName, durationMs, width: params.outWidth, height: params.outHeight });
-    return { url, fileName, cacheKey, fromCache: false, durationMs, seed: params.seed };
+    return outcome.value;
   }
 
   static async _render(template, params, signal, onProgress) {

@@ -9,6 +9,8 @@ const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS, JOB_STEPS } = require('../../constants');
 const { PROGRESS_BANDS, mapToBand } = require('../../utils/progressBands');
 const { runLayoutQc } = require('../../services/qc/runLayoutQc');
+const cacheLedger = require('../../services/cache/CacheLedger');
+const { renderKey } = require('../../services/cache/cacheKeys');
 const { SPEECH_EVENTS, emitSpeechStage } = require('../../services/audio/pipeline/speech/events');
 const { JobCancelledError, renderConfigFor } = require('./shared');
 
@@ -69,8 +71,12 @@ async function render(jobId, assets, ctx, script) {
   SocketService.emitJobProgress({ _id: jobId, progress: JOB_STEPS[JOB_STATUS.RENDERING].progress, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
 
   const renderIsCurrent = await RemotionService.isRenderCurrent(jobId, assets);
+  // The finished video is a cached artifact too: "is this render still current?" is the
+  // cache lookup. Recorded in the ledger so reuse and render time show up with the others.
+  const renderLedgerKey = renderKey(assets, { quality: assets.quality });
 
   if (renderIsCurrent) {
+    cacheLedger.hit('render', renderLedgerKey);
     ctx.reused = true;
     LoggerService.info('Existing render already matches current assets - skipping re-render', { jobId });
     await ActivityLogService.add(jobId, 'Using existing render (unchanged since last render)');
@@ -120,6 +126,8 @@ async function render(jobId, assets, ctx, script) {
       RemotionStatus.end();
     }
 
+    cacheLedger.miss('render', renderLedgerKey);
+    cacheLedger.generated('render', renderLedgerKey, renderResult.durationMs);
     LoggerService.success('[Render] Video rendered successfully', { stage: 'render', ...renderResult });
     emitSpeechStage(SocketService, jobId, SPEECH_EVENTS.RENDER_COMPLETE);
   }

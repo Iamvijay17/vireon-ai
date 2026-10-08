@@ -378,6 +378,18 @@ const config = Object.freeze({
     // entry is regenerated once after it expires - costs a re-run, never a
     // broken video. See services/storage/cacheRetention.js.
     retentionDays: Math.max(0, parseInt(process.env.CACHE_RETENTION_DAYS, 10) || 0),
+    // How identical in-flight generations are recognised across processes (the video worker,
+    // the course worker, the API): 'redis' (default) uses a short per-key lock so a second
+    // process waits for the first instead of generating the same artifact again; 'memory'
+    // dedupes within one process only. Redis being unreachable degrades to 'memory' on its
+    // own - the lock is an optimisation, never a gate. See services/cache/GenerationCoordinator.
+    // Unit tests default to 'memory' so they never open a Redis socket. Detected by Jest's own
+    // worker id rather than NODE_ENV, because .env overrides NODE_ENV here (see the dotenv call).
+    coordination: (process.env.CACHE_COORDINATION || (process.env.JEST_WORKER_ID ? 'memory' : 'redis')) === 'memory' ? 'memory' : 'redis',
+    // The per-key lock's lifetime (renewed while the holder works; a dead holder frees it
+    // within one TTL) and the longest a follower waits on another process before generating.
+    lockTtlMs: parseInt(process.env.CACHE_LOCK_TTL_MS, 10) || 120000,
+    waitMs: parseInt(process.env.CACHE_WAIT_MS, 10) || 20 * 60_000,
   },
 
   cors: {

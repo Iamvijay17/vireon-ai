@@ -296,3 +296,57 @@ offer right now (and why not), which layouts can show the scene's content, and t
 layout, Change the look, Revert to version. It is disabled while there are unsaved edits (the
 actions work from what is saved) and says why. After an action the toast reports what is being
 rebuilt and what is reused, then the page moves to the render view, which already follows the job.
+
+## Phase 8 — Smart asset cache
+
+The MinIO content-addressed cache, MongoDB and Redis are unchanged; nothing new is introduced.
+What is added is a catalogue of keys, a ledger, stale-entry handling and single-flight generation.
+
+**Keys** (`services/cache/cacheKeys.js`). One place says what each artifact is keyed on, and
+resource ids (`job-…`, `sce-…`) are never inputs — the same prompt from two jobs is one image.
+
+| Artifact | Keyed on |
+| --- | --- |
+| image | prompt, negative prompt, seed, sampling size, output size, steps, cfg, sampler, scheduler, checkpoint, **the workflow file's own bytes** |
+| tts (legacy per scene) | text, voice (mode / speaker / clone file / description), delivery instruction, seed, model size |
+| tts segment | raw: the above per segment; processed: raw + speed, pitch, post-processing settings |
+| alignment | the audio it was measured from + aligner provider / model / version |
+| composition | the scene's per-part fingerprints + aspect ratio, resolution, font pairing, caption animation |
+| render | the whole render-props payload + quality (the same fingerprint `isRenderCurrent` records) |
+| script | topic, type, language, length, LLM model, Director version |
+
+The image key is **byte-identical** to the formula the bucket was built with — a test pins it, because
+changing it would silently orphan every cached picture. The script key exists for provenance
+(`brief.inputKey`), not for serving: sampling is creative on purpose, so a cached script would defeat
+"regenerate".
+
+**Ledger** (`CacheEntry`, `CacheLedger`). Per artifact: `hits`, `misses`, `shared`, `stale`, `generations`,
+`generationMs`, `lastGenerationMs`, `sizeBytes`, `firstStoredAt`, `lastHitAt` (the "reusedAt"). Writes are
+atomic upserts, fire-and-forget, and skipped when Mongo is not connected — a statistic never slows or fails
+a generation. `stats()` derives hit rate, average generation time and time saved from these counters; an
+artifact nobody generated through the ledger contributes hits but no "time saved" (unknown cost is not zero).
+Renders are recorded too (a current render is a hit).
+
+**Missing and stale objects.** A cache entry is a pair: bytes + a JSON sidecar read first. *No sidecar* is a
+plain miss. *A sidecar but no bytes* is a **stale** entry: the sidecar is evicted so it stops being trusted,
+the staleness is recorded, and the lookup reports a miss — the caller regenerates and the entry heals. A
+backend error (not "no such key") is a miss that evicts nothing, so a flaky MinIO cannot destroy healthy entries.
+
+**Single-flight** (`GenerationCoordinator`). Two simultaneous requests for the same artifact generate it once:
+
+```
+A: miss -> generate -> store          B (same key, meanwhile): wait for A -> read what A stored
+```
+In-process via a map of in-flight generations; across processes via a short per-key Redis lock
+(`CACHE_COORDINATION=redis`, default; `memory` for in-process only). The follower does **not** receive the
+leader's result object — it runs its own cache lookup after the leader finishes, which materialises the
+artifact in the follower's own job. A failed leader never fails a follower (it takes the lead), and Redis
+being down only loses the cross-process layer: the lock is an optimisation, never a gate.
+Wired around image generation and the segmented TTS raw clip (the expensive GPU result).
+
+**What it deliberately does not wrap.** The default per-scene TTS path pipelines alignment of scene N with
+synthesis of scene N+1 and stores to the cache later, so a follower could not read the leader's result when
+the coordinator expects it. It does not need to: that path runs under the exclusive GPU lease and looks up
+the cache after taking it, so a second process waits for the card and finds the first's result. Likewise
+images and segments. The coordinator covers what the lease does not — identical requests racing inside one
+lease window or outside any lease (Image Studio double-submits, a bigger `GPU_MAX_CONCURRENT_AI_SERVICES`).

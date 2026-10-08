@@ -1,13 +1,15 @@
+const fs = require('fs').promises;
 const hashInputs = require('../../utils/hashInputs');
 const config = require('../../config');
 const LoggerService = require('./LoggerService');
 const MetricsService = require('./MetricsService');
+const ledger = require('../cache/CacheLedger');
 const { getStorageProvider } = require('../storage/providers');
 
 /**
  * Content-addressed Smart Cache for expensive, deterministic generation
- * calls (TTS synthesis) so identical inputs across
- * different jobs skip the GPU/TTS round trip and reuse a prior result.
+ * calls (TTS synthesis, scene images) so identical inputs across
+ * different jobs skip the GPU round trip and reuse a prior result.
  * Built entirely on the existing MinIO storage provider - a dedicated
  * bucket (config.minio.cacheBucket), not the per-job scenesBucket/
  * videoBucket, so job cleanup/delete never touches cached entries.
@@ -16,7 +18,21 @@ const { getStorageProvider } = require('../storage/providers');
  * sampling (temperature 0.7) is meant to be creative/non-deterministic.
  *
  * Single Responsibility: cache lookups/writes. Callers decide what's safe
- * to cache and compute the cache key.
+ * to cache and compute the cache key (see services/cache/cacheKeys.js).
+ *
+ * Every entry is a pair: the bytes (`<kind>/<hash>.<ext>`) and a small JSON
+ * sidecar (`<kind>/<hash>.json`) that is read first. Two things can go wrong with
+ * a pair, and they are not the same:
+ *   - no sidecar: a plain miss - nothing was ever cached under this key;
+ *   - a sidecar but no bytes: a STALE entry (the object was lost or expired out of
+ *     band). The sidecar is evicted so it stops being trusted, the staleness is
+ *     recorded, and the lookup is reported as a miss - the caller regenerates and
+ *     the entry heals itself.
+ * A backend failure (not "no such key") is logged and also treated as a miss: a
+ * flaky cache must never fail a generation, it only costs a regeneration.
+ *
+ * Hits, misses, staleness, sizes and reuse times are recorded in the cache ledger
+ * (services/cache/CacheLedger.js) alongside the existing Metric counters.
  */
 class CacheService {
   static #client() {
@@ -29,6 +45,49 @@ class CacheService {
    */
   static hashTtsInputs(inputs) {
     return hashInputs(inputs);
+  }
+
+  static #isMissing(err) {
+    return err?.code === 'NoSuchKey' || err?.code === 'NotFound' || err?.code === 'NoSuchObject';
+  }
+
+  /** Read and parse a JSON sidecar; null for "not there". Throws for any other failure. */
+  static async #readJson(key) {
+    const chunks = [];
+    let stream;
+    try {
+      stream = await this.#client().getObject(config.minio.cacheBucket, key);
+      for await (const chunk of stream) chunks.push(chunk);
+    } catch (err) {
+      if (this.#isMissing(err)) return null;
+      throw err;
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  }
+
+  /** The bytes behind a sidecar are gone: stop trusting the sidecar, and say so. */
+  static async #evictStale(kind, hash, metaKey, reason) {
+    ledger.stale(kind, hash);
+    LoggerService.warn('Smart Cache entry is stale - its stored object is missing; it will be regenerated', { kind, hash, reason });
+    await this.#client().removeObject(config.minio.cacheBucket, metaKey).catch(() => {});
+  }
+
+  static #hit(kind, hash, metric = 'cache.hits') {
+    ledger.hit(kind, hash);
+    MetricsService.increment(metric);
+  }
+
+  static #miss(kind, hash, metric = 'cache.misses') {
+    ledger.miss(kind, hash);
+    MetricsService.increment(metric);
+  }
+
+  static async #sizeOf(localFilePath) {
+    try {
+      return (await fs.stat(localFilePath)).size;
+    } catch {
+      return null;
+    }
   }
 
   // ---- TTS audio: keyed by a content hash of (text, voice, seed, ...) ----
@@ -44,22 +103,30 @@ class CacheService {
     const audioKey = `tts/${hash}.mp3`;
     const metaKey = `tts/${hash}.json`;
 
+    let metadata;
     try {
-      const metaChunks = [];
-      const metaStream = await this.#client().getObject(config.minio.cacheBucket, metaKey);
-      for await (const chunk of metaStream) metaChunks.push(chunk);
-      const metadata = JSON.parse(Buffer.concat(metaChunks).toString('utf8'));
-
-      const provider = getStorageProvider();
-      await provider.copyObject(config.minio.scenesBucket, `${jobId}/audio/${fileName}`, config.minio.cacheBucket, audioKey);
-
-      LoggerService.info('Smart Cache hit: TTS audio', { hash, jobId, fileName });
-      MetricsService.increment('cache.hits');
-      return metadata;
-    } catch {
-      MetricsService.increment('cache.misses');
+      metadata = await this.#readJson(metaKey);
+    } catch (err) {
+      LoggerService.warn('Smart Cache TTS lookup failed', { hash, error: err.message });
+    }
+    if (!metadata) {
+      this.#miss('tts', hash);
       return null;
     }
+
+    try {
+      const provider = getStorageProvider();
+      await provider.copyObject(config.minio.scenesBucket, `${jobId}/audio/${fileName}`, config.minio.cacheBucket, audioKey);
+    } catch (err) {
+      if (this.#isMissing(err)) await this.#evictStale('tts', hash, metaKey, err.message);
+      else LoggerService.warn('Smart Cache TTS copy failed', { hash, error: err.message });
+      this.#miss('tts', hash);
+      return null;
+    }
+
+    LoggerService.info('Smart Cache hit: TTS audio', { hash, jobId, fileName });
+    this.#hit('tts', hash);
+    return metadata;
   }
 
   static async putTtsAudio(hash, localFilePath, metadata) {
@@ -73,6 +140,7 @@ class CacheService {
         metaKey,
         Buffer.from(JSON.stringify(metadata)),
       );
+      ledger.stored('tts', hash, { sizeBytes: await this.#sizeOf(localFilePath) });
       LoggerService.info('Smart Cache stored: TTS audio', { hash });
     } catch (err) {
       LoggerService.warn('Smart Cache failed to store TTS audio', { hash, error: err.message });
@@ -93,28 +161,36 @@ class CacheService {
 
   /**
    * On a hit, downloads the cached clip to `destPath` and returns its
-   * metadata. Returns null on a miss. A backend error (not a plain "no such
-   * key") is logged and also treated as a miss - a flaky cache must never
-   * fail narration, it just costs a regeneration.
+   * metadata. Returns null on a miss (including a stale entry whose clip is gone).
    */
   static async getSegmentAudio(kind, hash, destPath) {
     if (!config.cache.enabled) return null;
     const { audioKey, metaKey } = this.#segmentKeys(kind, hash);
+    const ledgerKind = `tts-seg-${kind}`;
+    const metric = `tts.segment.${kind}`;
+
+    let metadata;
     try {
-      const chunks = [];
-      const stream = await this.#client().getObject(config.minio.cacheBucket, metaKey);
-      for await (const chunk of stream) chunks.push(chunk);
-      const metadata = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-      await this.#client().fGetObject(config.minio.cacheBucket, audioKey, destPath);
-      MetricsService.increment(`tts.segment.${kind}.hit`);
-      return metadata;
+      metadata = await this.#readJson(metaKey);
     } catch (err) {
-      if (err?.code !== 'NoSuchKey' && err?.code !== 'NotFound') {
-        LoggerService.warn('Smart Cache segment lookup failed', { kind, hash, error: err.message });
-      }
-      MetricsService.increment(`tts.segment.${kind}.miss`);
+      LoggerService.warn('Smart Cache segment lookup failed', { kind, hash, error: err.message });
+    }
+    if (!metadata) {
+      this.#miss(ledgerKind, hash, `${metric}.miss`);
       return null;
     }
+
+    try {
+      await this.#client().fGetObject(config.minio.cacheBucket, audioKey, destPath);
+    } catch (err) {
+      if (this.#isMissing(err)) await this.#evictStale(ledgerKind, hash, metaKey, err.message);
+      else LoggerService.warn('Smart Cache segment download failed', { kind, hash, error: err.message });
+      this.#miss(ledgerKind, hash, `${metric}.miss`);
+      return null;
+    }
+
+    this.#hit(ledgerKind, hash, `${metric}.hit`);
+    return metadata;
   }
 
   /** Stores a segment clip + metadata. Returns false (never throws) if the cache is unavailable. */
@@ -124,6 +200,7 @@ class CacheService {
     try {
       await this.#client().fPutObject(config.minio.cacheBucket, audioKey, localFilePath);
       await this.#client().putObject(config.minio.cacheBucket, metaKey, Buffer.from(JSON.stringify(metadata)));
+      ledger.stored(`tts-seg-${kind}`, hash, { sizeBytes: await this.#sizeOf(localFilePath) });
       return true;
     } catch (err) {
       LoggerService.warn('Smart Cache failed to store TTS segment', { kind, hash, error: err.message });
@@ -144,7 +221,8 @@ class CacheService {
   }
 
   // ---- Generated scene images: keyed by a content hash of (prompt, seed,
-  // size, model, sampler settings, workflow). Same shape as TTS audio above.
+  // size, model, sampler settings, workflow) - see cache/cacheKeys.js imageKey.
+  // Same shape as TTS audio above.
 
   /** Same stable hash as hashTtsInputs; named for what it is when the inputs aren't TTS. */
   static hashInputs(inputs) {
@@ -153,28 +231,37 @@ class CacheService {
 
   /**
    * On a hit, copies the cached image into the job's own `{jobId}/images/{fileName}`
-   * path (where scene URLs point) and returns the sidecar metadata. Null on a miss.
+   * path (where scene URLs point) and returns the sidecar metadata. Null on a miss -
+   * including a stale entry whose image object has gone missing from the cache bucket.
    */
   static async getImage(hash, jobId, fileName) {
     if (!config.cache.enabled) return null;
     const imageKey = `image/${hash}.png`;
     const metaKey = `image/${hash}.json`;
 
+    let metadata;
     try {
-      const metaChunks = [];
-      const metaStream = await this.#client().getObject(config.minio.cacheBucket, metaKey);
-      for await (const chunk of metaStream) metaChunks.push(chunk);
-      const metadata = JSON.parse(Buffer.concat(metaChunks).toString('utf8'));
-
-      await getStorageProvider().copyObject(config.minio.scenesBucket, `${jobId}/images/${fileName}`, config.minio.cacheBucket, imageKey);
-
-      LoggerService.info('Smart Cache hit: scene image', { hash, jobId, fileName });
-      MetricsService.increment('cache.hits');
-      return metadata;
-    } catch {
-      MetricsService.increment('cache.misses');
+      metadata = await this.#readJson(metaKey);
+    } catch (err) {
+      LoggerService.warn('Smart Cache image lookup failed', { hash, error: err.message });
+    }
+    if (!metadata) {
+      this.#miss('image', hash);
       return null;
     }
+
+    try {
+      await getStorageProvider().copyObject(config.minio.scenesBucket, `${jobId}/images/${fileName}`, config.minio.cacheBucket, imageKey);
+    } catch (err) {
+      if (this.#isMissing(err)) await this.#evictStale('image', hash, metaKey, err.message);
+      else LoggerService.warn('Smart Cache image copy failed', { hash, error: err.message });
+      this.#miss('image', hash);
+      return null;
+    }
+
+    LoggerService.info('Smart Cache hit: scene image', { hash, jobId, fileName });
+    this.#hit('image', hash);
+    return metadata;
   }
 
   static async putImage(hash, localFilePath, metadata) {
@@ -182,6 +269,7 @@ class CacheService {
     try {
       await this.#client().fPutObject(config.minio.cacheBucket, `image/${hash}.png`, localFilePath);
       await this.#client().putObject(config.minio.cacheBucket, `image/${hash}.json`, Buffer.from(JSON.stringify(metadata)));
+      ledger.stored('image', hash, { sizeBytes: await this.#sizeOf(localFilePath) });
       LoggerService.info('Smart Cache stored: scene image', { hash });
     } catch (err) {
       LoggerService.warn('Smart Cache failed to store scene image', { hash, error: err.message });
@@ -207,10 +295,10 @@ class CacheService {
       const stream = await this.#client().getObject(config.minio.cacheBucket, key);
       for await (const chunk of stream) chunks.push(chunk);
       LoggerService.info('Smart Cache hit: reference transcript', { cacheKey });
-      MetricsService.increment('cache.hits');
+      this.#hit('transcript', cacheKey);
       return Buffer.concat(chunks).toString('utf8');
     } catch {
-      MetricsService.increment('cache.misses');
+      this.#miss('transcript', cacheKey);
       return null;
     }
   }
@@ -220,6 +308,7 @@ class CacheService {
     const key = `tts-transcript/${cacheKey}.txt`;
     try {
       await this.#client().putObject(config.minio.cacheBucket, key, Buffer.from(transcript, 'utf8'));
+      ledger.stored('transcript', cacheKey, { sizeBytes: Buffer.byteLength(transcript, 'utf8') });
       LoggerService.info('Smart Cache stored: reference transcript', { cacheKey });
     } catch (err) {
       LoggerService.warn('Smart Cache failed to store reference transcript', { cacheKey, error: err.message });
