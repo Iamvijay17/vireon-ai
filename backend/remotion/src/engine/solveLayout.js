@@ -1,6 +1,7 @@
 import { createSeededRng, pick } from './seedRandom';
 import { SCENE_REGISTRY, STAT_PATTERN } from './scenes';
 import { resolveLayoutHint } from './layoutHint';
+import { CANVAS } from './scenes/shared';
 
 /**
  * Layout Solver - layer 2 of the generative scene engine.
@@ -8,14 +9,18 @@ import { resolveLayoutHint } from './layoutHint';
  * Computes a flat list of resolved slots `{ id, role, xPct, yPct, wPct,
  * hPct, fontSize, ... }` from a ContentProfile by routing to one of the 12
  * Scene Components in `engine/scenes/` (see its index.js doc comment) -
- * instead of picking one of N pre-authored template files. All geometry is
- * solved against a fixed 1920x1080 reference canvas (GeneratedScene.jsx
- * scales the whole content layer against the actual render width, same
- * pattern every hand-coded template already uses).
+ * instead of picking one of N pre-authored template files. Geometry is
+ * solved against a reference canvas that matches the render's aspect ratio
+ * (`options.canvas`, see scenes/shared.js's resolveCanvas; 1920x1080 when
+ * omitted), and GeneratedScene.jsx scales that canvas to the actual render
+ * size. Vertical positions come from verticalLayout.js (measured blocks +
+ * bounded gaps, aligned as one group) - never from fixed row slots.
  *
- * `solveLayout(profile, seed)` is a pure function: same inputs always
- * produce the same LayoutPlan, so it's safe to recompute on every render
- * (preview or final) rather than needing to be precomputed and persisted.
+ * `solveLayout(profile, seed, options)` is a pure function: same inputs
+ * always produce the same LayoutPlan, so it's safe to recompute on every
+ * render (preview or final) rather than needing to be precomputed and
+ * persisted. The plan carries `diagnostics` (content/available height, gap,
+ * alignment, overflow) for layout debugging.
  */
 const SCRIM_STRATEGIES = new Set(['image-fullbleed']);
 
@@ -55,17 +60,21 @@ const chooseStrategy = (profile, rng) => {
 // `{ slots, waveform }` when they also place the decorative podcast
 // waveform (see GeneratedScene.jsx's Waveform primitive) - normalized here
 // so solveLayout always returns a consistent LayoutPlan shape either way.
-const runBuilder = (strategy, profile, rng) => {
+const runBuilder = (strategy, profile, rng, ctx) => {
   const component = SCENE_REGISTRY[strategy] || SCENE_REGISTRY['stack-list'];
-  const result = component.build(profile, rng);
+  const result = component.build(profile, rng, ctx);
   return Array.isArray(result) ? { slots: result, waveform: null } : result;
 };
 
-export const solveLayout = (profile, seedInput) => {
+export const solveLayout = (profile, seedInput, options = {}) => {
+  const canvas = options.canvas || CANVAS;
   const rng = createSeededRng(`${seedInput}-layout`);
   // A storyboard layout hint wins when the scene's content fits it (see
   // layoutHint.js); otherwise the content-shape heuristic decides as before.
   const strategy = resolveLayoutHint(profile) || chooseStrategy(profile, rng);
-  const { slots, waveform } = runBuilder(strategy, profile, rng);
-  return { strategy, canvas: { width: 1920, height: 1080 }, slots: slots.filter(Boolean), scrim: SCRIM_STRATEGIES.has(strategy), waveform: waveform || null };
+  const { slots, waveform, diagnostics } = runBuilder(strategy, profile, rng, { canvas });
+  return {
+    strategy, canvas: { width: canvas.width, height: canvas.height }, slots: slots.filter(Boolean),
+    scrim: SCRIM_STRATEGIES.has(strategy), waveform: waveform || null, diagnostics: diagnostics || null,
+  };
 };

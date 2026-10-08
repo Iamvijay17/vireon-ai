@@ -4,7 +4,9 @@
  * Manual mode (fastGeneration: false) pauses twice more after approval -
  * once with the script approved and waiting for "Generate Audio", once with
  * audio ready and waiting for "Generate Render" - mirroring the course-video
- * pipeline's separate script/audio/render steps.
+ * pipeline's separate script/audio/render steps. Once audio exists
+ * (isAwaitingRenderTrigger) it can still be redone for every scene - e.g. after a
+ * voice change - which is what canRegenerateAudio offers.
  */
 export function getStudioStage(job) {
   const isAwaitingApproval = job.status === "AWAITING_APPROVAL";
@@ -14,6 +16,7 @@ export function getStudioStage(job) {
     isManual,
     isAwaitingAudioTrigger: isManual && job.status === "SCRIPT_COMPLETED",
     isAwaitingRenderTrigger: isManual && job.status === "AUDIO_COMPLETED",
+    canRegenerateAudio: isManual && job.status === "AUDIO_COMPLETED",
     canEdit: ["COMPLETED", "FAILED", "SCRIPT_COMPLETED", "AUDIO_COMPLETED"].includes(job.status) || isAwaitingApproval,
   };
 }

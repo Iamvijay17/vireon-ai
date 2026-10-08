@@ -231,6 +231,26 @@ const SettingsPage = () => {
             <SettingsRow label="Default Course Duration" hint="Preselected when creating a course video">
               <Select options={COURSE_DURATION_OPTIONS} value={settings.defaultCourseDuration} onChange={(v) => updateSetting("defaultCourseDuration", v)} />
             </SettingsRow>
+            <SettingsRow label="Fast Generation" hint="Wizard videos run audio, images and render on their own after you approve the script. Off = you trigger each step, so you can change the voice in between">
+              <div className="flex justify-end">
+                <Switch
+                  checked={settings.defaultFastGeneration}
+                  onChange={(v) => {
+                    updateSetting("defaultFastGeneration", v);
+                    if (!v) updateSetting("defaultAutoApprove", false);
+                  }}
+                />
+              </div>
+            </SettingsRow>
+            <SettingsRow label="Auto-approve Script" hint="With Fast Generation: skip the script review too - the video goes from topic to finished with no clicks. You can't edit the script or voice first">
+              <div className="flex justify-end">
+                <Switch
+                  checked={settings.defaultFastGeneration && settings.defaultAutoApprove}
+                  disabled={!settings.defaultFastGeneration}
+                  onChange={(v) => updateSetting("defaultAutoApprove", v)}
+                />
+              </div>
+            </SettingsRow>
             <SettingsRow label="Fast Audio Generation" hint="Uses the smaller 0.6B TTS model by default in Audio Studio - quicker, lower quality">
               <div className="flex justify-end">
                 <Switch checked={settings.fastAudioGeneration} onChange={(v) => updateSetting("fastAudioGeneration", v)} />

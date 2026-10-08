@@ -1,7 +1,8 @@
 jest.mock('../../src/services/common/LoggerService', () => ({
-  info: jest.fn(), warn: jest.fn(), error: jest.fn(), success: jest.fn(),
+  info: jest.fn(), warn: jest.fn(), error: jest.fn(), success: jest.fn(), debug: jest.fn(),
 }));
 
+const LoggerService = require('../../src/services/common/LoggerService');
 const { GPUResourceManager, STATE } = require('../../src/services/localAI/gpuResourceManager');
 
 /**
@@ -181,6 +182,20 @@ describe('GPUResourceManager with a lease (two processes, one GPU)', () => {
     // which is what preserves warm reuse.
     expect(a.getStatus().gpu.holdsProcessLease).toBe(true);
     expect(shared.keys.has('gpu-slot')).toBe(true);
+  });
+
+  it('logs the lease concisely at INFO: one acquired line, one released line, details at DEBUG', async () => {
+    jest.clearAllMocks();
+
+    await a.withGPU('llm', async () => {});
+    await a._releaseProcessLease();
+
+    const infoLines = LoggerService.info.mock.calls.map(([msg]) => msg).filter((m) => m.startsWith('[GPU]'));
+    expect(infoLines).toEqual(['[GPU] Lease acquired', '[GPU] Lease released']);
+    expect(LoggerService.info).toHaveBeenCalledWith('[GPU] Lease acquired', expect.objectContaining({ service: 'llm', waitMs: expect.any(Number) }));
+    expect(LoggerService.info).toHaveBeenCalledWith('[GPU] Lease released', expect.objectContaining({ service: 'llm', durationMs: expect.any(Number) }));
+    // The chatty per-step lines are DEBUG now.
+    expect(LoggerService.debug).toHaveBeenCalledWith('[GPU] Acquiring GPU', expect.objectContaining({ service: 'llm' }));
   });
 
   it('unloads a warm-but-idle service when another process asks for the card', async () => {

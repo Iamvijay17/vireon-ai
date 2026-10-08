@@ -31,11 +31,12 @@ async function run(jobId, videoJob, currentStatus, ctx) {
     return null;
   }
 
+  const stageStartedAt = Date.now();
   ctx.currentStep = JOB_STATUS.SCRIPT_GENERATION;
   await VideoService.updateStatus(jobId, JOB_STATUS.SCRIPT_GENERATION, { progress: 10 });
   SocketService.emitJobProgress({ _id: jobId, progress: 10, status: JOB_STATUS.SCRIPT_GENERATION, currentStep: JOB_STATUS.SCRIPT_GENERATION, currentScene: 0 });
 
-  LoggerService.info('Starting script generation', { topic: videoJob.topic, type: videoJob.type });
+  LoggerService.info('[LLM] Script generation started', { stage: 'script', topic: videoJob.topic, type: videoJob.type });
   await ActivityLogService.add(jobId, 'Script generation started');
 
   // Scene count and word budget from the requested duration (see
@@ -113,9 +114,11 @@ async function run(jobId, videoJob, currentStatus, ctx) {
   // Update job with script
   await VideoService.updateScript(jobId, validatedScript);
 
-  LoggerService.success('Script generated and saved', {
+  LoggerService.success('[LLM] Script generation completed', {
+    stage: 'script',
     title: validatedScript.title,
     scenes: validatedScript.scenes.length,
+    durationMs: Date.now() - stageStartedAt,
   });
 
   // A stop request that arrived while the Ollama call was in flight
@@ -123,6 +126,14 @@ async function run(jobId, videoJob, currentStatus, ctx) {
   // again now, before writing AWAITING_APPROVAL, so a cancellation can't
   // get silently overwritten by this step's own success path.
   await bailIfCancelled(jobId);
+
+  // Auto-approve (fast generation only): no review pause - fall through to
+  // the audio step, exactly as if the user had clicked Approve straight away.
+  if (videoJob.fastGeneration && videoJob.autoApprove) {
+    LoggerService.info('Script auto-approved - continuing to audio', { jobId });
+    await ActivityLogService.add(jobId, 'Script generated and auto-approved.');
+    return null;
+  }
 
   // Pause here: wait for explicit manual approval before spending
   // TTS/image/render resources on this script. The user reviews/edits

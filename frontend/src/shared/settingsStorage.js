@@ -17,6 +17,13 @@ export const DEFAULT_SETTINGS = {
   // of the default 1.7B) so repeat users of the faster model don't have to
   // flip it on every visit.
   fastAudioGeneration: false,
+  // Pre-fills the Wizard's "Fast Generation" switch: after you approve the
+  // script, audio / images / render run on their own instead of pausing
+  // between steps.
+  defaultFastGeneration: false,
+  // Pre-fills the Wizard's "Auto-approve script" switch (needs fast generation):
+  // skips the script review too, so a video runs topic -> finished with no clicks.
+  defaultAutoApprove: false,
 };
 
 export const loadSettings = () => {

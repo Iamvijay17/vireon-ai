@@ -94,14 +94,34 @@ describe("useSocketRoom", () => {
     const join = vi.fn();
     const onReconnect = vi.fn();
 
+    socketMock._setStatus("connected");
     renderRoom("job-1", { join, leave: vi.fn(), subscribe: () => [], onReconnect });
     join.mockClear();
 
+    act(() => socketMock._setStatus("reconnecting"));
     act(() => socketMock._setStatus("connected"));
 
     // Rooms are not restored automatically after a drop.
+    expect(join).toHaveBeenCalledTimes(1);
     expect(join).toHaveBeenCalledWith("job-1");
+    expect(onReconnect).toHaveBeenCalledTimes(1);
     expect(onReconnect).toHaveBeenCalledWith("job-1");
+  });
+
+  it("does not re-join or resync on the first connect (the queued join covers it)", () => {
+    // Mounted before the socket is up: socket.io queues the initial join and
+    // sends it on connect. A second join here would double the snapshot and
+    // replay on every page load.
+    const join = vi.fn();
+    const onReconnect = vi.fn();
+
+    renderRoom("job-1", { join, leave: vi.fn(), subscribe: () => [], onReconnect });
+    expect(join).toHaveBeenCalledTimes(1);
+
+    act(() => socketMock._setStatus("connected"));
+
+    expect(join).toHaveBeenCalledTimes(1);
+    expect(onReconnect).not.toHaveBeenCalled();
   });
 
   it("does not resync on a non-connected status change", () => {
@@ -170,9 +190,11 @@ describe("useSocketRoom", () => {
       return null;
     };
 
+    socketMock._setStatus("connected");
     const { rerender } = render(<Probe onReconnect={first} />);
     rerender(<Probe onReconnect={second} />);
 
+    act(() => socketMock._setStatus("reconnecting"));
     act(() => socketMock._setStatus("connected"));
 
     expect(first).not.toHaveBeenCalled();

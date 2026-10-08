@@ -16,6 +16,9 @@ export function deriveJobView(job) {
   const showReviewScript = status === "AWAITING_APPROVAL";
   const showGenerateAudio = job?.fastGeneration === false && status === "SCRIPT_COMPLETED";
   const showGenerateRender = job?.fastGeneration === false && status === "AUDIO_COMPLETED";
+  // Audio is done but the render hasn't started: the whole narration can still be
+  // redone (e.g. after a voice change) before the video is built from it.
+  const showRegenerateAudio = showGenerateRender;
   // Every other active state (queued behind script, generating audio/images,
   // preparing assets, rendering, uploading) currently has no way to jump into
   // the Studio - fall back to a plain "Studio" button once a script exists.
@@ -59,9 +62,9 @@ export function deriveJobView(job) {
 
   const audioStageReason = job?.fastGeneration
     ? "Runs automatically after approval (Fast Generation is on)"
-    : showGenerateAudio
+    : showGenerateAudio || showRegenerateAudio
     ? undefined
-    : status === "AUDIO_COMPLETED" || STEP_ORDER.indexOf(status) > STEP_ORDER.indexOf("AUDIO_COMPLETED")
+    : STEP_ORDER.indexOf(status) > STEP_ORDER.indexOf("AUDIO_COMPLETED")
     ? "Audio already generated - regenerate individual scenes below"
     : "Approve the script first";
 
@@ -84,6 +87,7 @@ export function deriveJobView(job) {
     showReviewScript,
     showGenerateAudio,
     showGenerateRender,
+    showRegenerateAudio,
     showGenericStudio,
     canRegenerateStuck,
     canRestartCancelled,

@@ -18,6 +18,7 @@ export const PipelineActionsCard = ({
   approvalStageReason,
   onReviewApprove,
   showGenerateAudio,
+  showRegenerateAudio,
   audioStageReason,
   generateAudioLoading,
   onGenerateAudio,
@@ -56,16 +57,19 @@ export const PipelineActionsCard = ({
         </Button>
       </Tooltip>
 
-      <Tooltip className="w-full" content={audioStageReason || "Generate audio for every scene"}>
+      <Tooltip
+        className="w-full"
+        content={audioStageReason || (showRegenerateAudio ? "Redo the audio for every scene - use after changing the voice" : "Generate audio for every scene")}
+      >
         <Button
           className="w-full"
           variant={showGenerateAudio ? "primary" : "secondary"}
           icon={<AudioLines className="size-4" />}
           loading={generateAudioLoading}
-          disabled={!showGenerateAudio}
+          disabled={!showGenerateAudio && !showRegenerateAudio}
           onClick={onGenerateAudio}
         >
-          Generate Audio
+          {showRegenerateAudio ? "Regenerate Audio" : "Generate Audio"}
         </Button>
       </Tooltip>
 

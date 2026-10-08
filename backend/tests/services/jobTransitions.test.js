@@ -3,6 +3,22 @@ const { assertTransitionAllowed } = require('../../src/constants/jobTransitions'
 
 const attempt = (status) => () => assertTransitionAllowed({ status }, 'rerender', (s) => `cannot re-render from ${s}`);
 
+describe('generateAudio transition', () => {
+  const generateAudio = (status) => () => assertTransitionAllowed({ status }, 'generateAudio', (s) => `cannot generate audio from ${s}`);
+
+  // A voice changed after the first audio take has to be able to redo every scene.
+  test.each([JOB_STATUS.SCRIPT_COMPLETED, JOB_STATUS.AUDIO_COMPLETED])('%s can generate audio', (status) => {
+    expect(generateAudio(status)).not.toThrow();
+  });
+
+  test.each([JOB_STATUS.AWAITING_APPROVAL, JOB_STATUS.GENERATING_AUDIO, JOB_STATUS.RENDERING, JOB_STATUS.COMPLETED])(
+    '%s cannot generate audio',
+    (status) => {
+      expect(generateAudio(status)).toThrow(`cannot generate audio from ${status}`);
+    }
+  );
+});
+
 describe('rerender transition', () => {
   test.each([JOB_STATUS.COMPLETED, JOB_STATUS.FAILED])('%s can be re-rendered', (status) => {
     expect(attempt(status)).not.toThrow();

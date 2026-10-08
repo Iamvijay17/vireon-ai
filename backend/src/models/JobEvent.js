@@ -17,6 +17,14 @@ const jobEventSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Identity of the event itself, generated once when it is produced and
+    // reused by every retry of its write and by the live Socket.IO payload.
+    // The (jobId, eventId) unique index below is what makes a retried append
+    // a no-op instead of a duplicate. Absent on events stored before this
+    // field existed, which the partial index tolerates.
+    eventId: {
+      type: String,
+    },
     // Monotonic per job, allocated by JobEventCounter. Gapless is not
     // guaranteed (an allocated seq whose write then fails leaves a hole);
     // strictly increasing is.
@@ -44,6 +52,10 @@ const jobEventSchema = new mongoose.Schema(
 );
 
 jobEventSchema.index({ jobId: 1, seq: 1 }, { unique: true });
+jobEventSchema.index(
+  { jobId: 1, eventId: 1 },
+  { unique: true, partialFilterExpression: { eventId: { $type: 'string' } } }
+);
 
 /**
  * One counter document per job, incremented atomically to hand out `seq`.

@@ -48,7 +48,10 @@ class CourseVideoController {
       const { jobs, skipped } = await CourseVideoService.prepareBulkJobs(videoIds, action);
 
       for (const job of jobs) {
-        await courseQueue.add(job.action, { videoId: job.videoId, action: job.action });
+        // 'Generate Everything' has no review step between script and audio, and
+        // audio refuses an unapproved script - so its script job approves it.
+        const autoApprove = action === 'generate-full' && job.action === 'generate-script';
+        await courseQueue.add(job.action, { videoId: job.videoId, action: job.action, ...(autoApprove ? { autoApprove } : {}) });
       }
 
       LoggerService.info('Bulk course video generation queued', {

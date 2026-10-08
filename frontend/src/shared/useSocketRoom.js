@@ -60,8 +60,18 @@ export function useSocketRoom(roomId, { join, leave, subscribe, onReconnect } = 
 
     // Rooms are not restored automatically after a drop - rejoin, then let
     // the caller resync whatever it missed.
+    //
+    // The very first connect is NOT a reconnect: if this effect ran before
+    // the socket was up, the join above is already queued by socket.io and
+    // is delivered on connect. Rejoining then would double every snapshot
+    // and replay on page load and trigger a pointless resync fetch.
+    let awaitingFirstConnect = getConnectionStatus() !== "connected";
     const offReconnect = subscribeToConnectionStatus(() => {
       if (getConnectionStatus() !== "connected") return;
+      if (awaitingFirstConnect) {
+        awaitingFirstConnect = false;
+        return;
+      }
       handlersRef.current.join?.(roomId);
       handlersRef.current.onReconnect?.(roomId);
     });

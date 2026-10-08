@@ -13,14 +13,70 @@ const getSocketUrl = () => {
 
 const SOCKET_URL = getSocketUrl();
 
+// A stable id for this browser tab, sent on every (re)connect. A socket's own
+// id changes each time it reconnects, so without this the server can't tell
+// "the same tab came back" from "a brand-new client" - and so can't tell a
+// normal reconnect from one tab connecting in a loop. Per-tab (sessionStorage)
+// because two tabs are two logical sessions. Not a credential.
+const makeClientId = () => `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+const getClientId = () => {
+  try {
+    let id = sessionStorage.getItem('vireon.clientId');
+    if (!id) {
+      // randomUUID only exists in secure contexts; this app is also opened
+      // over plain http on the LAN.
+      id = globalThis.crypto?.randomUUID?.() ?? makeClientId();
+      sessionStorage.setItem('vireon.clientId', id);
+    }
+    return id;
+  } catch {
+    return makeClientId();
+  }
+};
+
+// One socket for the whole app: this module is evaluated once, every hook
+// shares it, and nothing creates a socket during render.
 const socket = io(SOCKET_URL, {
   autoConnect: false,
   transports: ['websocket', 'polling'],
+  auth: { clientId: getClientId() },
+  // Keep trying for as long as the page is open - a server restart or a
+  // laptop waking up can take longer than any fixed attempt budget, and a
+  // socket that gave up after 5 tries stayed dead until a manual refresh.
+  // Backoff (1s doubling to 10s, with jitter) keeps that from becoming a
+  // tight loop against a server that is down.
   reconnection: true,
-  reconnectionAttempts: 5,
+  reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
+  reconnectionDelayMax: 10000,
+  randomizationFactor: 0.5,
 });
+
+// Vite re-evaluates this module on a hot update, which would otherwise leave
+// the previous socket connected alongside the new one - the dev-only source
+// of "two connections from one tab". Close the old one when it is replaced.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    socket.removeAllListeners();
+    socket.io.removeAllListeners();
+    socket.disconnect();
+  });
+}
+
+// Connection lifecycle, dev console only. Distinguishes the normal cases
+// (first connect, retry after a drop, recovered) at a glance.
+if (import.meta.env.DEV) {
+  const log = (message, extra = '') => console.debug(`[Socket] ${message}`, extra);
+  let hasConnected = false;
+  socket.on('connect', () => {
+    log(hasConnected ? 'reconnected' : 'connected', `socketId=${socket.id}`);
+    hasConnected = true;
+  });
+  socket.on('disconnect', (reason) => log('disconnected', `reason=${reason}`));
+  socket.on('connect_error', (err) => console.warn('[Socket] connect_error', err.message));
+  socket.io.on('reconnect_attempt', (attempt) => log('reconnecting', `attempt=${attempt}`));
+}
 
 // ─── Connection Management ─────────────────────────────────────────────────────
 
@@ -36,14 +92,32 @@ export const disconnect = () => {
   }
 };
 
-// ─── Event Replay ──────────────────────────────────────────────────────────────
-// Every job event the backend emits carries the `seq` it was stored under
-// (see JobEventService). Remembering the highest seq seen per job means a
-// re-join after a dropped connection can ask for everything that happened
-// while the socket was down, instead of silently resuming from whatever
-// fires next. Callers don't opt in - joinJobRoom passes it automatically.
+// ─── Event Replay & De-duplication ─────────────────────────────────────────────
+// Every job event the backend emits carries `seq` (its position in the job's
+// stored timeline), `eventId` (unique, identical for the live and replayed
+// copy of the same event) and a `timestamp`. Socket.IO is only the delivery
+// mechanism; the job store is the source of truth. That has three consequences
+// handled here, once, instead of in every page:
+//
+//  1. Catch-up: remembering the highest seq seen per job lets a re-join after a
+//     dropped connection ask for exactly what was missed (joinJobRoom does it).
+//  2. Duplicates: an event can legitimately arrive twice (a live packet racing
+//     the replay of the same event, or the join snapshot and a getStatus
+//     snapshot after a reconnect). Pages get each event once.
+//  3. Staleness: a delayed packet or snapshot older than state already applied
+//     must not roll the UI back.
+//
+// Callers don't opt in - the onJob* listeners below are filtered automatically.
 
-const lastSeqByJob = new Map();
+const lastSeqByJob = new Map(); // replay cursor: highest seq of any event seen
+const lastStateSeqByJob = new Map(); // highest seq of a state-bearing event applied
+const seenEventIdsByJob = new Map(); // jobId -> Set<eventId>, bounded
+const MAX_REMEMBERED_EVENT_IDS = 500;
+
+// Events that carry the job's overall state (an older one must not overwrite
+// a newer one). sceneAudioReady / speechStage describe discrete things that
+// happened, so only exact-duplicate filtering applies to them.
+const STATE_EVENT_NAMES = new Set(['jobCreated', 'jobProgress', 'jobCompleted', 'jobFailed', 'jobStatus']);
 
 const JOB_EVENT_NAMES = [
   'jobCreated',
@@ -52,17 +126,77 @@ const JOB_EVENT_NAMES = [
   'jobFailed',
   'sceneAudioReady',
   'speechStage',
+  'jobStatus',
 ];
 
-JOB_EVENT_NAMES.forEach((name) => {
-  socket.on(name, (data) => {
-    if (!data?.jobId || typeof data.seq !== 'number') return;
-    const jobId = String(data.jobId);
-    if (data.seq > (lastSeqByJob.get(jobId) ?? 0)) {
-      lastSeqByJob.set(jobId, data.seq);
+// socket.io hands the same payload object to every listener of one emit, so
+// the classifier (registered first, below) can mark a payload and the
+// per-subscriber wrappers can see the mark.
+const ignoredPayloads = new WeakSet();
+
+export const classifyJobEvent = (name, data) => {
+  if (!data || typeof data !== 'object' || !data.jobId) return;
+  const jobId = String(data.jobId);
+  const hasSeq = typeof data.seq === 'number';
+
+  if (data.eventId) {
+    let seen = seenEventIdsByJob.get(jobId);
+    if (!seen) {
+      seen = new Set();
+      seenEventIdsByJob.set(jobId, seen);
     }
-  });
+    if (seen.has(data.eventId)) {
+      ignoredPayloads.add(data);
+      return;
+    }
+    seen.add(data.eventId);
+    if (seen.size > MAX_REMEMBERED_EVENT_IDS) seen.delete(seen.values().next().value);
+  } else if (hasSeq && name !== 'jobStatus' && data.seq <= (lastSeqByJob.get(jobId) ?? 0)) {
+    // Events stored before eventId existed: seq is the only identity.
+    ignoredPayloads.add(data);
+    return;
+  }
+
+  if (!hasSeq) return;
+
+  if (STATE_EVENT_NAMES.has(name)) {
+    if (data.seq < (lastStateSeqByJob.get(jobId) ?? 0)) {
+      ignoredPayloads.add(data); // older than state already applied
+      return;
+    }
+    lastStateSeqByJob.set(jobId, data.seq);
+  }
+
+  // A snapshot's seq says where the timeline was when it was taken, not that
+  // those events were delivered here - only real events move the replay cursor.
+  if (name !== 'jobStatus' && data.seq > (lastSeqByJob.get(jobId) ?? 0)) {
+    lastSeqByJob.set(jobId, data.seq);
+  }
+};
+
+JOB_EVENT_NAMES.forEach((name) => {
+  socket.on(name, (data) => classifyJobEvent(name, data));
 });
+
+/**
+ * Subscribe to a job event, skipping duplicates and stale payloads. Returns
+ * the unsubscribe function, like every other on* helper here.
+ */
+const onJobEvent = (name, callback) => {
+  const handler = (data) => {
+    if (data && typeof data === 'object' && ignoredPayloads.has(data)) return;
+    callback(data);
+  };
+  socket.on(name, handler);
+  return () => socket.off(name, handler);
+};
+
+const forgetJob = (jobId) => {
+  const id = String(jobId);
+  lastSeqByJob.delete(id);
+  lastStateSeqByJob.delete(id);
+  seenEventIdsByJob.delete(id);
+};
 
 // ─── Room Management ───────────────────────────────────────────────────────────
 
@@ -75,7 +209,7 @@ export const joinJobRoom = (jobId) => {
 };
 
 export const leaveJobRoom = (jobId) => {
-  lastSeqByJob.delete(String(jobId));
+  forgetJob(jobId);
   socket.emit('leave', jobId);
 };
 
@@ -89,37 +223,19 @@ export const leaveCourseRoom = (courseId) => {
 
 // ─── Event Listeners ───────────────────────────────────────────────────────────
 
-export const onJobCreated = (callback) => {
-  socket.on('jobCreated', callback);
-  return () => socket.off('jobCreated', callback);
-};
+export const onJobCreated = (callback) => onJobEvent('jobCreated', callback);
 
-export const onJobProgress = (callback) => {
-  socket.on('jobProgress', callback);
-  return () => socket.off('jobProgress', callback);
-};
+export const onJobProgress = (callback) => onJobEvent('jobProgress', callback);
 
-export const onJobCompleted = (callback) => {
-  socket.on('jobCompleted', callback);
-  return () => socket.off('jobCompleted', callback);
-};
+export const onJobCompleted = (callback) => onJobEvent('jobCompleted', callback);
 
-export const onJobFailed = (callback) => {
-  socket.on('jobFailed', callback);
-  return () => socket.off('jobFailed', callback);
-};
+export const onJobFailed = (callback) => onJobEvent('jobFailed', callback);
 
-export const onSceneAudioReady = (callback) => {
-  socket.on('sceneAudioReady', callback);
-  return () => socket.off('sceneAudioReady', callback);
-};
+export const onSceneAudioReady = (callback) => onJobEvent('sceneAudioReady', callback);
 
 // Speech-timing stages (tts:start ... render:complete) of a job; see
 // lib/speechStages.js for how they become the plain-language checklist.
-export const onSpeechStage = (callback) => {
-  socket.on('speechStage', callback);
-  return () => socket.off('speechStage', callback);
-};
+export const onSpeechStage = (callback) => onJobEvent('speechStage', callback);
 
 // ─── Audio Studio (standalone TTS) Progressive Generation ──────────────────────
 // Fired as each dialogue turn / chunk finishes, ahead of the whole request
@@ -257,9 +373,6 @@ export const requestJobStatus = (jobId) => {
   socket.emit('getStatus', jobId);
 };
 
-export const onJobStatus = (callback) => {
-  socket.on('jobStatus', callback);
-  return () => socket.off('jobStatus', callback);
-};
+export const onJobStatus = (callback) => onJobEvent('jobStatus', callback);
 
 export default socket;

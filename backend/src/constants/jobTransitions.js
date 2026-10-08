@@ -29,8 +29,10 @@ const VIDEO_JOB_TRANSITIONS = Object.freeze({
   ),
   // A script can only be approved while awaiting that exact approval.
   approve: [JOB_STATUS.AWAITING_APPROVAL],
-  // Manual-mode only: audio generation requires an approved script.
-  generateAudio: [JOB_STATUS.SCRIPT_COMPLETED],
+  // Manual-mode only: audio generation requires an approved script. AUDIO_COMPLETED is
+  // allowed too so a voice changed after the first take can redo every scene (the
+  // lifecycle step clears the old audio and rewinds the job to SCRIPT_COMPLETED).
+  generateAudio: [JOB_STATUS.SCRIPT_COMPLETED, JOB_STATUS.AUDIO_COMPLETED],
   // Manual-mode only: rendering requires completed audio.
   generateRender: [JOB_STATUS.AUDIO_COMPLETED],
   // A finished (or failed, or audio-complete manual-mode) job can have one scene's

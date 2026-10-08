@@ -3,6 +3,7 @@ const Transport = require('winston-transport');
 const Redis = require('ioredis');
 const path = require('path');
 const fs = require('fs');
+const { AsyncLocalStorage } = require('async_hooks');
 const config = require('../../config');
 const { REDIS_CHANNEL } = require('../../constants');
 
@@ -37,6 +38,50 @@ const customColors = {
 
 winston.addColors(customColors);
 
+// ─── Timestamps ─────────────────────────────────────────────────────────────
+// The one place a log timestamp is produced: ISO-8601, millisecond precision,
+// local wall-clock time WITH its UTC offset (2026-10-08T10:44:08.123+05:30).
+// Every sink - console, log files, the Redis broadcast to the Live Logs page -
+// uses it, so a line means the same instant wherever it is read, and it
+// round-trips through `new Date(...)`. Other modules log through
+// LoggerService instead of formatting their own.
+function isoTimestamp(date = new Date()) {
+  const pad = (n, width = 2) => String(n).padStart(width, '0');
+  const offsetMin = -date.getTimezoneOffset();
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMin);
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}` +
+    `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
+  );
+}
+
+// ─── Per-job log context ────────────────────────────────────────────────────
+// A job's pipeline runs through dozens of modules (LLM, TTS, ComfyUI, GPU
+// lease, render, upload). Rather than threading jobId into every call, the
+// worker runs a job inside LoggerService.runWithContext({ jobId }, ...) and
+// every log line emitted anywhere in that async call chain picks it up here.
+// A `jobId` in a call's own metadata always wins.
+const contextStore = new AsyncLocalStorage();
+
+const injectContext = winston.format((info) => {
+  const ctx = contextStore.getStore();
+  if (ctx) {
+    for (const [key, value] of Object.entries(ctx)) {
+      if (info[key] === undefined && value !== undefined) info[key] = value;
+    }
+  }
+  return info;
+})();
+
+// `debug` is opt-in (LOG_LEVEL=debug): lock polling, lease state transitions
+// and other low-level diagnostics stay out of the normal stream. The domain
+// levels (tts/llm/render/upload) sit numerically below debug in this level
+// table, so debug can't be gated by the level threshold alone.
+const debugEnabled = String(process.env.LOG_LEVEL || '').toLowerCase() === 'debug';
+const gateDebug = winston.format((info) => (info.level === 'debug' && !debugEnabled ? false : info))();
+
 // ─── Live log broadcast (Frontend "Live Logs" page) ─────────────────────────
 // Forwards a subset of log entries to Redis pub/sub, which SocketService (in
 // the main server process) picks up and pushes to connected browser clients.
@@ -70,7 +115,7 @@ class SocketBroadcastTransport extends Transport {
       if (publisher) {
         const payload = {
           type: 'serverLog',
-          data: { level, message, timestamp: timestamp || new Date().toISOString(), meta },
+          data: { level, message, timestamp: timestamp || isoTimestamp(), meta },
         };
         publisher.publish(REDIS_CHANNEL, JSON.stringify(payload)).catch(() => {});
       }
@@ -80,24 +125,38 @@ class SocketBroadcastTransport extends Transport {
   }
 }
 
-const consoleFormat = winston.format.combine(
-  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-  winston.format.colorize({ all: true }),
-  winston.format.printf(({ timestamp, level, message, ...meta }) => {
-    const metaStr = Object.keys(meta).length ? `\n  ${JSON.stringify(meta, null, 2)}` : '';
-    return `${timestamp} │ ${level} │ ${message}${metaStr}`;
-  })
-);
+// Console renders metadata as key=value pairs (logfmt) so a line is greppable
+// and readable at a glance; the file transports keep the same fields as JSON.
+const logfmtValue = (value) => {
+  if (typeof value === 'string') return /[\s"=]/.test(value) || value === '' ? JSON.stringify(value) : value;
+  return JSON.stringify(value);
+};
+const toLogfmt = (meta) =>
+  Object.entries(meta)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}=${logfmtValue(value)}`)
+    .join(' ');
 
-const fileFormat = winston.format.combine(
-  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-  winston.format.json()
+const consoleFormat = winston.format.combine(
+  winston.format.colorize({ all: true }),
+  winston.format.printf(({ timestamp, level, message, jobId, ...meta }) => {
+    const jobTag = jobId ? `[${jobId}] ` : '';
+    const metaStr = Object.keys(meta).length ? ` ${toLogfmt(meta)}` : '';
+    return `${timestamp} │ ${level} │ ${jobTag}${message}${metaStr}`;
+  })
 );
 
 const logger = winston.createLogger({
   levels: customLevels,
   level: config.isDev ? 'upload' : 'info',
-  format: fileFormat,
+  // Shared by every transport (gate -> job context -> timestamp -> JSON);
+  // the console transport re-renders it as one readable line below.
+  format: winston.format.combine(
+    gateDebug,
+    injectContext,
+    winston.format.timestamp({ format: () => isoTimestamp() }),
+    winston.format.json()
+  ),
   transports: [
     new winston.transports.File({
       filename: path.join(logDir, 'error.log'),
@@ -192,6 +251,14 @@ class LoggerService {
     logger.log('upload', message, meta);
   }
 
+  /**
+   * Run `fn` with `ctx` (e.g. { jobId }) attached to every log line emitted
+   * anywhere in its async call chain.
+   */
+  static runWithContext(ctx, fn) {
+    return contextStore.run({ ...(contextStore.getStore() || {}), ...ctx }, fn);
+  }
+
   static border(message, level = 'info') {
     const line = '═'.repeat(Math.min(message.length + 6, 60));
     const icon = level === 'success' ? '✅' : level === 'event' ? '📢' : 'ℹ️';
@@ -206,5 +273,7 @@ class LoggerService {
     };
   }
 }
+
+LoggerService.isoTimestamp = isoTimestamp;
 
 module.exports = LoggerService;

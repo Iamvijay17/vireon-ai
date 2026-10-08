@@ -15,7 +15,9 @@ describe("getStudioStage", () => {
     expect(getStudioStage({ status: "AUDIO_COMPLETED", fastGeneration: false })).toMatchObject({
       isAwaitingAudioTrigger: false,
       isAwaitingRenderTrigger: true,
+      canRegenerateAudio: true,
     });
+    expect(getStudioStage({ status: "SCRIPT_COMPLETED", fastGeneration: false }).canRegenerateAudio).toBe(false);
   });
 
   it("never pauses an automatic job between steps", () => {

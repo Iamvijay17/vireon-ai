@@ -80,6 +80,19 @@ describe('scriptStep', () => {
     expect(result).toEqual({ success: true, jobId: 'job-1', awaitingApproval: true });
   });
 
+  it('falls straight through to audio when a fast job is set to auto-approve', async () => {
+    const result = await scriptStep.run('job-1', videoJob({ fastGeneration: true, autoApprove: true }), JOB_STATUS.QUEUED, ctx());
+
+    expect(VideoService.updateScript).toHaveBeenCalledWith('job-1', validated);
+    expect(VideoService.updateStatus).not.toHaveBeenCalledWith('job-1', JOB_STATUS.AWAITING_APPROVAL, expect.anything());
+    expect(result).toBeNull();
+  });
+
+  it('still pauses for approval when auto-approve is set on a manual (non-fast) job', async () => {
+    const result = await scriptStep.run('job-1', videoJob({ fastGeneration: false, autoApprove: true }), JOB_STATUS.QUEUED, ctx());
+    expect(result).toEqual({ success: true, jobId: 'job-1', awaitingApproval: true });
+  });
+
   it('does not persist a script that fails scene-graph checking (authoritative IR mode)', async () => {
     checkSceneGraph.mockRejectedValueOnce(new Error('SceneGraph compile failed'));
     await expect(scriptStep.run('job-1', videoJob(), JOB_STATUS.QUEUED, ctx())).rejects.toThrow(/SceneGraph/);

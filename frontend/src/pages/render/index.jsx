@@ -139,6 +139,7 @@ const RenderPage = () => {
         approvalStageReason={v.approvalStageReason}
         onReviewApprove={() => navigate(`/studio?id=${jobId}`)}
         showGenerateAudio={v.showGenerateAudio}
+        showRegenerateAudio={v.showRegenerateAudio}
         audioStageReason={v.audioStageReason}
         generateAudioLoading={actions.generateAudioLoading}
         onGenerateAudio={actions.handleGenerateAudio}

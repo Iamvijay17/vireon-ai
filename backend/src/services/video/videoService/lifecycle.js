@@ -281,6 +281,23 @@ async function generateAudio(jobId) {
 
   assertTransitionAllowed(job, 'generateAudio', (status) => `Job is in ${status} state. Approve the script before generating audio.`);
 
+  // Redo after a first take (e.g. the voice was changed): the worker's audio step only
+  // synthesizes scenes that have no audio file, so drop the old files and rewind to the
+  // pre-audio state - the worker then pauses again after audio, like the first run.
+  if (job.status === JOB_STATUS.AUDIO_COMPLETED) {
+    for (const scene of job.script.scenes) {
+      if (!scene.audio) continue;
+      scene.audio.file = '';
+      scene.audio.speechTimeline = undefined;
+      scene.audio.segments = undefined;
+      scene.audio.ttsMeta = undefined;
+    }
+    job.status = JOB_STATUS.SCRIPT_COMPLETED;
+    job.progress = 20;
+    job.currentStep = JOB_STATUS.SCRIPT_COMPLETED;
+    await job.save();
+  }
+
   LoggerService.info('Video job manual audio generation triggered', { jobId });
   return job;
 }

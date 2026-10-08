@@ -5,22 +5,31 @@ const { publish } = require('./redisBridge');
 const JobEventService = require('../JobEventService');
 
 /**
- * Persist an event to the job's timeline, then emit it carrying the `seq`
- * it was stored under.
+ * Persist an event to the job's timeline, then emit it carrying the identity
+ * it was stored under: `eventId` (unique, stable across retries), `seq`
+ * (per-job order) and `timestamp`.
  *
  * Recording here rather than at each call site means one hook covers the
  * whole v1 pipeline in both processes - the API emits directly via
  * Socket.IO, the worker publishes over Redis, but both come through these
- * functions. The emit waits on the append (a single indexed upsert) so the
- * live payload carries the same seq the stored event has; that seq is what
- * lets a reconnecting client ask for exactly what it missed.
+ * functions. The emit waits on the append so the live payload carries the
+ * same seq the stored event has; that seq is what lets a reconnecting client
+ * ask for exactly what it missed. Appends for one job are serialized inside
+ * JobEventService, so emits go out in the order events were produced.
  *
- * JobEventService.append never throws and returns null if it failed, so the
- * emit always happens - a lost event record must not cost a live update.
+ * eventId and timestamp are minted here, before the write, so the live
+ * payload and the stored event are the same event even when the write needs
+ * retries or fails outright (then `seq` is absent but the update is still
+ * delivered). JobEventService.append never throws, so the emit always
+ * happens - a lost event record must not cost a live update.
  */
 function record(jobId, type, data, dispatch) {
-  JobEventService.append(jobId, type, data).then((event) => {
-    dispatch(event ? { ...data, seq: event.seq } : data);
+  const eventId = JobEventService.newEventId();
+  const at = new Date();
+  const identity = { eventId, timestamp: at.toISOString() };
+
+  JobEventService.append(jobId, type, data, { eventId, at }).then((event) => {
+    dispatch(event ? { ...data, ...identity, seq: event.seq } : { ...data, ...identity });
   });
 }
 

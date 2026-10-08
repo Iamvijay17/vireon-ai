@@ -32,7 +32,13 @@ describe("deriveJobView", () => {
     const audioDone = view({ status: "AUDIO_COMPLETED", fastGeneration: false, script });
     expect(audioDone.showGenerateRender).toBe(true);
     expect(audioDone.renderStageReason).toBeUndefined();
-    expect(audioDone.audioStageReason).toMatch(/already generated/);
+    // Audio can be redone (e.g. after a voice change) until the render starts.
+    expect(audioDone.showRegenerateAudio).toBe(true);
+    expect(audioDone.audioStageReason).toBeUndefined();
+
+    const rendering = view({ status: "COMPLETED", fastGeneration: false, script });
+    expect(rendering.showRegenerateAudio).toBe(false);
+    expect(rendering.audioStageReason).toMatch(/already generated/);
   });
 
   it("fast mode explains that later stages run on their own", () => {

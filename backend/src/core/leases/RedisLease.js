@@ -156,9 +156,15 @@ class RedisLease {
 
     if (waitMs > 0) await this._subscribeTo(name);
 
+    let polls = 0;
     for (;;) {
       const ok = await this._client.set(key, token, 'PX', ttlMs, 'NX');
       if (ok) return { name, token, ttlMs };
+
+      // Poll-level detail only at DEBUG: with a long wait this fires every
+      // pollMs and would drown the one INFO line GPUResourceManager emits.
+      polls += 1;
+      LoggerService.debug('[RedisLease] held by another process - polling', { lease: name, polls });
 
       if (Date.now() >= deadline) throw new LeaseTimeoutError(name, waitMs);
 

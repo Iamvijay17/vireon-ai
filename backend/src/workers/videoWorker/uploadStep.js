@@ -16,6 +16,7 @@ const { JOB_STATUS } = require('../../constants');
  * its local scratch directory.
  */
 async function run(jobId, script, ctx) {
+  const stageStartedAt = Date.now();
   ctx.currentStep = JOB_STATUS.UPLOADING;
   await VideoService.updateStatus(jobId, JOB_STATUS.UPLOADING, { progress: 95 });
   SocketService.emitJobProgress({ _id: jobId, progress: 95, status: JOB_STATUS.UPLOADING, currentStep: JOB_STATUS.UPLOADING, currentScene: 0 });
@@ -30,7 +31,7 @@ async function run(jobId, script, ctx) {
     else if (/\.(png|jpe?g)$/i.test(fileName)) thumbnailUrl = url;
   }
 
-  LoggerService.success('Render output uploaded', { videoUrl, thumbnailUrl });
+  LoggerService.success('[Upload] Video uploaded', { stage: 'upload', videoUrl, thumbnailUrl, files: renderFileNames.length, durationMs: Date.now() - stageStartedAt });
   await ActivityLogService.add(jobId, 'Assets uploaded to cloud storage.');
 
   // Scene audio URLs are deterministic from the storage convention, not
@@ -50,10 +51,7 @@ async function run(jobId, script, ctx) {
   await ActivityLogService.add(jobId, 'Video generation completed!');
 
   LoggerService.border(`✅ Job Complete: ${jobId}`, 'success');
-  LoggerService.success('Video generation pipeline finished', {
-    jobId,
-    videoUrl: completedJob.videoUrl,
-  });
+  LoggerService.success('[Upload] Job marked complete', { stage: 'upload', videoUrl: completedJob.videoUrl });
 
   // Cleanup local files
   await StorageService.cleanupJob(jobId);

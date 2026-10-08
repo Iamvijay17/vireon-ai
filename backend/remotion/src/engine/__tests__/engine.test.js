@@ -217,8 +217,11 @@ test('visual selection: more content coverage never increases decoration intensi
   // seed that resolves to 'paragraph-stack' here since this test is about
   // the coverage-vs-intensity relationship, not strategy variety (covered
   // separately by the non-repetition tests below).
+  // Real prose, not 'x'.repeat(150): layout boxes are sized to wrapped text, so
+  // an unbreakable 150-char word is one line and covers less than three bullets.
+  const paragraph = (word) => Array(30).fill(word).join(' ');
   const denseProfile = analyzeContent({
-    elements: { title: 'T', items: [{ text: 'x'.repeat(150) }, { text: 'y'.repeat(150) }] },
+    elements: { title: 'T', items: [{ text: paragraph('alpha') }, { text: paragraph('bravo') }] },
   });
   const densePlan = solveLayout(denseProfile, 'coverage-seed-1');
   assert.equal(densePlan.strategy, 'paragraph-stack');
