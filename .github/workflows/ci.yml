@@ -8,6 +8,9 @@ on:
     branches: [main]
   pull_request:
 
+# Read-only for every job. CI never publishes anything and never sees a secret,
+# which is also what makes it safe for fork pull requests (GitHub gives those
+# a read-only token and no secrets regardless).
 permissions:
   contents: read
 
@@ -18,6 +21,7 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Real Redis for tests/integration (RUN_REDIS_TESTS below): the retry path
     # depends on BullMQ behaviour a mocked queue can't reproduce.
     services:
@@ -34,6 +38,8 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -44,7 +50,7 @@ jobs:
         run: find src -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Lint
         run: npm run lint
-      - name: Unit tests
+      - name: Unit + Redis/BullMQ integration tests
         run: npm test -- --ci
         env:
           NODE_ENV: test
@@ -59,8 +65,11 @@ jobs:
     # Workspace install at the repo root: the frontend imports the shared
     # vireon-remotion-templates package (backend/remotion).
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -76,20 +85,31 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v3
-      - name: Validate compose file
+      - name: Validate compose files
         run: |
           cp .env.example .env
           sed -i 's/^MONGODB_URI=.*/MONGODB_URI=mongodb:\/\/ci\/ci/; s/^MINIO_ROOT_USER=.*/MINIO_ROOT_USER=ci/; s/^MINIO_ROOT_PASSWORD=.*/MINIO_ROOT_PASSWORD=cipassword/' .env
           docker compose --profile tailscale --profile quicktunnel config -q
+          docker compose -f docker-compose.yml -f deploy/ci/compose.ci.yml config -q
+      # `load: true` keeps the images in the local daemon so the smoke test
+      # below runs the exact images that were just built (still never pushed).
       - name: Build backend image (no push)
         uses: docker/build-push-action@v6
         with:
           context: backend
           push: false
+          load: true
+          tags: ghcr.io/ci/vireon-backend:ci
+          build-args: |
+            APP_VERSION=0.0.0-ci
+            APP_COMMIT=${{ github.sha }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
       - name: Build frontend image (no push)
@@ -98,5 +118,62 @@ jobs:
           context: .
           file: frontend/Dockerfile
           push: false
+          load: true
+          tags: ghcr.io/ci/vireon-frontend:ci
+          build-args: |
+            APP_VERSION=0.0.0-ci
+            APP_COMMIT=${{ github.sha }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
+      # Boots redis + a throwaway mongo + the two images we just built, waits
+      # for their Docker health checks, then checks /health, /api/version and
+      # the frontend through nginx. No GPU / AI / MinIO services (see
+      # deploy/ci/compose.ci.yml). Tears everything down, even on failure.
+      - name: Compose smoke test
+        env:
+          SMOKE_COMMIT: ${{ github.sha }}
+        run: bash deploy/ci/smoke-test.sh
+
+  audit:
+    # Informational: surfaces known advisories in PRODUCTION dependencies as
+    # warnings without failing CI. A failing check here would also block
+    # deploy.yml (it deploys only when the whole CI run succeeds) over
+    # advisories that have nothing to do with the commit being shipped. New
+    # vulnerable dependencies introduced by a PR are blocked by the
+    # dependency-review job instead.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: npm audit - backend (production deps, high+)
+        working-directory: backend
+        run: |
+          if ! npm audit --omit=dev --audit-level=high; then
+            echo "::warning title=npm audit (backend)::high/critical advisories in production dependencies - see this step's log"
+          fi
+      - name: npm audit - frontend workspace (production deps, high+)
+        run: |
+          if ! npm audit --omit=dev --audit-level=high; then
+            echo "::warning title=npm audit (frontend)::high/critical advisories in production dependencies - see this step's log"
+          fi
+
+  dependency-review:
+    # Pull requests only: fails when the PR itself adds or bumps a dependency
+    # to a version with a known high/critical advisory. Pre-existing advisories
+    # are not this PR's fault and are left to the audit job above.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never

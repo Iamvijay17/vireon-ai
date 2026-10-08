@@ -84,10 +84,19 @@ const audioGenerationSchema = new mongoose.Schema(
         duration: { type: Number, default: null },
       },
     ],
+    // QUEUED: waiting behind earlier generations (see audioGenerationQueue).
+    // PENDING: being synthesized right now.
     status: {
       type: String,
-      enum: ['PENDING', 'COMPLETED', 'FAILED'],
+      enum: ['QUEUED', 'PENDING', 'COMPLETED', 'FAILED'],
       default: 'PENDING',
+    },
+    // Set when the queue actually begins this generation (status -> PENDING),
+    // so progress is timed from then rather than from createdAt, which also
+    // counts the time spent waiting in the queue.
+    startedAt: {
+      type: Date,
+      default: null,
     },
     // The playable/downloadable output for both modes: the single-voice
     // clip, or (dialogue mode) all turns merged into one file with a short

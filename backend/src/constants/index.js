@@ -242,6 +242,7 @@ const SOCKET_EVENTS = Object.freeze({
   // each dialogue turn / chunk finishes, ahead of the whole request
   // completing, so the frontend can play pieces as they're ready instead of
   // waiting for the full (possibly multi-minute) generation.
+  AUDIO_STUDIO_STARTED: 'audioStudioStarted',
   AUDIO_STUDIO_TURN_READY: 'audioStudioTurnReady',
   AUDIO_STUDIO_CHUNK_READY: 'audioStudioChunkReady',
   AUDIO_STUDIO_COMPLETED: 'audioStudioCompleted',

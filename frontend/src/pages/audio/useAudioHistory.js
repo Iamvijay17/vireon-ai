@@ -4,6 +4,7 @@ import {
   connect,
   joinJobRoom,
   leaveJobRoom,
+  onAudioStudioStarted,
   onAudioStudioTurnReady,
   onAudioStudioChunkReady,
   onAudioStudioCompleted,
@@ -12,15 +13,18 @@ import {
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 
+const isInFlight = (item) => item.status === "QUEUED" || item.status === "PENDING";
+
 // Fallback poll while a generation is in flight, purely as a safety net in
 // case a socket event gets dropped (tab backgrounded, brief reconnect) -
 // the socket events below are the primary progress mechanism, this is not.
 const SAFETY_POLL_MS = 15000;
 
 /**
- * The Audio Studio's generation history: loads it, patches the in-flight
- * generation live from socket events, and runs a generate request with
- * that tracking wired up (`runTracked`).
+ * The Audio Studio's generation history: loads it, patches every queued or
+ * running generation live from socket events, and submits new generate
+ * requests (`submit`). The server runs generations one at a time, so any
+ * number can be queued at once.
  */
 export function useAudioHistory() {
   const [history, setHistory] = useState([]);
@@ -30,10 +34,9 @@ export function useAudioHistory() {
   const [historyError, setHistoryError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
-  // Id of the AudioGeneration record currently streaming progress over the
-  // socket - only one generation can be in flight at a time (the Generate
-  // button is disabled while generating), so a single ref is enough.
-  const trackedIdRef = useRef(null);
+  // Ids of the in-flight AudioGeneration records whose socket rooms we've
+  // joined - kept in step with `history` by the effect below.
+  const joinedIdsRef = useRef(new Set());
 
   // State is only set in the promise callbacks, so the mount effect below
   // can call this without cascading renders. Resolves to the items, or null.
@@ -63,15 +66,50 @@ export function useAudioHistory() {
     fetchHistory();
   }, [fetchHistory]);
 
-  // Live progress: join the in-flight generation's own room (any entity id
-  // works here, not just video jobs - see SocketService.emitToJob) and patch
-  // that one history item's turns/chunks in place as they arrive, instead of
-  // waiting for the whole (possibly multi-minute) request to resolve.
+  // Live progress: every queued/running generation gets its own socket room
+  // (any entity id works here, not just video jobs - see SocketService.emitToJob).
+  // Deriving the joined set from `history` means a generation is followed
+  // from the moment it's submitted, and again after a page reload.
+  const inFlightKey = history.filter(isInFlight).map((h) => h._id).join(",");
+  useEffect(() => {
+    const wanted = new Set(inFlightKey ? inFlightKey.split(",") : []);
+    const joined = joinedIdsRef.current;
+    let joinedNew = false;
+    for (const id of wanted) {
+      if (!joined.has(id)) {
+        joined.add(id);
+        joinJobRoom(id);
+        joinedNew = true;
+      }
+    }
+    for (const id of [...joined]) {
+      if (!wanted.has(id)) {
+        joined.delete(id);
+        leaveJobRoom(id);
+      }
+    }
+    // Events fired between submitting and joining the room are missed, so
+    // pull the current state once after joining.
+    if (!joinedNew) return undefined;
+    const timer = setTimeout(() => fetchHistory(), 1000);
+    return () => clearTimeout(timer);
+  }, [inFlightKey, fetchHistory]);
+
+  useEffect(
+    () => () => {
+      for (const id of joinedIdsRef.current) leaveJobRoom(id);
+      joinedIdsRef.current.clear();
+    },
+    []
+  );
+
   useEffect(() => {
     connect();
 
-    const patchPieces = (id, key, index, piece) => {
-      if (id !== trackedIdRef.current) return;
+    const patchItem = (id, patch) =>
+      setHistory((prev) => prev.map((h) => (h._id === id ? { ...h, ...patch } : h)));
+
+    const patchPieces = (id, key, index, piece) =>
       setHistory((prev) =>
         prev.map((h) => {
           if (h._id !== id) return h;
@@ -80,20 +118,23 @@ export function useAudioHistory() {
           return { ...h, [key]: pieces };
         })
       );
-    };
 
+    const unsubStarted = onAudioStudioStarted(({ id, startedAt }) => patchItem(id, { status: "PENDING", startedAt }));
     const unsubTurn = onAudioStudioTurnReady(({ id, turnIndex, turn }) => patchPieces(id, "turns", turnIndex, turn));
     const unsubChunk = onAudioStudioChunkReady(({ id, chunkIndex, chunk }) => patchPieces(id, "chunks", chunkIndex, chunk));
     const unsubCompleted = onAudioStudioCompleted(({ id, audio }) => {
-      if (id !== trackedIdRef.current) return;
-      setHistory((prev) => [audio, ...prev.filter((h) => h._id !== id)]);
+      setHistory((prev) =>
+        prev.some((h) => h._id === id) ? prev.map((h) => (h._id === id ? audio : h)) : [audio, ...prev]
+      );
+      toast.success("Audio generated");
     });
     const unsubFailed = onAudioStudioFailed(({ id, error }) => {
-      if (id !== trackedIdRef.current) return;
-      setHistory((prev) => prev.map((h) => (h._id === id ? { ...h, status: "FAILED", error } : h)));
+      patchItem(id, { status: "FAILED", error });
+      toast.error(error || "Audio generation failed");
     });
 
     return () => {
+      unsubStarted();
       unsubTurn();
       unsubChunk();
       unsubCompleted();
@@ -101,51 +142,26 @@ export function useAudioHistory() {
     };
   }, []);
 
-  // Kicks off tracking for a new generation once its record shows up in
-  // history: the create-then-generate request is one long synchronous call,
-  // so the client only learns the record's id via this side-channel refetch
-  // (the same 700ms delay the old polling-only version used to first surface
-  // "Pending"), not from the request itself, which doesn't resolve until
-  // everything is done.
-  const trackNewGeneration = (previousIds) => {
-    const timer = setTimeout(async () => {
-      const items = await fetchHistory();
-      const created = items?.find((h) => !previousIds.has(h._id) && h.status === "PENDING");
-      if (created) {
-        trackedIdRef.current = created._id;
-        joinJobRoom(created._id);
-      }
-    }, 700);
-    return () => clearTimeout(timer);
-  };
-
-  const stopTracking = () => {
-    if (trackedIdRef.current) {
-      leaveJobRoom(trackedIdRef.current);
-      trackedIdRef.current = null;
-    }
-  };
+  // Safety net only while something is queued or running (see SAFETY_POLL_MS).
+  const hasInFlight = inFlightKey !== "";
+  useEffect(() => {
+    if (!hasInFlight) return undefined;
+    const timer = setInterval(() => fetchHistory(), SAFETY_POLL_MS);
+    return () => clearInterval(timer);
+  }, [hasInFlight, fetchHistory]);
 
   /**
-   * Runs `start()` (a generate request resolving to `{ data: { audio } }`)
-   * with live tracking and the safety poll, then puts the finished record at
-   * the top of the history. Rejects with the request's error.
+   * Submits a generate request (resolving to `{ data: { audio } }`). The
+   * server answers right away with the QUEUED record, which goes to the top
+   * of the history; the socket effects above take it from there. Rejects
+   * with the request's error.
    */
-  const runTracked = async (start) => {
-    const previousIds = new Set(history.map((h) => h._id));
-    let cancelDiscovery = () => {};
-    try {
-      const genPromise = start();
-      cancelDiscovery = trackNewGeneration(previousIds);
-      const safetyPoll = setInterval(() => fetchHistory(), SAFETY_POLL_MS);
-      const res = await genPromise.finally(() => clearInterval(safetyPoll));
-      setHistory((prev) => [res.data.audio, ...prev.filter((h) => h._id !== res.data.audio._id)]);
-      setHistoryError(null);
-      return res;
-    } finally {
-      cancelDiscovery();
-      stopTracking();
-    }
+  const submit = async (start) => {
+    const res = await start();
+    const audio = res.data.audio;
+    setHistory((prev) => [audio, ...prev.filter((h) => h._id !== audio._id)]);
+    setHistoryError(null);
+    return res;
   };
 
   const handleDelete = async (item) => {
@@ -174,6 +190,6 @@ export function useAudioHistory() {
     fetchHistory,
     deletingId,
     handleDelete,
-    runTracked,
+    submit,
   };
 }

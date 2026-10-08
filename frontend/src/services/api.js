@@ -203,13 +203,13 @@ export const removeFavoriteVoice = (voiceId) =>
 
 // ─── Audio Studio ───────────────────────────────────────────────────────────────
 
-// TTS synthesis itself takes tens of seconds (see AudioService), well past
-// the default 30s timeout - same override pattern as generateCourseCurriculum.
-export const generateAudio = (data) => api.post('/api/audio/generate', data, { timeout: 120000 });
+// Both generate endpoints only queue the work and return a QUEUED record
+// right away (202); the audio itself is synthesized one generation at a time
+// on the server and progress arrives over the socket.
+export const generateAudio = (data) => api.post('/api/audio/generate', data);
 
-// Multi-speaker ("podcast") script - one TTS call per turn, so this needs a
-// longer timeout still, scaled by how many turns a long script can produce.
-export const generateDialogueAudio = (data) => api.post('/api/audio/generate-dialogue', data, { timeout: 300000 });
+// Multi-speaker ("podcast") script, queued the same way.
+export const generateDialogueAudio = (data) => api.post('/api/audio/generate-dialogue', data);
 
 // ─── Voice Studio (narration pipeline) ──────────────────────────────────────────
 

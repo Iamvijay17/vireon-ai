@@ -9,7 +9,7 @@ const router = Router();
  * /api/audio/generate:
  *   post:
  *     summary: Generate standalone TTS audio from text (Audio Studio)
- *     description: Synthesizes audio for arbitrary text with a chosen voice, independent of the video pipeline. Synchronous - can take tens of seconds.
+ *     description: Queues audio synthesis for arbitrary text with a chosen voice, independent of the video pipeline. Returns immediately with a QUEUED record; generations run one at a time and progress/completion arrive over the socket.
  *     tags: [Audio]
  *     requestBody:
  *       required: true
@@ -25,8 +25,7 @@ const router = Router();
  *               type: object
  *               properties: { audio: { $ref: '#/components/schemas/AudioGeneration' } }
  *       400: { $ref: '#/components/responses/BadRequest' }
- *       500: { description: TTS generation failed }
- */
+ * */
 router.post('/generate', authenticate, AudioController.generate);
 
 /**
@@ -34,7 +33,7 @@ router.post('/generate', authenticate, AudioController.generate);
  * /api/audio/generate-dialogue:
  *   post:
  *     summary: Generate multi-speaker (podcast-style) TTS audio from a script
- *     description: 'Parses a "Name: line" script against a speaker roster and synthesizes one audio file per turn, in order. Synchronous - can take a while for longer scripts (one TTS call per turn).'
+ *     description: 'Parses a "Name: line" script against a speaker roster and queues one audio file per turn, in order. Returns immediately with a QUEUED record; generations run one at a time and progress/completion arrive over the socket.'
  *     tags: [Audio]
  *     requestBody:
  *       required: true
@@ -50,8 +49,7 @@ router.post('/generate', authenticate, AudioController.generate);
  *               type: object
  *               properties: { audio: { $ref: '#/components/schemas/AudioGeneration' } }
  *       400: { $ref: '#/components/responses/BadRequest' }
- *       500: { description: TTS generation failed }
- */
+ * */
 router.post('/generate-dialogue', authenticate, AudioController.generateDialogue);
 
 /**

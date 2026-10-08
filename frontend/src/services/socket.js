@@ -242,6 +242,11 @@ export const onSpeechStage = (callback) => onJobEvent('speechStage', callback);
 // completing (rooms are joined via the generation's own id - joinJobRoom
 // works for any entity id, not just video jobs, see SocketService.emitToJob).
 
+export const onAudioStudioStarted = (callback) => {
+  socket.on('audioStudioStarted', callback);
+  return () => socket.off('audioStudioStarted', callback);
+};
+
 export const onAudioStudioTurnReady = (callback) => {
   socket.on('audioStudioTurnReady', callback);
   return () => socket.off('audioStudioTurnReady', callback);
