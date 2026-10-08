@@ -88,6 +88,7 @@ async function updateSceneAudio(jobId, sceneNumber, audioData) {
   if (scene) {
     scene.audio.file = audioData.file;
     scene.audio.duration = audioData.duration;
+    scene.audio.fresh = undefined;
     scene.audio.captionTimestamps = audioData.captionTimestamps || null;
     // Only the segmented pipeline supplies these; the legacy path leaves them untouched.
     if (audioData.segments) scene.audio.segments = audioData.segments;

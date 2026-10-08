@@ -42,6 +42,7 @@ const LAYOUT_ITEM_CAP = Object.freeze({
 });
 
 const REPEAT_WINDOW = 4;
+const MAX_BODY_FOR_FULLBLEED = 90;
 
 const trailingRun = (history, value) => {
   let run = 0;
@@ -67,6 +68,10 @@ function eligibleLayouts(entry) {
       case 'grid': return profile.itemCount >= 3;
       // The only layout that can show a body with no list; otherwise only the Director's own pick.
       case 'quote-feature': return profile.itemCount === 0;
+      // Full-bleed shows only the kicker and headline over the picture, so a paragraph
+      // beside the picture would silently disappear from the screen. Autonomous picks
+      // use it only when there is next to no body text to lose.
+      case 'image-fullbleed': return profile.body.length <= MAX_BODY_FOR_FULLBLEED;
       default: return true;
     }
   });

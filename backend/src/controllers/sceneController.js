@@ -9,6 +9,16 @@ const { NotFoundError, ValidationError } = require('../utils/errors');
 const config = require('../config');
 const { speechTimelineQuerySchema, validateTimeline } = require('../services/audio/pipeline/speech/schemas');
 const SceneVersionService = require('../services/scene/SceneVersionService');
+const SceneRegenerationService = require('../services/scene/SceneRegenerationService');
+const ActivityLogService = require('../services/common/ActivityLogService');
+
+// The queue and the socket bridge open Redis connections when they load, so the two
+// actions that need them load them on first use (the same reason stageTracker does).
+const queueing = () => ({
+  enqueueJob: require('../services/video/enqueueVideoJob'),
+  videoQueueJobs: require('../services/video/videoQueueJobs'),
+  SocketService: require('../services/common/SocketService'),
+});
 const { getRegenerationPlan, CHANGE_TYPES } = require('../services/scene/dependencyGraph');
 
 // Cross-cutting fields that aren't part of any template's per-template shape
@@ -41,6 +51,90 @@ class SceneController {
     try {
       const { id } = validate(jobIdSchema)({ id: req.params.id });
       res.json(await SceneVersionService.list(id, parseSceneNumber(req.params.sceneNumber)));
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/videos/:id/scenes/:sceneNumber/options - what the Studio may offer for
+   * this scene right now: which regeneration actions are allowed (and why not), the
+   * layouts that can show its content, the named looks, and its version count.
+   */
+  static async sceneOptions(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      res.json(await SceneRegenerationService.getOptions(id, parseSceneNumber(req.params.sceneNumber)));
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/videos/:id/scenes/:sceneNumber/regenerate - change or redo ONE part of
+   * one scene (image | voice | script | layout | style | scene) and queue the rebuild
+   * of only what depends on it. Responds with the plan: what changed, what is rebuilt
+   * and what is reused. The work itself runs in the worker, with the usual job
+   * progress events; a result is recorded as a new immutable scene version.
+   */
+  static async regenerateScenePart(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const sceneNumber = parseSceneNumber(req.params.sceneNumber);
+      const request = validate(SceneRegenerationService.regenerateSceneSchema)(req.body || {});
+      const { enqueueJob, videoQueueJobs, SocketService } = queueing();
+
+      // Rewinding the stored status underneath a live worker would only confuse the UI
+      // until the worker overwrote it again - same guard as restart.
+      if (await videoQueueJobs.isActive(id)) {
+        throw new ValidationError('The video is being processed right now. Wait for it to finish, or stop it first.');
+      }
+
+      const { job, plan, noop, message } = await SceneRegenerationService.regenerate(id, sceneNumber, request);
+      if (noop) {
+        res.json({ jobId: id, sceneNumber, target: request.target, queued: false, noop: true, message, plan });
+        return;
+      }
+
+      SocketService.emitJobCreated(job);
+      await enqueueJob(String(job._id));
+
+      res.json({
+        jobId: id,
+        sceneNumber,
+        target: request.target,
+        queued: true,
+        status: job.status,
+        progress: job.progress,
+        plan,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/videos/:id/scenes/:sceneNumber/revert - { version }. Restore a scene from
+   * one of its earlier versions (none is modified) and queue the composition + render.
+   */
+  static async revertScene(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const sceneNumber = parseSceneNumber(req.params.sceneNumber);
+      const version = Number(req.body?.version);
+      if (!Number.isInteger(version) || version < 1) throw new ValidationError('version must be a positive integer');
+      const { enqueueJob, videoQueueJobs, SocketService } = queueing();
+
+      if (await videoQueueJobs.isActive(id)) {
+        throw new ValidationError('The video is being processed right now. Wait for it to finish, or stop it first.');
+      }
+
+      const { job, plan, warnings, audioRestored } = await SceneRegenerationService.revert(id, sceneNumber, version);
+      await ActivityLogService.add(id, `Re-rendering with scene ${sceneNumber} at version ${version}`);
+      SocketService.emitJobCreated(job);
+      await enqueueJob(String(job._id));
+
+      res.json({ jobId: id, sceneNumber, version, queued: true, status: job.status, progress: job.progress, plan, warnings, audioRestored });
     } catch (err) {
       next(err);
     }

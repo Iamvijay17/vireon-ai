@@ -113,6 +113,8 @@ const StudioPage = () => {
             canRegenerateImage={["COMPLETED", "FAILED", "AUDIO_COMPLETED"].includes(job.status) && !hasChanges}
             regeneratingImage={actions.regeneratingImage}
             onRegenerateImage={actions.handleRegenerateImage}
+            hasChanges={hasChanges}
+            onRegenerationQueued={() => navigate(`/render?id=${jobId}`)}
           />
         </div>
       )}

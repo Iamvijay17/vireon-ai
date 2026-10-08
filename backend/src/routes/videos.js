@@ -297,6 +297,83 @@ router.get('/:id/scenes/:sceneNumber/versions', authenticate, SceneController.li
 
 /**
  * @swagger
+ * /api/videos/{id}/scenes/{sceneNumber}/options:
+ *   get:
+ *     summary: What the Studio may offer for a scene right now
+ *     description: Which regeneration actions are allowed (and why not), the layouts that can show the scene's content, the named looks, and the version count.
+ *     tags: [Scenes]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/VideoJobId' }
+ *       - { $ref: '#/components/parameters/SceneNumber' }
+ *     responses:
+ *       200: { description: Scene options }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.get('/:id/scenes/:sceneNumber/options', authenticate, SceneController.sceneOptions);
+
+/**
+ * @swagger
+ * /api/videos/{id}/scenes/{sceneNumber}/regenerate:
+ *   post:
+ *     summary: Regenerate one part of one scene
+ *     description: >
+ *       Changes or redoes a single part of a scene and queues the rebuild of only what
+ *       depends on it. Unrelated scenes are not regenerated. The scene's current state is
+ *       recorded as a version first, and the result becomes a new version once the render
+ *       finishes. The response is the plan: { changed, regenerate, reusable, produce, stages }.
+ *     tags: [Scenes]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/VideoJobId' }
+ *       - { $ref: '#/components/parameters/SceneNumber' }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [target]
+ *             properties:
+ *               target: { type: string, enum: [image, voice, script, layout, style, scene] }
+ *               prompt: { type: string, description: 'target=image - a new picture description' }
+ *               voice: { type: string, description: 'target=voice - record in this voice' }
+ *               text: { type: string, description: 'target=script - the new narration' }
+ *               layout: { type: string, description: 'target=layout - a layout id the content fits' }
+ *               preset: { type: string, enum: [cinematic, minimal, dynamic], description: 'target=style' }
+ *     responses:
+ *       200: { description: Queued (or a no-op when nothing changed), with the regeneration plan }
+ *       400: { description: Invalid request, an incompatible layout, or the video is not in a state that allows it }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.post('/:id/scenes/:sceneNumber/regenerate', authenticate, SceneController.regenerateScenePart);
+
+/**
+ * @swagger
+ * /api/videos/{id}/scenes/{sceneNumber}/revert:
+ *   post:
+ *     summary: Revert a scene to an earlier version
+ *     description: Restores the scene from the chosen version (no version is modified) and queues only the composition and render.
+ *     tags: [Scenes]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/VideoJobId' }
+ *       - { $ref: '#/components/parameters/SceneNumber' }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [version]
+ *             properties:
+ *               version: { type: integer, minimum: 1 }
+ *     responses:
+ *       200: { description: Queued }
+ *       400: { description: Invalid version, or the video is not in a state that allows it }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.post('/:id/scenes/:sceneNumber/revert', authenticate, SceneController.revertScene);
+
+/**
+ * @swagger
  * /api/videos/{id}/scenes/{sceneNumber}/regeneration-plan:
  *   get:
  *     summary: What a change to a scene would rebuild

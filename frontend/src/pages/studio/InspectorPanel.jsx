@@ -6,6 +6,7 @@ import { INSPECTOR_TABS } from "./constants";
 import { ContentTab } from "./ContentTab";
 import { StyleTab } from "./StyleTab";
 import { AnimationTab, ImageTab, AudioTab } from "./MiscTabs";
+import { SceneRegenerationCard } from "./SceneRegenerationCard";
 
 export const InspectorPanel = ({
   scene,
@@ -26,6 +27,8 @@ export const InspectorPanel = ({
   canRegenerateImage,
   regeneratingImage,
   onRegenerateImage,
+  hasChanges,
+  onRegenerationQueued,
 }) => (
   <Card className="flex min-h-0 flex-col">
     <div className="flex items-center justify-between border-b border-border-light px-4 py-3">
@@ -88,6 +91,15 @@ export const InspectorPanel = ({
           onRegenerateScene={onRegenerateScene}
         />
       )}
+
+      <SceneRegenerationCard
+        key={scene?.sceneNumber}
+        jobId={job?._id}
+        scene={scene}
+        jobStatus={job?.status}
+        hasChanges={hasChanges}
+        onQueued={onRegenerationQueued}
+      />
 
       <div className="flex gap-2 border-t border-border-light pt-4">
         <Button variant="secondary" size="sm" icon={<Copy className="size-3.5" />} onClick={() => editor.handleDuplicateScene(selectedSceneIndex)} disabled={!canEdit} className="flex-1">

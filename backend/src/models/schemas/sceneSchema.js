@@ -46,6 +46,10 @@ const sceneSchema = new mongoose.Schema(
       file: { type: String, default: '' },
       duration: { type: Number, default: 0 },
       voice: { type: String, default: '' },
+      // Set when a person asked for this narration to be recorded again: the worker's
+      // audio step then bypasses the TTS cache for it (same text and voice would
+      // otherwise return the existing recording). Cleared when the new audio lands.
+      fresh: { type: Boolean, default: undefined },
       // Short delivery/emotion direction for this line (e.g. "wry and
       // relatable, then a flash of genuine nervousness on 'terrifying'"),
       // written by the script LLM since it's the one that knows the line's
