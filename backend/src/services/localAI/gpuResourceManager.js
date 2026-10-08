@@ -227,8 +227,12 @@ class GPUResourceManager {
     if (!this._held) return;
 
     if (this._hasActiveWork()) {
+      // A waiting process re-signals demand on every lease poll (~4x/s), so
+      // only the first signal of a wait is worth an INFO line.
+      const firstSignal = !this._demandPending;
       this._demandPending = true;
-      LoggerService.info('[GPU] Another process wants the GPU - handing off when the current operation finishes', { heldBy: this._heldBy });
+      const log = firstSignal ? LoggerService.info : LoggerService.debug;
+      log.call(LoggerService, '[GPU] Another process wants the GPU - handing off when the current operation finishes', { heldBy: this._heldBy });
       return;
     }
 
