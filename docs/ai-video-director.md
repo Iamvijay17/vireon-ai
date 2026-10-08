@@ -122,3 +122,75 @@ image. `restorePlan` is the revert case: only composition + render, nothing prod
 **API.** `GET /api/videos/:id/scenes/:n/versions`;
 `GET /api/videos/:id/scenes/:n/regeneration-plan[?changeType=]` (without `changeType` it
 diffs the working copy against the active version).
+
+## Phase 4 + 5 — The AI Director, with strictly validated output
+
+**Where the work is split.** The LLM *proposes*; deterministic code *decides*. That is what
+makes the Director testable without a model and keeps a re-plan from reshuffling a video.
+
+```
+Topic ─▶ StoryStructureService   beats + style guide                 (LLM, Zod-validated)
+      ─▶ ScenePlanningService    narration, chunked                  (LLM, unchanged)
+      ─▶ StoryboardPlanningService  per scene: purpose, strategy,
+                                 layout, picture, camera, transition (LLM, Zod-validated + repaired)
+      ─▶ DirectorPlanner         settles the WHOLE video:
+            layouts (neighbour-aware) → density guard → camera → transitions
+            → picture prompts → DirectorPlan                         (pure, deterministic)
+```
+
+**What the Director decides** (`services/director/`):
+- *Purpose* of every scene — hook, introduction, explanation, example, comparison, data,
+  quote, summary, conclusion, cta, transition. The model's choice if valid; otherwise
+  recovered from the scene's beat and position.
+- *Visual strategy* — title, text, list, timeline, quote, statistics, comparison,
+  split-visual, visual-explanation, full-screen-visual, podcast — mapped to one of the
+  existing 12 engine layouts (`vocabulary.js`). No new templates.
+- *Layout, camera and transition* from the existing registries only.
+- *Image prompt*, written per scene from its subject, purpose, the shared palette, the
+  audience (derived from the video type — a job has no audience field) and its neighbours'
+  titles (`AssetPlanner.js`). Deterministic and idempotent, so the prompt-keyed image cache
+  still recognises a picture it has made. Near-identical prompts get a different shot.
+- *Duration estimate* from the narration at the script budget's 130 wpm. Stored as
+  `storyboard.estimatedDuration`; the real duration is still the audio's.
+
+**Variety** (`DiversityPlanner.js`). Left to its own heuristic the engine picks a layout per
+scene with no knowledge of its neighbours. The Director now plans all scenes together:
+a candidate must fit the content (a port of the engine's `isLayoutCompatible`, pinned by a
+parity table) and, for layouts that mean something (timeline, comparison, stat), must be
+earned by the content. It is scored on the Director's own preference, strategy fit, and
+penalties for repeating the previous layout, repeating within the last four, and landing in
+the same family. A breather is favoured after a stretch of dense text. Result: four picture
+scenes alternate `split-image` / `image-fullbleed`; a run of list scenes rotates
+`stack-list` / `grid` / `paragraph-stack`. Camera: still for dense text, never the same move
+twice, never more than two moving scenes in a row, pans turn the other way. Transitions:
+soft fade inside a beat, a firmer one at a beat boundary, never the same firm one twice,
+the strongest rationed.
+
+**Density.** A layout shows only so many points before text gets small
+(`LAYOUT_ITEM_CAP`). Layouts that would overflow are penalised, and what still overflows has
+its on-screen points merged (shortest neighbours first, order kept). Narration is never
+touched. Visually empty and over-complicated scenes are flagged in `plan.diversity.warnings`.
+
+**Validation** (`schemas.js`, `llmValidation.js`). Zod schemas for the story plan, scene plan,
+visual plan, motion plan, asset plan and the assembled `DirectorPlan`. Response schemas are
+strict about *values* (an unknown layout is an error, not a silent blank) and forgiving about
+*shape and spelling* (`"Zoom In"`, `"iris wipe"`, `"splitImage"` resolve to the canonical id;
+a missing optional field takes its default). The loop is:
+
+1. validate each item on its own;
+2. send the invalid ones back **once** (`DIRECTOR_MAX_REPAIRS`, default 1, `0` disables) with
+   the exact problems, asking only for those corrected;
+3. validate the answers again;
+4. anything still invalid is dropped and that scene takes the deterministic default.
+
+Malformed output never reaches Remotion: the planner only emits ids from the registries, and
+`tests/director/invalidLlmOutput.test.js` drives the whole Director with a misbehaving model
+and checks the script still validates and compiles clean.
+
+**Behaviour changes worth knowing.** Scenes now carry an *explicit* planned layout
+(`title-only` for a title card) where the engine used to decide, and image prompts gain the
+framing/audience cues above. `directorFlow.test.js` was updated for those two intentional
+changes; its other assertions are unchanged.
+
+**Stored on the script's `brief`:** `directorPlan` (validated), `directorVersion`, `llmModel`.
+Per scene: `storyboard.{purpose, strategy, layout, density, estimatedDuration}`.

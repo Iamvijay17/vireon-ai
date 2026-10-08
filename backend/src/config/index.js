@@ -472,6 +472,16 @@ const config = Object.freeze({
       Math.max(1, Math.min(os.cpus().length - 1, 3)),
   },
 
+  // AI Director (services/director/): how many times the model is asked to correct
+  // output that failed validation before the deterministic default is used instead.
+  // 0 turns correction off (invalid output goes straight to the default).
+  director: {
+    maxRepairs: (() => {
+      const n = Number(process.env.DIRECTOR_MAX_REPAIRS);
+      return Number.isInteger(n) && n >= 0 && process.env.DIRECTOR_MAX_REPAIRS !== '' ? n : 1;
+    })(),
+  },
+
   // Per-stage wall-clock budgets for the video worker (services/pipeline/
   // stageRunner.js). These are safety nets for a hung call, NOT tuning knobs:
   // each sits far above what a healthy stage takes on the 6GB dev card, so a

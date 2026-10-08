@@ -3,15 +3,24 @@ const ScenePlanningService = require('./ScenePlanningService');
 const StoryboardPlanningService = require('./StoryboardPlanningService');
 const VoicePlanningService = require('./VoicePlanningService');
 const MotionPlanningService = require('./MotionPlanningService');
+const DirectorPlanner = require('./DirectorPlanner');
+const config = require('../../config');
+
+// Bumped when the Director's planning rules change in a way that changes output.
+const DIRECTOR_VERSION = 2;
 
 /**
  * Orchestrates the full script-generation pipeline:
  *
  *   1. StoryStructureService   - narrative arc + shared style guide (the "brief")
  *   2. ScenePlanningService    - scene narration, anchored to that plan
- *   3. StoryboardPlanningService - per scene: composition, image (and what it
- *      shows), camera motion, transition - validated, never trusted blindly
+ *   3. StoryboardPlanningService - per scene: purpose, visual strategy,
+ *      composition, image (and what it shows), camera motion, transition -
+ *      validated against Zod schemas (and repaired once), never trusted blindly
  *   4. Voice / motion passes   - deterministic consistency fill-ins
+ *   5. DirectorPlanner         - settles layout / camera / transition / image
+ *      prompts across the WHOLE video so neighbours differ and text stays
+ *      readable; produces the DirectorPlan stored on the brief
  *
  * Returns the `{title, description, tags, thumbnailPrompt, scenes}` shape the
  * old single-call generator produced, plus the `brief`, with each scene now
@@ -44,7 +53,7 @@ class AIDirectorService {
     if (checkCancelled) await checkCancelled();
 
     const imageBudget = StoryboardPlanningService.imageBudget({ sceneCount: scenes.length, videoType });
-    const { entries, source } = await StoryboardPlanningService.plan({
+    const { entries, source, repairs: storyboardRepairs = 0, rejected: rejectedScenes = [] } = await StoryboardPlanningService.plan({
       scenes, structure, videoType, topic, language, imageBudget, jobId, checkCancelled,
     });
     const storyboarded = StoryboardPlanningService.apply(scenes, entries, { structure, imageBudget, videoType });
@@ -53,16 +62,32 @@ class AIDirectorService {
       ...scene,
       ...VoicePlanningService.resolve(scene, { hostVoice, guestVoice, videoType }),
     }));
-    const finalScenes = StoryboardPlanningService.finalize(
-      MotionPlanningService.apply(voicedScenes, structure.styleGuide)
-    );
+    const motioned = MotionPlanningService.apply(voicedScenes, structure.styleGuide);
+
+    // Deterministic, so it also gives a video the LLM could not storyboard a varied,
+    // readable plan rather than the engine's unplanned defaults.
+    const { scenes: planned, plan: directorPlan } = DirectorPlanner.refine({
+      scenes: motioned,
+      structure,
+      videoType,
+      source,
+      repairs: storyboardRepairs + (structure.repairs || 0),
+      rejectedScenes,
+    });
+    const finalScenes = StoryboardPlanningService.finalize(planned);
 
     return {
       title: titleOverride || structure.title,
       description: structure.description,
       tags: structure.tags,
       thumbnailPrompt: structure.thumbnailPrompt,
-      brief: StoryboardPlanningService.buildBrief({ structure, imageBudget, source, videoType, extraInstructions }),
+      brief: {
+        ...StoryboardPlanningService.buildBrief({ structure, imageBudget, source, videoType, extraInstructions }),
+        // Recorded so a scene's provenance can say which model and which planning rules made it.
+        llmModel: config.ollama.model,
+        directorVersion: DIRECTOR_VERSION,
+        directorPlan,
+      },
       scenes: finalScenes,
     };
   }
