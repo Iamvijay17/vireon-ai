@@ -71,7 +71,7 @@ describe('AIDirectorService with the storyboard pass', () => {
     expect(result.brief).toMatchObject({ videoType: 'educational', imageBudget: 1, storyboardSource: 'director' });
     expect(result.brief.beats).toHaveLength(1);
     expect(result.scenes).toHaveLength(3);
-    expect(result.scenes.map((s) => s.storyboard.layout)).toEqual(['', 'timeline', 'split-image']);
+    expect(result.scenes.map((s) => s.storyboard.layout)).toEqual(['title-only', 'timeline', 'split-image']);
     expect(result.scenes.map((s) => s.storyboard.cameraMotion)).toEqual(['zoom-in', 'static', 'pan-left']);
     expect(result.scenes.map((s) => s.transition)).toEqual(['fade', 'wipe', 'fade']);
   });
@@ -80,7 +80,10 @@ describe('AIDirectorService with the storyboard pass', () => {
     mockLLM();
     const { scenes } = await direct();
     expect(scenes[2].sceneType).toBe('contentwithimage');
-    expect(scenes[2].imagePrompt).toBe('the moon rising over a calm harbour at dusk, warm teal');
+    // The Director's prompt keeps the model's subject and shared palette, then adds the scene's framing and audience.
+    expect(scenes[2].imagePrompt).toMatch(/^the moon rising over a calm harbour at dusk, warm teal, /);
+    expect(scenes[2].imagePrompt).toContain('resolved composition');
+    expect(scenes[2].imagePrompt).toContain('curious learners');
     expect(scenes[2].storyboard.visual).toMatchObject({ kind: 'image', status: 'pending' });
     expect(scenes[1].imagePrompt).toBe('');
   });
@@ -148,11 +151,11 @@ describe('storyboard survives validation and reaches the render props', () => {
     const script = ScriptParserService.validate(await direct(), 'educational', { seed: 'job-1' });
     const { ir, ok } = compile({ jobId: 'job-1', script, jobConfig: { type: 'educational' }, stage: 'script' });
     expect(ok).toBe(true);
-    expect(ir.scenes.map((s) => s.layout)).toEqual(['', 'timeline', 'split-image']);
+    expect(ir.scenes.map((s) => s.layout)).toEqual(['title-only', 'timeline', 'split-image']);
     expect(ir.scenes[1].storyboard).toMatchObject({ layout: 'timeline' });
 
     const props = toRenderProps(ir);
-    expect(props.scenes.map((s) => s.layout)).toEqual(['', 'timeline', 'split-image']);
+    expect(props.scenes.map((s) => s.layout)).toEqual(['title-only', 'timeline', 'split-image']);
     expect(props.scenes[1].storyboard).toBeUndefined();
   });
 });

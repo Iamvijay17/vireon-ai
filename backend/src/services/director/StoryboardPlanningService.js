@@ -5,14 +5,17 @@ const LoggerService = require('../common/LoggerService');
 const { LAYOUT_IDS } = require('../../ir/templateRegistry');
 const StoryStructureService = require('./StoryStructureService');
 const VisualPlanningService = require('./VisualPlanningService');
+const { CAMERA_MOTIONS: CAMERA_IDS, TRANSITIONS: TRANSITION_IDS, PURPOSES, STRATEGIES } = require('./vocabulary');
+const { StoryboardEntrySchema } = require('./schemas');
+const { validateWithRepair } = require('./llmValidation');
 
 // Scenes planned per LLM call. Each entry is ~60 tokens of JSON, so a chunk is
 // a small, quickly-finished response - a long script never rides on one call.
 const CHUNK_SCENES = 12;
 
-const CAMERA_MOTIONS = ['static', 'zoom-in', 'zoom-out', 'pan-left', 'pan-right'];
+const CAMERA_MOTIONS = CAMERA_IDS;
 // Transition ids the renderer's registry knows (remotion/src/transitions).
-const TRANSITIONS = ['fade', 'dissolve', 'cut', 'none', 'slide', 'slideUp', 'wipe', 'irisWipe', 'zoom'];
+const TRANSITIONS = TRANSITION_IDS;
 
 const IMAGE_LAYOUTS = new Set(['split-image', 'image-fullbleed']);
 const PODCAST_LAYOUTS = new Set(['podcast-split', 'podcast-centered']);
@@ -49,10 +52,16 @@ class StoryboardPlanningService {
     return Math.min(config.imageGen.maxPerVideo, Math.max(1, Math.floor(sceneCount / 3)));
   }
 
-  static _digest(scenes) {
+  /**
+   * What the model is shown of each scene. `all` is the whole script, so a chunk's
+   * first and last scene still know their neighbours across the chunk boundary.
+   */
+  static _digest(scenes, all = scenes, beats = []) {
     return JSON.stringify(
       scenes.map((scene) => {
         const narration = String(scene.audio?.text || '').replace(/\s+/g, ' ').trim();
+        const at = all.findIndex((s) => s.sceneNumber === scene.sceneNumber);
+        const beat = StoryStructureService.beatForScene(beats, scene.sceneNumber);
         return {
           sceneNumber: scene.sceneNumber,
           sceneType: scene.sceneType || 'content',
@@ -60,6 +69,9 @@ class StoryboardPlanningService {
           narration: narration.length > DIGEST_NARRATION_CHARS ? `${narration.slice(0, DIGEST_NARRATION_CHARS)}...` : narration,
           listItems: Array.isArray(scene.scene_meta?.content) ? scene.scene_meta.content.length : 0,
           mentionsNumbers: /\d/.test(narration),
+          beat: beat?.purpose || '',
+          previous: at > 0 ? all[at - 1].title || '' : '',
+          next: at >= 0 && at < all.length - 1 ? all[at + 1].title || '' : '',
         };
       }),
       null,
@@ -68,10 +80,27 @@ class StoryboardPlanningService {
   }
 
   /**
-   * Ask the LLM for storyboard entries. Returns `{ entries: Map, source }`
-   * where `source` is 'director' (every chunk answered), 'partial' (some did)
-   * or 'default' (none did, or there was nothing to ask about). Only
-   * cancellation propagates; any other failure just means defaults.
+   * The follow-up sent when some entries failed validation: the original request,
+   * the exact problems, and a request for ONLY those scenes corrected.
+   */
+  static _repairPrompt(prompt, rejected) {
+    const problems = rejected.map((r) => `- scene ${r.id}: ${r.issues.join('; ')}`).join('\n');
+    const numbers = rejected.map((r) => r.id).join(', ');
+    return `${prompt}\n\nYour previous answer had problems:\n${problems}\n\nReturn ONLY valid JSON in the same format with exactly one corrected entry for each of these scenes: ${numbers}. Use only the allowed values listed in the rules above.`;
+  }
+
+  /**
+   * Ask the LLM for storyboard entries. Returns
+   * `{ entries: Map, source, repairs, rejected }` where `source` is 'director'
+   * (every chunk answered), 'partial' (some did) or 'default' (none did, or there
+   * was nothing to ask about), `repairs` counts correction round-trips and
+   * `rejected` lists scenes whose entries stayed invalid.
+   *
+   * Entries are validated against schemas.StoryboardEntrySchema - an unknown
+   * layout or transition is an error, not a silent blank. Invalid ones are sent
+   * back once for correction; what is still invalid is dropped, so that scene
+   * keeps the deterministic default. Only cancellation propagates; any other
+   * failure just means defaults.
    */
   static async plan({ scenes, structure, videoType, topic, language, imageBudget, jobId, checkCancelled }) {
     const entries = new Map();
@@ -79,9 +108,11 @@ class StoryboardPlanningService {
     // Podcast turns have one fixed composition and a single shared cover image;
     // there is nothing for the planner to decide.
     if (videoType === 'podcast' || !Array.isArray(scenes) || scenes.length === 0) {
-      return { entries, source: 'default' };
+      return { entries, source: 'default', repairs: 0, rejected: [] };
     }
 
+    let repairs = 0;
+    const rejected = [];
     let answered = 0;
     let chunks = 0;
     for (let start = 0; start < scenes.length; start += CHUNK_SCENES) {
@@ -97,22 +128,37 @@ class StoryboardPlanningService {
           visualPalette: structure?.styleGuide?.visualPalette || 'consistent, clean and modern',
           voiceTone: structure?.styleGuide?.voiceTone || 'clear and engaging',
           maxImages: Math.max(0, Math.ceil((imageBudget * chunk.length) / scenes.length)),
-          sceneDigest: this._digest(chunk),
+          sceneDigest: this._digest(chunk, scenes, structure?.beats),
         });
-        const parsed = await LLMService.generateScript(prompt, {
-          maxTokens: Math.min(6000, 700 + chunk.length * 140),
+        const maxTokens = Math.min(6000, 700 + chunk.length * 140);
+        const parsed = await LLMService.generateScript(prompt, { maxTokens });
+
+        // Only scenes this chunk asked about, once each.
+        const asked = new Set(chunk.map((s) => s.sceneNumber));
+        const seen = new Set();
+        const candidates = (Array.isArray(parsed?.scenes) ? parsed.scenes : []).filter((entry) => {
+          const n = Number(entry?.sceneNumber);
+          if (!asked.has(n) || seen.has(n) || entries.has(n)) return false;
+          seen.add(n);
+          return true;
         });
 
-        const returned = Array.isArray(parsed?.scenes) ? parsed.scenes : [];
-        let accepted = 0;
-        for (const entry of returned) {
-          const sceneNumber = Number(entry?.sceneNumber);
-          if (chunk.some((s) => s.sceneNumber === sceneNumber) && !entries.has(sceneNumber)) {
-            entries.set(sceneNumber, entry);
-            accepted += 1;
-          }
-        }
-        if (accepted > 0) answered += 1;
+        const checked = await validateWithRepair({
+          candidates,
+          schema: StoryboardEntrySchema,
+          idOf: (entry) => Number(entry?.sceneNumber),
+          maxRepairs: config.director.maxRepairs,
+          label: 'Storyboard',
+          logContext: { jobId, chunkStart: start + 1 },
+          repair: async (bad) => {
+            const reply = await LLMService.generateScript(this._repairPrompt(prompt, bad), { maxTokens });
+            return Array.isArray(reply?.scenes) ? reply.scenes : [];
+          },
+        });
+        repairs += checked.repairs;
+        rejected.push(...checked.rejected.map((r) => r.id).filter(Number.isInteger));
+        for (const entry of checked.valid) entries.set(entry.sceneNumber, entry);
+        if (checked.valid.length > 0) answered += 1;
       } catch (err) {
         if (err.cancelled) throw err;
         LoggerService.warn('Storyboard planning failed for a chunk - those scenes keep the script defaults', {
@@ -122,8 +168,8 @@ class StoryboardPlanningService {
     }
 
     const source = answered === 0 ? 'default' : answered === chunks ? 'director' : 'partial';
-    LoggerService.info('Storyboard planned', { jobId, scenes: scenes.length, entries: entries.size, source, imageBudget });
-    return { entries, source };
+    LoggerService.info('Storyboard planned', { jobId, scenes: scenes.length, entries: entries.size, source, imageBudget, repairs, rejected });
+    return { entries, source, repairs, rejected };
   }
 
   /**
@@ -209,6 +255,8 @@ class StoryboardPlanningService {
         storyboard: {
           beat: beat?.beatIndex ?? null,
           intent: beat?.purpose || '',
+          purpose: entry && PURPOSES.includes(entry.purpose) ? entry.purpose : null,
+          strategy: entry && STRATEGIES.includes(entry.strategy) ? entry.strategy : null,
           layout,
           visual: { kind, prompt, status: kind === 'image' ? 'pending' : 'none' },
           cameraMotion: cameraMotion || null,

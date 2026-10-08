@@ -11,6 +11,7 @@ import { renderDecoration } from '../../engine/decorations';
 import { resolveVisualStyle } from '../../engine/visualStyle';
 import { chooseBackground, chooseDecoration } from '../../engine/chooseVisuals';
 import { SlotText, SlotImage, Waveform, LayoutDiagnostics } from '../../engine/primitives';
+import { resolveComposition, applyTextMotion, imageMotionDamping } from '../../engine/composition';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
 import { getCaptionStyle } from '../../captions/captionStyles';
 import { mergeStyle } from '../../theme';
@@ -36,7 +37,7 @@ import { applySpeechTimingToPlan } from '../../speech/speechTiming';
  */
 const GeneratedScene = React.memo(({ scene, jobId }) => {
   const frame = useCurrentFrame();
-  const { width, height, fps } = useVideoConfig();
+  const { width, height, fps, durationInFrames } = useVideoConfig();
   const { timeline: speechTimeline, timing: speechTiming } = useSpeechTimeline();
   const elements = scene?.elements || {};
   const overrides = elements.styleConfig || {};
@@ -63,7 +64,16 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
   const profile = useMemo(() => analyzeContent(scene), [scene]);
   const layoutPlan = useMemo(() => solveLayout(profile, seed, { canvas }), [profile, seed, canvas]);
   const stylePlan = useMemo(() => generateStyle(styleSeed), [styleSeed]);
-  const baseMotionPlan = useMemo(() => choreograph(layoutPlan, seed), [layoutPlan, seed]);
+  // Composition overrides (composable scene system, see engine/composition.js):
+  // background / decoration / text motion / image motion the Director chose.
+  // Unset slots keep the deterministic picks below, so a scene without a
+  // composition renders exactly as before.
+  const composition = useMemo(() => resolveComposition(scene), [scene]);
+  const choreographedPlan = useMemo(() => choreograph(layoutPlan, seed), [layoutPlan, seed]);
+  const baseMotionPlan = useMemo(
+    () => applyTextMotion(choreographedPlan, layoutPlan.slots, composition.textMotion),
+    [choreographedPlan, layoutPlan, composition.textMotion],
+  );
   // Speech-driven scenes ({ timingMode: 'speech', trigger, ... }) enter their
   // targeted slots on the narration cue, through the same Motion Design System
   // animations. Any other timing mode - or a cue not found in the speech - returns
@@ -99,6 +109,13 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
   // per resolved styleSeed.
   stylePlan.fonts.load();
 
+  // A Director-chosen background / decoration replaces the id but keeps the
+  // intensity the engine computed from how much of the canvas the content fills.
+  const backgroundId = composition.background || backgroundPick.id;
+  const decorationId = composition.decoration || decorationPick.id;
+  const sceneProgress = durationInFrames > 1 ? frame / (durationInFrames - 1) : 0;
+  const imageDamping = imageMotionDamping(scene?.cameraMotion);
+
   const bgColor = elements.backgroundColor || stylePlan.palette.bg;
   // Spoken word-timed captions only exist for "content"/"podcast" shapes
   // (see analyzeContent's per-sceneType branches) - "image" scenes' own
@@ -120,7 +137,16 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
 
     if (slot.role === 'image') {
       return (
-        <SlotImage key={slot.id} slot={slot} src={profile.imageSrc} motionStyle={motionStyle} stylePlan={stylePlan} />
+        <SlotImage
+          key={slot.id}
+          slot={slot}
+          src={profile.imageSrc}
+          motionStyle={motionStyle}
+          stylePlan={stylePlan}
+          imageMotion={composition.imageMotion}
+          progress={sceneProgress}
+          damping={imageDamping}
+        />
       );
     }
 
@@ -142,10 +168,10 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: bgColor }}>
       <AbsoluteFill style={{ background: stylePlan.palette.bgGradient }} />
-      {renderBackground(backgroundPick.id, {
+      {renderBackground(backgroundId, {
         frame, palette: stylePlan.palette, intensity: backgroundPick.intensity, seed,
       })}
-      {renderDecoration(decorationPick.id, {
+      {renderDecoration(decorationId, {
         frame, palette: stylePlan.palette, intensity: decorationPick.intensity, seed,
       })}
 

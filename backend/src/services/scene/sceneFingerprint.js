@@ -95,25 +95,18 @@ function fingerprintScene(scene, job = {}) {
     layout: storyboard.layout || '',
     elements: withoutDerived(scene.elements),
     backgroundColor: scene.backgroundColor || '',
-    composition: {
-      layout: composition.layout || null,
-      background: composition.background || null,
-      decoration: composition.decoration || null,
-      textMotion: composition.textMotion || null,
-    },
+    background: composition.background || null,
+    decoration: composition.decoration || null,
   });
 
   const motion = short({
     cameraMotion: scene.cameraMotion || 'static',
     animation: scene.animation || '',
+    textMotion: composition.textMotion || null,
     imageMotion: composition.imageMotion || null,
-    camera: composition.camera || null,
   });
 
-  const transition = short({
-    transition: scene.transition || 'fade',
-    composition: composition.transition || null,
-  });
+  const transition = short({ transition: scene.transition || 'fade' });
 
   const sceneComposition = short({
     script, captions, image, layout, motion, transition, speechTiming: scene.speechTiming ?? null,

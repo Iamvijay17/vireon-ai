@@ -90,10 +90,11 @@ describe('a change moves exactly the parts it should', () => {
     expect(diff(scene(), scene({ transition: 'wipe' }))).toEqual(['transition']);
   });
 
-  it('the composable motion spec feeds motion / layout / transition', () => {
+  it('the composable motion slots feed the part they belong to', () => {
     expect(diff(scene(), scene({ composition: { imageMotion: 'slowZoom' } }))).toEqual(['motion']);
+    expect(diff(scene(), scene({ composition: { textMotion: 'blurIn' } }))).toEqual(['motion']);
     expect(diff(scene(), scene({ composition: { background: 'aurora' } }))).toEqual(['layout']);
-    expect(diff(scene(), scene({ composition: { transition: 'wipe' } }))).toEqual(['transition']);
+    expect(diff(scene(), scene({ composition: { decoration: 'orbit' } }))).toEqual(['layout']);
   });
 });
 

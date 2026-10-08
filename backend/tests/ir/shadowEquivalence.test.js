@@ -69,6 +69,11 @@ const cases = {
     raw(2, { storyboard: storyboard({ layout: 'timeline', cameraMotion: 'pan-left' }) }),
     raw(3, { storyboard: storyboard({ layout: 'grid' }), transition: 'wipe' }),
   ]),
+  'script with the Director\'s composition slots (and one invalid value)': () => validated([
+    raw(1),
+    raw(2, { composition: { background: 'aurora', decoration: 'dots', textMotion: 'fadeSlideUp' } }),
+    raw(3, { composition: { background: 'plasma', imageMotion: 'slowZoom' } }),
+  ]),
   'script with a generated image applied': () => {
     const script = validated([
       raw(1),
@@ -137,6 +142,14 @@ describe('legacy builder and IR agree', () => {
       { segmentId: 's01-seg002', text: 'More.', startMs: 2300, endMs: 3100, durationMs: 800 },
     ]);
     expect(legacy.scenes[1].audio).not.toHaveProperty('timeline');
+  });
+
+  it('carries the composition slots through both builders, dropping ids the renderer does not have', async () => {
+    const script = cases['script with the Director\'s composition slots (and one invalid value)']();
+    const legacy = await RemotionService.prepareAssets('job-1', script, jobConfig());
+    expect(legacy.scenes[0]).not.toHaveProperty('composition');
+    expect(legacy.scenes[1].composition).toEqual({ background: 'aurora', decoration: 'dots', textMotion: 'fadeSlideUp' });
+    expect(legacy.scenes[2].composition).toEqual({ imageMotion: 'slowZoom' });
   });
 
   it('actually carries the layout through both builders', async () => {
