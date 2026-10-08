@@ -10,6 +10,10 @@ const sceneSchema = new mongoose.Schema(
     // just display/ordering position and can shift when scenes are
     // reordered/inserted/deleted in the Studio editor).
     sceneId: { type: String, default: generateSceneId },
+    // Which SceneVersion (services/scene) this working copy currently is: 1, 2, 3...
+    // Absent on scenes that have never settled. The scene itself stays the mutable
+    // working copy; the versions are the immutable history behind it.
+    activeVersion: { type: Number, default: undefined },
     sceneNumber: { type: Number, required: true },
     sceneType: { type: String, default: 'content' },
     // "host" | "guest" - which speaker this turn belongs to (podcast type only).

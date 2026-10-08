@@ -281,6 +281,45 @@ router.put('/:id/scenes', authenticate, SceneController.updateScenes);
 
 /**
  * @swagger
+ * /api/videos/{id}/scenes/{sceneNumber}/versions:
+ *   get:
+ *     summary: A scene's immutable version history
+ *     description: Newest first. A version is recorded whenever a finished render differs from the scene's active version; none is ever modified.
+ *     tags: [Scenes]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/VideoJobId' }
+ *       - { $ref: '#/components/parameters/SceneNumber' }
+ *     responses:
+ *       200: { description: The scene's versions and which one is active }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.get('/:id/scenes/:sceneNumber/versions', authenticate, SceneController.listVersions);
+
+/**
+ * @swagger
+ * /api/videos/{id}/scenes/{sceneNumber}/regeneration-plan:
+ *   get:
+ *     summary: What a change to a scene would rebuild
+ *     description: >
+ *       With changeType, the dependency-graph plan for that kind of change
+ *       ({ changed, regenerate, reusable, produce, stages }). Without it, the plan
+ *       for whatever currently differs from the scene's active version.
+ *     tags: [Scenes]
+ *     parameters:
+ *       - { $ref: '#/components/parameters/VideoJobId' }
+ *       - { $ref: '#/components/parameters/SceneNumber' }
+ *       - name: changeType
+ *         in: query
+ *         schema: { type: string, enum: [script, voice, image, layout, motion, transition, style, scene] }
+ *     responses:
+ *       200: { description: The regeneration plan }
+ *       400: { description: Unknown changeType }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.get('/:id/scenes/:sceneNumber/regeneration-plan', authenticate, SceneController.regenerationPlan);
+
+/**
+ * @swagger
  * /api/videos/{id}/scenes/{sceneNumber}/regenerate-audio:
  *   post:
  *     summary: Regenerate a single scene's audio

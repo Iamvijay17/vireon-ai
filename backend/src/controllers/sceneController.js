@@ -8,6 +8,8 @@ const { JOB_STATUS } = require('../constants');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 const config = require('../config');
 const { speechTimelineQuerySchema, validateTimeline } = require('../services/audio/pipeline/speech/schemas');
+const SceneVersionService = require('../services/scene/SceneVersionService');
+const { getRegenerationPlan, CHANGE_TYPES } = require('../services/scene/dependencyGraph');
 
 // Cross-cutting fields that aren't part of any template's per-template shape
 // in ScriptParserService._createDefaultElements, but should still carry over
@@ -22,7 +24,54 @@ const CARRYOVER_ELEMENT_FIELDS = ['backgroundColor', 'styleConfig'];
 // templateId one that speaks the items shape".
 const STANDARDIZED_ITEMS_TEMPLATE_IDS = ['001-content', '002-content', '003-content', '004-content', '005-content', '006-content', '007-content', '008-content', '009-content', '010-content', '011-content', '012-content', '013-content', '014-content', '015-content'];
 
+const parseSceneNumber = (raw) => {
+  const sceneNumber = parseInt(raw, 10);
+  if (!Number.isInteger(sceneNumber) || sceneNumber < 1) {
+    throw new ValidationError('sceneNumber must be a positive integer');
+  }
+  return sceneNumber;
+};
+
 class SceneController {
+  /**
+   * GET /api/videos/:id/scenes/:sceneNumber/versions - the scene's immutable
+   * history (newest first) and which version it is currently on.
+   */
+  static async listVersions(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      res.json(await SceneVersionService.list(id, parseSceneNumber(req.params.sceneNumber)));
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/videos/:id/scenes/:sceneNumber/regeneration-plan - what would have
+   * to be rebuilt, and what is reusable, for a kind of change
+   * (?changeType=script|voice|image|layout|motion|transition|style|scene) - or,
+   * without changeType, for whatever currently differs from the active version.
+   */
+  static async regenerationPlan(req, res, next) {
+    try {
+      const { id } = validate(jobIdSchema)({ id: req.params.id });
+      const sceneNumber = parseSceneNumber(req.params.sceneNumber);
+      const { changeType } = req.query;
+
+      if (changeType === undefined) {
+        res.json(await SceneVersionService.planFor(id, sceneNumber));
+        return;
+      }
+      if (!Object.keys(CHANGE_TYPES).includes(changeType)) {
+        throw new ValidationError(`changeType must be one of: ${Object.keys(CHANGE_TYPES).join(', ')}`);
+      }
+      const { sceneId } = await SceneVersionService.list(id, sceneNumber);
+      res.json(getRegenerationPlan(sceneId, changeType));
+    } catch (err) {
+      next(err);
+    }
+  }
+
   /**
    * PUT /api/videos/:id/scenes - Update video job scenes (studio editor)
    * Allows modifying scene data before re-rendering.

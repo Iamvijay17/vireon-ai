@@ -6,6 +6,7 @@ const VideoService = require('../../services/video/VideoService');
 const StorageService = require('../../services/storage/StorageService');
 const { getStorageProvider } = require('../../services/storage/providers');
 const SocketService = require('../../services/common/SocketService');
+const SceneVersionService = require('../../services/scene/SceneVersionService');
 const { JOB_STATUS } = require('../../constants');
 
 /**
@@ -52,6 +53,11 @@ async function run(jobId, script, ctx) {
 
   LoggerService.border(`✅ Job Complete: ${jobId}`, 'success');
   LoggerService.success('[Upload] Job marked complete', { stage: 'upload', videoUrl: completedJob.videoUrl });
+
+  // The video is final: record a version of every scene that changed since its
+  // last one. Best-effort by design (settle never throws) - history is never
+  // worth failing a finished render over.
+  await SceneVersionService.settle(jobId);
 
   // Cleanup local files
   await StorageService.cleanupJob(jobId);
