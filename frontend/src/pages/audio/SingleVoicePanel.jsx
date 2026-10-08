@@ -24,7 +24,7 @@ export const SingleVoicePanel = ({
   isFavorite,
   toggleFavorite,
   onBrowseVoices,
-  generating,
+  submitting,
   onGenerate,
   fastMode,
   setFastMode,
@@ -38,7 +38,7 @@ export const SingleVoicePanel = ({
 }) => {
   const isDesignVoice = voice.startsWith("design:");
   const designDescription = isDesignVoice ? voice.slice("design:".length) : "";
-  const disabled = generating || !text.trim() || !voice || (isDesignVoice && !designDescription.trim());
+  const disabled = submitting || !text.trim() || !voice || (isDesignVoice && !designDescription.trim());
 
   return (
     <>
@@ -122,7 +122,7 @@ export const SingleVoicePanel = ({
             setDirection={setDirection}
             onPickPreset={onPickPreset}
             activePreset={activePreset}
-            disabled={generating}
+            disabled={submitting}
           />
         </div>
       )}
@@ -144,7 +144,7 @@ export const SingleVoicePanel = ({
             className="w-full"
             variant="secondary"
             icon={preview?.loading ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-            disabled={generating || preview?.loading || !text.trim() || !voice || (isDesignVoice && !designDescription.trim())}
+            disabled={submitting || preview?.loading || !text.trim() || !voice || (isDesignVoice && !designDescription.trim())}
             onClick={onPreview}
           >
             {preview?.loading ? "Generating preview..." : "Preview"}
@@ -171,17 +171,12 @@ export const SingleVoicePanel = ({
         className="mt-5 w-full"
         variant="primary"
         size="lg"
-        icon={generating ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+        icon={submitting ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
         disabled={disabled}
         onClick={onGenerate}
       >
-        {generating ? "Generating..." : "Generate Audio"}
+        {submitting ? "Adding to queue..." : "Generate Audio"}
       </Button>
-      {generating && (
-        <p className="mt-2 text-center text-xs text-text-tertiary">
-          Longer text is split into pieces you can start hearing before the whole thing finishes.
-        </p>
-      )}
     </>
   );
 };

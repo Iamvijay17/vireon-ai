@@ -24,12 +24,12 @@ export const DialoguePanel = ({
   isFavorite,
   toggleFavorite,
   onBrowseVoices,
-  generating,
+  submitting,
   onGenerate,
   fastMode,
   setFastMode,
 }) => {
-  const disabled = generating || !script.trim();
+  const disabled = submitting || !script.trim();
 
   // The Qwen3-TTS voice-clone endpoint has no delivery/style-instruction
   // parameter at all (unlike the preset "custom" voices) - so "(laughing)"
@@ -159,18 +159,12 @@ export const DialoguePanel = ({
         className="mt-5 w-full"
         variant="primary"
         size="lg"
-        icon={generating ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+        icon={submitting ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
         disabled={disabled}
         onClick={onGenerate}
       >
-        {generating ? "Generating..." : "Generate Dialogue"}
+        {submitting ? "Adding to queue..." : "Generate Dialogue"}
       </Button>
-      {generating && (
-        <p className="mt-2 text-center text-xs text-text-tertiary">
-          Each turn is synthesized in order - you can start listening to earlier turns while later ones are
-          still generating.
-        </p>
-      )}
     </>
   );
 };

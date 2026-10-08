@@ -5,8 +5,9 @@ const VideoService = require('../video/VideoService');
 const CourseService = require('../course/CourseService');
 const { JOB_STATUS, COURSE_STATUS } = require('../../constants');
 
-// AudioGeneration has no queue/cancel/retry concept - generation is
-// synchronous (see audioController.js), so it only ever supports view/delete.
+// AudioGeneration has no queue/cancel/retry concept - generation runs
+// through a simple serial queue (see audioController.js), so it only ever
+// supports view/delete.
 const TERMINAL_VIDEO_STATUSES = [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED];
 const TERMINAL_COURSE_STATUSES = [COURSE_STATUS.COMPLETED, COURSE_STATUS.ARCHIVED];
 

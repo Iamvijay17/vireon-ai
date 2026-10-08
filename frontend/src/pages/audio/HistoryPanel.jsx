@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Download, Trash2, Loader2, Mic2, RefreshCw } from "lucide-react";
+import { Download, Trash2, Loader2, Mic2, RefreshCw, Clock } from "lucide-react";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -44,7 +44,9 @@ const useNow = (active) => {
 const PendingProgress = ({ item, pieces, isDialogue }) => {
   const now = useNow(true);
   const [mountedAt] = useState(() => Date.now());
-  const startedAt = resolveStartedAt(item.createdAt, mountedAt);
+  // Timed from when the server began synthesizing it, not from submission,
+  // which would also count time spent waiting in the queue.
+  const startedAt = resolveStartedAt(item.startedAt || item.createdAt, mountedAt);
   const { percent, estimated, stalled } = computeProgress(item, pieces, startedAt, now);
   if (stalled) {
     // The server marks orphaned records FAILED on restart; this covers the
@@ -111,6 +113,10 @@ const HistoryItem = ({ item, deletingId, onDelete }) => {
         <AudioPlayer src={resolveMediaUrl(item.audioUrl)} />
       ) : item.status === "FAILED" ? (
         <Badge variant="danger">Failed{item.error ? `: ${item.error}` : ""}</Badge>
+      ) : item.status === "QUEUED" ? (
+        <Badge variant="neutral" icon={<Clock className="size-3" />}>
+          Queued - starts after earlier generations finish
+        </Badge>
       ) : (
         <>
           <PendingPieces pieces={pieces} label={isDialogue ? "Turn" : "Part"} />

@@ -49,8 +49,10 @@ const AudioPage = () => {
   const [fastMode, setFastMode] = useState(() => loadSettings().fastAudioGeneration);
 
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
-  const [generating, setGenerating] = useState(false);
-  const { history, historyLoading, historyError, fetchHistory, deletingId, handleDelete, runTracked } = useAudioHistory();
+  // True only while a request is being handed to the server's queue (a moment),
+  // not while audio is generating - so more can be queued behind a running one.
+  const [submitting, setSubmitting] = useState(false);
+  const { history, historyLoading, historyError, fetchHistory, deletingId, handleDelete, submit } = useAudioHistory();
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
 
   // Voice Library modal - `target` is "single" or a speaker index (number),
@@ -133,16 +135,17 @@ const AudioPage = () => {
   };
 
   // Shared by both modes: validation happens in the caller, this owns the
-  // generating flag and the result toasts.
-  const runGeneration = async (start, successMessage, errorMessage) => {
+  // submitting flag and the queue/error toasts. Completion and generation
+  // failures are toasted by useAudioHistory as the socket events arrive.
+  const enqueueGeneration = async (start, errorMessage) => {
     try {
-      setGenerating(true);
-      await runTracked(start);
-      toast.success(successMessage);
+      setSubmitting(true);
+      await submit(start);
+      toast.success("Added to queue");
     } catch (err) {
       toast.error(err.friendlyMessage || errorMessage);
     } finally {
-      setGenerating(false);
+      setSubmitting(false);
     }
   };
 
@@ -156,10 +159,9 @@ const AudioPage = () => {
       toast.error("Select a voice");
       return;
     }
-    runGeneration(
+    enqueueGeneration(
       () => generateAudio({ text: trimmed, voice, emotion: emotion.trim(), fastMode }),
-      "Audio generated",
-      "Failed to generate audio"
+      "Failed to queue audio"
     );
   };
 
@@ -174,10 +176,9 @@ const AudioPage = () => {
       toast.error("Every speaker needs a name and a voice");
       return;
     }
-    runGeneration(
+    enqueueGeneration(
       () => generateDialogueAudio({ script: trimmedScript, speakers: cleanSpeakers, fastMode }),
-      "Dialogue generated",
-      "Failed to generate dialogue audio"
+      "Failed to queue dialogue audio"
     );
   };
 
@@ -234,7 +235,7 @@ const AudioPage = () => {
                 isFavorite={isFavorite}
                 toggleFavorite={toggleFavorite}
                 onBrowseVoices={() => setLibraryTarget("single")}
-                generating={generating}
+                submitting={submitting}
                 onGenerate={handleGenerate}
                 fastMode={fastMode}
                 setFastMode={setFastMode}
@@ -258,7 +259,7 @@ const AudioPage = () => {
                 isFavorite={isFavorite}
                 toggleFavorite={toggleFavorite}
                 onBrowseVoices={(index) => setLibraryTarget(index)}
-                generating={generating}
+                submitting={submitting}
                 onGenerate={handleGenerateDialogue}
                 fastMode={fastMode}
                 setFastMode={setFastMode}
