@@ -1,8 +1,14 @@
+.git
+.github
 node_modules
 remotion/node_modules
 jobs
 logs
+coverage
 .env
 .env.*
 tests
 *.md
+*.log
+Dockerfile
+.dockerignore

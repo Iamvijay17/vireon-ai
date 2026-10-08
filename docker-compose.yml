@@ -28,6 +28,7 @@ services:
     <<: *restart
     image: ghcr.io/${GHCR_OWNER:-local}/vireon-backend:${IMAGE_TAG:-latest}
     build: ./backend
+    init: true   # reaps zombie child processes; node still handles SIGTERM itself
     depends_on:
       redis: { condition: service_healthy }
     extra_hosts:
@@ -93,7 +94,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8080:8080"
     logging: *logging
 
   # --- Remote access: pick ONE profile --------------------------------------
@@ -122,7 +123,7 @@ services:
     <<: *restart
     profiles: ["quicktunnel"]
     image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate --url http://frontend:80
+    command: tunnel --no-autoupdate --url http://frontend:8080
     depends_on:
       frontend: { condition: service_healthy }
 

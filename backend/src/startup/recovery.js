@@ -8,16 +8,16 @@ const { JOB_STATUS, VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../co
 // that is either moving again or honestly marked failed. Run from
 // server.js's startServer() once the database is connected.
 
-// Audio Studio generation (backend/src/controllers/audioController.js) is
-// fully synchronous per-request, not queued like video jobs - so a record
-// left in PENDING status can only mean the process died mid-generation
-// (crash, restart, nodemon reload) while a client was waiting on it. Nothing
-// resumes it, so it would otherwise sit there forever looking "in progress".
-// Sweep those into FAILED on every boot so the history list reflects reality
-// and the user can just regenerate instead of watching a stuck spinner. No
-// queue to check here (there's no BullMQ job backing a synchronous request),
-// so unlike the video/course sweeps below, every PENDING record found at
-// boot is unconditionally orphaned. Marks records one at a time (rather than
+// Audio Studio generations (backend/src/controllers/audioController.js) run
+// through an in-memory serial queue (services/audio/audioGenerationQueue.js),
+// not BullMQ like video jobs - so a record left in QUEUED or PENDING status
+// can only mean the process died (crash, restart, nodemon reload) while it
+// was waiting or running. Nothing resumes it, so it would otherwise sit there
+// forever looking "in progress". Sweep those into FAILED on every boot so the
+// history list reflects reality and the user can just regenerate instead of
+// watching a stuck spinner. No queue to check here (the in-memory one died
+// with the process), so unlike the video/course sweeps below, every such
+// record found at boot is unconditionally orphaned. Marks records one at a time (rather than
 // AudioGeneration.updateMany) and emits AUDIO_STUDIO_FAILED per record so a
 // client still watching that job's socket room sees the same failure event
 // audioController.generate's own catch block would have sent it.
@@ -25,7 +25,7 @@ async function reapOrphanedAudioGenerations() {
   const AudioGeneration = require('../models/AudioGeneration');
   const message = 'Generation was interrupted by a server restart. Please try again.';
 
-  const stuck = await AudioGeneration.find({ status: 'PENDING' });
+  const stuck = await AudioGeneration.find({ status: { $in: ['QUEUED', 'PENDING'] } });
   for (const record of stuck) {
     record.status = 'FAILED';
     record.error = message;

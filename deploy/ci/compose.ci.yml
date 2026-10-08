@@ -1,0 +1,35 @@
+# CI-only overlay for the compose smoke test (deploy/ci/smoke-test.sh). It is
+# merged on top of docker-compose.yml and never used in production.
+#
+# The real stack's Mongo is Atlas (cloud) and its heavy services (MinIO, Ollama,
+# TTS, ComfyUI, GPU workers) run natively on the Windows server, so none of
+# them exist here. The API only needs Redis and Mongo to report ready, so CI
+# starts a throwaway Mongo and the real redis/backend/frontend images.
+services:
+  mongo:
+    image: mongo:7
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    # Keep the runner's / developer's own 6379 free.
+    ports: !reset []
+
+  backend:
+    depends_on:
+      mongo: { condition: service_healthy }
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/vireon_ci
+    # No host bind mounts: ./backend/jobs and ./backend/logs would be created
+    # root-owned on a CI runner and the non-root API user could not write to them.
+    volumes: !reset []
+
+  frontend:
+    # 18080, not 8080: a developer machine running the smoke test may already
+    # have the real stack on 8080.
+    ports: !override
+      - "127.0.0.1:18080:8080"

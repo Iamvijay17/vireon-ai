@@ -338,7 +338,7 @@ const definition = {
               },
             },
           },
-          status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'FAILED'] },
+          status: { type: 'string', enum: ['QUEUED', 'PENDING', 'COMPLETED', 'FAILED'] },
           audioUrl: {
             type: 'string',
             nullable: true,
