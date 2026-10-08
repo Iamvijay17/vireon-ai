@@ -56,7 +56,7 @@ const connection = {
 const courseVideoWorker = new Worker(
   'course-video-processing',
   async (job) => {
-    const { videoId, action } = job.data;
+    const { videoId, action, autoApprove } = job.data;
 
     LoggerService.border(`🎬 Processing Course Video: ${videoId}`, 'event');
     LoggerService.info(`Worker processing course video ${action}`, {
@@ -74,6 +74,7 @@ const courseVideoWorker = new Worker(
       switch (action) {
         case 'generate-script':
           await CourseVideoService.generateScript(videoId);
+          if (autoApprove) await CourseVideoService.approveScript(videoId);
           break;
         case 'regenerate-script':
           await CourseVideoService.regenerateScript(videoId);

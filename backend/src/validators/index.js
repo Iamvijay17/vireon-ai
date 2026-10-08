@@ -57,6 +57,8 @@ const createVideoSchema = z
     // script approval). false: manual mode - audio and render each need an
     // explicit trigger, like the course-video pipeline.
     fastGeneration: z.boolean().optional().default(true),
+    // With fastGeneration: also skip the script-approval pause (see VideoJob.autoApprove).
+    autoApprove: z.boolean().optional().default(false),
     // Unrelated to fastGeneration above: uses the smaller/faster Qwen3-TTS
     // 0.6B model for this job's narration instead of the default 1.7B -
     // trades some audio quality for speed.

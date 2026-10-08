@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { AbsoluteFill, Audio, useCurrentFrame, useVideoConfig } from 'remotion';
 import { analyzeContent } from '../../engine/analyzeContent';
 import { solveLayout } from '../../engine/solveLayout';
+import { resolveCanvas } from '../../engine/scenes/shared';
 import { generateStyle } from '../../engine/generateStyle';
 import { choreograph } from '../../engine/choreograph';
 import { computeMotionStyle } from '../../engine/motion';
@@ -9,7 +10,7 @@ import { renderBackground } from '../../engine/backgrounds';
 import { renderDecoration } from '../../engine/decorations';
 import { resolveVisualStyle } from '../../engine/visualStyle';
 import { chooseBackground, chooseDecoration } from '../../engine/chooseVisuals';
-import { SlotText, SlotImage, Waveform } from '../../engine/primitives';
+import { SlotText, SlotImage, Waveform, LayoutDiagnostics } from '../../engine/primitives';
 import { CaptionRenderer } from '../../captions/CaptionRenderer';
 import { getCaptionStyle } from '../../captions/captionStyles';
 import { mergeStyle } from '../../theme';
@@ -35,11 +36,15 @@ import { applySpeechTimingToPlan } from '../../speech/speechTiming';
  */
 const GeneratedScene = React.memo(({ scene, jobId }) => {
   const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const { timeline: speechTimeline, timing: speechTiming } = useSpeechTimeline();
   const elements = scene?.elements || {};
   const overrides = elements.styleConfig || {};
-  const scale = width / 1920;
+  // The layout is solved on a reference canvas with the render's own aspect ratio
+  // (1920x1080 landscape, 1080 wide for portrait/square), then scaled to the real
+  // render size - so a 9:16 or 1:1 video gets a layout built for that shape.
+  const canvas = useMemo(() => resolveCanvas(width, height), [width, height]);
+  const scale = width / canvas.width;
 
   // Deterministic seed: the scene's stable sceneId (see sceneSchema.js -
   // independent of sceneNumber, which shifts on reorder) so the same scene
@@ -56,7 +61,7 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
   const styleSeed = jobId || seed;
 
   const profile = useMemo(() => analyzeContent(scene), [scene]);
-  const layoutPlan = useMemo(() => solveLayout(profile, seed), [profile, seed]);
+  const layoutPlan = useMemo(() => solveLayout(profile, seed, { canvas }), [profile, seed, canvas]);
   const stylePlan = useMemo(() => generateStyle(styleSeed), [styleSeed]);
   const baseMotionPlan = useMemo(() => choreograph(layoutPlan, seed), [layoutPlan, seed]);
   // Speech-driven scenes ({ timingMode: 'speech', trigger, ... }) enter their
@@ -146,8 +151,8 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
 
       <div
         style={{
-          position: 'relative', width: '100%', height: '100%',
-          transform: `scale(${scale})`, transformOrigin: 'center center',
+          position: 'absolute', left: 0, top: 0, width: canvas.width, height: canvas.height,
+          transform: `scale(${scale})`, transformOrigin: 'top left',
         }}
       >
         {imageSlots.map(renderSlot)}
@@ -156,6 +161,7 @@ const GeneratedScene = React.memo(({ scene, jobId }) => {
         )}
         {otherSlots.map(renderSlot)}
         <Waveform waveform={layoutPlan.waveform} stylePlan={stylePlan} />
+        {(scene?.debug?.layout || overrides.layoutDebug) && <LayoutDiagnostics diagnostics={layoutPlan.diagnostics} />}
       </div>
 
       <CaptionRenderer

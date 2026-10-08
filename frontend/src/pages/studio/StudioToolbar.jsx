@@ -5,7 +5,7 @@ import { Alert } from "../../components/ui/Alert";
 
 /** Title row, save + the stage's primary action, and the stage's explainer banner. */
 export function StudioToolbar({ job, stage, socketStatus, hasChanges, actions, onBack }) {
-  const { isAwaitingApproval, isManual, isAwaitingAudioTrigger, isAwaitingRenderTrigger, canEdit } = stage;
+  const { isAwaitingApproval, isManual, isAwaitingAudioTrigger, isAwaitingRenderTrigger, canRegenerateAudio, canEdit } = stage;
   const { busy } = actions;
 
   return (
@@ -27,6 +27,11 @@ export function StudioToolbar({ job, stage, socketStatus, hasChanges, actions, o
           <Button variant="secondary" size="sm" icon={<Save className="size-4" />} onClick={actions.handleSave} loading={busy.saving} disabled={!hasChanges || !canEdit}>
             Save Changes
           </Button>
+          {canRegenerateAudio && (
+            <Button variant="secondary" size="sm" icon={<AudioLines className="size-4" />} onClick={actions.handleGenerateAudio} loading={busy.generatingAudio}>
+              Regenerate Audio
+            </Button>
+          )}
           {isAwaitingApproval ? (
             <Button variant="primary" size="sm" icon={<CheckCircle2 className="size-4" />} onClick={actions.handleApprove} loading={busy.approving}>
               {isManual ? "Approve Script" : "Approve & Continue"}
@@ -65,7 +70,8 @@ export function StudioToolbar({ job, stage, socketStatus, hasChanges, actions, o
 
       {isAwaitingRenderTrigger && (
         <Alert type="info" title="Audio ready">
-          Click "Generate Render" when you're ready to generate images (if any) and produce the final video.
+          Click "Generate Render" when you're ready to generate images (if any) and produce the final video. Changed the
+          voice or narration? Click "Regenerate Audio" to redo every scene first.
         </Alert>
       )}
 

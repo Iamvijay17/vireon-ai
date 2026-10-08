@@ -124,6 +124,14 @@ async function run(jobId, videoJob, currentStatus, ctx) {
   // get silently overwritten by this step's own success path.
   await bailIfCancelled(jobId);
 
+  // Auto-approve (fast generation only): no review pause - fall through to
+  // the audio step, exactly as if the user had clicked Approve straight away.
+  if (videoJob.fastGeneration && videoJob.autoApprove) {
+    LoggerService.info('Script auto-approved - continuing to audio', { jobId });
+    await ActivityLogService.add(jobId, 'Script generated and auto-approved.');
+    return null;
+  }
+
   // Pause here: wait for explicit manual approval before spending
   // TTS/image/render resources on this script. The user reviews/edits
   // it (and can set manual scene image URLs) in the Studio Editor, then

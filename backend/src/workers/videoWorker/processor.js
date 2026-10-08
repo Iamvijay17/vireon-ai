@@ -95,6 +95,12 @@ async function processVideoJob(job) {
     const scriptPauseResult = await scriptStep.run(jobId, videoJob, currentStatus, ctx);
     if (scriptPauseResult) return scriptPauseResult;
 
+    // An auto-approved job generates its script in this very run and falls straight
+    // through, so the copy fetched at the top has no script yet - reload it.
+    if (videoJob.autoApprove && !videoJob.script?.scenes?.length) {
+      videoJob = await VideoService.getById(jobId);
+    }
+
     await bailIfCancelled(jobId);
 
     // ── Step 4: Audio Generation (skipped if all scenes already have audio files)

@@ -116,6 +116,13 @@ const videoJobSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Only meaningful with fastGeneration: skips the script-review pause too, so
+    // the job runs from topic to finished video with no approval click. The
+    // script can no longer be edited, nor the voice changed, before audio starts.
+    autoApprove: {
+      type: Boolean,
+      default: false,
+    },
     // Unrelated to fastGeneration above: uses the smaller/faster Qwen3-TTS
     // 0.6B model for this job's narration instead of the default 1.7B -
     // trades some audio quality for speed. See AudioService's fastMode param.

@@ -52,8 +52,28 @@ export function OutputSection({ values, setField }) {
               : "Off: you'll manually trigger each step — approve the script, then generate audio, then generate the video — reviewing in between, like course videos."}
           </p>
         </div>
-        <Switch checked={values.fastGeneration} onChange={(v) => setField("fastGeneration", v)} />
+        <Switch
+          checked={values.fastGeneration}
+          onChange={(v) => {
+            setField("fastGeneration", v);
+            if (!v) setField("autoApprove", false);
+          }}
+        />
       </div>
+
+      {values.fastGeneration && (
+        <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
+          <div>
+            <Label className="mb-1">Auto-approve script</Label>
+            <p className="text-xs text-text-secondary">
+              {values.autoApprove
+                ? "On: the script is approved as soon as it's written - no review, and no chance to edit it or change the voice before audio starts."
+                : "Off: you review and approve the script first (and can change the voice then)."}
+            </p>
+          </div>
+          <Switch checked={Boolean(values.autoApprove)} onChange={(v) => setField("autoApprove", v)} />
+        </div>
+      )}
 
       <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4">
         <div>

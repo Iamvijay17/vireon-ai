@@ -44,6 +44,7 @@ async function create(data) {
     fontPairing: data.fontPairing || 'default',
     captionAnimation: data.captionAnimation || 'fadeInUp',
     fastGeneration: data.fastGeneration ?? true,
+    autoApprove: (data.fastGeneration ?? true) && (data.autoApprove ?? false),
     fastAudio: data.fastAudio ?? false,
     voiceProfile: data.voiceProfile || '',
     voiceStyle: data.voiceStyle || '',

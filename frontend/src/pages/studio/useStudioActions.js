@@ -32,6 +32,9 @@ export function useStudioActions({ jobId, job, setJob, editor, navigate }) {
     try {
       await updateVideoJob(jobId, { [field]: value });
       setJob((prev) => (prev ? { ...prev, [field]: value } : prev));
+      if (job?.status === "AUDIO_COMPLETED") {
+        toast.info('Voice saved. Existing audio keeps the old voice - click "Regenerate Audio" to apply it.');
+      }
     } catch (err) {
       toast.error(err.friendlyMessage || "Failed to update voice");
     }

@@ -17,6 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Every suite is bundled into its own file and run by Node's test runner together.
 const entries = [
   path.join(__dirname, '..', 'src', 'engine', '__tests__', 'engine.test.js'),
+  path.join(__dirname, '..', 'src', 'engine', '__tests__', 'verticalLayout.test.js'),
   path.join(__dirname, '..', 'src', 'speech', '__tests__', 'speech.test.js'),
 ];
 const stamp = Date.now();

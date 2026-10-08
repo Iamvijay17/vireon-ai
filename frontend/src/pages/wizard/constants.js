@@ -162,6 +162,7 @@ export const DEFAULT_VALUES = {
   quality: "standard",
   captionAnimation: "fadeInUp",
   fastGeneration: false,
+  autoApprove: false,
   fastAudio: false,
   // "" = Auto: the server picks a narration style from the video type.
   voiceStyle: "",
@@ -182,6 +183,8 @@ export const buildInitialValues = () => {
     language: LANGUAGES.some((l) => l.value === prefs.defaultLanguage) ? prefs.defaultLanguage : DEFAULT_VALUES.language,
     voice: prefs.defaultVoice || DEFAULT_VALUES.voice,
     fastAudio: prefs.fastAudioGeneration ?? DEFAULT_VALUES.fastAudio,
+    fastGeneration: prefs.defaultFastGeneration ?? DEFAULT_VALUES.fastGeneration,
+    autoApprove: Boolean(prefs.defaultFastGeneration && prefs.defaultAutoApprove),
     // A saved default resolution/duration might not be valid for Shorts
     // (e.g. a landscape default resolution) - fall back to a Shorts-valid
     // default rather than starting the wizard in an invalid state.
