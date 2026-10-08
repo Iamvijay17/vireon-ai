@@ -4,6 +4,7 @@ const StoryboardPlanningService = require('./StoryboardPlanningService');
 const VoicePlanningService = require('./VoicePlanningService');
 const MotionPlanningService = require('./MotionPlanningService');
 const DirectorPlanner = require('./DirectorPlanner');
+const { scriptKey } = require('../cache/cacheKeys');
 const config = require('../../config');
 
 // Bumped when the Director's planning rules change in a way that changes output.
@@ -86,6 +87,9 @@ class AIDirectorService {
         // Recorded so a scene's provenance can say which model and which planning rules made it.
         llmModel: config.ollama.model,
         directorVersion: DIRECTOR_VERSION,
+        // What this script was made from (never used to serve a cached script - sampling is
+        // creative on purpose - only to recognise two videos made from the same inputs).
+        inputKey: scriptKey({ topic, videoType, language, durationMinutes, llmModel: config.ollama.model, directorVersion: DIRECTOR_VERSION }),
         directorPlan,
       },
       scenes: finalScenes,

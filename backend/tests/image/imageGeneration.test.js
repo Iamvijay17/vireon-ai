@@ -126,35 +126,47 @@ describe('generate', () => {
     expect(client.queue.mock.calls[0][0]['5'].inputs).toMatchObject({ width: 576, height: 1024 });
   });
 
+  const lookedUpKeys = () => CacheService.getImage.mock.calls.map(([key]) => key);
+
   it('keys the cache on the settings that change the picture', async () => {
     await ImageGenerationService.generate({ jobId: 'j', prompt: 'a cat', aspectRatio: '16:9' });
     await ImageGenerationService.generate({ jobId: 'j', prompt: 'a cat', aspectRatio: '9:16' });
-    const keys = require('../../src/services/common/CacheService').hashInputs.mock.calls.map(([i]) => i);
-    expect(keys[0]).toMatchObject({ prompt: 'a cat', width: 1024, checkpoint: 'model.safetensors' });
-    expect(keys[0].workflow).toMatch(/^[0-9a-f]{64}$/);
-    expect(keys[0].width).not.toBe(keys[1].width);
+    await ImageGenerationService.generate({ jobId: 'j', prompt: 'a dog', aspectRatio: '16:9' });
+    const [landscape, portrait, dog] = lookedUpKeys();
+    expect(landscape).toMatch(/^[0-9a-f]{64}$/);
+    expect(landscape).not.toBe(portrait); // a different size is a different picture
+    expect(landscape).not.toBe(dog);      // so is a different prompt
+  });
+
+  it('asks for the same picture twice under the same key', async () => {
+    await ImageGenerationService.generate({ jobId: 'job-1', prompt: 'a cat', aspectRatio: '16:9' });
+    await ImageGenerationService.generate({ jobId: 'job-2', prompt: 'a cat', aspectRatio: '16:9' });
+    const [first, second] = lookedUpKeys();
+    expect(first).toBe(second); // the job id is not an input: the same prompt from two jobs is one image
+  });
+
+  it('keys the cache on the workflow file itself, so editing the workflow retires old pictures', () => {
+    const { imageKey } = require('../../src/services/cache/cacheKeys');
+    const params = { prompt: 'a cat', width: 1024, height: 576 };
+    expect(imageKey(params, '{"a":1}')).not.toBe(imageKey(params, '{"a":2}'));
+    expect(imageKey(params, '{"a":1}')).toBe(imageKey(params, '{"a":1}'));
   });
 
   it('uses a caller-chosen step count and keys the cache on it', async () => {
-    const hashInputs = require('../../src/services/common/CacheService').hashInputs;
-    hashInputs.mockClear();
     await ImageGenerationService.generate({ jobId: 'j', prompt: 'a cat', aspectRatio: '16:9' });
     await ImageGenerationService.generate({ jobId: 'j', prompt: 'a cat', aspectRatio: '16:9', steps: 15 });
-    const [normal, fast] = hashInputs.mock.calls.map(([i]) => i);
-    expect(normal.steps).toBe(config.imageGen.steps);
-    expect(fast.steps).toBe(15);
+    const [normal, fast] = lookedUpKeys();
+    expect(normal).not.toBe(fast);
+    expect(client.queue.mock.calls[0][0]['3'].inputs.steps).toBe(config.imageGen.steps);
     expect(client.queue.mock.calls[1][0]['3'].inputs.steps).toBe(15);
   });
 
   it('sends a negative prompt and CFG override to the workflow, and keys the cache on them', async () => {
-    const hashInputs = require('../../src/services/common/CacheService').hashInputs;
-    hashInputs.mockClear();
     await ImageGenerationService.generate({ jobId: 'j', prompt: 'a street', aspectRatio: '16:9' });
     await ImageGenerationService.generate({ jobId: 'j', prompt: 'a street', aspectRatio: '16:9', negative: 'cars', cfg: 3 });
 
-    const [plain, guided] = hashInputs.mock.calls.map(([i]) => i);
-    expect(plain.negative).toBe(config.imageGen.negativePrompt);
-    expect(guided).toMatchObject({ negative: 'cars', cfg: 3 });
+    const [plain, guided] = lookedUpKeys();
+    expect(plain).not.toBe(guided);
     const sent = client.queue.mock.calls[1][0];
     expect(sent['3'].inputs.cfg).toBe(3);        // KSampler
     expect(sent['7'].inputs.text).toBe('cars');  // negative CLIPTextEncode

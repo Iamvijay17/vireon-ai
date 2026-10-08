@@ -4,6 +4,7 @@ const config = require('../../../config');
 const LoggerService = require('../../common/LoggerService');
 const MetricsService = require('../../common/MetricsService');
 const CacheService = require('../../common/CacheService');
+const { getCoordinator } = require('../../cache/GenerationCoordinator');
 const { getStorageProvider } = require('../../storage/providers');
 const { makeAbortError } = require('../../../utils/abortableDelay');
 const { synthesizeRaw } = require('./rawSynthesis');
@@ -97,7 +98,7 @@ async function synthesizeScene({ jobId, sceneNumber, plan, workDir, outputPath, 
       seg.status = 'generating';
       seg.error = null;
 
-      let cached = forced ? null : await CacheService.getSegmentAudio('processed', seg.processedCacheKey, processedPath);
+      const cached = forced ? null : await CacheService.getSegmentAudio('processed', seg.processedCacheKey, processedPath);
       if (cached) {
         seg.cache = 'hit';
         stats.cacheHits++;
@@ -115,13 +116,11 @@ async function synthesizeScene({ jobId, sceneNumber, plan, workDir, outputPath, 
         continue;
       }
 
-      // Raw cache: re-processing needs no GPU.
-      cached = forced ? null : await CacheService.getSegmentAudio('raw', seg.rawCacheKey, rawPath);
-      if (cached) {
-        seg.cache = 'hit';
-        stats.cacheHits++;
-        emit('tts-cache-hit', i + 1);
-      } else {
+      // Raw cache: re-processing needs no GPU. The raw clip is the expensive GPU result, so an
+      // identical request already in flight (this process or another) is waited for and its
+      // clip read from the cache instead of being synthesized a second time. A forced
+      // re-synthesis bypasses both: it exists to produce a new take.
+      const generateRaw = async () => {
         seg.cache = 'miss';
         stats.cacheMisses++;
         emit('tts-generating', i + 1);
@@ -145,6 +144,25 @@ async function synthesizeScene({ jobId, sceneNumber, plan, workDir, outputPath, 
           pronunciationVersion: plan.version.pronunciation,
           createdAt: new Date().toISOString(),
         });
+        return synth;
+      };
+
+      let rawReused = false;
+      if (forced) {
+        await generateRaw();
+      } else {
+        const outcome = await getCoordinator().run({
+          kind: 'tts-seg-raw',
+          key: seg.rawCacheKey,
+          lookup: () => CacheService.getSegmentAudio('raw', seg.rawCacheKey, rawPath),
+          produce: generateRaw,
+        });
+        rawReused = outcome.source !== 'generated';
+      }
+      if (rawReused) {
+        seg.cache = 'hit';
+        stats.cacheHits++;
+        emit('tts-cache-hit', i + 1);
       }
 
       seg.status = 'processing';
