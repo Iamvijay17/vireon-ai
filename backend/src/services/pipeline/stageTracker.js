@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const VideoJob = require('../../models/VideoJob');
 const LoggerService = require('../common/LoggerService');
 const { STAGE_STATE, STAGE_ORDER, DOWNSTREAM, isStageKey } = require('./stages');
@@ -17,6 +18,12 @@ const { publicError } = require('./pipelineErrors');
 
 const path = (key, field) => `stages.${key}.${field}`;
 
+// Not connected (a reconnect gap, a process that never connected): Mongoose would buffer the
+// write for ten seconds before failing it, and the pipeline awaits these calls. Stage state is
+// an observability record, so it is skipped rather than stalling the stage it describes -
+// the same rule JobEventService applies.
+const connected = () => mongoose.connection.readyState === 1;
+
 function emit(jobId, key, stage) {
   try {
     // Required lazily: SocketService opens its Redis bridge on load, and the
@@ -28,6 +35,7 @@ function emit(jobId, key, stage) {
 }
 
 async function write(jobId, key, update, label) {
+  if (!connected()) return null;
   try {
     const job = await VideoJob.findByIdAndUpdate(jobId, update, { new: true }).select(`stages.${key}`).lean();
     return job?.stages?.[key] || null;
@@ -107,7 +115,7 @@ async function cancel(jobId, key, { durationMs } = {}) {
  * earliest stage that has to run again (e.g. 'images' after a re-rolled picture).
  */
 async function invalidate(jobId, fromKey) {
-  if (!isStageKey(fromKey)) return;
+  if (!isStageKey(fromKey) || !connected()) return;
   const $set = {};
   for (const key of DOWNSTREAM[fromKey]) {
     $set[path(key, 'status')] = STAGE_STATE.PENDING;
@@ -130,6 +138,7 @@ async function invalidate(jobId, fromKey) {
  * matches reality and a Restart resumes at the right stage.
  */
 async function markInterrupted(jobId, error) {
+  if (!connected()) return null;
   let job;
   try {
     job = await VideoJob.findById(jobId).select('stages').lean();

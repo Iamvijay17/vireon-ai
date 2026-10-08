@@ -3,6 +3,12 @@ jest.mock('../../src/services/common/LoggerService', () => ({
 }));
 jest.mock('../../src/services/common/SocketService', () => ({ emitStageUpdate: jest.fn() }));
 
+const mockMongo = { readyState: 1 };
+jest.mock('mongoose', () => {
+  const actual = jest.requireActual('mongoose');
+  return { ...actual, connection: { get readyState() { return mockMongo.readyState; } } };
+});
+
 // A tiny in-memory stand-in for the one document the tracker touches, applying
 // the $set / $inc operators it uses, so the tests assert the persisted result
 // rather than the shape of the Mongo call.
@@ -44,6 +50,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockStore.doc = { stages: {} };
   mockStore.fail = false;
+  mockMongo.readyState = 1;
 });
 
 describe('stage lifecycle', () => {
@@ -109,6 +116,20 @@ describe('best-effort persistence', () => {
     await expect(tracker.begin('j1', 'audio')).resolves.toEqual({ attempt: 1 });
     await expect(tracker.complete('j1', 'audio', { durationMs: 1 })).resolves.toBeNull();
     expect(SocketService.emitStageUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('when Mongo is not connected', () => {
+  it('skips every write instead of stalling the pipeline on a ten-second buffer', async () => {
+    const VideoJob = require('../../src/models/VideoJob');
+    mockMongo.readyState = 0;
+    await expect(tracker.begin('j1', 'audio')).resolves.toEqual({ attempt: 1 });
+    await tracker.complete('j1', 'audio', { durationMs: 1 });
+    await tracker.invalidate('j1', 'audio');
+    expect(await tracker.markInterrupted('j1', {})).toBeNull();
+    expect(VideoJob.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(VideoJob.updateOne).not.toHaveBeenCalled();
+    expect(VideoJob.findById).not.toHaveBeenCalled();
   });
 });
 
