@@ -7,6 +7,7 @@ import { Select } from "../../components/ui/Select";
 import { VoiceSelect } from "../../components/ui/VoiceSelect";
 import { Label, FieldHint } from "../../components/ui/Input";
 import { Badge } from "../../components/ui/Badge";
+import UpdateCheckCard from "../../components/UpdateCheckCard";
 import { Button } from "../../components/ui/Button";
 import { toast } from "../../components/ui/toastBus";
 import { ThemeContext } from "../../shared/themeContextValue";
@@ -258,6 +259,8 @@ const SettingsPage = () => {
             </SettingsRow>
           </CardBody>
         </Card>
+
+        <UpdateCheckCard />
 
         {/* System Status */}
         <Card>
