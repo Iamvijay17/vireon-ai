@@ -3,6 +3,7 @@ const redisBridge = require('./redisBridge');
 const coreEmit = require('./coreEmit');
 const jobEvents = require('./jobEvents');
 const courseEvents = require('./courseEvents');
+const publishingEvents = require('./publishingEvents');
 
 /**
  * Socket.IO service for real-time job progress updates.
@@ -26,4 +27,5 @@ module.exports = {
   ...coreEmit,
   ...jobEvents,
   ...courseEvents,
+  ...publishingEvents,
 };

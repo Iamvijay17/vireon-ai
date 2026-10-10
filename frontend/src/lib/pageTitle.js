@@ -15,6 +15,7 @@ const TITLES = {
   "/workflow": "Workflow",
   "/assets": "Assets",
   "/analytics": "Analytics",
+  "/publishing": "Publishing",
   "/logs": "Live Logs",
   "/settings": "Settings",
   "/editor/complete": "Completed Videos",

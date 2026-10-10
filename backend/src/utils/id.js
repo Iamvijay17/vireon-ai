@@ -30,6 +30,8 @@ const PREFIXES = Object.freeze({
   course: 'cou', // course
   curriculum: 'crc', // course curriculum
   favoriteVoice: 'fav', // favourite voice
+  platformAccount: 'pac', // connected publishing account (YouTube channel)
+  publishingJob: 'pub', // publishing job (YouTube upload / Udemy package)
 });
 
 const PREFIX_VALUES = new Set(Object.values(PREFIXES));
@@ -52,6 +54,8 @@ const generateFavoriteVoiceId = () => generateId(PREFIXES.favoriteVoice);
 const generateAudioGenerationId = () => generateId(PREFIXES.audio);
 const generateCourseCurriculumId = () => generateId(PREFIXES.curriculum);
 const generateImageGenerationId = () => generateId(PREFIXES.image);
+const generatePlatformAccountId = () => generateId(PREFIXES.platformAccount);
+const generatePublishingJobId = () => generateId(PREFIXES.publishingJob);
 
 // Ids minted before the lowercase switch were uppercase ("aud-BTCLNX2W") and
 // are still stored in Mongo, MinIO keys, URLs and the frontend. They are NOT
@@ -93,6 +97,8 @@ module.exports = {
   generateAudioGenerationId,
   generateCourseCurriculumId,
   generateImageGenerationId,
+  generatePlatformAccountId,
+  generatePublishingJobId,
   ID_PATTERN,
   NEW_ID_PATTERN,
   idPatternFor,

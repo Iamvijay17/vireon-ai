@@ -11,6 +11,7 @@ const STATIC_LABELS = {
   projects: "Projects",
   workflow: "Workflow",
   analytics: "Analytics",
+  publishing: "Publishing",
   settings: "Settings",
   courses: "Courses",
   editor: "Editor",

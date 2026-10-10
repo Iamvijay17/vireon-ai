@@ -258,6 +258,48 @@ class MinioStorageProvider extends StorageProvider {
   }
 
   /**
+   * Size/etag/last-modified of an object, or null if it doesn't exist. Publishing
+   * snapshots this when a draft is created and compares it again before
+   * uploading, so a video re-rendered in between is noticed instead of published.
+   */
+  async statObject(bucket, key) {
+    await this.#ready;
+    try {
+      const stat = await this.client.statObject(bucket, key);
+      return { size: stat.size, etag: stat.etag || '', lastModified: stat.lastModified || null };
+    } catch (err) {
+      if (err?.code === 'NotFound' || err?.code === 'NoSuchKey') return null;
+      throw err;
+    }
+  }
+
+  /**
+   * Read `length` bytes starting at `offset` into a Buffer. Lets a resumable
+   * upload send any chunk of a stored video without a local copy, so an
+   * interrupted upload can continue from YouTube's last confirmed byte after a
+   * worker restart.
+   */
+  async getObjectRange(bucket, key, offset, length) {
+    await this.#ready;
+    const stream = await this.client.getPartialObject(bucket, key, offset, length);
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(chunk);
+    return Buffer.concat(chunks);
+  }
+
+  /** Upload a local file to an explicit bucket/key (no Asset bookkeeping) - used for generated export packages. */
+  async putObjectFile(bucket, key, filePath, contentType = 'application/octet-stream') {
+    await this.#ready;
+    await withTimeout(
+      this.client.fPutObject(bucket, key, filePath, { 'Content-Type': contentType }),
+      config.minio.uploadTimeoutMs * 10,
+      `MinIO upload of ${key} timed out`
+    );
+    const stat = await this.client.statObject(bucket, key);
+    return { bucket, key, size: stat.size };
+  }
+
+  /**
    * Byte size of an already-uploaded object, or null if it doesn't exist.
    */
   async statObjectSize(bucket, key) {

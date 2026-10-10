@@ -452,6 +452,59 @@ const config = Object.freeze({
     timeoutMs: parseInt(process.env.QC_TIMEOUT_MS, 10) || 300000,
   },
 
+  // Multi-platform publishing (services/publishing/): YouTube upload through the
+  // official Data API v3 + Udemy course export. Everything is opt-in - with no
+  // Google credentials the module simply reports "not configured" and nothing
+  // is ever uploaded. Secrets come from the environment only.
+  publishing: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+      // The BACKEND callback Google redirects the browser to, e.g.
+      // https://<host>/api/publishing/oauth/google/callback. Must match the
+      // "Authorized redirect URIs" entry in Google Cloud exactly.
+      redirectUri: process.env.GOOGLE_REDIRECT_URI || '',
+    },
+    // 32-byte key (64 hex chars or base64) used to encrypt refresh tokens and
+    // upload-session URLs at rest. Without it nothing can be connected.
+    encryptionKey: process.env.PUBLISHING_TOKEN_ENCRYPTION_KEY || '',
+    // Where the browser is sent after the OAuth callback. Fixed config, never
+    // taken from the request, so the callback cannot be used as an open redirect.
+    frontendUrl: (process.env.PUBLISHING_FRONTEND_URL || (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',')[0].trim()).replace(/\/+$/, ''),
+    youtube: {
+      // YouTube locks videos uploaded through an UNVERIFIED API project to
+      // private (and that cannot be appealed per video). Until the project has
+      // passed YouTube's API audit, leave this false: the module then only
+      // accepts private uploads instead of letting people think a video is public.
+      apiVerified: process.env.YOUTUBE_API_VERIFIED === 'true',
+      // Refuse files larger than this before uploading a byte (YouTube's own
+      // ceiling is 256 GB; the default is deliberately far lower).
+      maxUploadBytes: parseInt(process.env.YOUTUBE_MAX_UPLOAD_BYTES, 10) || 4 * 1024 ** 3,
+      // Local guard on the project's daily videos.insert allowance, so we stop
+      // before Google does. Check your real figure in Google Cloud > Quotas.
+      dailyUploadLimit: parseInt(process.env.YOUTUBE_DAILY_UPLOAD_LIMIT, 10) || 100,
+      // Resumable-upload chunk. Must be a multiple of 256 KiB.
+      chunkSizeBytes: parseInt(process.env.YOUTUBE_UPLOAD_CHUNK_BYTES, 10) || 8 * 1024 * 1024,
+      requestTimeoutMs: parseInt(process.env.YOUTUBE_REQUEST_TIMEOUT_MS, 10) || 120000,
+      // Bounded automatic retries for transient failures, with exponential backoff.
+      maxAttempts: parseInt(process.env.PUBLISHING_MAX_ATTEMPTS, 10) || 5,
+      // How long one worker run polls YouTube for "processed" before handing
+      // the check back to the queue, and how many hand-backs are allowed.
+      processingPollMs: parseInt(process.env.YOUTUBE_PROCESSING_POLL_MS, 10) || 10000,
+      processingWindowMs: parseInt(process.env.YOUTUBE_PROCESSING_WINDOW_MS, 10) || 10 * 60_000,
+      processingMaxChecks: parseInt(process.env.YOUTUBE_PROCESSING_MAX_CHECKS, 10) || 24,
+    },
+    export: {
+      // Upper bound on a Udemy package ZIP (sum of the media it would contain).
+      maxBytes: parseInt(process.env.PUBLISHING_EXPORT_MAX_BYTES, 10) || 20 * 1024 ** 3,
+    },
+    // Separate, tighter limiter for the publishing routes that change state.
+    rateLimit: {
+      windowMs: parseInt(process.env.PUBLISHING_RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000,
+      max: parseInt(process.env.PUBLISHING_RATE_LIMIT_MAX, 10) || 60,
+    },
+  },
+
   security: {
     // Extra hosts a scene image URL may point at even though they are (or
     // resolve to) a private address - comma-separated hostnames or host:port.

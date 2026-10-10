@@ -423,3 +423,47 @@ export const getRecentLogs = (limit = 300) => api.get('/api/logs/recent', { para
 export const getHealth = () => api.get('/health');
 
 export default api;
+
+// ─── Publishing (YouTube upload + Udemy course package) ─────────────────────────
+// Nothing here uploads on its own: createPublishingJob only makes a DRAFT, and
+// submitPublishingJob (explicit confirm) is the one call that starts a publish.
+
+export const getPublishingCapabilities = () => api.get('/api/publishing/capabilities');
+
+export const getPublishingAccounts = () => api.get('/api/publishing/accounts');
+
+// Returns { authUrl }; the caller navigates the browser to it (Google consent screen).
+export const startYouTubeConnect = (returnTo = '/publishing') =>
+  api.post('/api/publishing/accounts/youtube/connect', { returnTo });
+
+export const disconnectPublishingAccount = (id) => api.delete(`/api/publishing/accounts/${id}`);
+
+export const getPublishingLessons = (courseId) => api.get(`/api/publishing/courses/${courseId}/lessons`);
+
+export const createPublishingJob = (data) => api.post('/api/publishing/jobs', data);
+
+export const getPublishingJobs = (params = {}) => api.get('/api/publishing/jobs', { params });
+
+export const getPublishingHistory = (params = {}) => api.get('/api/publishing/history', { params });
+
+export const getPublishingJob = (id) => api.get(`/api/publishing/jobs/${id}`);
+
+export const updatePublishingJob = (id, metadata) => api.patch(`/api/publishing/jobs/${id}`, { metadata });
+
+export const submitPublishingJob = (id) => api.post(`/api/publishing/jobs/${id}/submit`, { confirm: true });
+
+export const retryPublishingJob = (id) => api.post(`/api/publishing/jobs/${id}/retry`);
+
+export const cancelPublishingJob = (id) => api.post(`/api/publishing/jobs/${id}/cancel`);
+
+export const deletePublishingJob = (id) => api.delete(`/api/publishing/jobs/${id}`);
+
+export const getUdemyOverview = (courseId) => api.get(`/api/publishing/courses/${courseId}/udemy`);
+
+export const saveUdemyProfile = (courseId, profile) => api.put(`/api/publishing/courses/${courseId}/udemy`, profile);
+
+export const createUdemyExport = (courseId, options) =>
+  api.post(`/api/publishing/courses/${courseId}/udemy/export`, options);
+
+// A plain URL for <a download>: the browser streams the ZIP straight from the backend.
+export const getPublishingDownloadUrl = (jobId) => resolveMediaUrl(`/api/publishing/jobs/${jobId}/download`);

@@ -6,6 +6,7 @@ import {
   onCourseVideoCreated, onCourseVideoDeleted, onCourseVideoUpdated,
   onCourseVideoProgress, onCourseVideoRenderReady,
   onAudioStudioCompleted, onAudioStudioFailed,
+  onPublishingJobUpdated, onPublishingAccountUpdated,
 } from '../services/socket';
 import { queryKeys } from './queryClient';
 import { createThrottle } from './throttle';
@@ -110,6 +111,12 @@ export function useSocketQuerySync() {
       onCourseVideoUpdated((p) => batcher.now(courseVideoKeys(p))),
       onCourseVideoProgress((p) => batcher.queue(courseVideoKeys(p))),
       onCourseVideoRenderReady((p) => batcher.now(courseVideoKeys(p))),
+
+      // Upload progress is frequent (batched); a status change that ends a run is not.
+      onPublishingJobUpdated((p) =>
+        (['COMPLETED', 'FAILED', 'CANCELLED'].includes(p?.status) ? batcher.now : batcher.queue)([queryKeys.publishing.all])
+      ),
+      onPublishingAccountUpdated(() => batcher.now([queryKeys.publishing.accounts, queryKeys.publishing.capabilities])),
 
       onAudioStudioCompleted(() => batcher.now(audioKeys())),
       onAudioStudioFailed(() => batcher.now(audioKeys())),

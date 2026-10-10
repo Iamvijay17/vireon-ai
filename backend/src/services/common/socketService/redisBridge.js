@@ -88,6 +88,13 @@ function forwardEvent(event) {
         state.io.to(`course:${courseId}`).emit(SOCKET_EVENTS.COURSE_VIDEO_UPDATED, data);
       }
       break;
+    // Publishing (YouTube upload / Udemy package) events from the publishing workers
+    case 'publishingJobUpdated':
+      state.io.emit(SOCKET_EVENTS.PUBLISHING_JOB_UPDATED, data);
+      break;
+    case 'publishingAccountUpdated':
+      state.io.emit(SOCKET_EVENTS.PUBLISHING_ACCOUNT_UPDATED, data);
+      break;
     default:
       LoggerService.warn('Unknown event type from Redis pub/sub', { type });
   }

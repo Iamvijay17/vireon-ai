@@ -13,6 +13,8 @@
     "dev:api": "npm run dev --prefix backend",
     "dev:worker": "npm run worker:dev --prefix backend",
     "dev:course-worker": "npm run course-worker:dev --prefix backend",
+    "dev:youtube-worker": "npm run youtube-worker:dev --prefix backend",
+    "dev:export-worker": "npm run export-worker:dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend"
   },
   "devDependencies": {
