@@ -1,6 +1,7 @@
 <#
  Registers every Vireon background job as a Windows scheduled task:
    VireonVideoWorker / VireonCourseWorker  BullMQ workers (start at logon, restart on crash)
+   VireonYouTubeWorker / VireonExportWorker  publishing workers: YouTube uploads, Udemy packages (idle until used)
    VireonMinio                              MinIO object storage (start at logon)
    VireonComfyUI                            ComfyUI, headless, 127.0.0.1:8188 (start at logon)
    VireonTTS                                Qwen3-TTS (Audio Studio), 127.0.0.1:7860 (start at logon)
@@ -47,6 +48,10 @@ $psArgs = '-NoProfile -ExecutionPolicy Bypass'
 $workers = @{
   'VireonVideoWorker'  = 'src\workers\videoWorker.js'
   'VireonCourseWorker' = 'src\workers\courseVideoWorker.js'
+  # Publishing (docs/publishing.md). Idle unless something is queued; the YouTube worker needs the
+  # Google settings + PUBLISHING_TOKEN_ENCRYPTION_KEY in backend\.env (the SAME key as the API's).
+  'VireonYouTubeWorker' = 'src\workers\youtubePublishWorker.js'
+  'VireonExportWorker' = 'src\workers\courseExportWorker.js'
 }
 foreach ($name in $workers.Keys) {
   Register $name (New-HiddenAction $node $workers[$name] $backend) (New-ScheduledTaskTrigger -AtLogOn -User $user) (New-ServiceSettings)
@@ -108,4 +113,4 @@ Register 'VireonDeployPoll' (New-HiddenAction 'powershell.exe' "$psArgs -File `"
   (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)) `
   (New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew)
 
-Write-Host 'Start workers now:  Start-ScheduledTask VireonVideoWorker; Start-ScheduledTask VireonCourseWorker'
+Write-Host 'Start workers now:  Start-ScheduledTask VireonVideoWorker; Start-ScheduledTask VireonCourseWorker; Start-ScheduledTask VireonYouTubeWorker; Start-ScheduledTask VireonExportWorker'

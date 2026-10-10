@@ -69,6 +69,17 @@ services:
       # One 6 GB card shared with the native workers: serialize through the Redis
       # lease so Image Studio can't load ComfyUI while a worker has Ollama/TTS loaded.
       GPU_COORDINATOR: redis
+      # Publishing (YouTube upload / Udemy package). Empty = the Publishing page says "not
+      # configured" and nothing is ever uploaded. Values come from the repo-root .env; the SAME
+      # PUBLISHING_TOKEN_ENCRYPTION_KEY must be in backend/.env for the native YouTube worker.
+      # GOOGLE_REDIRECT_URI is https://<PUBLIC_URL host>/api/publishing/oauth/google/callback
+      # and must be registered on the Google OAuth client. See docs/publishing.md.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      PUBLISHING_TOKEN_ENCRYPTION_KEY: ${PUBLISHING_TOKEN_ENCRYPTION_KEY:-}
+      PUBLISHING_FRONTEND_URL: ${PUBLIC_URL:-http://localhost:8080}
+      YOUTUBE_API_VERIFIED: ${YOUTUBE_API_VERIFIED:-false}
     volumes:
       # Same scratch/log dirs the native workers use.
       - ./backend/jobs:/app/jobs
