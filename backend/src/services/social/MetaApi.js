@@ -62,11 +62,13 @@ class MetaApi {
 
   buildAuthUrl({ state }) {
     this.assertConfigured();
+    const base = { client_id: this.meta.appId, redirect_uri: this.meta.redirectUri, state, response_type: 'code' };
+    // Facebook Login for Business: the permissions live in the Configuration, not in the URL.
+    if (this.meta.loginConfigId) {
+      return withQuery(ENDPOINTS.metaDialog(this.meta.graphVersion), { ...base, config_id: this.meta.loginConfigId, override_default_response_type: 'true' });
+    }
     return withQuery(ENDPOINTS.metaDialog(this.meta.graphVersion), {
-      client_id: this.meta.appId,
-      redirect_uri: this.meta.redirectUri,
-      state,
-      response_type: 'code',
+      ...base,
       scope: META_SCOPES.join(','),
       // Re-ask for permissions the user previously declined, instead of silently reusing the partial grant.
       auth_type: 'rerequest',

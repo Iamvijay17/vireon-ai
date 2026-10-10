@@ -135,7 +135,7 @@ const configSchema = z.object({
   }),
 
   social: z.object({
-    meta: z.object({ appId: z.string(), appSecret: z.string(), redirectUri: z.string(), graphVersion: z.string().regex(/^v\d+\.\d+$/, 'META_GRAPH_VERSION must look like v25.0') }),
+    meta: z.object({ appId: z.string(), appSecret: z.string(), redirectUri: z.string(), graphVersion: z.string().regex(/^v\d+\.\d+$/, 'META_GRAPH_VERSION must look like v25.0'), loginConfigId: z.string().optional() }),
     threads: z.object({ appId: z.string(), appSecret: z.string(), redirectUri: z.string() }),
     publicMediaBaseUrl: z.string(),
     mediaTokenTtlMs: positiveInt('SOCIAL_MEDIA_TOKEN_TTL_MS'),
