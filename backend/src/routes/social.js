@@ -69,16 +69,16 @@ router.get('/overview', SocialController.overview);
  *       200: { description: Connected accounts }
  * /api/social/accounts/{provider}/connect:
  *   post:
- *     summary: Start OAuth for provider meta (Facebook Pages + linked Instagram) or threads - returns the consent URL to navigate to
+ *     summary: Start OAuth for provider meta (Facebook Pages + linked Instagram), instagram (Instagram login, no Page) or threads - returns the consent URL to navigate to
  *     tags: [Social]
- *     parameters: [{ name: provider, in: path, required: true, schema: { type: string, enum: [meta, threads] } }]
+ *     parameters: [{ name: provider, in: path, required: true, schema: { type: string, enum: [meta, threads, instagram] } }]
  *     responses:
  *       200: { description: "authUrl and expiresAt" }
  * /api/social/oauth/{provider}/callback:
  *   get:
  *     summary: OAuth redirect target. Validates state, exchanges the code, redirects the browser to the app.
  *     tags: [Social]
- *     parameters: [{ name: provider, in: path, required: true, schema: { type: string, enum: [meta, threads] } }]
+ *     parameters: [{ name: provider, in: path, required: true, schema: { type: string, enum: [meta, threads, instagram] } }]
  *     responses:
  *       303: { description: Redirect to the frontend with connect result query parameters }
  * /api/social/accounts/{id}/validate:
