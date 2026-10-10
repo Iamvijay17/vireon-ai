@@ -272,3 +272,15 @@ Docker Desktop (personal use), Tailscale Personal, GitHub Actions + GHCR free ti
 M0, and all AI/render software run locally for free. Real costs are only electricity and your
 existing internet. The only optional purchase is a domain (Cloudflare named tunnel). Free-tier limits
 can change — re-check them occasionally.
+
+## Publishing to YouTube (optional)
+
+The Publishing page (`/publishing`) uploads finished videos to YouTube. It does nothing until configured:
+
+1. **Google side** (once): in the OAuth client, add the redirect URI `https://<your host>/api/publishing/oauth/google/callback` (for this deployment `https://vireon.tail5b6483.ts.net/api/publishing/oauth/google/callback`). Google accepts only `https` or `localhost`, which Tailscale Serve provides.
+2. **Repo-root `.env`** (read by Docker Compose for the API container): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `PUBLISHING_TOKEN_ENCRYPTION_KEY`. See `.env.example`.
+3. **`backend/.env`** (read by the native workers): the same `GOOGLE_*` values and the **same** `PUBLISHING_TOKEN_ENCRYPTION_KEY`.
+4. **Same key as development.** Dev and prod share one database, and the stored YouTube login is encrypted with this key. With a different (or missing) key the account shows "Needs reconnecting" on whichever side has the wrong one.
+5. Re-run `deploy\install-workers.ps1` to register `VireonYouTubeWorker` and `VireonExportWorker`, start them, and redeploy so the API container picks up the new variables (`docker compose up -d backend`).
+
+Uploads stay private-only until the Google project passes YouTube's API audit (`YOUTUBE_API_VERIFIED=true`). Details: [docs/publishing.md](docs/publishing.md).
