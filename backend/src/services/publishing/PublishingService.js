@@ -4,9 +4,10 @@ const LoggerService = require('../common/LoggerService');
 const PublishingJob = require('../../models/PublishingJob');
 const PlatformAccount = require('../../models/PlatformAccount');
 const CourseVideo = require('../../models/CourseVideo');
+const VideoJob = require('../../models/VideoJob');
 const Course = require('../../models/Course');
 const CoursePublishingProfile = require('../../models/CoursePublishingProfile');
-const { PUBLISH_STATUS, PUBLISH_PLATFORM, STAGE_STATUS } = require('../../constants');
+const { PUBLISH_STATUS, PUBLISH_PLATFORM, STAGE_STATUS, JOB_STATUS } = require('../../constants');
 const { NotFoundError, ValidationError, ConflictError, SchemaValidationError } = require('../../utils/errors');
 const { idPatternFor } = require('../../utils/id');
 const { retryJobId } = require('../common/retryPolicy');
@@ -28,14 +29,33 @@ const CANCELLABLE = [S.QUEUED, S.RETRYING, S.VALIDATING, S.UPLOADING, S.PROCESSI
 // A failure with one of these needs a new draft (the thing it was about is gone/changed) - retrying the same job cannot help.
 const NOT_RETRYABLE_CODES = new Set(['SOURCE_MISSING', 'SOURCE_CHANGED', 'REMOTE_REJECTED', 'NOT_CONFIGURED']);
 
+/**
+ * Append the AI disclosure to a description without ever pushing it past YouTube's 5000-byte limit
+ * (the original text is trimmed instead, never the disclosure) or repeating it if already there.
+ */
+function withDisclosure(description, disclosure) {
+  const text = String(disclosure || '').trim();
+  const base = String(description || '').trim();
+  if (!text || base.includes(text)) return base;
+  const suffix = base ? `\n\n${text}` : text;
+  let head = base;
+  while (head && Buffer.byteLength(head + suffix, 'utf8') > 4900) head = head.slice(0, Math.floor(head.length * 0.9));
+  return head ? head + suffix : text;
+}
+
 const LANGUAGE_CODES = { english: 'en', hindi: 'hi', spanish: 'es', french: 'fr', german: 'de', japanese: 'ja', korean: 'ko' };
 
 const draftInputSchema = z.object({
   accountId: z.string().regex(idPatternFor('pac'), 'Invalid account id'),
-  courseVideoId: z.string().regex(idPatternFor('vid'), 'Invalid lesson id'),
+  // Exactly one source: a course lesson, or a standalone video.
+  courseVideoId: z.string().regex(idPatternFor('vid'), 'Invalid lesson id').optional(),
+  videoJobId: z.string().regex(idPatternFor('job'), 'Invalid video id').optional(),
   metadata: z.record(z.unknown()).optional().default({}),
   // Publish this exact file to this channel again even though a completed job exists.
   allowReupload: z.boolean().optional().default(false),
+}).refine((d) => Boolean(d.courseVideoId) !== Boolean(d.videoJobId), {
+  message: 'Choose either a course lesson (courseVideoId) or a standalone video (videoJobId)',
+  path: ['courseVideoId'],
 });
 
 const exportInputSchema = z.object({
@@ -49,6 +69,7 @@ const listFilterSchema = z.object({
   status: z.enum(Object.values(PUBLISH_STATUS)).optional(),
   courseId: z.string().regex(idPatternFor('cou')).optional(),
   courseVideoId: z.string().regex(idPatternFor('vid')).optional(),
+  videoJobId: z.string().regex(idPatternFor('job')).optional(),
   // Query strings: z.coerce.boolean() would turn "false" into true.
   finished: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -62,6 +83,10 @@ function parse(schema, input) {
 }
 
 const hasRender = (v) => Boolean(v.renderUrl) && (v.videoStatus === STAGE_STATUS.COMPLETED || v.status === 'Completed');
+const hasStandaloneRender = (j) => Boolean(j.videoUrl) && j.status === JOB_STATUS.COMPLETED;
+
+const VIDEO_CONTENT_TYPES = { mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
+const contentTypeOf = (url) => VIDEO_CONTENT_TYPES[String(url).split('?')[0].split('.').pop().toLowerCase()] || 'video/mp4';
 
 /**
  * Application service behind the publishing API. It owns the rules that make
@@ -170,10 +195,71 @@ class PublishingService {
     };
   }
 
+  /** Finished standalone videos (New Video wizard / Projects) with their publishing state, newest first. */
+  async listStandaloneVideos(ownerId, { limit = 100 } = {}) {
+    const videos = await VideoJob.find({ status: JOB_STATUS.COMPLETED, videoUrl: { $ne: '' } })
+      .sort({ updatedAt: -1 }).limit(Math.min(limit, 200)).lean();
+    const jobs = await this.Job.find({ ownerId, platform: PUBLISH_PLATFORM.YOUTUBE, videoJobId: { $in: videos.map((v) => String(v._id)) } })
+      .sort({ createdAt: -1 }).lean();
+
+    const byVideo = new Map();
+    for (const job of jobs) {
+      const list = byVideo.get(job.videoJobId) || [];
+      list.push(job);
+      byVideo.set(job.videoJobId, list);
+    }
+
+    return {
+      videos: videos.map((v) => {
+        const mine = byVideo.get(String(v._id)) || [];
+        return {
+          _id: v._id,
+          title: v.script?.title || v.topic,
+          type: v.type,
+          resolution: v.resolution,
+          language: v.language,
+          createdAt: v.createdAt,
+          renderUrl: v.videoUrl,
+          thumbnailUrl: v.thumbnailUrl || '',
+          publishable: true,
+          latestJob: mine[0] ? { _id: mine[0]._id, status: mine[0].status, accountId: mine[0].accountId } : null,
+          published: mine.filter((j) => j.status === S.COMPLETED).map((j) => ({ jobId: j._id, accountId: j.accountId, videoId: j.remote?.videoId, url: j.remote?.url })),
+        };
+      }),
+    };
+  }
+
   // ── drafts ───────────────────────────────────────────────────────────────
 
-  #fingerprint({ ownerId, accountId, courseVideoId, source, nonce = '' }) {
-    return cipher.sha256(['youtube', ownerId, accountId, courseVideoId, source.key, source.etag || source.size, nonce].join('|'));
+  #fingerprint({ ownerId, accountId, sourceId, source, nonce = '' }) {
+    return cipher.sha256(['youtube', ownerId, accountId, sourceId, source.key, source.etag || source.size, nonce].join('|'));
+  }
+
+  /**
+   * Normalise the two things that can be published - a course lesson or a standalone
+   * video - into the one shape the draft logic needs.
+   */
+  async #resolveVideo(ownerId, { courseVideoId, videoJobId }) {
+    if (courseVideoId) {
+      const video = await CourseVideo.findById(courseVideoId).lean();
+      if (!video) throw new NotFoundError('Lesson not found');
+      if (!hasRender(video)) throw new ValidationError('This lesson has not been rendered yet - render it before publishing');
+      const [course, profile] = await Promise.all([
+        Course.findById(video.courseId).lean(),
+        CoursePublishingProfile.findOne({ _id: video.courseId, ownerId }).lean(),
+      ]);
+      return {
+        title: video.title, script: video.script, topic: video.topic, renderUrl: video.renderUrl,
+        courseId: video.courseId, language: LANGUAGE_CODES[course?.language] || '', profile,
+      };
+    }
+    const job = await VideoJob.findById(videoJobId).lean();
+    if (!job) throw new NotFoundError('Video not found');
+    if (!hasStandaloneRender(job)) throw new ValidationError('This video has not finished rendering yet');
+    return {
+      title: job.script?.title || job.topic, script: job.script, topic: job.topic, renderUrl: job.videoUrl,
+      courseId: null, language: LANGUAGE_CODES[job.language] || '', profile: null,
+    };
   }
 
   async #connectedAccount(ownerId, accountId) {
@@ -185,16 +271,16 @@ class PublishingService {
     return account;
   }
 
-  #defaultMetadata({ video, course, profile }) {
+  #defaultMetadata(video) {
     const { youtube } = this.settings();
-    const defaults = profile?.youtubeDefaults || {};
+    const defaults = video.profile?.youtubeDefaults || {};
     const scriptTags = Array.isArray(video.script?.tags) ? video.script.tags : [];
     return {
       title: String(video.script?.title || video.title || '').slice(0, 100),
-      description: String(video.script?.description || video.topic || '').trim(),
+      description: withDisclosure(video.script?.description || video.topic || '', youtube.aiDisclosure),
       tags: [...new Set([...(defaults.tags || []), ...scriptTags])],
       categoryId: CATEGORY_IDS.includes(defaults.categoryId) ? defaults.categoryId : '27',
-      language: defaults.language || LANGUAGE_CODES[course.language] || '',
+      language: defaults.language || video.language || '',
       // Starts at the course's configured visibility, but only an audited project may default beyond
       // private - and nothing is published until someone approves the draft.
       privacyStatus: youtube.apiVerified && defaults.privacyStatus ? defaults.privacyStatus : 'private',
@@ -209,39 +295,35 @@ class PublishingService {
    * queued or uploaded; this only snapshots the video and pre-fills metadata.
    */
   async createDraft(ownerId, input) {
-    const { accountId, courseVideoId, metadata, allowReupload } = parse(draftInputSchema, input);
+    const { accountId, courseVideoId, videoJobId, metadata, allowReupload } = parse(draftInputSchema, input);
     const { youtube } = this.settings();
+    const sourceId = courseVideoId || videoJobId;
 
     const account = await this.#connectedAccount(ownerId, accountId);
-    const video = await CourseVideo.findById(courseVideoId).lean();
-    if (!video) throw new NotFoundError('Lesson not found');
-    if (!hasRender(video)) throw new ValidationError('This lesson has not been rendered yet - render it before publishing');
-    const [course, profile] = await Promise.all([
-      Course.findById(video.courseId).lean(),
-      CoursePublishingProfile.findOne({ _id: video.courseId, ownerId }).lean(),
-    ]);
+    const video = await this.#resolveVideo(ownerId, { courseVideoId, videoJobId });
 
     const { bucket, key } = this.storage.parsePublicUrl(video.renderUrl);
     const stat = await this.storage.statObject(bucket, key);
-    if (!stat || !(stat.size > 0)) throw new ValidationError('The rendered video file is missing from storage - re-render the lesson');
+    if (!stat || !(stat.size > 0)) throw new ValidationError('The rendered video file is missing from storage - render it again');
     if (stat.size > youtube.maxUploadBytes) {
       throw new ValidationError(`The video is ${Math.round(stat.size / 1048576)} MB, over the configured upload limit of ${Math.round(youtube.maxUploadBytes / 1048576)} MB`);
     }
 
-    const merged = mergeAndValidate(this.#defaultMetadata({ video, course: course || {}, profile }), metadata, { apiVerified: youtube.apiVerified, now: this.now() });
-    const source = { bucket, key, size: stat.size, etag: stat.etag, contentType: 'video/mp4', fileName: `${video.title}.mp4` };
+    const merged = mergeAndValidate(this.#defaultMetadata(video), metadata, { apiVerified: youtube.apiVerified, now: this.now() });
+    const ext = String(key).split('.').pop().toLowerCase();
+    const source = { bucket, key, size: stat.size, etag: stat.etag, contentType: contentTypeOf(key), fileName: `${video.title}.${VIDEO_CONTENT_TYPES[ext] ? ext : 'mp4'}` };
 
     let nonce = '';
     if (allowReupload) {
-      const completed = await this.Job.exists({ ownerId, accountId, courseVideoId, platform: PUBLISH_PLATFORM.YOUTUBE, status: S.COMPLETED });
+      const completed = await this.Job.exists({ ownerId, accountId, ...(courseVideoId ? { courseVideoId } : { videoJobId }), platform: PUBLISH_PLATFORM.YOUTUBE, status: S.COMPLETED });
       if (completed) nonce = `re-${this.now()}`;
     }
-    const fingerprint = this.#fingerprint({ ownerId, accountId: account._id, courseVideoId, source, nonce });
+    const fingerprint = this.#fingerprint({ ownerId, accountId: account._id, sourceId, source, nonce });
 
     try {
       const job = await this.Job.create({
         ownerId, platform: PUBLISH_PLATFORM.YOUTUBE, accountId: account._id,
-        courseId: video.courseId, courseVideoId, lessonTitle: video.title,
+        courseId: video.courseId || null, courseVideoId: courseVideoId || null, videoJobId: videoJobId || null, lessonTitle: video.title,
         status: S.DRAFT, metadata: merged, source, fingerprint, dedupeKey: fingerprint,
         maxAttempts: youtube.maxAttempts,
         progress: { bytesTotal: stat.size },
@@ -417,6 +499,7 @@ class PublishingService {
     if (f.status) query.status = f.status;
     if (f.courseId) query.courseId = f.courseId;
     if (f.courseVideoId) query.courseVideoId = f.courseVideoId;
+    if (f.videoJobId) query.videoJobId = f.videoJobId;
     if (f.finished === true) query.status = { $in: FINISHED };
     if (f.finished === false) query.status = { $nin: FINISHED };
 

@@ -440,6 +440,10 @@ export const disconnectPublishingAccount = (id) => api.delete(`/api/publishing/a
 
 export const getPublishingLessons = (courseId) => api.get(`/api/publishing/courses/${courseId}/lessons`);
 
+// Finished standalone videos (New Video wizard) that can be published.
+export const getPublishingVideos = () => api.get('/api/publishing/videos');
+
+// data: { accountId, courseVideoId | videoJobId, metadata?, allowReupload? } - creates a DRAFT only.
 export const createPublishingJob = (data) => api.post('/api/publishing/jobs', data);
 
 export const getPublishingJobs = (params = {}) => api.get('/api/publishing/jobs', { params });

@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   getPublishingAccounts: vi.fn(),
   getPublishingJobs: vi.fn(),
   getPublishingLessons: vi.fn(),
+  getPublishingVideos: vi.fn(),
   getUdemyOverview: vi.fn(),
   getCourses: vi.fn(),
   saveUdemyProfile: vi.fn(),

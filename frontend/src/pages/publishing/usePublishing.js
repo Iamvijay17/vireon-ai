@@ -5,7 +5,7 @@ import { toast } from "../../components/ui/toastBus";
 import { connect, onPublishingJobUpdated } from "../../services/socket";
 import {
   getPublishingCapabilities, getPublishingAccounts, getPublishingJobs, getPublishingJob,
-  getPublishingLessons, getUdemyOverview, getCourses,
+  getPublishingLessons, getPublishingVideos, getUdemyOverview, getCourses,
 } from "../../services/api";
 import { isActiveStatus } from "./format";
 
@@ -27,6 +27,9 @@ export const usePublishingLessons = (courseId) =>
     enabled: Boolean(courseId),
     errorMessage: "Failed to load lessons",
   });
+
+export const usePublishingVideos = (enabled = true) =>
+  useApiQuery(queryKeys.publishing.videos, getPublishingVideos, { enabled, errorMessage: "Failed to load videos" });
 
 export const usePublishingJob = (jobId) =>
   useApiQuery([...queryKeys.publishing.all, "job", jobId], () => getPublishingJob(jobId), {

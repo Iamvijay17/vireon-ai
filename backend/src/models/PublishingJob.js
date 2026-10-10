@@ -41,8 +41,11 @@ const publishingJobSchema = new mongoose.Schema(
     ownerId: { type: String, required: true, index: true },
     platform: { type: String, enum: Object.values(PUBLISH_PLATFORM), required: true },
     accountId: { type: String, ref: 'PlatformAccount', default: null, index: true },
-    courseId: { type: String, ref: 'Course', required: true, index: true },
+    // A job publishes ONE of: a course lesson (courseId + courseVideoId), a standalone video
+    // (videoJobId), or - for a Udemy package - a whole course (courseId only).
+    courseId: { type: String, ref: 'Course', default: null, index: true },
     courseVideoId: { type: String, ref: 'CourseVideo', default: null, index: true },
+    videoJobId: { type: String, ref: 'VideoJob', default: null, index: true },
     lessonTitle: { type: String, default: '' },
 
     status: { type: String, enum: STATUS_VALUES, default: PUBLISH_STATUS.DRAFT, index: true },

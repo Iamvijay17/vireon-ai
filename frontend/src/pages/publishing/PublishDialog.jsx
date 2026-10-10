@@ -15,7 +15,7 @@ import { resolveMediaUrl, updatePublishingJob, submitPublishingJob, retryPublish
 import {
   metadataToForm, formToMetadata, validateMetadataForm, parseTags, utf8Bytes, tagsLength, LIMITS,
 } from "./format";
-import { usePublishingJob, usePublishingLessons, useBusy } from "./usePublishing";
+import { usePublishingJob, usePublishingLessons, usePublishingVideos, useBusy } from "./usePublishing";
 import { ErrorNotice } from "./shared";
 
 const PRIVACY_LABELS = {
@@ -241,9 +241,13 @@ export const PublishDialog = ({ jobId, lesson: lessonProp, accounts, caps, onClo
   const { data: job, loading, error, refetch } = usePublishingJob(jobId);
   const account = accounts.find((a) => a._id === job?.accountId);
   // Opened from the queue we only know the job; fetch its course's lessons to get the stored video to preview.
-  const needsLesson = Boolean(job) && !lessonProp?.renderUrl;
-  const { data: lessonsData } = usePublishingLessons(needsLesson ? job.courseId : null);
-  const lesson = lessonProp?.renderUrl ? lessonProp : lessonsData?.lessons?.find((l) => l._id === job?.courseVideoId) || lessonProp;
+  const needsMedia = Boolean(job) && !lessonProp?.renderUrl;
+  const { data: lessonsData } = usePublishingLessons(needsMedia && job.courseVideoId ? job.courseId : null);
+  const { data: videosData } = usePublishingVideos(needsMedia && Boolean(job.videoJobId));
+  const found = job?.videoJobId
+    ? videosData?.videos?.find((v) => v._id === job.videoJobId)
+    : lessonsData?.lessons?.find((l) => l._id === job?.courseVideoId);
+  const lesson = lessonProp?.renderUrl ? lessonProp : found || lessonProp;
 
   return (
     <Modal open={Boolean(jobId)} onClose={onClose} width="xl" title={job?.lessonTitle || lesson?.title || "Publish to YouTube"} description={account ? `Channel: ${account.displayName}` : undefined}>

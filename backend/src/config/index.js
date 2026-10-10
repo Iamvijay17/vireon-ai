@@ -479,6 +479,11 @@ const config = Object.freeze({
       apiVerified: process.env.YOUTUBE_API_VERIFIED === 'true',
       // Refuse files larger than this before uploading a byte (YouTube's own
       // ceiling is 256 GB; the default is deliberately far lower).
+      // Added to the end of every new draft's description (editable before publishing), so viewers
+      // are told the video is AI-generated. Set YOUTUBE_AI_DISCLOSURE= (empty) to turn it off.
+      aiDisclosure: process.env.YOUTUBE_AI_DISCLOSURE !== undefined
+        ? process.env.YOUTUBE_AI_DISCLOSURE.trim()
+        : 'This video was created with AI: the script, narration and visuals are AI-generated. Made with Vireon AI.',
       maxUploadBytes: parseInt(process.env.YOUTUBE_MAX_UPLOAD_BYTES, 10) || 4 * 1024 ** 3,
       // Local guard on the project's daily videos.insert allowance, so we stop
       // before Google does. Check your real figure in Google Cloud > Quotas.

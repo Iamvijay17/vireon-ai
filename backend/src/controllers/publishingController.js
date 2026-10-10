@@ -77,6 +77,10 @@ class PublishingController {
     res.json(await getRuntime().service.listLessons(owner(req), courseId));
   }
 
+  static async listVideos(req, res) {
+    res.json(await getRuntime().service.listStandaloneVideos(owner(req)));
+  }
+
   static async createJob(req, res) {
     const { job, existing } = await getRuntime().service.createDraft(owner(req), req.body);
     res.status(existing ? 200 : 201).json({ job: getRuntime().service.decorate(job), existing });
