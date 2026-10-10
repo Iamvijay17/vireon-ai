@@ -37,6 +37,7 @@ const logsRoutes = require('./routes/logs');
 const aiServicesRoutes = require('./routes/aiServices');
 const systemWorkerRoutes = require('./routes/systemWorkers');
 const publishingRoutes = require('./routes/publishing');
+const socialRoutes = require('./routes/social');
 
 // Binding to anything outside this set exposes an unauthenticated API to
 // the network - see the warning at listen() below.
@@ -89,6 +90,8 @@ const limiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
 });
+// Signed public media links (Threads / Instagram fetch these) get their own limiter - see routes/social.js.
+app.use('/api/social', socialRoutes.mediaRouter);
 app.use('/api', limiter);
 
 // ── Body Parsing ─────────────────────────────────────────────────────────────
@@ -171,6 +174,8 @@ app.use('/api/logs', logsRoutes);
 app.use('/api/system/ai-services', aiServicesRoutes);
 app.use('/api/system/workers', systemWorkerRoutes);
 app.use('/api/publishing', publishingRoutes);
+app.use('/api/social', socialRoutes.webhookRouter);
+app.use('/api/social', socialRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

@@ -12,6 +12,7 @@ import {
   Settings,
   Search,
   Send,
+  Megaphone,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ThemeContext } from "../shared/themeContextValue";
@@ -35,6 +36,7 @@ const CommandPalette = () => {
       { key: "render", label: "Render Progress", icon: PlayCircle, action: () => navigate("/render") },
       { key: "projects", label: "Go to Projects", icon: FolderKanban, action: () => navigate("/projects") },
       { key: "publishing", label: "Publish to YouTube / Udemy", icon: Send, action: () => navigate("/publishing") },
+      { key: "promotion", label: "Promote on Facebook / Instagram / Threads", icon: Megaphone, action: () => navigate("/promotion") },
       { key: "analytics", label: "Go to Analytics", icon: BarChart3, action: () => navigate("/analytics") },
       { key: "settings", label: "Go to Settings", icon: Settings, action: () => navigate("/settings") },
       {

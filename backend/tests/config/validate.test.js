@@ -50,6 +50,14 @@ const validConfig = () => ({
     export: { maxBytes: 20 * 1024 ** 3 },
     rateLimit: { windowMs: 60000, max: 60 },
   },
+  social: {
+    meta: { appId: '', appSecret: '', redirectUri: '', graphVersion: 'v25.0' },
+    threads: { appId: '', appSecret: '', redirectUri: '' },
+    publicMediaBaseUrl: '', mediaTokenTtlMs: 21600000, maxImageBytes: 8 * 1024 * 1024, maxVideoBytes: 1024 ** 3,
+    requestTimeoutMs: 60000, uploadChunkBytes: 8 * 1024 * 1024, maxAttempts: 5, processingPollMs: 8000, processingWindowMs: 300000,
+    processingMaxChecks: 12, schedulerIntervalMs: 30000, minScheduleLeadMs: 120000, maxScheduleAheadDays: 180,
+    tokenRefreshWindowMs: 864000000, insightsCacheMs: 1800000, dailyLimits: { instagram: 100, facebook: 30, threads: 250 },
+  },
 });
 
 /** Run validateConfig on a config mutated by `mutate`, return the issues. */

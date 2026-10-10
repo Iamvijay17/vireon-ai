@@ -191,6 +191,11 @@ function createModel({ name, idPrefix = 'id', defaults = () => ({}), unique = []
       if (row) applyUpdate(row, update);
       return { matchedCount: row ? 1 : 0 };
     },
+    async updateMany(filter, update) {
+      const hit = rows.filter((r) => matches(r, filter));
+      hit.forEach((r) => { applyUpdate(r, update); r.updatedAt = new Date(); });
+      return { matchedCount: hit.length, modifiedCount: hit.length };
+    },
     async deleteOne(filter) {
       const i = rows.findIndex((r) => matches(r, filter));
       if (i >= 0) rows.splice(i, 1);
@@ -226,9 +231,37 @@ const makeJobModel = () => createModel({
 const makeAccountModel = () => createModel({
   name: 'PlatformAccount', idPrefix: 'pac',
   defaults: () => ({ status: 'connected', statusReason: '', scopes: [] }),
-  unique: [], hidden: ['refreshTokenEnc'],
+  unique: [], hidden: ['refreshTokenEnc', 'accessTokenEnc'],
 });
+
+const socialPostDefaults = () => ({
+  status: 'DRAFT', attempts: 0, maxAttempts: 5, retryCount: 0, deferrals: 0, processingChecks: 0, nextRetryAt: null, scheduledFor: null, timezone: '',
+  content: { caption: '', hashtags: [], cta: '', linkUrl: '' }, media: { kind: '', bucket: '', key: '', size: 0, etag: '', contentType: '', fileName: '', durationSec: null, width: null, height: null },
+  progress: { percent: 0, bytesUploaded: 0, bytesTotal: 0, phase: '' },
+  remote: { containerId: '', videoId: '', postId: '', permalink: '', state: '', publishAttemptedAt: null, publishedAt: null },
+  lease: { owner: '', expiresAt: null }, error: { code: '', message: '', action: '', retryable: false, requiresReauth: false, httpStatus: null, at: null },
+  insights: { fetchedAt: null, metrics: null, error: '' }, events: [], quotaCountedAt: null, fingerprint: '',
+});
+
+const makeSocialPostModel = () => {
+  const model = createModel({
+    name: 'SocialPost', idPrefix: 'spo', defaults: socialPostDefaults, unique: ['dedupeKey'],
+    jsonHidden: ['dedupeKey', 'lease', 'media.bucket', 'media.key'],
+  });
+  model.ACTIVE_STATUSES = ['VALIDATING', 'UPLOADING', 'PROCESSING'];
+  return model;
+};
+
+const makeCampaignModel = () => {
+  const model = createModel({
+    name: 'SocialCampaign', idPrefix: 'cam',
+    defaults: () => ({ status: 'draft', source: {}, brief: {}, media: null, thumbnail: null, variants: {} }),
+    jsonHidden: ['media.bucket', 'media.key', 'thumbnail.bucket', 'thumbnail.key'],
+  });
+  model.TONES = ['professional', 'educational', 'entertaining', 'promotional', 'casual'];
+  return model;
+};
 
 const makeStateModel = () => createModel({ name: 'OAuthState', idPrefix: 'st', unique: ['stateHash'] });
 
-module.exports = { createModel, makeJobModel, makeAccountModel, makeStateModel, clone };
+module.exports = { createModel, makeJobModel, makeAccountModel, makeStateModel, makeSocialPostModel, makeCampaignModel, clone };

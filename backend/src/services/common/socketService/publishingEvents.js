@@ -29,4 +29,12 @@ function emitPublishingAccountUpdated(data) {
   }
 }
 
-module.exports = { emitPublishingJobUpdated, emitPublishingAccountUpdated };
+function emitSocialPostUpdated(data) {
+  if (state.io) {
+    state.io.emit(SOCKET_EVENTS.SOCIAL_POST_UPDATED, data);
+  } else {
+    publish(data.postId, 'socialPostUpdated', data);
+  }
+}
+
+module.exports = { emitPublishingJobUpdated, emitPublishingAccountUpdated, emitSocialPostUpdated };

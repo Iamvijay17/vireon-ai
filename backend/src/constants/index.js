@@ -25,6 +25,8 @@ const JOB_STATUS = Object.freeze({
 // path; RETRYING is a scheduled automatic retry after a transient failure.
 const PUBLISH_STATUS = Object.freeze({
   DRAFT: 'DRAFT',
+  // Social posts only: approved and waiting for its publish time (models/SocialPost).
+  SCHEDULED: 'SCHEDULED',
   QUEUED: 'QUEUED',
   VALIDATING: 'VALIDATING',
   UPLOADING: 'UPLOADING',
@@ -38,6 +40,15 @@ const PUBLISH_STATUS = Object.freeze({
 const PUBLISH_PLATFORM = Object.freeze({
   YOUTUBE: 'youtube',
   UDEMY_EXPORT: 'udemy-export',
+});
+
+// Destinations of the Promotion Studio (services/social/). A separate set from
+// PUBLISH_PLATFORM: those are kinds of PublishingJob, these are kinds of
+// connected account / SocialPost.
+const SOCIAL_PLATFORM = Object.freeze({
+  FACEBOOK: 'facebook',
+  INSTAGRAM: 'instagram',
+  THREADS: 'threads',
 });
 
 const COURSE_STATUS = Object.freeze({
@@ -262,6 +273,8 @@ const SOCKET_EVENTS = Object.freeze({
   // Publishing (YouTube upload / Udemy package) job state + progress, global room
   PUBLISHING_JOB_UPDATED: 'publishingJobUpdated',
   PUBLISHING_ACCOUNT_UPDATED: 'publishingAccountUpdated',
+  // Promotion Studio (Facebook / Instagram / Threads) post state + progress, global room
+  SOCIAL_POST_UPDATED: 'socialPostUpdated',
   // Live server log stream
   SERVER_LOG: 'serverLog',
   // Audio Studio (standalone TTS) progressive generation events - fired as
@@ -320,6 +333,7 @@ module.exports = {
   COURSE_STATUS,
   PUBLISH_STATUS,
   PUBLISH_PLATFORM,
+  SOCIAL_PLATFORM,
   VIDEO_STATUS,
   STAGE_STATUS,
   JOB_STEPS,

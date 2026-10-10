@@ -6,7 +6,7 @@ import {
   onCourseVideoCreated, onCourseVideoDeleted, onCourseVideoUpdated,
   onCourseVideoProgress, onCourseVideoRenderReady,
   onAudioStudioCompleted, onAudioStudioFailed,
-  onPublishingJobUpdated, onPublishingAccountUpdated,
+  onPublishingJobUpdated, onPublishingAccountUpdated, onSocialPostUpdated,
 } from '../services/socket';
 import { queryKeys } from './queryClient';
 import { createThrottle } from './throttle';
@@ -116,7 +116,12 @@ export function useSocketQuerySync() {
       onPublishingJobUpdated((p) =>
         (['COMPLETED', 'FAILED', 'CANCELLED'].includes(p?.status) ? batcher.now : batcher.queue)([queryKeys.publishing.all])
       ),
-      onPublishingAccountUpdated(() => batcher.now([queryKeys.publishing.accounts, queryKeys.publishing.capabilities])),
+      onPublishingAccountUpdated(() => batcher.now([queryKeys.publishing.accounts, queryKeys.publishing.capabilities, queryKeys.social.accounts, queryKeys.social.overview])),
+
+      // Promotion Studio: progress is frequent (batched); a status that ends a run is not.
+      onSocialPostUpdated((p) =>
+        (['COMPLETED', 'FAILED', 'CANCELLED', 'SCHEDULED'].includes(p?.status) ? batcher.now : batcher.queue)([queryKeys.social.all])
+      ),
 
       onAudioStudioCompleted(() => batcher.now(audioKeys())),
       onAudioStudioFailed(() => batcher.now(audioKeys())),
