@@ -133,6 +133,16 @@ describe('successful publishing', () => {
     expect(meta.createIgContainer.mock.calls[0][2].isAiGenerated).toBe(false);
   });
 
+  it('labels an Image Studio picture as AI generated', async () => {
+    const post = seedPost({
+      platform: 'instagram', format: 'image', videoJobId: null, imageGenerationId: 'img-aaaaaaaa',
+      media: media({ kind: 'image', contentType: 'image/jpeg', key: 'social/local/cam/i.jpg' }),
+    });
+    storage.objects.set(`${OBJ.bucket}/social/local/cam/i.jpg`, { size: SIZE, etag: 'etag-1' });
+    await run(post._id, { settings: { publicMediaBaseUrl: 'https://media.example.com' } });
+    expect(meta.createIgContainer.mock.calls[0][2]).toMatchObject({ imageUrl: expect.stringContaining('/i.jpg'), isAiGenerated: true });
+  });
+
   it('publishes an Instagram image from a public URL only', async () => {
     const post = seedPost({ platform: 'instagram', format: 'image', media: media({ kind: 'image', contentType: 'image/jpeg', key: 'social/local/cam/i.jpg' }) });
     storage.objects.set(`${OBJ.bucket}/social/local/cam/i.jpg`, { size: SIZE, etag: 'etag-1' });

@@ -24,9 +24,14 @@ a validation report, and posts or schedules them through Meta's official APIs. I
 1. **Connect accounts** (Accounts tab). One Meta Facebook-Login connects the Facebook Pages you select **and** the
    Instagram professional accounts linked to them (the Page access token is used for both). Threads has its own
    sign-in. You authorise on the platform's page; Vireon never sees a password.
-2. **Create a promotion** (Create tab): pick a Vireon video / lesson (or upload a JPEG/PNG/MP4/MOV), describe the goal,
+2. **Create a promotion** (Create tab): pick a Vireon video / lesson / **Image Studio picture** (or upload a JPEG/PNG/MP4/MOV), describe the goal,
    audience, call to action, tone and destination URL, choose accounts, and let the **local LLM** (Ollama, no paid API)
    draft a different caption per platform - or write them by hand. Every field stays editable.
+   *Image Studio pictures:* the Images tab lists every finished picture. Picking one makes a **JPEG copy** (ffmpeg,
+   quality-stepped to fit the 8 MB image cap) stored under the promotion's own `social/` prefix, because Image Studio saves
+   PNG and Instagram takes JPEG only, and so that deleting the picture in Image Studio cannot break a scheduled post. The
+   picture's prompt is the context the captions are written from, and its posts are labelled AI-generated. If ffmpeg is
+   missing the original PNG is used: fine for Facebook and Threads, while Instagram reports "accepts JPEG".
 3. **Check and preview.** The server validates every destination (character limits, hashtag counts, media type, length,
    aspect ratio, account health, schedule) and returns the exact text that would be sent. Previews are an
    approximation, not the live platform UI.

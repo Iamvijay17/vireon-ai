@@ -115,7 +115,7 @@ async function processSocialPost(postId, deps) {
 
     const token = await auth.getAccessToken(job.accountId);
     const hooks = makeHooks({ patch, now, getPost: () => ctx.post, lost: () => lost });
-    const ctx = { post, account: acct, token, api, provider, storage, settings, hooks, now, aiLabel: settings.aiLabel !== false && Boolean(post.videoJobId || post.courseVideoId) };
+    const ctx = { post, account: acct, token, api, provider, storage, settings, hooks, now, aiLabel: settings.aiLabel !== false && Boolean(post.videoJobId || post.courseVideoId || post.imageGenerationId) };
 
     // ── An earlier run may have sent the publish and lost the answer ──────
     if (!confirming && post.remote.publishAttemptedAt) {

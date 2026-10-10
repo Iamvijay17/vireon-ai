@@ -52,10 +52,11 @@ const socialCampaignSchema = new mongoose.Schema(
     title: { type: String, required: true, maxlength: 140 },
     status: { type: String, enum: ['draft', 'archived'], default: 'draft' },
 
-    // The Vireon video this promotes (null for an uploaded image/video).
+    // The Vireon video or Image Studio picture this promotes (null for an uploaded image/video).
     source: {
       videoJobId: { type: String, ref: 'VideoJob', default: null },
       courseVideoId: { type: String, ref: 'CourseVideo', default: null },
+      imageGenerationId: { type: String, ref: 'ImageGeneration', default: null },
       title: { type: String, default: '' },
       description: { type: String, default: '' },
     },

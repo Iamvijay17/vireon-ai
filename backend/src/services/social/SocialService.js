@@ -25,6 +25,7 @@ const { providerFor } = require('./providers');
 const { validatePost, validateSchedule, normalizeHashtags, composeText } = require('./contentRules');
 const { zonedToUtc, isValidTimeZone, utcToZoned } = require('./timezone');
 const { readImageSize, sniffMedia } = require('./imageMeta');
+const { exportAsJpeg } = require('./imageExport');
 const { LIMITS, PLATFORM_LABEL, PLATFORM_DAILY_LIMITS } = require('./constants');
 const { aggregateInsights, METRIC_LABELS } = require('./analytics');
 
@@ -59,13 +60,17 @@ const variantInput = z.object({
 const sourceIds = {
   videoJobId: z.string().regex(idPatternFor('job'), 'Invalid video id').optional(),
   courseVideoId: z.string().regex(idPatternFor('vid'), 'Invalid lesson id').optional(),
+  imageGenerationId: z.string().regex(idPatternFor('img'), 'Invalid image id').optional(),
 };
+
+const atMostOneSource = (d) => [d.videoJobId, d.courseVideoId, d.imageGenerationId].filter(Boolean).length <= 1;
+const ONE_SOURCE = { message: 'Choose either a video, a lesson or an image, not several', path: ['videoJobId'] };
 
 const createCampaignSchema = z.object({
   title: z.string().trim().min(1).max(140).optional(),
   ...sourceIds,
   brief: briefSchema.optional(),
-}).refine((d) => !(d.videoJobId && d.courseVideoId), { message: 'Choose either a video or a lesson, not both', path: ['videoJobId'] });
+}).refine(atMostOneSource, ONE_SOURCE);
 
 const updateCampaignSchema = z.object({
   title: z.string().trim().min(1).max(140).optional(),
@@ -74,7 +79,7 @@ const updateCampaignSchema = z.object({
   variants: z.record(z.enum(PLATFORMS), variantInput).optional(),
   // false = go back to the video's own thumbnail-less state (drop an uploaded/selected asset)
   clearMedia: z.boolean().optional(),
-}).refine((d) => !(d.videoJobId && d.courseVideoId), { message: 'Choose either a video or a lesson, not both', path: ['videoJobId'] });
+}).refine(atMostOneSource, ONE_SOURCE);
 
 const scheduleFields = {
   scheduledFor: z.string().max(64).optional(),
@@ -160,7 +165,7 @@ const ownerFilter = (ownerId, extra = {}) => ({ ownerId, ...extra });
 class SocialService {
   constructor({
     Campaigns = SocialCampaign, Posts = SocialPost, Accounts = PlatformAccount, auth, apis, queues, storage = null,
-    store = new SocialPostStore(), captions = new CaptionService(), settings = () => config.social, now = () => Date.now(), sources = null,
+    store = new SocialPostStore(), captions = new CaptionService(), settings = () => config.social, now = () => Date.now(), sources = null, exporter = exportAsJpeg,
   } = {}) {
     this.Campaigns = Campaigns;
     this.Posts = Posts;
@@ -174,6 +179,7 @@ class SocialService {
     this.settings = settings;
     this.now = now;
     this._sources = sources;
+    this.exportImage = exporter;
   }
 
   get storage() {
@@ -249,7 +255,7 @@ class SocialService {
   async createCampaign(ownerId, input) {
     const data = parse(createCampaignSchema, input);
     let resolved = null;
-    if (data.videoJobId || data.courseVideoId) resolved = await this.sources.resolve(data);
+    if (data.videoJobId || data.courseVideoId || data.imageGenerationId) resolved = await this.sources.resolve(data);
 
     const campaign = await this.Campaigns.create({
       ownerId,
@@ -259,22 +265,42 @@ class SocialService {
       media: resolved?.media || null,
       thumbnail: resolved?.thumbnail || null,
     });
+    if (resolved?.source?.imageGenerationId) {
+      // Needs the campaign id for the stored copy's key, so it is swapped in right after creation.
+      const own = await this.#ownStudioImage(ownerId, campaign._id, resolved);
+      const updated = await this.Campaigns.findOneAndUpdate({ _id: campaign._id, ownerId }, { $set: { media: own.media, thumbnail: own.thumbnail } }, { new: true });
+      return this.#presentCampaign(updated);
+    }
     return this.#presentCampaign(campaign);
+  }
+
+  /**
+   * An Image Studio picture becomes a JPEG copy owned by the promotion (Instagram takes JPEG only, and a
+   * delete in Image Studio must not break a scheduled post). If it cannot be converted the original is used.
+   */
+  async #ownStudioImage(ownerId, campaignId, resolved) {
+    const jpeg = await this.exportImage({
+      storage: this.storage, source: resolved.media, destBucket: config.minio.videoBucket,
+      destKey: `social/${ownerId}/${campaignId}/${idTail()}.jpg`, maxBytes: this.settings().maxImageBytes, fileName: `${resolved.title}.jpg`,
+    });
+    return jpeg ? { media: jpeg, thumbnail: jpeg } : { media: resolved.media, thumbnail: resolved.thumbnail };
   }
 
   async updateCampaign(ownerId, id, input) {
     const data = parse(updateCampaignSchema, input);
     const campaign = await this.#ownedCampaign(ownerId, id);
+    const previousMedia = campaign.toObject().media;
     const set = {};
 
     if (data.title) set.title = data.title;
     if (data.brief) for (const [k, v] of Object.entries(data.brief)) set[`brief.${k}`] = v;
 
-    if (data.videoJobId || data.courseVideoId) {
+    if (data.videoJobId || data.courseVideoId || data.imageGenerationId) {
       const resolved = await this.sources.resolve(data);
+      const own = resolved.source?.imageGenerationId ? await this.#ownStudioImage(ownerId, id, resolved) : resolved;
       set.source = resolved.source;
-      set.media = resolved.media;
-      set.thumbnail = resolved.thumbnail;
+      set.media = own.media;
+      set.thumbnail = own.thumbnail;
       if (!data.title && (!campaign.title || campaign.title === 'Untitled promotion')) set.title = resolved.title;
     }
     if (data.clearMedia) {
@@ -298,6 +324,7 @@ class SocialService {
 
     const updated = await this.Campaigns.findOneAndUpdate({ _id: id, ownerId }, { $set: set }, { new: true });
     if (!updated) throw new NotFoundError('Campaign not found');
+    if ('media' in set) await this.#deleteOwnUpload(previousMedia); // a replaced upload / picture copy is not left behind
     return this.#presentCampaign(updated);
   }
 
@@ -453,7 +480,7 @@ class SocialService {
     const tone = body.tone || raw.brief?.tone || 'casual';
 
     let excerpt = '';
-    if (raw.source?.videoJobId || raw.source?.courseVideoId) {
+    if (raw.source?.videoJobId || raw.source?.courseVideoId || raw.source?.imageGenerationId) {
       try {
         excerpt = (await this.sources.resolve(raw.source)).excerpt || '';
       } catch {
@@ -610,7 +637,7 @@ class SocialService {
 
     try {
       const post = await this.Posts.create({
-        ownerId, campaignId: campaign._id, videoJobId: campaign.source?.videoJobId || null, courseVideoId: campaign.source?.courseVideoId || null,
+        ownerId, campaignId: campaign._id, videoJobId: campaign.source?.videoJobId || null, courseVideoId: campaign.source?.courseVideoId || null, imageGenerationId: campaign.source?.imageGenerationId || null,
         platform: account.platform, accountId: account._id, accountLabel: account.displayName, accountHandle: account.username,
         format: check.format, status: scheduled ? S.SCHEDULED : S.QUEUED,
         content: check.content,

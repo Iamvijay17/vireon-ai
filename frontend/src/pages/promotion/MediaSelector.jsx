@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Film, GraduationCap, Upload, Search, X, Check, ImageIcon } from "lucide-react";
+import { Film, GraduationCap, Upload, Search, X, Check, ImageIcon, Images } from "lucide-react";
 import { Tabs } from "../../components/ui/Tabs";
 import { Input } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
@@ -42,7 +42,10 @@ export const MediaSummary = ({ campaign, onClear, disabled }) => {
   );
 };
 
-const LibraryCard = ({ item, selected, onPick, disabled }) => (
+const LibraryCard = ({ item, selected, onPick, disabled }) => {
+  const isImage = item.kind === "image";
+  const shape = isImage && item.width && item.height ? `${item.width}×${item.height}` : "";
+  return (
   <button
     type="button" disabled={disabled} onClick={() => onPick(item)}
     className={cn(
@@ -50,22 +53,23 @@ const LibraryCard = ({ item, selected, onPick, disabled }) => (
       selected ? "border-accent ring-2 ring-accent/20" : "border-border-light hover:border-border"
     )}
   >
-    <MediaThumb media={{ kind: "video" }} thumbnailUrl={item.thumbnailUrl} className="aspect-video w-full" />
+    <MediaThumb media={{ kind: isImage ? "image" : "video" }} thumbnailUrl={item.thumbnailUrl} className={cn("w-full", isImage ? "aspect-square" : "aspect-video")} />
     {selected && <span className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-accent text-white"><Check className="size-3.5" /></span>}
     <div className="p-2.5">
       <p className="line-clamp-2 text-[13px] font-medium text-text-primary">{item.title}</p>
       <p className="mt-0.5 truncate text-[11px] text-text-tertiary">
-        {[item.courseTitle, item.aspectRatio, formatSeconds(item.durationSec)].filter(Boolean).join(" · ")}
+        {[item.courseTitle, item.aspectRatio, shape, formatSeconds(item.durationSec)].filter(Boolean).join(" · ")}
       </p>
     </div>
   </button>
-);
+  );
+};
 
 /**
- * Choose what to promote: a finished Vireon video, a rendered course lesson, or an image / video you upload.
+ * Choose what to promote: a finished Vireon video, a picture from Image Studio, a rendered course lesson, or an image / video you upload.
  * Nothing here posts anything - it only fills the promotion draft.
  */
-export const MediaSelector = ({ campaign, caps, busy, uploadPercent, onPickVideo, onPickLesson, onUpload, onClear }) => {
+export const MediaSelector = ({ campaign, caps, busy, uploadPercent, onPickVideo, onPickImage, onPickLesson, onUpload, onClear }) => {
   const [tab, setTab] = useState("videos");
   const [query, setQuery] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -74,6 +78,7 @@ export const MediaSelector = ({ campaign, caps, busy, uploadPercent, onPickVideo
 
   const q = query.trim().toLowerCase();
   const videos = useMemo(() => (data?.videos || []).filter((v) => !q || `${v.title} ${v.topic || ""}`.toLowerCase().includes(q)), [data, q]);
+  const images = useMemo(() => (data?.images || []).filter((i) => !q || `${i.title} ${i.prompt || ""}`.toLowerCase().includes(q)), [data, q]);
   const lessons = useMemo(() => (data?.lessons || []).filter((l) => !q || `${l.title} ${l.courseTitle || ""}`.toLowerCase().includes(q)), [data, q]);
   const uploads = caps?.uploads;
 
@@ -90,6 +95,7 @@ export const MediaSelector = ({ campaign, caps, busy, uploadPercent, onPickVideo
         active={tab} onChange={setTab}
         items={[
           { key: "videos", label: "Videos", icon: <Film className="size-4" /> },
+          { key: "images", label: "Images", icon: <Images className="size-4" /> },
           { key: "lessons", label: "Course lessons", icon: <GraduationCap className="size-4" /> },
           { key: "upload", label: "Upload", icon: <Upload className="size-4" /> },
         ]}
@@ -106,6 +112,15 @@ export const MediaSelector = ({ campaign, caps, busy, uploadPercent, onPickVideo
               : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                   {videos.map((v) => <LibraryCard key={v.videoJobId} item={v} disabled={busy} selected={campaign?.source?.videoJobId === v.videoJobId} onPick={onPickVideo} />)}
+                </div>
+              )
+          )}
+          {!loading && !error && tab === "images" && (
+            images.length === 0
+              ? <p className="py-8 text-center text-sm text-text-tertiary">{q ? "No image matches that search." : "No generated images yet. Make one in Image Studio, then come back."}</p>
+              : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                  {images.map((i) => <LibraryCard key={i.imageGenerationId} item={i} disabled={busy} selected={campaign?.source?.imageGenerationId === i.imageGenerationId} onPick={onPickImage} />)}
                 </div>
               )
           )}
@@ -141,7 +156,7 @@ export const MediaSelector = ({ campaign, caps, busy, uploadPercent, onPickVideo
           </div>
           {busy && uploadPercent > 0 && <Progress percent={uploadPercent} size="sm" />}
           <Alert type="info" title="Platform notes">
-            Instagram accepts JPEG images only. Threads and Instagram images are fetched by Meta from a public URL, which this server must be set up to provide.
+            Instagram accepts JPEG images only; pictures from Image Studio are converted to JPEG for you. Threads and Instagram images are fetched by Meta from a public URL, which this server must be set up to provide.
           </Alert>
         </div>
       )}

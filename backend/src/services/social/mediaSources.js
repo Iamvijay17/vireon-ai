@@ -1,6 +1,7 @@
 const VideoJob = require('../../models/VideoJob');
 const CourseVideo = require('../../models/CourseVideo');
 const Course = require('../../models/Course');
+const ImageGeneration = require('../../models/ImageGeneration');
 const { JOB_STATUS, STAGE_STATUS } = require('../../constants');
 const { NotFoundError, ValidationError } = require('../../utils/errors');
 
@@ -27,6 +28,14 @@ function recordDuration(job) {
 function narrationExcerpt(script, max = 1200) {
   const scenes = Array.isArray(script?.scenes) ? script.scenes : [];
   return scenes.map((s) => s.audio?.text || s.narration || '').filter(Boolean).join(' ').slice(0, max);
+}
+
+/** A short title for a picture, which has only a prompt: the first line, cut at a word boundary. */
+function titleFromPrompt(prompt, max = 80) {
+  const line = String(prompt || '').trim().split(/\r?\n/)[0].replace(/\s+/g, ' ');
+  if (line.length <= max) return line || 'Generated image';
+  const cut = line.slice(0, max);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), 40)).trim()}…`;
 }
 
 /**
@@ -63,7 +72,18 @@ class MediaSources {
   }
 
   /** @returns {{media, thumbnail, title, description, script, language, source}} */
-  async resolve({ videoJobId, courseVideoId }) {
+  async resolve({ videoJobId, courseVideoId, imageGenerationId }) {
+    if (imageGenerationId) {
+      const record = await ImageGeneration.findById(imageGenerationId).lean();
+      if (!record) throw new NotFoundError('Image not found');
+      if (record.status !== 'COMPLETED' || !record.imageUrl) throw new ValidationError('This image has not finished generating yet');
+      const title = titleFromPrompt(record.prompt);
+      const media = await this.#describeStored(record.imageUrl, { kind: 'image', width: record.width, height: record.height, fileName: record.fileName || `${title}.png` });
+      return {
+        media, thumbnail: media, title, description: record.prompt, excerpt: record.prompt, language: 'english',
+        source: { videoJobId: null, courseVideoId: null, imageGenerationId: String(record._id), title, description: record.prompt },
+      };
+    }
     if (videoJobId) {
       const job = await VideoJob.findById(videoJobId).lean();
       if (!job) throw new NotFoundError('Video not found');
@@ -98,9 +118,10 @@ class MediaSources {
   /** Finished Vireon videos, newest first - what the media selector shows. */
   async library({ limit = 60 } = {}) {
     const take = Math.min(limit, 100);
-    const [jobs, lessons] = await Promise.all([
+    const [jobs, lessons, pictures] = await Promise.all([
       VideoJob.find({ status: JOB_STATUS.COMPLETED, videoUrl: { $ne: '' } }).sort({ updatedAt: -1 }).limit(take).lean(),
       CourseVideo.find({ videoStatus: STAGE_STATUS.COMPLETED, renderUrl: { $ne: '' } }).sort({ updatedAt: -1 }).limit(take).lean(),
+      ImageGeneration.find({ status: 'COMPLETED', imageUrl: { $nin: [null, ''] } }).sort({ createdAt: -1 }).limit(take).lean(),
     ]);
     const courses = await Course.find({ _id: { $in: [...new Set(lessons.map((l) => l.courseId))] } }).lean();
     const courseTitle = new Map(courses.map((c) => [String(c._id), c.title]));
@@ -114,6 +135,10 @@ class MediaSources {
         kind: 'lesson', courseVideoId: String(l._id), title: l.title, courseTitle: courseTitle.get(String(l.courseId)) || '', durationSec: l.audioDuration > 0 ? l.audioDuration : null,
         thumbnailUrl: '', createdAt: l.createdAt,
       })),
+      images: pictures.map((i) => ({
+        kind: 'image', imageGenerationId: String(i._id), title: titleFromPrompt(i.prompt), prompt: i.prompt, aspectRatio: i.aspectRatio,
+        width: i.width, height: i.height, thumbnailUrl: i.imageUrl, createdAt: i.createdAt,
+      })),
     };
   }
 }
@@ -123,3 +148,4 @@ module.exports.VIDEO_CONTENT_TYPES = VIDEO_CONTENT_TYPES;
 module.exports.IMAGE_CONTENT_TYPES = IMAGE_CONTENT_TYPES;
 module.exports.hasStandaloneRender = hasStandaloneRender;
 module.exports.hasCourseRender = hasCourseRender;
+module.exports.titleFromPrompt = titleFromPrompt;

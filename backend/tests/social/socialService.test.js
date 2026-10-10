@@ -99,6 +99,72 @@ describe('campaigns', () => {
     await expect(service.createCampaign(OWNER, { brief: { tone: 'sarcastic' } })).rejects.toMatchObject({ name: 'SchemaValidationError' });
   });
 
+  describe('Image Studio pictures', () => {
+    const IMG = 'img-aaaaaaaa';
+    const png = () => ({ kind: 'image', bucket: 'vireon-video', key: 'img-1/images/img-abc.png', size: 900000, etag: 'p1', contentType: 'image/png', fileName: 'img-abc.png', width: 1024, height: 1024, measured: 'record' });
+    const jpeg = (key) => ({ kind: 'image', bucket: 'vireon-video', key, size: 80000, etag: 'j1', contentType: 'image/jpeg', fileName: 'Lighthouse.jpg', width: 1024, height: 1024, measured: 'file' });
+    let exporter;
+
+    beforeEach(() => {
+      sources.resolve.mockImplementation(async ({ imageGenerationId }) => ({
+        media: png(), thumbnail: png(), title: 'Lighthouse', description: 'A lighthouse at dusk', excerpt: 'A lighthouse at dusk', language: 'english',
+        source: { videoJobId: null, courseVideoId: null, imageGenerationId, title: 'Lighthouse', description: 'A lighthouse at dusk' },
+      }));
+      exporter = jest.fn(async ({ destKey }) => {
+        storage.objects.set(`vireon-video/${destKey}`, { size: 80000, etag: 'j1' });
+        return jpeg(destKey);
+      });
+      service = new SocialService({ auth, apis: { meta, threads }, queues: () => queue, storage, store, captions, settings: settingsFor(), now: () => clock, sources, exporter });
+    });
+
+    it('turns the picture into a JPEG copy owned by the promotion, keeping the prompt as the caption source', async () => {
+      const c = await service.createCampaign(OWNER, { imageGenerationId: IMG });
+      expect(exporter).toHaveBeenCalledWith(expect.objectContaining({ source: expect.objectContaining({ key: 'img-1/images/img-abc.png' }), maxBytes: 8 * 1024 * 1024, destBucket: config.minio.videoBucket }));
+      expect(c).toMatchObject({ title: 'Lighthouse', source: { imageGenerationId: IMG, title: 'Lighthouse', description: 'A lighthouse at dusk' } });
+      expect(c.media).toMatchObject({ kind: 'image', contentType: 'image/jpeg' });
+      expect(c.media.previewPath).toMatch(new RegExp(`^/[^/]+/social/local/${c._id}/[a-z0-9]+\\.jpg$`));
+      expect(c.thumbnail.previewPath).toBe(c.media.previewPath);
+    });
+
+    it('keeps the original PNG when it cannot be converted (still fine for Facebook; Instagram says why not)', async () => {
+      exporter.mockResolvedValue(null);
+      const c = await service.createCampaign(OWNER, { imageGenerationId: IMG });
+      expect(c.media).toMatchObject({ contentType: 'image/png', previewPath: '/vireon-video/img-1/images/img-abc.png' });
+      const check = await service.validate(OWNER, c._id, { destinations: [{ accountId: ACC.ig }, { accountId: ACC.fb }] });
+      const by = Object.fromEntries(check.results.map((r) => [r.platform, r]));
+      expect(by.instagram.ok).toBe(false);
+      expect(by.instagram.errors[0].message).toMatch(/JPEG/);
+      expect(by.facebook.ok).toBe(true);
+    });
+
+    it('replaces the previous copy when another source is chosen, and never touches Image Studio\'s own file', async () => {
+      const c = await service.createCampaign(OWNER, { imageGenerationId: IMG });
+      const first = SocialCampaign.rows.at(-1).media.key;
+      await service.updateCampaign(OWNER, c._id, { videoJobId: 'job-aaaaaaaa' });
+      expect(storage.deleteObject).toHaveBeenCalledTimes(1);
+      expect(storage.deleteObject).toHaveBeenCalledWith(expect.any(String), first);
+      storage.deleteObject.mockClear();
+      await service.updateCampaign(OWNER, c._id, { clearMedia: true });
+      expect(storage.deleteObject).not.toHaveBeenCalled(); // the video render is not ours to delete
+    });
+
+    it('does not delete the copy while a post still uses it', async () => {
+      const c = await service.createCampaign(OWNER, { imageGenerationId: IMG });
+      const key = SocialCampaign.rows.at(-1).media.key;
+      SocialPost.rows.push({ _id: 'spo-aaaaaaaa', ownerId: OWNER, campaignId: c._id, media: { key } });
+      await service.updateCampaign(OWNER, c._id, { clearMedia: true });
+      expect(storage.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('records the picture on each post and refuses combining sources', async () => {
+      const c = await service.createCampaign(OWNER, { imageGenerationId: IMG });
+      await service.publish(OWNER, c._id, { confirm: true, mode: 'now', destinations: [{ accountId: ACC.fb }] });
+      expect(SocialPost.rows[0]).toMatchObject({ format: 'image', imageGenerationId: IMG, videoJobId: null });
+      await expect(service.createCampaign(OWNER, { imageGenerationId: IMG, videoJobId: 'job-aaaaaaaa' })).rejects.toMatchObject({ name: 'SchemaValidationError' });
+      await expect(service.createCampaign(OWNER, { imageGenerationId: 'job-aaaaaaaa' })).rejects.toMatchObject({ name: 'SchemaValidationError' });
+    });
+  });
+
   it('edits the brief and per-platform copy; hashtags are normalised and the copy is marked manual', async () => {
     const c = await makeCampaign();
     const u = await service.updateCampaign(OWNER, c._id, { brief: { tone: 'educational' }, variants: { instagram: { caption: 'My caption', hashtags: ['#AI', 'video tips'] } } });
