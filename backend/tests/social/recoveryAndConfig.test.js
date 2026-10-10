@@ -59,6 +59,7 @@ describe('social configuration validation', () => {
     cfg.publishing.encryptionKey = '';
     cfg.social.meta = { ...cfg.social.meta, appId: '', appSecret: '', redirectUri: '' };
     cfg.social.threads = { appId: '', appSecret: '', redirectUri: '' };
+    cfg.social.instagram = { appId: '', appSecret: '', redirectUri: '' };
     cfg.social.publicMediaBaseUrl = '';
     return cfg;
   };
@@ -90,10 +91,19 @@ describe('social configuration validation', () => {
     ['META_APP_ID', (c) => { fullMeta(c); c.social.meta.appId = ''; }, 'social.meta.appId'],
     ['META_REDIRECT_URI', (c) => { fullMeta(c); c.social.meta.redirectUri = ''; }, 'social.meta.redirectUri'],
     ['THREADS_APP_SECRET', (c) => { fullMeta(c); c.social.threads = { appId: '2', appSecret: '', redirectUri: 'https://a.example.com/cb' }; }, 'social.threads.appSecret'],
+    ['INSTAGRAM_APP_SECRET', (c) => { fullMeta(c); c.social.instagram = { appId: '3', appSecret: '', redirectUri: 'https://a.example.com/cb' }; }, 'social.instagram.appSecret'],
+    ['INSTAGRAM_REDIRECT_URI', (c) => { c.publishing.encryptionKey = KEY; c.social.instagram = { appId: '3', appSecret: 's', redirectUri: '' }; }, 'social.instagram.redirectUri'],
     ['PUBLISHING_TOKEN_ENCRYPTION_KEY', (c) => { fullMeta(c); c.publishing.encryptionKey = ''; }, 'publishing.encryptionKey'],
   ])('a half-finished setup names %s', (envVar, mutate, path) => {
     const issue = issuesFor(mutate).find((i) => i.path === path);
     expect(issue.message).toContain(envVar);
+  });
+
+  it('accepts Instagram login on its own (no Meta app needed) and needs the encryption key for it', () => {
+    const ig = { appId: '3', appSecret: 's', redirectUri: 'https://app.example.com/api/social/oauth/instagram/callback' };
+    expect(issuesFor((c) => { c.publishing.encryptionKey = KEY; c.social.instagram = ig; })).toEqual([]);
+    expect(issuesFor((c) => { c.social.instagram = ig; }).map((i) => i.path)).toContain('publishing.encryptionKey');
+    expect(issuesFor((c) => { c.publishing.encryptionKey = KEY; c.social.instagram = { ...ig, redirectUri: 'http://app.example.com/cb' }; }).map((i) => i.path)).toContain('social.instagram.redirectUri');
   });
 
   it('requires an https origin without query for the public media URL, and the encryption key to sign it', () => {

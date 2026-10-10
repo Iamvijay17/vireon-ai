@@ -22,6 +22,7 @@ const SocialPostStore = require('./SocialPostStore');
 const events = require('./SocialEvents');
 const mediaGateway = require('./mediaGateway');
 const { providerFor } = require('./providers');
+const { apiForAccount } = require('./apiFor');
 const { validatePost, validateSchedule, normalizeHashtags, composeText } = require('./contentRules');
 const { zonedToUtc, isValidTimeZone, utcToZoned } = require('./timezone');
 const { readImageSize, sniffMedia } = require('./imageMeta');
@@ -197,14 +198,16 @@ class SocialService {
     const publicMedia = mediaGateway.isConfigured(s);
     const meta = this.auth.isConfigured('meta');
     const threads = this.auth.isConfigured('threads');
+    const instagramLogin = this.auth.isConfigured('instagram');
     const restrictions = [];
     if (!publicMedia) {
-      restrictions.push('No public media URL is configured (SOCIAL_PUBLIC_MEDIA_BASE_URL). Facebook posts work; Threads media posts and Instagram image posts are blocked, and Instagram videos can only use the resumable-upload path that Meta documents for Facebook Login for Business apps.');
+      restrictions.push('No public media URL is configured (SOCIAL_PUBLIC_MEDIA_BASE_URL). Facebook posts work; Threads media posts and Instagram image posts are blocked, and Instagram videos can only use the resumable-upload path that Meta documents for Facebook Login for Business apps (accounts connected with Instagram login cannot post any media without a public URL).');
     }
     return {
       platforms: {
         facebook: { label: 'Facebook', configured: meta, formats: ['text', 'image', 'reel', 'video'], needsPublicMedia: false, dailyLimit: Math.min(s.dailyLimits.facebook, PLATFORM_DAILY_LIMITS.facebook), limitApplies: 'Reels only', limits: LIMITS.facebook },
-        instagram: { label: 'Instagram', configured: meta, formats: ['image', 'reel'], needsPublicMedia: 'images always; videos unless resumable upload is available', dailyLimit: Math.min(s.dailyLimits.instagram, PLATFORM_DAILY_LIMITS.instagram), limits: LIMITS.instagram },
+        // `configured`: some way to connect Instagram exists. `login`: which ways (Instagram login needs no Facebook Page).
+        instagram: { label: 'Instagram', configured: meta || instagramLogin, login: { instagram: instagramLogin, facebook: meta }, formats: ['image', 'reel'], needsPublicMedia: 'images always; videos unless resumable upload is available', dailyLimit: Math.min(s.dailyLimits.instagram, PLATFORM_DAILY_LIMITS.instagram), limits: LIMITS.instagram },
         threads: { label: 'Threads', configured: threads, formats: ['text', 'image', 'video'], needsPublicMedia: 'image and video posts', dailyLimit: Math.min(s.dailyLimits.threads, PLATFORM_DAILY_LIMITS.threads), limits: LIMITS.threads },
       },
       publicMedia: { configured: publicMedia },
@@ -551,7 +554,7 @@ class SocialService {
     const platform = account.platform;
     const content = this.#contentFor(campaign, platform, dest.content);
     const media = campaign.media ? { ...campaign.media } : null;
-    const check = validatePost({ platform, content, media, format: dest.format, caps });
+    const check = validatePost({ platform, content, media, format: dest.format, caps: { ...caps, instagramLogin: account.meta?.login === 'instagram' } });
     const problem = this.#accountProblem(account);
     if (problem) check.errors.unshift({ field: 'accountId', code: 'ACCOUNT_NEEDS_REAUTH', message: problem, level: 'error' });
     return {
@@ -685,9 +688,10 @@ class SocialService {
         cta: body.content.cta ?? raw.content.cta,
         linkUrl: body.content.linkUrl ?? raw.content.linkUrl,
       };
+      const account = await this.Accounts.findOne({ _id: raw.accountId, ownerId });
       const check = validatePost({
         platform: raw.platform, content, media: raw.media?.key ? { ...raw.media } : null, format: raw.format,
-        caps: { publicMedia: mediaGateway.isConfigured(this.settings()) },
+        caps: { publicMedia: mediaGateway.isConfigured(this.settings()), instagramLogin: account?.meta?.login === 'instagram' },
       });
       if (!check.ok) throw new SchemaValidationError(check.errors.map((e) => ({ field: e.field, message: e.message })));
       set.content = content;
@@ -818,6 +822,12 @@ class SocialService {
       canDelete: [S.CANCELLED, S.FAILED].includes(json.status) && !reachedPlatform,
       canRefreshInsights: json.status === S.COMPLETED && Boolean(raw.remote?.postId),
     };
+    // Where the browser can load the post's own media (the JPEG/video that was actually sent); storage keys stay internal otherwise.
+    if (raw.media?.bucket && raw.media?.key) json.media = { ...(json.media || {}), previewPath: `/${raw.media.bucket}/${raw.media.key}` };
+    // Posts published before permalinks were fetched for photo/text posts: Facebook resolves `<page>_<post>` to the post.
+    if (json.platform === 'facebook' && json.status === S.COMPLETED && !json.remote?.permalink && /^\d+_\d+$/.test(raw.remote?.postId || '')) {
+      json.remote = { ...(json.remote || {}), permalink: `https://www.facebook.com/${raw.remote.postId}` };
+    }
     json.scheduledLocal = raw.scheduledFor && raw.timezone ? utcToZoned(new Date(raw.scheduledFor), raw.timezone) : null;
     json.label = PLATFORM_LABEL[json.platform];
     json.composedText = composeText(json.platform, json.content);
@@ -941,7 +951,7 @@ class SocialService {
         const account = await this.Accounts.findOne({ _id: raw.accountId, ownerId });
         if (!account) throw new Error('The account is no longer connected');
         const token = await this.auth.getAccessToken(raw.accountId);
-        const api = raw.platform === SOCIAL_PLATFORM.THREADS ? this.apis.threads : this.apis.meta;
+        const api = apiForAccount(this.apis, account);
         const metrics = await providerFor(raw.platform).insights({ post: raw, account: account.toObject(), token, api });
         await this.Posts.updateOne({ _id: raw._id }, { $set: { insights: { fetchedAt: new Date(this.now()), metrics, error: '' } } });
         summary.refreshed += 1;

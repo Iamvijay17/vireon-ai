@@ -34,7 +34,19 @@ const META_INSTAGRAM_REQUIRED_SCOPES = Object.freeze(['instagram_basic', 'instag
 const THREADS_SCOPES = Object.freeze(['threads_basic', 'threads_content_publish', 'threads_manage_insights']);
 const THREADS_REQUIRED_SCOPES = Object.freeze(['threads_basic', 'threads_content_publish']);
 
+// Instagram API with Instagram Login ("Business Login for Instagram") - no Facebook Page involved. [docs]
+//  instagram_business_basic            profile + every call
+//  instagram_business_content_publish  publish photos / Reels
+//  instagram_business_manage_insights  per-post insights
+const INSTAGRAM_SCOPES = Object.freeze(['instagram_business_basic', 'instagram_business_content_publish', 'instagram_business_manage_insights']);
+const INSTAGRAM_REQUIRED_SCOPES = Object.freeze(['instagram_business_basic', 'instagram_business_content_publish']);
+
 const ENDPOINTS = Object.freeze({
+  // [docs] authorize on instagram.com, code exchange on api.instagram.com, everything else on graph.instagram.com
+  instagramAuthorize: 'https://www.instagram.com/oauth/authorize',
+  instagramToken: 'https://api.instagram.com/oauth/access_token',
+  instagramGraph: (version) => `https://graph.instagram.com/${version}`,
+  instagramGraphRoot: 'https://graph.instagram.com',
   // Facebook Login dialog is versioned: https://www.facebook.com/<version>/dialog/oauth [docs]
   metaDialog: (version) => `https://www.facebook.com/${version}/dialog/oauth`,
   metaGraph: (version) => `https://graph.facebook.com/${version}`,
@@ -106,6 +118,8 @@ module.exports = {
   META_INSTAGRAM_REQUIRED_SCOPES,
   THREADS_SCOPES,
   THREADS_REQUIRED_SCOPES,
+  INSTAGRAM_SCOPES,
+  INSTAGRAM_REQUIRED_SCOPES,
   ENDPOINTS,
   LIMITS,
   PLATFORM_DAILY_LIMITS,

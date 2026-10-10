@@ -50,12 +50,14 @@ class SocialWebhooks {
   }
 
   #secretFor(provider) {
-    return provider === 'threads' ? this.settings().threads.appSecret : this.settings().meta.appSecret;
+    return provider === 'threads' ? this.settings().threads.appSecret : provider === 'instagram' ? this.settings().instagram.appSecret : this.settings().meta.appSecret;
   }
 
   /** Accounts that belong to the user a callback names. */
   async #accountsFor(provider, userId) {
     if (provider === 'threads') return this.Accounts.find({ platform: SOCIAL_PLATFORM.THREADS, externalId: String(userId) });
+    // Instagram Login names the Instagram professional account itself (no Facebook user is involved).
+    if (provider === 'instagram') return this.Accounts.find({ platform: SOCIAL_PLATFORM.INSTAGRAM, externalId: String(userId), 'meta.login': 'instagram' });
     return this.Accounts.find({ platform: { $in: [SOCIAL_PLATFORM.FACEBOOK, SOCIAL_PLATFORM.INSTAGRAM] }, 'meta.fbUserId': String(userId) });
   }
 

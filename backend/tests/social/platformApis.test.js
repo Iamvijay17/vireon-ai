@@ -1,5 +1,6 @@
 const MetaApi = require('../../src/services/social/MetaApi');
 const ThreadsApi = require('../../src/services/social/ThreadsApi');
+const InstagramLoginApi = require('../../src/services/social/InstagramLoginApi');
 const { storageRangeStream } = MetaApi;
 const { PublishError } = require('../../src/services/publishing/errors');
 
@@ -7,6 +8,7 @@ const settings = () => ({
   requestTimeoutMs: 5000,
   meta: { appId: 'APP', appSecret: 'SECRET-META', redirectUri: 'https://app.test/api/social/oauth/meta/callback', graphVersion: 'v25.0' },
   threads: { appId: 'TAPP', appSecret: 'SECRET-THREADS', redirectUri: 'https://app.test/api/social/oauth/threads/callback' },
+  instagram: { appId: 'IAPP', appSecret: 'SECRET-IG', redirectUri: 'https://app.test/api/social/oauth/instagram/callback' },
 });
 
 /** A fake Meta: records requests, answers from a queue of canned responses. */
@@ -32,6 +34,7 @@ function fakeFetch(responses = []) {
 
 const meta = (fetchImpl) => new MetaApi({ fetchImpl, settings, encryptionKey: () => 'key' });
 const threads = (fetchImpl) => new ThreadsApi({ fetchImpl, settings, encryptionKey: () => 'key' });
+const instagram = (fetchImpl) => new InstagramLoginApi({ fetchImpl, settings, encryptionKey: () => 'key' });
 const formOf = (call) => Object.fromEntries(new URLSearchParams(call.body.toString()));
 
 describe('MetaApi', () => {
@@ -245,6 +248,96 @@ describe('ThreadsApi', () => {
       { json: { data: [{ name: 'views', values: [{ value: 9 }] }] } },
     ]);
     const api = threads(f);
+    await expect(api.getProfile('T')).rejects.toMatchObject({ code: 'AUTH_REVOKED' });
+    expect((await api.getInsightMetric('M', 'T', 'shares')).available).toBe(false);
+    expect(await api.getInsightMetric('M', 'T', 'views')).toEqual({ available: true, value: 9 });
+  });
+});
+
+describe('InstagramLoginApi', () => {
+  it('is unconfigured without its own app id / secret / redirect URI, and refuses to build an auth URL', () => {
+    const api = new InstagramLoginApi({ fetchImpl: fakeFetch(), settings: () => ({ ...settings(), instagram: { ...settings().instagram, appSecret: '' } }), encryptionKey: () => 'key' });
+    expect(api.isConfigured()).toBe(false);
+    expect(() => api.buildAuthUrl({ state: 's' })).toThrow(PublishError);
+    expect(new InstagramLoginApi({ fetchImpl: fakeFetch(), settings, encryptionKey: () => '' }).isConfigured()).toBe(false);
+  });
+
+  it('builds the instagram.com authorize URL: Instagram permissions, state, Facebook login switched off, no secret', () => {
+    const url = new URL(instagram(fakeFetch()).buildAuthUrl({ state: 'S1' }));
+    expect(url.origin + url.pathname).toBe('https://www.instagram.com/oauth/authorize');
+    expect(url.searchParams.get('client_id')).toBe('IAPP');
+    expect(url.searchParams.get('scope')).toBe('instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights');
+    expect(url.searchParams.get('response_type')).toBe('code');
+    expect(url.searchParams.get('state')).toBe('S1');
+    expect(url.searchParams.get('enable_fb_login')).toBe('false');
+    expect(url.searchParams.get('redirect_uri')).toBe(settings().instagram.redirectUri);
+    expect(url.toString()).not.toContain('SECRET');
+  });
+
+  it('exchanges code -> short token (documented { data: [...] } shape) -> long-lived token, secret server-side only', async () => {
+    const f = fakeFetch([
+      { json: { data: [{ access_token: 'SHORT', user_id: 99, permissions: 'instagram_business_basic,instagram_business_content_publish' }] } },
+      { json: { access_token: 'LONG', token_type: 'bearer', expires_in: 5183944 } },
+    ]);
+    const api = instagram(f);
+    expect(await api.exchangeCode('CODE')).toEqual({ accessToken: 'SHORT', userId: '99', permissions: ['instagram_business_basic', 'instagram_business_content_publish'] });
+    expect(f.calls[0].url).toBe('https://api.instagram.com/oauth/access_token');
+    expect(formOf(f.calls[0])).toMatchObject({ grant_type: 'authorization_code', code: 'CODE', client_id: 'IAPP', client_secret: 'SECRET-IG', redirect_uri: settings().instagram.redirectUri });
+    expect(await api.extendToken('SHORT')).toEqual({ accessToken: 'LONG', expiresInSec: 5183944 });
+    const u = new URL(f.calls[1].url);
+    expect(u.origin + u.pathname).toBe('https://graph.instagram.com/access_token');
+    expect(u.searchParams.get('grant_type')).toBe('ig_exchange_token');
+  });
+
+  it('also reads the bare response shape of the code exchange', async () => {
+    const f = fakeFetch([{ json: { access_token: 'SHORT', user_id: 5 } }]);
+    expect(await instagram(f).exchangeCode('C')).toEqual({ accessToken: 'SHORT', userId: '5', permissions: [] });
+  });
+
+  it('refreshes with ig_refresh_token', async () => {
+    const f = fakeFetch([{ json: { access_token: 'NEW', expires_in: 5184000 } }]);
+    expect(await instagram(f).refreshToken('LONG')).toEqual({ accessToken: 'NEW', expiresInSec: 5184000 });
+    const u = new URL(f.calls[0].url);
+    expect(u.origin + u.pathname).toBe('https://graph.instagram.com/refresh_access_token');
+    expect(u.searchParams.get('grant_type')).toBe('ig_refresh_token');
+  });
+
+  it('reads the profile and uses user_id (the professional account id), not the app-scoped id', async () => {
+    const f = fakeFetch([{ json: { id: 'APPSCOPED', user_id: 1784, username: 'my_ig', name: 'My IG', account_type: 'BUSINESS', profile_picture_url: 'https://img/p' } }]);
+    expect(await instagram(f).getProfile('TOK')).toEqual({ id: '1784', username: 'my_ig', name: 'My IG', accountType: 'BUSINESS', pictureUrl: 'https://img/p' });
+    const u = new URL(f.calls[0].url);
+    expect(u.origin + u.pathname).toBe('https://graph.instagram.com/v25.0/me');
+    expect(u.searchParams.get('access_token')).toBe('TOK');
+  });
+
+  it('creates containers on graph.instagram.com by public URL, publishes once and reads status', async () => {
+    const f = fakeFetch([{ json: { id: 'C1' } }, { json: { id: 'C2' } }, { json: { id: 'C1', status_code: 'FINISHED' } }, { json: { id: 'M1' } }]);
+    const api = instagram(f);
+    expect(await api.createIgContainer('IG1', 'TOK', { mediaType: 'REELS', videoUrl: 'https://pub.test/v.mp4', caption: 'hi', isAiGenerated: true })).toEqual({ id: 'C1', uploadUrl: '' });
+    expect(f.calls[0].url).toBe('https://graph.instagram.com/v25.0/IG1/media');
+    expect(formOf(f.calls[0])).toMatchObject({ media_type: 'REELS', video_url: 'https://pub.test/v.mp4', caption: 'hi', is_ai_generated: 'true', access_token: 'TOK' });
+    await api.createIgContainer('IG1', 'TOK', { imageUrl: 'https://pub.test/i.jpg', caption: 'pic' });
+    expect(formOf(f.calls[1])).toMatchObject({ image_url: 'https://pub.test/i.jpg' });
+    expect(formOf(f.calls[1]).media_type).toBeUndefined();
+    expect((await api.getIgContainer('C1', 'TOK')).statusCode).toBe('FINISHED');
+    expect(await api.publishIgContainer('IG1', 'TOK', 'C1')).toEqual({ id: 'M1' });
+    expect(f.calls[3].url).toBe('https://graph.instagram.com/v25.0/IG1/media_publish');
+    expect(formOf(f.calls[3])).toMatchObject({ creation_id: 'C1' });
+  });
+
+  it('never attempts a resumable upload (not documented for Instagram login)', async () => {
+    const f = fakeFetch();
+    await expect(instagram(f).createIgContainer('IG1', 'TOK', { mediaType: 'REELS', resumable: true })).rejects.toMatchObject({ code: 'PUBLIC_MEDIA_UNAVAILABLE' });
+    expect(f.calls).toHaveLength(0);
+  });
+
+  it('maps an expired token to AUTH_REVOKED and unsupported insights to unavailable, never 0', async () => {
+    const f = fakeFetch([
+      { status: 400, json: { error: { code: 190, message: 'Error validating access token' } } },
+      { status: 400, json: { error: { code: 100, message: 'metric unsupported' } } },
+      { json: { data: [{ name: 'views', values: [{ value: 9 }] }] } },
+    ]);
+    const api = instagram(f);
     await expect(api.getProfile('T')).rejects.toMatchObject({ code: 'AUTH_REVOKED' });
     expect((await api.getInsightMetric('M', 'T', 'shares')).available).toBe(false);
     expect(await api.getInsightMetric('M', 'T', 'views')).toEqual({ available: true, value: 9 });

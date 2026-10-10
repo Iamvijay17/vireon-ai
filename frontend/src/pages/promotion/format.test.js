@@ -22,7 +22,9 @@ describe("OAuth result messages", () => {
     expect(connectResultMessage("connected", "meta", 2)).toMatchObject({ type: "success", title: "Facebook / Instagram connected" });
     expect(connectResultMessage("connected", "meta", 2).message).toMatch(/2 accounts/);
     expect(connectResultMessage("connected", "threads", 1).title).toBe("Threads connected");
-    for (const code of ["denied", "state", "scopes", "no_pages", "not_configured", "failed"]) {
+    expect(connectResultMessage("connected", "instagram", 1).title).toBe("Instagram connected");
+    expect(connectResultMessage("not_professional", "instagram").message).toMatch(/Business or Creator/);
+    for (const code of ["denied", "state", "scopes", "no_pages", "not_professional", "not_configured", "failed"]) {
       expect(connectResultMessage(code, "meta").message.length).toBeGreaterThan(10);
     }
     expect(connectResultMessage("denied", "meta").type).toBe("warning");

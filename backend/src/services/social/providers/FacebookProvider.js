@@ -129,10 +129,11 @@ module.exports = {
   },
 
   async permalink(ctx, postId) {
-    const { token, api } = ctx;
+    const { post, token, api } = ctx;
     try {
-      const status = await api.getVideoStatus(postId, token);
-      return absolute(status.permalink);
+      // Videos and Reels are Video objects; text and photo posts are feed posts with their own endpoint.
+      if (post?.format === 'reel' || post?.format === 'video') return absolute((await api.getVideoStatus(postId, token)).permalink);
+      return absolute(await api.getPostPermalink(postId, token));
     } catch {
       return '';
     }

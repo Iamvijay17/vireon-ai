@@ -99,7 +99,9 @@ describe("AccountsPanel", () => {
     expect(screen.getByText("Meta is not configured")).toBeTruthy();
     expect(screen.getByText("Threads is not configured")).toBeTruthy();
     expect(screen.getByText("META_APP_ID")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /connect facebook \/ instagram/i }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: /^connect facebook$/i }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: /^connect instagram$/i }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: /^connect threads$/i }).disabled).toBe(true);
   });
 
   it("explains permissions and requirements first, and only then sends the browser to the platform", async () => {
@@ -108,15 +110,54 @@ describe("AccountsPanel", () => {
     Object.defineProperty(window, "location", { value: { ...window.location, assign }, writable: true });
     wrap(<AccountsPanel caps={caps()} accounts={[]} loading={false} error={null} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /connect facebook \/ instagram/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^connect instagram$/i }));
     expect(await screen.findByText(/Vireon will ask for permission to/)).toBeTruthy();
-    expect(screen.getByText(/Professional \(Business or Creator\) account linked to that Facebook Page/)).toBeTruthy();
+    expect(screen.getByText(/Professional \(Business or Creator\) account linked to a Facebook Page/)).toBeTruthy();
     expect(screen.getByText(/never sees your password/)).toBeTruthy();
     expect(api.startSocialConnect).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: /continue to meta/i }));
     await waitFor(() => expect(api.startSocialConnect).toHaveBeenCalledWith("meta"));
     await waitFor(() => expect(assign).toHaveBeenCalledWith("https://www.facebook.com/v25.0/dialog/oauth?state=abc"));
+  });
+
+  it("signs Instagram in directly (no Facebook) when the server has Instagram login configured", async () => {
+    api.startSocialConnect.mockResolvedValue({ data: { authUrl: "https://www.instagram.com/oauth/authorize?state=abc" } });
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", { value: { ...window.location, assign }, writable: true });
+    const withLogin = caps({ platforms: { facebook: { configured: true }, instagram: { configured: true, login: { instagram: true, facebook: true } }, threads: { configured: true } } });
+    wrap(<AccountsPanel caps={withLogin} accounts={[]} loading={false} error={null} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^connect instagram$/i }));
+    expect(await screen.findByText(/Personal accounts cannot post through the API/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /continue to instagram/i }));
+    await waitFor(() => expect(api.startSocialConnect).toHaveBeenCalledWith("instagram"));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://www.instagram.com/oauth/authorize?state=abc"));
+  });
+
+  it("works with only Instagram login configured: Facebook stays disabled, Instagram can connect", () => {
+    const onlyLogin = caps({ platforms: { facebook: { configured: false }, instagram: { configured: true, login: { instagram: true, facebook: false } }, threads: { configured: true } } });
+    wrap(<AccountsPanel caps={onlyLogin} accounts={[]} loading={false} error={null} />);
+    expect(screen.getByRole("button", { name: /^connect facebook$/i }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: /^connect instagram$/i }).disabled).toBe(false);
+  });
+
+  it("reconnects an Instagram-login account through Instagram, not Meta", async () => {
+    api.startSocialConnect.mockResolvedValue({ data: { authUrl: "https://www.instagram.com/oauth/authorize?state=z" } });
+    Object.defineProperty(window, "location", { value: { ...window.location, assign: vi.fn() }, writable: true });
+    const withLogin = caps({ platforms: { facebook: { configured: true }, instagram: { configured: true, login: { instagram: true, facebook: true } }, threads: { configured: true } } });
+    const expired = acct({ _id: "pac-ig2ig2ig", platform: "instagram", displayName: "Pro IG", username: "pro_ig", status: "needs_reauth", statusReason: "expired", meta: { login: "instagram" } });
+    wrap(<AccountsPanel caps={withLogin} accounts={[expired]} loading={false} error={null} />);
+    fireEvent.click(screen.getByRole("button", { name: /reconnect/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /continue to instagram/i }));
+    await waitFor(() => expect(api.startSocialConnect).toHaveBeenCalledWith("instagram"));
+  });
+
+  it("shows the real platform logos on the cards", () => {
+    wrap(<AccountsPanel caps={caps()} accounts={[]} loading={false} error={null} />);
+    expect(document.querySelectorAll("svg[viewBox='0 0 24 24']").length).toBeGreaterThanOrEqual(3);
+    expect(document.querySelector("circle[fill='#1877F2']")).toBeTruthy(); // Facebook blue
+    expect(document.querySelector("radialGradient")).toBeTruthy(); // Instagram gradient
   });
 
   it("lists accounts with status and permissions, and flags one that needs reconnecting", () => {

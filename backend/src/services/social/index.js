@@ -1,5 +1,6 @@
 const MetaApi = require('./MetaApi');
 const ThreadsApi = require('./ThreadsApi');
+const InstagramLoginApi = require('./InstagramLoginApi');
 const SocialAuthService = require('./SocialAuthService');
 const SocialService = require('./SocialService');
 const SocialPostStore = require('./SocialPostStore');
@@ -15,8 +16,8 @@ let runtime = null;
 function getRuntime() {
   if (!runtime) {
     const { getQueue } = require('../../queues/publishingQueues');
-    const apis = { meta: new MetaApi(), threads: new ThreadsApi() };
-    const auth = new SocialAuthService({ meta: apis.meta, threads: apis.threads });
+    const apis = { meta: new MetaApi(), threads: new ThreadsApi(), instagram: new InstagramLoginApi() };
+    const auth = new SocialAuthService({ meta: apis.meta, threads: apis.threads, instagram: apis.instagram });
     const store = new SocialPostStore();
     const service = new SocialService({ auth, apis, queues: getQueue, store });
     runtime = { apis, auth, store, service };

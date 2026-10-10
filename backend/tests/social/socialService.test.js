@@ -604,6 +604,20 @@ describe('partial failure and retrying one destination', () => {
     expect(SocialPost.rows[0].status).toBe('COMPLETED');
   });
 
+  it('gives the UI the sent media and a link for Facebook photo posts saved without one', async () => {
+    const c = await makeCampaign();
+    const r = await service.publish(OWNER, c._id, { confirm: true, mode: 'now', destinations: [{ accountId: ACC.fb }] });
+    const id = r.results[0].post._id;
+    Object.assign(SocialPost.rows[0], { status: 'COMPLETED', format: 'image', remote: { ...SocialPost.rows[0].remote, postId: '123_456', permalink: '' } });
+    const post = await service.getPost(OWNER, id);
+    expect(post.media.previewPath).toMatch(/^\/[^/]+\/.+/);
+    expect(post.media.bucket).toBeUndefined(); // storage location stays internal
+    expect(post.remote.permalink).toBe('https://www.facebook.com/123_456');
+
+    SocialPost.rows[0].remote.permalink = 'https://www.facebook.com/real/link';
+    expect((await service.getPost(OWNER, id)).remote.permalink).toBe('https://www.facebook.com/real/link');
+  });
+
   it('deletes only posts that never reached a platform', async () => {
     const c = await makeCampaign();
     const r = await service.publish(OWNER, c._id, { confirm: true, mode: 'now', destinations: [{ accountId: ACC.th }, { accountId: ACC.fb }] });

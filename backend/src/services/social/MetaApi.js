@@ -243,6 +243,12 @@ class MetaApi {
     };
   }
 
+  /** Public URL of a feed post / photo post (`<page>_<post>` id). Videos and Reels use getVideoStatus instead. */
+  async getPostPermalink(postId, token) {
+    const body = await this.#get(postId, token, { fields: 'permalink_url' }, 'post', 'facebook');
+    return body?.permalink_url || '';
+  }
+
   async finishReel(pageId, token, { videoId, description, title, scheduledAt = null }) {
     const params = {
       upload_phase: 'finish', video_id: videoId, description, title,

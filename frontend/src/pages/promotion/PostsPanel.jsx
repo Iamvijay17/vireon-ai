@@ -7,7 +7,7 @@ import { Select } from "../../components/ui/Select";
 import { Input, Label } from "../../components/ui/Input";
 import { EmptyState, ErrorState } from "../../components";
 import { useSocialPosts, useLivePosts } from "./usePromotion";
-import { PlatformBadge, StatusBadge, PostProgress, RemoteLink, SkeletonRows } from "./shared";
+import { PlatformBadge, StatusBadge, PostProgress, PostMedia, RemoteLink, SkeletonRows } from "./shared";
 import { PostActionButtons } from "./PostActions";
 import { usePostActions } from "./usePostActions";
 import { PostDetailModal } from "./PostDetailModal";
@@ -62,9 +62,12 @@ export const PostsPanel = ({ accounts }) => {
   const columns = [
     { key: "platform", title: "Platform", render: (p) => <div><PlatformBadge platform={p.platform} /><p className="mt-0.5 text-xs text-text-tertiary">{p.accountLabel}{p.accountHandle ? ` · @${p.accountHandle}` : ""}</p></div> },
     { key: "post", title: "Post", render: (p) => (
-      <div className="max-w-xs">
-        <p className="line-clamp-2 text-[13px] text-text-primary">{p.content?.caption || <span className="text-text-tertiary">(no text)</span>}</p>
-        <p className="mt-0.5 text-xs text-text-tertiary">{FORMAT_LABEL[p.format]}</p>
+      <div className="flex max-w-sm items-start gap-3">
+        {p.format !== "text" && <PostMedia post={p} className="size-14 shrink-0 rounded-lg" />}
+        <div className="min-w-0">
+          <p className="line-clamp-2 text-[13px] text-text-primary">{p.content?.caption || <span className="text-text-tertiary">(no text)</span>}</p>
+          <p className="mt-0.5 text-xs text-text-tertiary">{FORMAT_LABEL[p.format]}</p>
+        </div>
       </div>
     ) },
     { key: "status", title: "Status", render: (p) => (
@@ -78,7 +81,9 @@ export const PostsPanel = ({ accounts }) => {
       const at = p.status === "SCHEDULED" ? p.scheduledFor : p.remote?.publishedAt || p.completedAt || p.createdAt;
       return <div className="text-[13px] text-text-secondary"><p>{formatInZone(at, p.status === "SCHEDULED" ? p.timezone || undefined : undefined)}</p>{p.status === "SCHEDULED" && p.timezone && <p className="text-xs text-text-tertiary">{p.timezone.replace(/_/g, " ")}</p>}</div>;
     } },
-    { key: "link", title: "Link", render: (p) => <RemoteLink url={p.remote?.permalink}>Open</RemoteLink> },
+    { key: "link", title: "Link", render: (p) => p.remote?.permalink
+      ? <RemoteLink url={p.remote.permalink}>Open post</RemoteLink>
+      : <span className="text-xs text-text-tertiary">{p.status === "COMPLETED" ? "Not available" : "—"}</span> },
     { key: "actions", title: "", align: "right", render: (p) => <div onClick={(e) => e.stopPropagation()}><PostActionButtons post={p} actions={actions} onEdit={() => setOpenId(p._id)} /></div> },
   ];
 

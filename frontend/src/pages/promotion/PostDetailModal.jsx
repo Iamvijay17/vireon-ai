@@ -7,7 +7,7 @@ import { LoadingState, ErrorState } from "../../components";
 import { useInvalidate, useApiQuery } from "../../lib/useApiQuery";
 import { queryKeys } from "../../lib/queryClient";
 import { getSocialPost, editSocialPost } from "../../services/api";
-import { StatusBadge, PlatformBadge, PostProgress, RemoteLink, ErrorNotice } from "./shared";
+import { StatusBadge, PlatformBadge, PostProgress, PostMedia, RemoteLink, ErrorNotice } from "./shared";
 import { PostActionButtons } from "./PostActions";
 import { usePostActions } from "./usePostActions";
 import { formatInZone, timeZoneOptions, parseHashtagInput, hashtagsToInput, FORMAT_LABEL, browserTimeZone } from "./format";
@@ -94,6 +94,7 @@ export const PostDetailModal = ({ postId, onClose }) => {
           )}
           {post.status === "RETRYING" && post.nextRetryAt && <p className="text-[13px] text-text-secondary">Next automatic try: {formatInZone(post.nextRetryAt)} (attempt {post.attempts} of {post.maxAttempts}).</p>}
           <PostProgress post={post} />
+          {post.format !== "text" && <PostMedia post={post} controls className="max-h-72 w-full rounded-xl bg-black object-contain" />}
           {post.remote?.permalink && <RemoteLink url={post.remote.permalink}>Open the published post</RemoteLink>}
           <ErrorNotice error={post.error} />
 

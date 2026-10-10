@@ -3,27 +3,18 @@ import { Badge } from "../../components/ui/Badge";
 import { Progress } from "../../components/ui/Progress";
 import { cn } from "../../components/ui/cn";
 import { resolveStoragePath, resolveThumbnailUrl } from "../../services/api";
-import { statusMeta, PLATFORM_META, platformLabel, formatBytes } from "./format";
+import { statusMeta, platformLabel, formatBytes } from "./format";
+import { PlatformLogo } from "./PlatformLogo";
 
 export { ErrorNotice } from "../publishing/shared";
 
-/** A letter tile for a platform - deliberately not a logo. */
-export const PlatformTile = ({ platform, size = "md", className }) => {
-  const meta = PLATFORM_META[platform] || { short: "?", color: "#6b7280" };
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-lg font-bold",
-        size === "sm" ? "size-6 text-[11px]" : size === "lg" ? "size-11 text-base" : "size-8 text-[13px]",
-        className
-      )}
-      style={{ backgroundColor: meta.color, color: "#ffffff" }}
-    >
-      {meta.short}
-    </span>
-  );
-};
+/** The platform's real logo (Facebook, Instagram, Threads) at one of three sizes. */
+export const PlatformTile = ({ platform, size = "md", className }) => (
+  <PlatformLogo
+    platform={platform}
+    className={cn("shrink-0", size === "sm" ? "size-6" : size === "lg" ? "size-11" : "size-8", className)}
+  />
+);
 
 export const PlatformBadge = ({ platform }) => (
   <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-text-primary">
@@ -77,6 +68,18 @@ export const MediaThumb = ({ media, thumbnail, thumbnailUrl, className, alt = ""
       <Icon className="size-6" />
     </div>
   );
+};
+
+/** The picture (or first video frame) of what a post actually sent. Falls back to an icon when the media is gone. */
+export const PostMedia = ({ post, className, controls = false }) => {
+  const media = post?.media;
+  const src = media?.previewPath ? resolveStoragePath(media.previewPath) : "";
+  if (src && media.kind === "image") return <img src={src} alt="Post media" loading="lazy" className={cn("bg-surface-hover object-cover", className)} referrerPolicy="no-referrer" />;
+  if (src && media.kind === "video") {
+    return <video src={controls ? src : `${src}#t=0.1`} preload="metadata" muted playsInline controls={controls} aria-label="Post media" className={cn("bg-surface-hover object-cover", className)} />;
+  }
+  const Icon = media?.kind === "image" ? ImageIcon : Film;
+  return <div className={cn("flex items-center justify-center bg-surface-hover text-text-tertiary", className)}><Icon className="size-5" /></div>;
 };
 
 /** Skeleton rows for lists while the first load is in flight. */

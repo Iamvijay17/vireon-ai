@@ -144,15 +144,18 @@ function validatePost({ platform, content = {}, media = null, format = '', caps 
     format: resolved || null,
     composed: { text, length, limit, hashtags: tags, hashtagCount: tags.length, linkCount: countLinks(text) },
     // Whether this destination will fetch the media from our public URL (needs SOCIAL_PUBLIC_MEDIA_BASE_URL).
-    needsPublicMedia: needsPublicMedia(platform, resolved),
+    needsPublicMedia: needsPublicMedia(platform, resolved, caps),
   };
 }
 
-/** Does posting this format to this platform require Meta to download the file from a public URL? */
-function needsPublicMedia(platform, format) {
+/**
+ * Does posting this format to this platform require Meta to download the file from a public URL?
+ * `caps.instagramLogin`: the Instagram account was connected with Instagram Login, which documents no resumable upload.
+ */
+function needsPublicMedia(platform, format, caps = {}) {
   if (!format || format === 'text') return false;
   if (platform === SOCIAL_PLATFORM.THREADS) return true; // image + video are fetched by URL
-  if (platform === SOCIAL_PLATFORM.INSTAGRAM) return format === 'image'; // video can be uploaded resumably
+  if (platform === SOCIAL_PLATFORM.INSTAGRAM) return format === 'image' || Boolean(caps.instagramLogin); // otherwise video can be uploaded resumably
   return false; // Facebook accepts the bytes directly
 }
 
@@ -200,7 +203,7 @@ function validateMedia({ platform, media, resolved, L, errors, warnings, caps })
     else if (approximate) warnings.push(WARN('media', 'DURATION_ESTIMATED', 'Length and size come from the generation record, not a measurement of the rendered file.'));
   }
 
-  if (needsPublicMedia(platform, resolved) && !caps.publicMedia) {
+  if (needsPublicMedia(platform, resolved, caps) && !caps.publicMedia) {
     errors.push(ERR('media', 'PUBLIC_MEDIA_UNAVAILABLE', `${label} downloads media from a public https URL, and this server has none configured (SOCIAL_PUBLIC_MEDIA_BASE_URL). See docs/social-promotion.md.`));
   }
 }

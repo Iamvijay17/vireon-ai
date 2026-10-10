@@ -83,6 +83,10 @@ function fakeMeta(over = {}) {
       s.posted.push({ platform: 'facebook', id: `PH${s.seq}` });
       return { id: `PH${s.seq}`, postId: `${pageId}_PH${s.seq}` };
     }),
+    getPostPermalink: jest.fn(async (id) => {
+      rec('getPostPermalink'); maybeFail('getPostPermalink');
+      return `https://www.facebook.com/permalink/${id}`;
+    }),
     startReel: jest.fn(async () => {
       rec('startReel'); maybeFail('startReel');
       return { videoId: 'REEL1', uploadUrl: 'https://rupload.facebook.com/video-upload/v25.0/REEL1' };

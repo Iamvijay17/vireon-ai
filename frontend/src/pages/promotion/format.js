@@ -42,9 +42,9 @@ export const TONES = [
   { value: "promotional", label: "Promotional" },
 ];
 
-/** What the OAuth callback told the SPA (?connect=<code>&provider=<meta|threads>) in plain language. */
+/** What the OAuth callback told the SPA (?connect=<code>&provider=<meta|threads|instagram>) in plain language. */
 export const connectResultMessage = (code, provider, count) => {
-  const name = provider === "threads" ? "Threads" : "Facebook / Instagram";
+  const name = provider === "threads" ? "Threads" : provider === "instagram" ? "Instagram" : "Facebook / Instagram";
   switch (code) {
     case "connected":
       return {
@@ -57,6 +57,8 @@ export const connectResultMessage = (code, provider, count) => {
       return { type: "error", title: "That sign-in link expired", message: "The sign-in link was invalid, already used, or older than 10 minutes. Start the connection again." };
     case "scopes":
       return { type: "error", title: "Required permissions were not granted", message: "Vireon needs permission to publish. Connect again and leave every permission ticked." };
+    case "not_professional":
+      return { type: "error", title: "That is not a professional Instagram account", message: "Only Instagram Business or Creator accounts can post through the API. Switch the account to Professional in Instagram's settings, then connect again." };
     case "no_pages":
       return { type: "error", title: "No usable Page found", message: "No Facebook Page where you can create content was shared with Vireon. Connect again and select at least one Page." };
     case "not_configured":
