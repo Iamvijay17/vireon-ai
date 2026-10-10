@@ -66,10 +66,11 @@ describe('the same picture requested at once', () => {
     ]);
 
     expect(client.queue).toHaveBeenCalledTimes(1);
-    expect(a.fromCache).toBe(false);
-    expect(b.fromCache).toBe(true);
+    // Which request leads depends on whose workflow-file read lands first, so don't assume it is job-1.
+    expect([a.fromCache, b.fromCache].sort()).toEqual([false, true]);
+    const follower = a.fromCache ? { result: a, jobId: 'job-1' } : { result: b, jobId: 'job-2' };
     // the follower gets a URL in ITS OWN job, not the leader's
-    expect(b.url).toBe('http://minio/job-2/image/' + b.fileName);
+    expect(follower.result.url).toBe(`http://minio/${follower.jobId}/image/` + follower.result.fileName);
     expect(a.cacheKey).toBe(b.cacheKey);
     expect(CacheService.putImage).toHaveBeenCalledTimes(1);
   });
