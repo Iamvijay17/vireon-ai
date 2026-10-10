@@ -53,6 +53,17 @@ describe('MetaApi', () => {
     expect(url.toString()).not.toContain('SECRET');
   });
 
+  it('signs in with the Configuration ID and no scope list when a Facebook Login for Business config is set', () => {
+    const api = new MetaApi({ fetchImpl: fakeFetch(), settings: () => ({ ...settings(), meta: { ...settings().meta, loginConfigId: 'CFG1' } }), encryptionKey: () => 'key' });
+    const url = new URL(api.buildAuthUrl({ state: 'STATE123' }));
+    expect(url.searchParams.get('config_id')).toBe('CFG1');
+    expect(url.searchParams.get('override_default_response_type')).toBe('true');
+    expect(url.searchParams.get('response_type')).toBe('code');
+    expect(url.searchParams.get('state')).toBe('STATE123');
+    expect(url.searchParams.has('scope')).toBe(false);
+    expect(url.toString()).not.toContain('SECRET');
+  });
+
   it('exchanges the code with the secret in the POST body only', async () => {
     const f = fakeFetch([{ json: { access_token: 'SHORT', expires_in: 3600 } }]);
     const out = await meta(f).exchangeCode('CODE');

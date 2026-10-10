@@ -525,6 +525,9 @@ const config = Object.freeze({
       // "Valid OAuth Redirect URIs" exactly).
       redirectUri: process.env.META_REDIRECT_URI || '',
       graphVersion: process.env.META_GRAPH_VERSION || 'v25.0',
+      // Facebook Login for Business apps (the default for new Meta apps) sign in with a Configuration ID
+      // instead of a scope list. Empty = classic Facebook Login with explicit scopes.
+      loginConfigId: process.env.META_LOGIN_CONFIG_ID || '',
     },
     threads: {
       // Threads is a separate app/use case on developers.facebook.com with its own id + secret.
