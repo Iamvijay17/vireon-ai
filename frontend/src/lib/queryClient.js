@@ -51,6 +51,7 @@ export const queryKeys = {
     capabilities: ['publishing', 'capabilities'],
     accounts: ['publishing', 'accounts'],
     lessons: (courseId) => ['publishing', 'lessons', courseId],
+    videos: ['publishing', 'videos'],
     jobs: (filters) => ['publishing', 'jobs', filters],
     udemy: (courseId) => ['publishing', 'udemy', courseId],
   },

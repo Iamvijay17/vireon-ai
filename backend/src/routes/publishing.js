@@ -68,6 +68,17 @@ router.get('/courses/:courseId/lessons', PublishingController.listLessons);
 
 /**
  * @swagger
+ * /api/publishing/videos:
+ *   get:
+ *     summary: Finished standalone videos (New Video wizard) with their publishing state
+ *     tags: [Publishing]
+ *     responses:
+ *       200: { description: Videos }
+ */
+router.get('/videos', PublishingController.listVideos);
+
+/**
+ * @swagger
  * /api/publishing/jobs:
  *   post:
  *     summary: Create a publishing DRAFT for a lesson (nothing is queued or uploaded)
@@ -80,7 +91,8 @@ router.get('/courses/:courseId/lessons', PublishingController.listLessons);
  *             required: [accountId, courseVideoId]
  *             properties:
  *               accountId: { type: string }
- *               courseVideoId: { type: string }
+ *               courseVideoId: { type: string, description: 'A course lesson - give this OR videoJobId' }
+ *               videoJobId: { type: string, description: 'A standalone video - give this OR courseVideoId' }
  *               allowReupload: { type: boolean }
  *               metadata: { type: object, description: "title, description, tags, categoryId, language, privacyStatus, publishAt, madeForKids, containsSyntheticMedia" }
  *     responses:

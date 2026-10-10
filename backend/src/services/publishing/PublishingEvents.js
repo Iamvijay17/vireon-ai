@@ -20,6 +20,7 @@ function summarize(job) {
     platform: j.platform,
     courseId: j.courseId,
     courseVideoId: j.courseVideoId || null,
+    videoJobId: j.videoJobId || null,
     accountId: j.accountId || null,
     status: j.status,
     progress: j.progress || { percent: 0 },

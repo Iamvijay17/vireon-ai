@@ -9,6 +9,7 @@ const EXPECTED = [
   '/api/publishing/oauth/google/callback',
   '/api/publishing/accounts/{id}',
   '/api/publishing/courses/{courseId}/lessons',
+  '/api/publishing/videos',
   '/api/publishing/jobs',
   '/api/publishing/history',
   '/api/publishing/jobs/{id}',

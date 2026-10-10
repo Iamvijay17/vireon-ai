@@ -13,6 +13,7 @@ Contents: [What works](#what-works-and-what-does-not) · [Architecture](#archite
 | | Status |
 |---|---|
 | YouTube: connect a channel with Google OAuth 2.0 (state + PKCE, server-side code exchange) | Implemented |
+| YouTube: publish a **course lesson** or a **standalone video** (New Video wizard, incl. Shorts) | Implemented |
 | YouTube: edit title, description, tags, category, language, visibility, schedule, "made for kids", AI-content disclosure | Implemented |
 | YouTube: `videos.insert` resumable upload, progress, retry, cancel, resume after a restart | Implemented |
 | YouTube: private / unlisted / public | Implemented, but **only private** until your Google API project passes YouTube's audit (see below) |
@@ -78,6 +79,7 @@ All settings live in `backend/.env` (see `backend/.env.example`; placeholders on
 | `PUBLISHING_TOKEN_ENCRYPTION_KEY` | - | 32 bytes (64 hex or base64). Encrypts refresh tokens and upload-session URLs at rest |
 | `PUBLISHING_FRONTEND_URL` | first `CORS_ORIGIN` | Where the browser lands after Google. Fixed config - never taken from the request |
 | `YOUTUBE_API_VERIFIED` | `false` | `true` only after the YouTube API audit; unlocks non-private uploads and scheduling |
+| `YOUTUBE_AI_DISCLOSURE` | "This video was created with AI: the script, narration and visuals are AI-generated. Made with Vireon AI." | Added to the end of every new draft's description (you can edit it in the form); set it empty to disable. Separate from the "contains AI-generated content" switch, which is YouTube's own disclosure flag and defaults to on |
 | `YOUTUBE_MAX_UPLOAD_BYTES` | 4 GiB | Larger files are refused before any byte is sent |
 | `YOUTUBE_DAILY_UPLOAD_LIMIT` | 100 | Local guard on your daily upload allowance |
 | `YOUTUBE_UPLOAD_CHUNK_BYTES` | 8 MiB | Resumable chunk size; must be a multiple of 262144 |
@@ -120,7 +122,7 @@ Things to know:
 
 1. Start the API, the frontend and the YouTube worker.
 2. **Publishing → Accounts → Connect YouTube account.** You are sent to Google; approve both permissions. (If you untick one, Vireon refuses the connection and revokes the grant - an account without both permissions would only fail later, mid-upload.) You land back on the Accounts tab with the channel listed.
-3. **Publishing → Publish**, choose a course, then **Publish…** on a rendered lesson. A draft opens with the exact stored video, pre-filled details and the visibility locked to *Private* (unverified project). Edit as needed.
+3. **Publishing → Publish**. Choose **Course lessons** (pick a course) or **Standalone videos**, then **Publish…** on a finished video. A draft opens with the exact stored video, pre-filled details and the visibility locked to *Private* (unverified project). Edit as needed.
 4. **Publish to YouTube → confirm.** The job moves to *Queue & history*: Queued → Validating → Uploading (live %) → Processing → Completed, with the YouTube video ID, watch URL and Studio link.
 5. Open the link; the video is private, visible only to you. Delete it in YouTube Studio when the test is done.
 
@@ -177,7 +179,8 @@ Interactive docs: `/api-docs` (tag **Publishing**). All routes are under `/api/p
 | `POST /accounts/youtube/connect` | Start OAuth → `{ authUrl }` |
 | `GET /oauth/google/callback` | Google's redirect: validates `state`, exchanges the code, `303` to the app with `?connect=<result>` |
 | `GET /courses/:courseId/lessons` | Lessons with render state and what is already published |
-| `POST /jobs` | Create a **draft** (idempotent; `409` for a duplicate of an active/finished publish) |
+| `GET /videos` | Finished standalone videos with their publishing state |
+| `POST /jobs` | Create a **draft** from `courseVideoId` (a lesson) **or** `videoJobId` (a standalone video) - exactly one (idempotent; `409` for a duplicate of an active/finished publish) |
 | `GET /jobs` · `GET /history` · `GET /jobs/:id` | List (filters: `platform`, `status`, `courseId`, `courseVideoId`, `finished`, `page`, `limit`) · finished jobs · detail with timeline and allowed `actions` |
 | `PATCH /jobs/:id` | Edit metadata - only while DRAFT, or FAILED before anything uploaded |
 | `POST /jobs/:id/submit` | Approve and queue (**requires `{"confirm": true}`**) |
@@ -219,6 +222,7 @@ If you ever expose Vireon beyond a trusted network, add real authentication firs
 * Google *Testing*-mode apps expire refresh tokens after 7 days.
 * Udemy cannot be published to programmatically; export + manual upload only.
 * One owner, no user accounts (see [Security](#security-model)). One connected Google account can have one channel per connection; connect again to add another channel.
+* Standalone vertical videos are uploaded as ordinary videos; YouTube itself decides whether a short vertical clip is shown as a Short.
 * Thumbnails, playlists, captions upload and comments are not handled (they would need extra scopes). Upload thumbnails and captions in YouTube Studio.
 * The workers are not registered in `deploy/install-workers.ps1`.
 * A "made for kids" answer and the AI-content disclosure are set from the form; you are responsible for them being accurate.
