@@ -1,13 +1,14 @@
 const config = require('../../config');
 const LoggerService = require('../common/LoggerService');
 const PlatformAccount = require('../../models/PlatformAccount');
-const { PUBLISH_STATUS, SOCIAL_PLATFORM } = require('../../constants');
+const { PUBLISH_STATUS } = require('../../constants');
 const { decideRetry, describeRetry, describeExhausted } = require('../common/retryPolicy');
 const { computeBackoffMs } = require('../../utils/backoff');
 const { PublishError } = require('../publishing/errors');
 const { toStoredSocialError } = require('./errors');
 const { validatePost } = require('./contentRules');
 const { providerFor } = require('./providers');
+const { apiForAccount } = require('./apiFor');
 const mediaGateway = require('./mediaGateway');
 const events = require('./SocialEvents');
 const { PLATFORM_DAILY_LIMITS, PLATFORM_LABEL } = require('./constants');
@@ -86,7 +87,7 @@ async function processSocialPost(postId, deps) {
     }
 
     const provider = providerFor(job.platform);
-    const api = job.platform === SOCIAL_PLATFORM.THREADS ? apis.threads : apis.meta;
+    const api = apiForAccount(apis, account);
     const post = plain(job);
     const acct = plain(account);
 
@@ -96,7 +97,7 @@ async function processSocialPost(postId, deps) {
     if (!confirming) {
       const check = validatePost({
         platform: post.platform, content: post.content, media: post.media.key ? { ...post.media, kind: post.media.kind } : null,
-        format: post.format, caps: { publicMedia: mediaGateway.isConfigured(settings) },
+        format: post.format, caps: { publicMedia: mediaGateway.isConfigured(settings), instagramLogin: account.meta?.login === 'instagram' },
       });
       if (!check.ok) {
         throw new PublishError('VALIDATION_FAILED', check.errors.map((e) => e.message).join(' '), {
@@ -115,7 +116,7 @@ async function processSocialPost(postId, deps) {
 
     const token = await auth.getAccessToken(job.accountId);
     const hooks = makeHooks({ patch, now, getPost: () => ctx.post, lost: () => lost });
-    const ctx = { post, account: acct, token, api, provider, storage, settings, hooks, now, aiLabel: settings.aiLabel !== false && Boolean(post.videoJobId || post.courseVideoId) };
+    const ctx = { post, account: acct, token, api, provider, storage, settings, hooks, now, aiLabel: settings.aiLabel !== false && Boolean(post.videoJobId || post.courseVideoId || post.imageGenerationId) };
 
     // ── An earlier run may have sent the publish and lost the answer ──────
     if (!confirming && post.remote.publishAttemptedAt) {

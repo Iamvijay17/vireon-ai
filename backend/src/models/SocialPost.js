@@ -45,6 +45,7 @@ const socialPostSchema = new mongoose.Schema(
     // Convenience copy of the campaign's source so history can filter by video without a join.
     videoJobId: { type: String, default: null, index: true },
     courseVideoId: { type: String, default: null },
+    imageGenerationId: { type: String, default: null },
 
     platform: { type: String, enum: Object.values(SOCIAL_PLATFORM), required: true, index: true },
     accountId: { type: String, ref: 'PlatformAccount', required: true, index: true },

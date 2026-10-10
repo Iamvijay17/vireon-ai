@@ -26,7 +26,7 @@ const OWNER = 'local';
 const STRANGER = 'someone-else';
 const DAY = 86400_000;
 
-let clock; let meta; let threads; let auth;
+let clock; let meta; let threads; let instagram; let auth;
 
 const settings = () => ({ tokenRefreshWindowMs: 10 * DAY });
 const page = (over = {}) => ({ id: 'P1', name: 'My Page', accessToken: 'PAGE-TOKEN-1', tasks: ['CREATE_CONTENT', 'MANAGE'], pictureUrl: 'https://img/p', instagram: { id: 'IG1', username: 'my_ig', name: 'My IG', pictureUrl: 'https://img/i' }, ...over });
@@ -56,12 +56,21 @@ beforeEach(() => {
     refreshToken: jest.fn(async () => ({ accessToken: 'REFRESHED-TH', expiresInSec: 60 * 86400 })),
     getProfile: jest.fn(async () => ({ id: '777', username: 'vijay', name: 'Vijay', pictureUrl: 'https://img/t' })),
   };
-  auth = new SocialAuthService({ meta, threads, now: () => clock, settings });
+  instagram = {
+    isConfigured: jest.fn(() => true),
+    assertConfigured: jest.fn(),
+    buildAuthUrl: jest.fn(({ state }) => `https://www.instagram.com/oauth/authorize?state=${state}`),
+    exchangeCode: jest.fn(async () => ({ accessToken: 'SHORT-IG', userId: 'APPSCOPED', permissions: ['instagram_business_basic', 'instagram_business_content_publish', 'instagram_business_manage_insights'] })),
+    extendToken: jest.fn(async () => ({ accessToken: 'LONG-IG', expiresInSec: 60 * 86400 })),
+    refreshToken: jest.fn(async () => ({ accessToken: 'REFRESHED-IG', expiresInSec: 60 * 86400 })),
+    getProfile: jest.fn(async () => ({ id: 'IG-PRO-1', username: 'my_ig', name: 'My IG', accountType: 'BUSINESS', pictureUrl: 'https://img/ig' })),
+  };
+  auth = new SocialAuthService({ meta, threads, instagram, now: () => clock, settings });
 });
 
 const startAndGetState = async (provider = 'meta', ownerId = OWNER) => {
   await auth.startConnect(ownerId, provider);
-  const url = (provider === 'meta' ? meta : threads).buildAuthUrl.mock.calls.at(-1)[0];
+  const url = ({ meta, threads, instagram })[provider].buildAuthUrl.mock.calls.at(-1)[0];
   return url.state;
 };
 
@@ -232,6 +241,90 @@ describe('connecting Threads', () => {
     expect(cipher.decrypt(row.accessTokenEnc)).toBe('LONG-TH');
     expect(row.accessTokenEnc).not.toContain('LONG-TH');
     expect(new Date(row.tokenExpiresAt).getTime()).toBe(clock + 60 * DAY);
+  });
+});
+
+describe('connecting Instagram with Instagram Login (no Facebook Page)', () => {
+  const connect = async (code = 'C') => auth.completeConnect('instagram', { state: await startAndGetState('instagram'), code });
+
+  it('stores the Instagram account with its own long-lived token, marked as an Instagram-login connection', async () => {
+    expect(await connect()).toMatchObject({ result: 'connected', count: 1 });
+    expect(meta.exchangeCode).not.toHaveBeenCalled(); // nothing goes through Facebook
+    const row = PlatformAccount.rows[0];
+    expect(row).toMatchObject({ platform: 'instagram', externalId: 'IG-PRO-1', username: 'my_ig', meta: { login: 'instagram', igUserId: 'IG-PRO-1' } });
+    expect(cipher.decrypt(row.accessTokenEnc)).toBe('LONG-IG');
+    expect(row.accessTokenEnc).not.toContain('LONG-IG');
+    expect(new Date(row.tokenExpiresAt).getTime()).toBe(clock + 60 * DAY);
+  });
+
+  it('uses the professional account id (not the app-scoped id from the code exchange) as the account id', async () => {
+    await connect();
+    expect(PlatformAccount.rows[0].externalId).toBe('IG-PRO-1');
+    expect(instagram.getProfile).toHaveBeenCalledWith('LONG-IG');
+  });
+
+  it('refuses when a required permission was unticked, before storing anything', async () => {
+    instagram.exchangeCode.mockResolvedValue({ accessToken: 'S', userId: 'U', permissions: ['instagram_business_basic'] });
+    expect(await connect()).toMatchObject({ result: 'scopes', count: 0 });
+    expect(PlatformAccount.rows).toHaveLength(0);
+    expect(instagram.extendToken).not.toHaveBeenCalled();
+  });
+
+  it('refuses a personal account, which Instagram cannot publish to through the API', async () => {
+    instagram.getProfile.mockResolvedValue({ id: 'IG-PRO-1', username: 'me', name: 'Me', accountType: 'PERSONAL', pictureUrl: '' });
+    expect(await connect()).toMatchObject({ result: 'not_professional', count: 0 });
+    expect(PlatformAccount.rows).toHaveLength(0);
+  });
+
+  it('turns a Facebook-route Instagram account into an Instagram-login one in place (same account id, new token)', async () => {
+    await auth.completeConnect('meta', { state: await startAndGetState('meta'), code: 'C' });
+    instagram.getProfile.mockResolvedValue({ id: 'IG1', username: 'my_ig', name: 'My IG', accountType: 'BUSINESS', pictureUrl: '' });
+    await connect();
+    const igRows = PlatformAccount.rows.filter((r) => r.platform === 'instagram');
+    expect(igRows).toHaveLength(1);
+    expect(igRows[0].meta.login).toBe('instagram');
+    expect(cipher.decrypt(igRows[0].accessTokenEnc)).toBe('LONG-IG');
+  });
+
+  it('cannot be completed through another provider\'s callback, and its state is single-use', async () => {
+    const state = await startAndGetState('instagram');
+    expect(await auth.completeConnect('meta', { state, code: 'C' })).toMatchObject({ result: 'state' });
+    expect(await auth.completeConnect('instagram', { state, code: 'C' })).toMatchObject({ result: 'connected' });
+    expect(await auth.completeConnect('instagram', { state, code: 'C' })).toMatchObject({ result: 'state' });
+  });
+
+  it('reports unconfigured Instagram login instead of starting a flow', async () => {
+    instagram.assertConfigured.mockImplementation(() => { throw new PublishError('NOT_CONFIGURED', 'not configured'); });
+    await expect(auth.startConnect(OWNER, 'instagram')).rejects.toMatchObject({ code: 'NOT_CONFIGURED' });
+    expect(OAuthState.rows).toHaveLength(0);
+  });
+
+  it('validates through Instagram (not Meta debug_token) and renews its token inside the window', async () => {
+    await connect();
+    const row = PlatformAccount.rows[0];
+    expect(await auth.validate(OWNER, row._id)).toMatchObject({ ok: true });
+    expect(meta.debugToken).not.toHaveBeenCalled();
+
+    Object.assign(row, { tokenExpiresAt: new Date(clock + 5 * DAY), lastRefreshedAt: new Date(clock - 20 * DAY) });
+    expect(await auth.getAccessToken(row._id)).toBe('REFRESHED-IG');
+    expect(instagram.refreshToken).toHaveBeenCalledWith('LONG-IG');
+    expect(threads.refreshToken).not.toHaveBeenCalled();
+    expect(cipher.decrypt(PlatformAccount.rows[0].accessTokenEnc)).toBe('REFRESHED-IG');
+  });
+
+  it('flags a revoked Instagram-login token as needing reconnection', async () => {
+    await connect();
+    instagram.getProfile.mockRejectedValue(new PublishError('AUTH_REVOKED', 'Error validating access token'));
+    expect(await auth.validate(OWNER, PlatformAccount.rows[0]._id)).toMatchObject({ ok: false, code: 'AUTH_REVOKED' });
+    expect(PlatformAccount.rows[0].status).toBe('needs_reauth');
+  });
+
+  it('maintenance renews Instagram-login tokens but never touches a Facebook-route Instagram account', async () => {
+    PlatformAccount.seed({ ownerId: OWNER, platform: 'instagram', externalId: 'A', meta: { login: 'instagram' }, accessTokenEnc: cipher.encrypt('IG-A'), tokenExpiresAt: new Date(clock + 3 * DAY), connectedAt: new Date(clock - 30 * DAY), lastRefreshedAt: new Date(clock - 30 * DAY) });
+    PlatformAccount.seed({ ownerId: OWNER, platform: 'instagram', externalId: 'B', meta: { igUserId: 'B' }, accessTokenEnc: cipher.encrypt('PAGE-B'), tokenExpiresAt: null });
+    expect(await auth.refreshDueTokens()).toEqual({ refreshed: 1, expired: 0, failed: 0 });
+    expect(instagram.refreshToken).toHaveBeenCalledTimes(1);
+    expect(instagram.refreshToken).toHaveBeenCalledWith('IG-A');
   });
 });
 

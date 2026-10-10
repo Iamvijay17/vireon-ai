@@ -86,7 +86,13 @@ beforeEach(() => {
     listPages: async () => [{ id: 'P1', name: 'Page', accessToken: 'SECRET-PAGE-TOKEN', tasks: ['CREATE_CONTENT'], pictureUrl: '', instagram: { id: 'IG1', username: 'ig', name: 'IG', pictureUrl: '' } }],
   });
   threads = fakeThreads({ isConfigured: () => true, assertConfigured: () => {}, buildAuthUrl: ({ state }) => `https://threads.com/oauth/authorize?state=${state}` });
-  const auth = new SocialAuthService({ meta, threads });
+  const instagram = {
+    isConfigured: () => true, assertConfigured: () => {}, buildAuthUrl: ({ state }) => `https://www.instagram.com/oauth/authorize?state=${state}`,
+    exchangeCode: async () => ({ accessToken: 'SHORT-IG', userId: 'APP', permissions: ['instagram_business_basic', 'instagram_business_content_publish'] }),
+    extendToken: async () => ({ accessToken: 'SECRET-IG-TOKEN', expiresInSec: 60 * 86400 }),
+    getProfile: async () => ({ id: 'IGPRO1', username: 'pro_ig', name: 'Pro IG', accountType: 'BUSINESS', pictureUrl: '' }),
+  };
+  const auth = new SocialAuthService({ meta, threads, instagram });
   queue = { add: jest.fn(async () => ({})) };
   const storage = storageFake({ [`${OBJ.bucket}/${OBJ.key}`]: { size: 5000, etag: 'etag-1' } });
   const sources = {
@@ -155,6 +161,23 @@ describe('OAuth over HTTP', () => {
     const replay = await call('GET', `/oauth/meta/callback?state=${state}&code=CODE`);
     expect(new URL(replay.headers.get('location')).searchParams.get('connect')).toBe('state');
     expect(new URL((await call('GET', '/oauth/meta/callback')).headers.get('location')).searchParams.get('connect')).toBe('state');
+  });
+
+  it('connects Instagram through Instagram login end to end, and never returns its token', async () => {
+    const start = await call('POST', '/accounts/instagram/connect', { body: { returnTo: '/promotion/accounts' } });
+    expect(start.status).toBe(200);
+    expect(start.json.authUrl).toMatch(/^https:\/\/www\.instagram\.com\/oauth\/authorize\?state=/);
+    const state = new URL(start.json.authUrl).searchParams.get('state');
+    const r = await call('GET', `/oauth/instagram/callback?state=${state}&code=CODE%23_`);
+    const target = new URL(r.headers.get('location'));
+    expect(target.searchParams.get('connect')).toBe('connected');
+    expect(target.searchParams.get('provider')).toBe('instagram');
+
+    const list = await call('GET', '/accounts');
+    const account = list.json.accounts.find((a) => a.externalId === 'IGPRO1');
+    expect(account).toMatchObject({ platform: 'instagram', username: 'pro_ig', status: 'connected', meta: { login: 'instagram' } });
+    expect(JSON.stringify(list.json)).not.toContain('SECRET-IG-TOKEN');
+    expect(JSON.stringify(list.json)).not.toMatch(/accessTokenEnc/);
   });
 
   it('reports a user who denied access', async () => {

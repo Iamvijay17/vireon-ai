@@ -22,9 +22,11 @@ const SocialPostStore = require('./SocialPostStore');
 const events = require('./SocialEvents');
 const mediaGateway = require('./mediaGateway');
 const { providerFor } = require('./providers');
+const { apiForAccount } = require('./apiFor');
 const { validatePost, validateSchedule, normalizeHashtags, composeText } = require('./contentRules');
 const { zonedToUtc, isValidTimeZone, utcToZoned } = require('./timezone');
 const { readImageSize, sniffMedia } = require('./imageMeta');
+const { exportAsJpeg } = require('./imageExport');
 const { LIMITS, PLATFORM_LABEL, PLATFORM_DAILY_LIMITS } = require('./constants');
 const { aggregateInsights, METRIC_LABELS } = require('./analytics');
 
@@ -59,13 +61,17 @@ const variantInput = z.object({
 const sourceIds = {
   videoJobId: z.string().regex(idPatternFor('job'), 'Invalid video id').optional(),
   courseVideoId: z.string().regex(idPatternFor('vid'), 'Invalid lesson id').optional(),
+  imageGenerationId: z.string().regex(idPatternFor('img'), 'Invalid image id').optional(),
 };
+
+const atMostOneSource = (d) => [d.videoJobId, d.courseVideoId, d.imageGenerationId].filter(Boolean).length <= 1;
+const ONE_SOURCE = { message: 'Choose either a video, a lesson or an image, not several', path: ['videoJobId'] };
 
 const createCampaignSchema = z.object({
   title: z.string().trim().min(1).max(140).optional(),
   ...sourceIds,
   brief: briefSchema.optional(),
-}).refine((d) => !(d.videoJobId && d.courseVideoId), { message: 'Choose either a video or a lesson, not both', path: ['videoJobId'] });
+}).refine(atMostOneSource, ONE_SOURCE);
 
 const updateCampaignSchema = z.object({
   title: z.string().trim().min(1).max(140).optional(),
@@ -74,7 +80,7 @@ const updateCampaignSchema = z.object({
   variants: z.record(z.enum(PLATFORMS), variantInput).optional(),
   // false = go back to the video's own thumbnail-less state (drop an uploaded/selected asset)
   clearMedia: z.boolean().optional(),
-}).refine((d) => !(d.videoJobId && d.courseVideoId), { message: 'Choose either a video or a lesson, not both', path: ['videoJobId'] });
+}).refine(atMostOneSource, ONE_SOURCE);
 
 const scheduleFields = {
   scheduledFor: z.string().max(64).optional(),
@@ -160,7 +166,7 @@ const ownerFilter = (ownerId, extra = {}) => ({ ownerId, ...extra });
 class SocialService {
   constructor({
     Campaigns = SocialCampaign, Posts = SocialPost, Accounts = PlatformAccount, auth, apis, queues, storage = null,
-    store = new SocialPostStore(), captions = new CaptionService(), settings = () => config.social, now = () => Date.now(), sources = null,
+    store = new SocialPostStore(), captions = new CaptionService(), settings = () => config.social, now = () => Date.now(), sources = null, exporter = exportAsJpeg,
   } = {}) {
     this.Campaigns = Campaigns;
     this.Posts = Posts;
@@ -174,6 +180,7 @@ class SocialService {
     this.settings = settings;
     this.now = now;
     this._sources = sources;
+    this.exportImage = exporter;
   }
 
   get storage() {
@@ -191,14 +198,16 @@ class SocialService {
     const publicMedia = mediaGateway.isConfigured(s);
     const meta = this.auth.isConfigured('meta');
     const threads = this.auth.isConfigured('threads');
+    const instagramLogin = this.auth.isConfigured('instagram');
     const restrictions = [];
     if (!publicMedia) {
-      restrictions.push('No public media URL is configured (SOCIAL_PUBLIC_MEDIA_BASE_URL). Facebook posts work; Threads media posts and Instagram image posts are blocked, and Instagram videos can only use the resumable-upload path that Meta documents for Facebook Login for Business apps.');
+      restrictions.push('No public media URL is configured (SOCIAL_PUBLIC_MEDIA_BASE_URL). Facebook posts work; Threads media posts and Instagram image posts are blocked, and Instagram videos can only use the resumable-upload path that Meta documents for Facebook Login for Business apps (accounts connected with Instagram login cannot post any media without a public URL).');
     }
     return {
       platforms: {
         facebook: { label: 'Facebook', configured: meta, formats: ['text', 'image', 'reel', 'video'], needsPublicMedia: false, dailyLimit: Math.min(s.dailyLimits.facebook, PLATFORM_DAILY_LIMITS.facebook), limitApplies: 'Reels only', limits: LIMITS.facebook },
-        instagram: { label: 'Instagram', configured: meta, formats: ['image', 'reel'], needsPublicMedia: 'images always; videos unless resumable upload is available', dailyLimit: Math.min(s.dailyLimits.instagram, PLATFORM_DAILY_LIMITS.instagram), limits: LIMITS.instagram },
+        // `configured`: some way to connect Instagram exists. `login`: which ways (Instagram login needs no Facebook Page).
+        instagram: { label: 'Instagram', configured: meta || instagramLogin, login: { instagram: instagramLogin, facebook: meta }, formats: ['image', 'reel'], needsPublicMedia: 'images always; videos unless resumable upload is available', dailyLimit: Math.min(s.dailyLimits.instagram, PLATFORM_DAILY_LIMITS.instagram), limits: LIMITS.instagram },
         threads: { label: 'Threads', configured: threads, formats: ['text', 'image', 'video'], needsPublicMedia: 'image and video posts', dailyLimit: Math.min(s.dailyLimits.threads, PLATFORM_DAILY_LIMITS.threads), limits: LIMITS.threads },
       },
       publicMedia: { configured: publicMedia },
@@ -249,7 +258,7 @@ class SocialService {
   async createCampaign(ownerId, input) {
     const data = parse(createCampaignSchema, input);
     let resolved = null;
-    if (data.videoJobId || data.courseVideoId) resolved = await this.sources.resolve(data);
+    if (data.videoJobId || data.courseVideoId || data.imageGenerationId) resolved = await this.sources.resolve(data);
 
     const campaign = await this.Campaigns.create({
       ownerId,
@@ -259,22 +268,42 @@ class SocialService {
       media: resolved?.media || null,
       thumbnail: resolved?.thumbnail || null,
     });
+    if (resolved?.source?.imageGenerationId) {
+      // Needs the campaign id for the stored copy's key, so it is swapped in right after creation.
+      const own = await this.#ownStudioImage(ownerId, campaign._id, resolved);
+      const updated = await this.Campaigns.findOneAndUpdate({ _id: campaign._id, ownerId }, { $set: { media: own.media, thumbnail: own.thumbnail } }, { new: true });
+      return this.#presentCampaign(updated);
+    }
     return this.#presentCampaign(campaign);
+  }
+
+  /**
+   * An Image Studio picture becomes a JPEG copy owned by the promotion (Instagram takes JPEG only, and a
+   * delete in Image Studio must not break a scheduled post). If it cannot be converted the original is used.
+   */
+  async #ownStudioImage(ownerId, campaignId, resolved) {
+    const jpeg = await this.exportImage({
+      storage: this.storage, source: resolved.media, destBucket: config.minio.videoBucket,
+      destKey: `social/${ownerId}/${campaignId}/${idTail()}.jpg`, maxBytes: this.settings().maxImageBytes, fileName: `${resolved.title}.jpg`,
+    });
+    return jpeg ? { media: jpeg, thumbnail: jpeg } : { media: resolved.media, thumbnail: resolved.thumbnail };
   }
 
   async updateCampaign(ownerId, id, input) {
     const data = parse(updateCampaignSchema, input);
     const campaign = await this.#ownedCampaign(ownerId, id);
+    const previousMedia = campaign.toObject().media;
     const set = {};
 
     if (data.title) set.title = data.title;
     if (data.brief) for (const [k, v] of Object.entries(data.brief)) set[`brief.${k}`] = v;
 
-    if (data.videoJobId || data.courseVideoId) {
+    if (data.videoJobId || data.courseVideoId || data.imageGenerationId) {
       const resolved = await this.sources.resolve(data);
+      const own = resolved.source?.imageGenerationId ? await this.#ownStudioImage(ownerId, id, resolved) : resolved;
       set.source = resolved.source;
-      set.media = resolved.media;
-      set.thumbnail = resolved.thumbnail;
+      set.media = own.media;
+      set.thumbnail = own.thumbnail;
       if (!data.title && (!campaign.title || campaign.title === 'Untitled promotion')) set.title = resolved.title;
     }
     if (data.clearMedia) {
@@ -298,6 +327,7 @@ class SocialService {
 
     const updated = await this.Campaigns.findOneAndUpdate({ _id: id, ownerId }, { $set: set }, { new: true });
     if (!updated) throw new NotFoundError('Campaign not found');
+    if ('media' in set) await this.#deleteOwnUpload(previousMedia); // a replaced upload / picture copy is not left behind
     return this.#presentCampaign(updated);
   }
 
@@ -453,7 +483,7 @@ class SocialService {
     const tone = body.tone || raw.brief?.tone || 'casual';
 
     let excerpt = '';
-    if (raw.source?.videoJobId || raw.source?.courseVideoId) {
+    if (raw.source?.videoJobId || raw.source?.courseVideoId || raw.source?.imageGenerationId) {
       try {
         excerpt = (await this.sources.resolve(raw.source)).excerpt || '';
       } catch {
@@ -524,7 +554,7 @@ class SocialService {
     const platform = account.platform;
     const content = this.#contentFor(campaign, platform, dest.content);
     const media = campaign.media ? { ...campaign.media } : null;
-    const check = validatePost({ platform, content, media, format: dest.format, caps });
+    const check = validatePost({ platform, content, media, format: dest.format, caps: { ...caps, instagramLogin: account.meta?.login === 'instagram' } });
     const problem = this.#accountProblem(account);
     if (problem) check.errors.unshift({ field: 'accountId', code: 'ACCOUNT_NEEDS_REAUTH', message: problem, level: 'error' });
     return {
@@ -610,7 +640,7 @@ class SocialService {
 
     try {
       const post = await this.Posts.create({
-        ownerId, campaignId: campaign._id, videoJobId: campaign.source?.videoJobId || null, courseVideoId: campaign.source?.courseVideoId || null,
+        ownerId, campaignId: campaign._id, videoJobId: campaign.source?.videoJobId || null, courseVideoId: campaign.source?.courseVideoId || null, imageGenerationId: campaign.source?.imageGenerationId || null,
         platform: account.platform, accountId: account._id, accountLabel: account.displayName, accountHandle: account.username,
         format: check.format, status: scheduled ? S.SCHEDULED : S.QUEUED,
         content: check.content,
@@ -658,9 +688,10 @@ class SocialService {
         cta: body.content.cta ?? raw.content.cta,
         linkUrl: body.content.linkUrl ?? raw.content.linkUrl,
       };
+      const account = await this.Accounts.findOne({ _id: raw.accountId, ownerId });
       const check = validatePost({
         platform: raw.platform, content, media: raw.media?.key ? { ...raw.media } : null, format: raw.format,
-        caps: { publicMedia: mediaGateway.isConfigured(this.settings()) },
+        caps: { publicMedia: mediaGateway.isConfigured(this.settings()), instagramLogin: account?.meta?.login === 'instagram' },
       });
       if (!check.ok) throw new SchemaValidationError(check.errors.map((e) => ({ field: e.field, message: e.message })));
       set.content = content;
@@ -791,6 +822,12 @@ class SocialService {
       canDelete: [S.CANCELLED, S.FAILED].includes(json.status) && !reachedPlatform,
       canRefreshInsights: json.status === S.COMPLETED && Boolean(raw.remote?.postId),
     };
+    // Where the browser can load the post's own media (the JPEG/video that was actually sent); storage keys stay internal otherwise.
+    if (raw.media?.bucket && raw.media?.key) json.media = { ...(json.media || {}), previewPath: `/${raw.media.bucket}/${raw.media.key}` };
+    // Posts published before permalinks were fetched for photo/text posts: Facebook resolves `<page>_<post>` to the post.
+    if (json.platform === 'facebook' && json.status === S.COMPLETED && !json.remote?.permalink && /^\d+_\d+$/.test(raw.remote?.postId || '')) {
+      json.remote = { ...(json.remote || {}), permalink: `https://www.facebook.com/${raw.remote.postId}` };
+    }
     json.scheduledLocal = raw.scheduledFor && raw.timezone ? utcToZoned(new Date(raw.scheduledFor), raw.timezone) : null;
     json.label = PLATFORM_LABEL[json.platform];
     json.composedText = composeText(json.platform, json.content);
@@ -914,7 +951,7 @@ class SocialService {
         const account = await this.Accounts.findOne({ _id: raw.accountId, ownerId });
         if (!account) throw new Error('The account is no longer connected');
         const token = await this.auth.getAccessToken(raw.accountId);
-        const api = raw.platform === SOCIAL_PLATFORM.THREADS ? this.apis.threads : this.apis.meta;
+        const api = apiForAccount(this.apis, account);
         const metrics = await providerFor(raw.platform).insights({ post: raw, account: account.toObject(), token, api });
         await this.Posts.updateOne({ _id: raw._id }, { $set: { insights: { fetchedAt: new Date(this.now()), metrics, error: '' } } });
         summary.refreshed += 1;

@@ -21,12 +21,18 @@ a validation report, and posts or schedules them through Meta's official APIs. I
 
 ## How it works
 
-1. **Connect accounts** (Accounts tab). One Meta Facebook-Login connects the Facebook Pages you select **and** the
-   Instagram professional accounts linked to them (the Page access token is used for both). Threads has its own
+1. **Connect accounts** (Accounts tab: one card per platform). One Meta Facebook-Login connects the Facebook Pages you
+   select **and** the Instagram professional accounts linked to them (the Page access token is used for both).
+   Instagram can instead sign in **directly with Instagram, no Facebook Page** (section 1b). Threads has its own
    sign-in. You authorise on the platform's page; Vireon never sees a password.
-2. **Create a promotion** (Create tab): pick a Vireon video / lesson (or upload a JPEG/PNG/MP4/MOV), describe the goal,
+2. **Create a promotion** (Create tab): pick a Vireon video / lesson / **Image Studio picture** (or upload a JPEG/PNG/MP4/MOV), describe the goal,
    audience, call to action, tone and destination URL, choose accounts, and let the **local LLM** (Ollama, no paid API)
    draft a different caption per platform - or write them by hand. Every field stays editable.
+   *Image Studio pictures:* the Images tab lists every finished picture. Picking one makes a **JPEG copy** (ffmpeg,
+   quality-stepped to fit the 8 MB image cap) stored under the promotion's own `social/` prefix, because Image Studio saves
+   PNG and Instagram takes JPEG only, and so that deleting the picture in Image Studio cannot break a scheduled post. The
+   picture's prompt is the context the captions are written from, and its posts are labelled AI-generated. If ffmpeg is
+   missing the original PNG is used: fine for Facebook and Threads, while Instagram reports "accepts JPEG".
 3. **Check and preview.** The server validates every destination (character limits, hashtag counts, media type, length,
    aspect ratio, account health, schedule) and returns the exact text that would be sent. Previews are an
    approximation, not the live platform UI.
@@ -85,6 +91,40 @@ Page**. If the Page requires **Page Publishing Authorization**, Meta blocks publ
 from MinIO to `rupload.facebook.com`). **Meta documents that only for apps using Facebook Login for Business**, and Vireon uses
 classic Facebook Login, so it may be refused for your app - the post then fails with Meta's own message. *Untested.*
 If it fails, set up the public media URL.
+
+## 1b. Instagram login (connect Instagram without a Facebook Page)
+
+The Instagram card's **Connect Instagram** button uses Instagram's own sign-in (`instagram.com/oauth/authorize`) once
+the three `INSTAGRAM_*` settings exist; without them it falls back to the Facebook route above. Both kinds of Instagram
+account can be connected side by side, and publishing, scheduling, retries and analytics work the same for both.
+
+1. In the same Meta app: **Add use case -> Instagram** (Instagram API with Instagram login), then **Instagram -> API setup
+   with Instagram login**. Copy the **Instagram app ID** and **Instagram app secret** (these are *not* `META_APP_ID` /
+   `META_APP_SECRET`) into `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`.
+2. **Business login settings -> OAuth redirect URIs**: add exactly `https://<your-host>/api/social/oauth/instagram/callback`
+   and put the same string in `INSTAGRAM_REDIRECT_URI`. Meta may add a trailing slash; compare with its validator.
+   Optional: set the **Deauthorize** / **Data deletion** callbacks to `.../api/social/webhooks/instagram/deauthorize` and
+   `.../data-deletion`.
+3. **Development mode:** add the Instagram account under **App roles -> Roles -> Instagram testers** and accept the invite in the
+   Instagram app (Settings -> Apps and websites -> Tester invites). Posts are real posts. Anyone else needs Advanced Access
+   through App Review.
+4. Permissions requested: `instagram_business_basic`, `instagram_business_content_publish`, `instagram_business_manage_insights`.
+   The sign-in is refused if `basic` or `content_publish` was unticked.
+
+Rules specific to this route (Meta documentation, October 2026):
+
+- The account must be an Instagram **Professional** (Business or Creator) account. A personal account is refused with an
+  explanation at connect time.
+- **No resumable upload.** Meta documents resumable video upload only for Facebook Login for Business, so an Instagram-login
+  account posts **everything (photos and Reels) from a public https URL**. Without `SOCIAL_PUBLIC_MEDIA_BASE_URL` (section 3)
+  those posts are refused up front with `PUBLIC_MEDIA_UNAVAILABLE`.
+- Tokens last **60 days**. Vireon renews them (`ig_refresh_token`, allowed once a token is >= 24 h old) when they are
+  within 10 days of expiry; one that is not renewed in time expires and the account shows **Needs reconnecting**.
+- The professional account id (`user_id` from `/me`) is used for publishing, not the app-scoped `id`.
+- Connecting an Instagram account that was already connected through its Facebook Page converts it in place (same account,
+  new token); its posting history is kept.
+- Some insight metrics differ between the two Instagram APIs; an unsupported metric shows as "Not available", never 0.
+- *Not yet verified against a real account* - connect once, press **Check**, then post a test photo.
 
 ## 2. Threads app
 
@@ -147,6 +187,7 @@ retries and shows "credentials unreadable" but deliberately does **not** flip th
 | `THREADS_APP_ID`, `THREADS_APP_SECRET`, `THREADS_REDIRECT_URI` | Threads app (all three, or none) |
 | `PUBLISHING_TOKEN_ENCRYPTION_KEY` | 32-byte key for token encryption and media-link signing |
 | `PUBLISHING_FRONTEND_URL` | where the browser lands after OAuth (default first `CORS_ORIGIN`) |
+| `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `INSTAGRAM_REDIRECT_URI` | Instagram login app (all three, or none); independent of `META_*` |
 | `SOCIAL_PUBLIC_MEDIA_BASE_URL` | public https origin serving `/api/social/media/*` (optional) |
 | `SOCIAL_MEDIA_TOKEN_TTL_MS` | lifetime of a signed media link (default 6 h) |
 | `SOCIAL_MAX_IMAGE_BYTES`, `SOCIAL_MAX_VIDEO_BYTES` | upload caps (default 8 MB / 1 GB) |
@@ -222,6 +263,8 @@ Facebook insight metric names change often (v25 / v26) - an unsupported one simp
 | `MEDIA_NOT_READY` / "still processing" | Meta was slow; the worker re-checks every 2 min up to the limit, then fails - retry later. |
 | `RATE_LIMITED` (4, 17, 32, 613, 80000-80014) | Backs off 1, 2, 4 ... up to 15 min, automatically. |
 | `PUBLISH_LIMIT_REACHED` | 24 h allowance used up; the post waits and continues by itself. |
+| "That is not a professional Instagram account" after Instagram sign-in | Switch the account to Business or Creator in Instagram (Settings -> Account type), then connect again. |
+| Instagram sign-in says the app is not available / you are not a tester | Add the account as an **Instagram tester** on the Meta app and accept the invite (section 1b). |
 | `ACCOUNT_INELIGIBLE` | Not a professional Instagram account, not linked to a Page, or restricted. Fix on Instagram, reconnect. |
 | `CONTENT_REJECTED` (368) | Meta's policy/spam check blocked it. Edit the text or media. |
 | `OUTCOME_UNKNOWN` | The publish request was sent but never confirmed. **Open the account on the platform.** If the post is there, nothing to do; if not, press *It isn't posted - retry*. |
@@ -243,8 +286,9 @@ External platforms are replaced by stateful fakes (`backend/tests/social/helpers
 ## 11. Not done / known limits
 
 - **Not verified against real Meta / Threads accounts or App Review** (see the status note at the top).
-- Instagram through *Instagram Login* (no Facebook Page) is not implemented; Instagram accounts connect through their linked Page.
-- Instagram **resumable upload** is attempted without a public URL but is documented by Meta for Facebook Login for Business only.
+- Instagram login (section 1b) is implemented but **not yet run against a real account**. It cannot use resumable upload, so it
+  always needs the public media URL; accounts connected through a Facebook Page can still try resumable video upload.
+- Instagram **resumable upload** (Facebook route only) is attempted without a public URL but is documented by Meta for Facebook Login for Business only.
 - Video length / size / shape come from the generation record (flagged as estimated in the UI), not from probing the rendered file.
 - Carousels, Stories, scheduled posts using the *platform's* scheduler, comment management and content-event webhooks are out of scope.
 - Facebook per-post reach/view metric names are best-effort and may need adjusting once tested against real Page data.

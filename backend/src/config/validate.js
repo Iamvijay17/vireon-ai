@@ -137,6 +137,7 @@ const configSchema = z.object({
   social: z.object({
     meta: z.object({ appId: z.string(), appSecret: z.string(), redirectUri: z.string(), graphVersion: z.string().regex(/^v\d+\.\d+$/, 'META_GRAPH_VERSION must look like v25.0'), loginConfigId: z.string().optional() }),
     threads: z.object({ appId: z.string(), appSecret: z.string(), redirectUri: z.string() }),
+    instagram: z.object({ appId: z.string(), appSecret: z.string(), redirectUri: z.string() }),
     publicMediaBaseUrl: z.string(),
     mediaTokenTtlMs: positiveInt('SOCIAL_MEDIA_TOKEN_TTL_MS'),
     maxImageBytes: positiveInt('SOCIAL_MAX_IMAGE_BYTES'),
@@ -323,7 +324,9 @@ function socialIssues(social, encryptionKey) {
   const apps = [
     ['meta', 'META', [['appId', 'META_APP_ID'], ['appSecret', 'META_APP_SECRET'], ['redirectUri', 'META_REDIRECT_URI']]],
     ['threads', 'THREADS', [['appId', 'THREADS_APP_ID'], ['appSecret', 'THREADS_APP_SECRET'], ['redirectUri', 'THREADS_REDIRECT_URI']]],
+    ['instagram', 'INSTAGRAM', [['appId', 'INSTAGRAM_APP_ID'], ['appSecret', 'INSTAGRAM_APP_SECRET'], ['redirectUri', 'INSTAGRAM_REDIRECT_URI']]],
   ];
+  const appName = { meta: 'Meta', threads: 'Threads', instagram: 'Instagram login' };
   for (const [key, label, fields] of apps) {
     const section = social[key];
     if (!fields.some(([f]) => section[f])) continue;
@@ -332,7 +335,7 @@ function socialIssues(social, encryptionKey) {
     }
     if (section.redirectUri) issues.push(...redirectUriIssues(`social.${key}.redirectUri`, `${label}_REDIRECT_URI`, section.redirectUri));
     if (!encryptionKey) {
-      issues.push({ path: 'publishing.encryptionKey', message: `PUBLISHING_TOKEN_ENCRYPTION_KEY is required when ${key === 'meta' ? 'Meta' : 'Threads'} is configured (access tokens are stored encrypted)` });
+      issues.push({ path: 'publishing.encryptionKey', message: `PUBLISHING_TOKEN_ENCRYPTION_KEY is required when ${appName[key]} is configured (access tokens are stored encrypted)` });
     }
   }
   if (social.publicMediaBaseUrl) {

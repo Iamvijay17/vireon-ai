@@ -285,7 +285,7 @@ export const CreatePanel = ({ caps, accounts }) => {
         >
           <MediaSelector
             campaign={campaign} caps={caps} busy={isBusy("media")} uploadPercent={uploadPercent}
-            onPickVideo={(v) => pickSource({ videoJobId: v.videoJobId })} onPickLesson={(l) => pickSource({ courseVideoId: l.courseVideoId })}
+            onPickVideo={(v) => pickSource({ videoJobId: v.videoJobId })} onPickImage={(i) => pickSource({ imageGenerationId: i.imageGenerationId })} onPickLesson={(l) => pickSource({ courseVideoId: l.courseVideoId })}
             onUpload={upload} onClear={clearMedia}
           />
         </StepCard>

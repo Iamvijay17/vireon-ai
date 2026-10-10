@@ -535,6 +535,15 @@ const config = Object.freeze({
       appSecret: process.env.THREADS_APP_SECRET || '',
       redirectUri: process.env.THREADS_REDIRECT_URI || '',
     },
+    // Instagram API with Instagram Login: signs an Instagram professional account in directly (no Facebook
+    // Page needed). Same Meta app, but it has its OWN "Instagram app" id + secret (App Dashboard > Instagram >
+    // API setup with Instagram login). Optional: without it the Instagram card falls back to the Meta/Facebook flow.
+    instagram: {
+      appId: process.env.INSTAGRAM_APP_ID || '',
+      appSecret: process.env.INSTAGRAM_APP_SECRET || '',
+      // https://<host>/api/social/oauth/instagram/callback - register it under "Business login settings".
+      redirectUri: process.env.INSTAGRAM_REDIRECT_URI || '',
+    },
     // Instagram and Threads fetch media from a URL, so media for those needs a
     // PUBLIC https origin that serves GET /api/social/media/<token> (nothing
     // else of the app). Empty = media posts to those platforms are refused with

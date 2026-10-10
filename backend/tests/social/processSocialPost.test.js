@@ -32,7 +32,7 @@ const baseSettings = (over = {}) => ({
   ...over,
 });
 
-let clock; let store; let storage; let meta; let threads; let auth; let enqueue; let seq;
+let clock; let store; let storage; let meta; let threads; let igLogin; let auth; let enqueue; let seq;
 
 const media = (over = {}) => ({ kind: 'video', ...OBJ, size: SIZE, etag: 'etag-1', contentType: 'video/mp4', fileName: 'v.mp4', durationSec: 30, width: 1080, height: 1920, ...over });
 
@@ -53,7 +53,7 @@ function seedPost(over = {}) {
 }
 
 const run = (postId, over = {}) => processSocialPost(postId, {
-  store, auth, apis: { meta, threads }, storage, enqueue, workerId: over.workerId || 'w1',
+  store, auth, apis: { meta, threads, instagram: igLogin }, storage, enqueue, workerId: over.workerId || 'w1',
   settings: baseSettings(over.settings), now: () => clock, sleep: async (ms) => { clock += ms; },
 });
 const row = (i = 0) => SocialPost.rows[i];
@@ -68,6 +68,7 @@ beforeEach(() => {
   storage = storageFake({ [`${OBJ.bucket}/${OBJ.key}`]: { size: SIZE, etag: 'etag-1' } });
   meta = fakeMeta();
   threads = fakeThreads();
+  igLogin = fakeMeta();
   auth = {
     getAccessToken: jest.fn(async () => 'TOK'),
     markNeedsReauth: jest.fn(async (id, reason) => PlatformAccount.findByIdAndUpdate(id, { $set: { status: 'needs_reauth', statusReason: reason } }, { new: true })),
@@ -76,6 +77,33 @@ beforeEach(() => {
   PlatformAccount.seed({ _id: ACC.fb, ownerId: OWNER, platform: 'facebook', externalId: 'PAGE1', displayName: 'My Page' });
   PlatformAccount.seed({ _id: ACC.ig, ownerId: OWNER, platform: 'instagram', externalId: 'IG1', displayName: 'My IG', username: 'my_ig' });
   PlatformAccount.seed({ _id: ACC.th, ownerId: OWNER, platform: 'threads', externalId: '777', displayName: 'Me', username: 'me' });
+});
+
+describe('Instagram accounts connected with Instagram login', () => {
+  const IG2 = 'pac-ig2ig2ig';
+  beforeEach(() => {
+    PlatformAccount.seed({ _id: IG2, ownerId: OWNER, platform: 'instagram', externalId: 'IGPRO1', displayName: 'Pro IG', username: 'pro_ig', meta: { login: 'instagram', igUserId: 'IGPRO1' } });
+  });
+
+  it('publishes through the Instagram-login client, not the Facebook-login one', async () => {
+    const post = seedPost({ platform: 'instagram', accountId: IG2 });
+    expect(await run(post._id, { settings: { publicMediaBaseUrl: 'https://media.example.com' } })).toEqual({ outcome: 'completed' });
+    expect(igLogin.createIgContainer).toHaveBeenCalledTimes(1);
+    expect(igLogin.createIgContainer.mock.calls[0][0]).toBe('IGPRO1');
+    expect(igLogin.publishIgContainer).toHaveBeenCalledTimes(1);
+    expect(meta.createIgContainer).not.toHaveBeenCalled();
+    expect(meta.publishIgContainer).not.toHaveBeenCalled();
+    expect(row()).toMatchObject({ status: 'COMPLETED' });
+  });
+
+  it('refuses a Reel with no public media URL up front instead of attempting an undocumented upload', async () => {
+    const post = seedPost({ platform: 'instagram', accountId: IG2 });
+    await run(post._id);
+    expect(igLogin.createIgContainer).not.toHaveBeenCalled();
+    expect(igLogin.ruploadBytes).not.toHaveBeenCalled();
+    expect(row()).toMatchObject({ status: 'FAILED', error: { code: 'VALIDATION_FAILED' } });
+    expect(row().error.message).toMatch(/public https URL/);
+  });
 });
 
 describe('successful publishing', () => {
@@ -133,6 +161,16 @@ describe('successful publishing', () => {
     expect(meta.createIgContainer.mock.calls[0][2].isAiGenerated).toBe(false);
   });
 
+  it('labels an Image Studio picture as AI generated', async () => {
+    const post = seedPost({
+      platform: 'instagram', format: 'image', videoJobId: null, imageGenerationId: 'img-aaaaaaaa',
+      media: media({ kind: 'image', contentType: 'image/jpeg', key: 'social/local/cam/i.jpg' }),
+    });
+    storage.objects.set(`${OBJ.bucket}/social/local/cam/i.jpg`, { size: SIZE, etag: 'etag-1' });
+    await run(post._id, { settings: { publicMediaBaseUrl: 'https://media.example.com' } });
+    expect(meta.createIgContainer.mock.calls[0][2]).toMatchObject({ imageUrl: expect.stringContaining('/i.jpg'), isAiGenerated: true });
+  });
+
   it('publishes an Instagram image from a public URL only', async () => {
     const post = seedPost({ platform: 'instagram', format: 'image', media: media({ kind: 'image', contentType: 'image/jpeg', key: 'social/local/cam/i.jpg' }) });
     storage.objects.set(`${OBJ.bucket}/social/local/cam/i.jpg`, { size: SIZE, etag: 'etag-1' });
@@ -152,6 +190,9 @@ describe('successful publishing', () => {
     await run(photo._id);
     expect(meta.publishPagePhoto.mock.calls[0][2]).toMatchObject({ contentType: 'image/png' });
     expect(row(1)).toMatchObject({ status: 'COMPLETED' });
+    // Text and photo posts are feed posts, not Video objects: their link comes from the post endpoint.
+    expect(row(0).remote.permalink).toMatch(/^https:\/\/www\.facebook\.com\/permalink\//);
+    expect(row(1).remote.permalink).toMatch(/^https:\/\/www\.facebook\.com\/permalink\/.+_PH/);
   });
 
   it('publishes a Facebook Reel: start, upload, wait until ready, finish, then confirm it is live', async () => {

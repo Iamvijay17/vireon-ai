@@ -118,6 +118,10 @@ describe('Instagram rules', () => {
     expect(validatePost({ platform: 'instagram', content: { caption: 'x' }, media: video(), caps: noPublic }).ok).toBe(true);
     expect(needsPublicMedia('instagram', 'reel')).toBe(false);
     expect(needsPublicMedia('instagram', 'image')).toBe(true);
+    // Instagram login documents no resumable upload, so even a Reel must be fetched from a public URL.
+    expect(needsPublicMedia('instagram', 'reel', { instagramLogin: true })).toBe(true);
+    expect(codes(validatePost({ platform: 'instagram', content: { caption: 'x' }, media: video(), caps: { publicMedia: false, instagramLogin: true } }))).toContain('PUBLIC_MEDIA_UNAVAILABLE');
+    expect(codes(validatePost({ platform: 'instagram', content: { caption: 'x' }, media: video(), caps: { publicMedia: true, instagramLogin: true } }))).not.toContain('PUBLIC_MEDIA_UNAVAILABLE');
   });
 
   it('warns that links are not clickable and that non-vertical video is cropped', () => {

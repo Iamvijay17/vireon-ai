@@ -10,12 +10,14 @@ const { NotFoundError, ValidationError } = require('../../utils/errors');
 const { PUBLISH_STATUS, SOCIAL_PLATFORM } = require('../../constants');
 const MetaApi = require('./MetaApi');
 const ThreadsApi = require('./ThreadsApi');
-const { META_REQUIRED_SCOPES, META_INSTAGRAM_REQUIRED_SCOPES, THREADS_SCOPES, RETURN_PATHS } = require('./constants');
+const InstagramLoginApi = require('./InstagramLoginApi');
+const { META_REQUIRED_SCOPES, META_INSTAGRAM_REQUIRED_SCOPES, THREADS_SCOPES, INSTAGRAM_SCOPES, INSTAGRAM_REQUIRED_SCOPES, RETURN_PATHS } = require('./constants');
 
 const STATE_TTL_MS = 10 * 60_000;
 const SOCIAL_PLATFORMS = Object.values(SOCIAL_PLATFORM);
-const PROVIDERS = Object.freeze({ meta: 'meta', threads: 'threads' });
-// Threads refuses to refresh a token younger than 24 hours.
+// 'instagram' = Instagram API with Instagram Login (no Facebook Page); 'meta' = Facebook Login (Pages + their linked Instagram).
+const PROVIDERS = Object.freeze({ meta: 'meta', threads: 'threads', instagram: 'instagram' });
+// Threads and Instagram refuse to refresh a token younger than 24 hours.
 const MIN_REFRESH_AGE_MS = 24 * 3600_000;
 
 /** Reasons the callback can report to the SPA - a fixed vocabulary, never echoed from the request. */
@@ -25,6 +27,7 @@ const CONNECT_RESULTS = Object.freeze({
   state: 'state',
   scopes: 'scopes',
   noPages: 'no_pages',
+  notProfessional: 'not_professional',
   notConfigured: 'not_configured',
   failed: 'failed',
 });
@@ -34,6 +37,11 @@ const REAUTH_REASON = {
   instagram: 'Meta no longer accepts this Instagram account\'s saved access (revoked, expired, or the linked Page changed). Reconnect to continue.',
   threads: 'Threads no longer accepts this account\'s saved access (it expired or was revoked). Reconnect to continue.',
 };
+
+/** An Instagram account that was connected with Instagram Login (as opposed to through a Facebook Page). */
+const usesInstagramLogin = (account) => account.platform === SOCIAL_PLATFORM.INSTAGRAM && account.meta?.login === 'instagram';
+/** Threads and Instagram-Login tokens last 60 days and are renewed by us; Facebook Page tokens do not expire. */
+const refreshesItself = (account) => account.platform === SOCIAL_PLATFORM.THREADS || usesInstagramLogin(account);
 
 /**
  * Connects and maintains the social accounts: Facebook Pages + the Instagram
@@ -52,22 +60,27 @@ const REAUTH_REASON = {
  *    the dashboard; further posts fail fast with an actionable message instead of retrying.
  */
 class SocialAuthService {
-  constructor({ meta = new MetaApi(), threads = new ThreadsApi(), now = () => Date.now(), settings = () => config.social } = {}) {
+  constructor({ meta = new MetaApi(), threads = new ThreadsApi(), instagram = new InstagramLoginApi(), now = () => Date.now(), settings = () => config.social } = {}) {
     this.meta = meta;
     this.threads = threads;
+    this.instagram = instagram;
     this.now = now;
     this.settings = settings;
   }
 
+  #apiFor(provider) {
+    return provider === PROVIDERS.threads ? this.threads : provider === PROVIDERS.instagram ? this.instagram : this.meta;
+  }
+
   isConfigured(provider) {
-    return provider === PROVIDERS.threads ? this.threads.isConfigured() : this.meta.isConfigured();
+    return this.#apiFor(provider).isConfigured();
   }
 
   // ── Connect ──────────────────────────────────────────────────────────────
 
   async startConnect(ownerId, provider, { returnTo = '/promotion/accounts' } = {}) {
     if (!PROVIDERS[provider]) throw new ValidationError('Unknown provider');
-    const api = provider === PROVIDERS.threads ? this.threads : this.meta;
+    const api = this.#apiFor(provider);
     api.assertConfigured();
     if (!RETURN_PATHS.has(returnTo)) throw new ValidationError('Unsupported return path');
 
@@ -100,7 +113,9 @@ class SocialAuthService {
     try {
       const outcome = provider === PROVIDERS.threads
         ? await this.#completeThreads(record.ownerId, cleanCode)
-        : await this.#completeMeta(record.ownerId, cleanCode);
+        : provider === PROVIDERS.instagram
+          ? await this.#completeInstagram(record.ownerId, cleanCode)
+          : await this.#completeMeta(record.ownerId, cleanCode);
       return { ...outcome, returnTo };
     } catch (err) {
       LoggerService.warn('Social OAuth callback failed', { provider, code: err.code, status: err.httpStatus, message: err.message });
@@ -155,6 +170,32 @@ class SocialAuthService {
       platform: SOCIAL_PLATFORM.THREADS, externalId: profile.id || short.userId, displayName: profile.name || profile.username,
       username: profile.username, thumbnailUrl: profile.pictureUrl, scopes: THREADS_SCOPES, accessToken: long.accessToken,
       tokenExpiresAt: new Date(this.now() + long.expiresInSec * 1000), meta: {},
+    });
+    return { result: CONNECT_RESULTS.connected, count: 1 };
+  }
+
+  /**
+   * Instagram API with Instagram Login: the person signs in on instagram.com and the account itself is the
+   * credential (no Page). The 60-day token is renewed by getAccessToken / refreshDueTokens, like Threads.
+   */
+  async #completeInstagram(ownerId, code) {
+    const short = await this.instagram.exchangeCode(code);
+    // Granular consent lets the user untick permissions; publishing would fail later, mid-post. Refuse now.
+    const missing = INSTAGRAM_REQUIRED_SCOPES.filter((s) => !short.permissions.includes(s));
+    if (short.permissions.length && missing.length) return { result: CONNECT_RESULTS.scopes, count: 0 };
+
+    const long = await this.instagram.extendToken(short.accessToken);
+    const profile = await this.instagram.getProfile(long.accessToken);
+    if (!profile.id) return { result: CONNECT_RESULTS.failed, count: 0 };
+    // Only Business / Creator accounts can publish through the API; say so now instead of failing on the first post.
+    if (profile.accountType && !/^(business|media_creator|creator)$/i.test(profile.accountType)) {
+      return { result: CONNECT_RESULTS.notProfessional, count: 0 };
+    }
+    await this.#upsert(ownerId, {
+      platform: SOCIAL_PLATFORM.INSTAGRAM, externalId: profile.id, displayName: profile.name || profile.username,
+      username: profile.username, thumbnailUrl: profile.pictureUrl, scopes: short.permissions.length ? short.permissions : INSTAGRAM_SCOPES,
+      accessToken: long.accessToken, tokenExpiresAt: new Date(this.now() + long.expiresInSec * 1000),
+      meta: { login: 'instagram', igUserId: profile.id, accountType: profile.accountType },
     });
     return { result: CONNECT_RESULTS.connected, count: 1 };
   }
@@ -248,6 +289,8 @@ class SocialAuthService {
       const token = await this.getAccessToken(accountId);
       if (account.platform === SOCIAL_PLATFORM.THREADS) {
         await this.threads.getProfile(token);
+      } else if (usesInstagramLogin(account)) {
+        await this.instagram.getProfile(token);
       } else {
         const info = await this.meta.debugToken(token);
         if (!info.isValid) throw new PublishError('AUTH_REVOKED', info.errorMessage || 'Meta reports this token as invalid');
@@ -298,12 +341,12 @@ class SocialAuthService {
       throw new PublishError('CREDENTIALS_UNREADABLE', err.message);
     }
 
-    if (account.platform === SOCIAL_PLATFORM.THREADS && this.#shouldRefresh(account)) {
+    if (refreshesItself(account) && this.#shouldRefresh(account)) {
       try {
-        return await this.#refreshThreads(account, token);
+        return await this.#refreshLongLived(account, token);
       } catch (err) {
         // A failed *proactive* refresh must not block a post with a token that still works.
-        LoggerService.warn('Threads token refresh failed (continuing with the current token)', { accountId, code: err.code });
+        LoggerService.warn('Token refresh failed (continuing with the current token)', { accountId, platform: account.platform, code: err.code });
       }
     }
     PlatformAccount.updateOne({ _id: accountId }, { $set: { lastUsedAt: new Date(this.now()) } }).catch(() => {});
@@ -317,13 +360,14 @@ class SocialAuthService {
     return left <= this.settings().tokenRefreshWindowMs && age >= MIN_REFRESH_AGE_MS;
   }
 
-  async #refreshThreads(account, token) {
-    const fresh = await this.threads.refreshToken(token);
+  async #refreshLongLived(account, token) {
+    const api = account.platform === SOCIAL_PLATFORM.THREADS ? this.threads : this.instagram;
+    const fresh = await api.refreshToken(token);
     const at = new Date(this.now());
     await PlatformAccount.updateOne({ _id: account._id }, {
       $set: { accessTokenEnc: cipher.encrypt(fresh.accessToken), tokenExpiresAt: new Date(this.now() + fresh.expiresInSec * 1000), lastRefreshedAt: at, lastUsedAt: at },
     });
-    LoggerService.info('Threads token refreshed', { accountId: account._id });
+    LoggerService.info('Social token refreshed', { accountId: account._id, platform: account.platform });
     return fresh.accessToken;
   }
 
@@ -335,7 +379,7 @@ class SocialAuthService {
   async refreshDueTokens() {
     const horizon = new Date(this.now() + this.settings().tokenRefreshWindowMs);
     const due = await PlatformAccount.find({
-      platform: SOCIAL_PLATFORM.THREADS, status: PlatformAccount.ACCOUNT_STATUS.CONNECTED, tokenExpiresAt: { $lte: horizon },
+      platform: { $in: [SOCIAL_PLATFORM.THREADS, SOCIAL_PLATFORM.INSTAGRAM] }, status: PlatformAccount.ACCOUNT_STATUS.CONNECTED, tokenExpiresAt: { $lte: horizon },
     }).select('+accessTokenEnc');
     const result = { refreshed: 0, expired: 0, failed: 0 };
     for (const account of due) {
@@ -344,14 +388,14 @@ class SocialAuthService {
         result.expired += 1;
         continue;
       }
-      if (!this.#shouldRefresh(account)) continue;
+      if (!refreshesItself(account) || !this.#shouldRefresh(account)) continue;
       try {
-        await this.#refreshThreads(account, cipher.decrypt(account.accessTokenEnc));
+        await this.#refreshLongLived(account, cipher.decrypt(account.accessTokenEnc));
         result.refreshed += 1;
       } catch (err) {
-        if (err instanceof PublishError && err.requiresReauth) await this.markNeedsReauth(account._id, REAUTH_REASON.threads);
+        if (err instanceof PublishError && err.requiresReauth) await this.markNeedsReauth(account._id, REAUTH_REASON[account.platform]);
         result.failed += 1;
-        LoggerService.warn('Threads token refresh failed', { accountId: account._id, code: err.code });
+        LoggerService.warn('Social token refresh failed', { accountId: account._id, platform: account.platform, code: err.code });
       }
     }
     return result;
@@ -375,3 +419,4 @@ module.exports = SocialAuthService;
 module.exports.CONNECT_RESULTS = CONNECT_RESULTS;
 module.exports.PROVIDERS = PROVIDERS;
 module.exports.REAUTH_REASON = REAUTH_REASON;
+module.exports.usesInstagramLogin = usesInstagramLogin;
