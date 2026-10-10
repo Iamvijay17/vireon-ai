@@ -118,6 +118,10 @@ cp .env.example .env     # then fill in MONGODB_URI, MINIO_ROOT_USER, MINIO_ROOT
 npm run dev              # API with watch (also starts MinIO)
 npm run worker:dev       # video worker (separate terminal)
 npm run course-worker:dev
+
+# optional - publishing (see ../docs/publishing.md)
+npm run youtube-worker:dev   # YouTube uploads
+npm run export-worker:dev    # Udemy course packages
 ```
 
 `start`, `dev`, `worker*` and `course-worker*` run MinIO alongside the process through the `minio` script (`scripts/start-minio.js`), which launches `MINIO_EXE` against `MINIO_DATA_DIR` from `.env`; with `MINIO_DATA_DIR` unset it does nothing. If MinIO is already running, the extra start attempt fails to bind the port and exits harmlessly. To skip MinIO, use the `:only` scripts (`server:only`, `server:only:dev`, `worker:only`, `worker:only:dev`, `course-worker:only`, `course-worker:only:dev`).
@@ -145,6 +149,7 @@ Interactive docs: `http://localhost:3000/api-docs` (raw spec at `/api-docs.json`
 | `/api/assets` | asset library (list, delete) |
 | `/api/analytics` | `overview`, `videos` |
 | `/api/logs` | `recent` application logs |
+| `/api/publishing` | YouTube publishing (OAuth accounts, drafts, explicit-confirm submit, retry/cancel, history) and Udemy course-package export. Needs the YouTube / export workers. Guide: [`docs/publishing.md`](../docs/publishing.md) |
 | `/api/system/ai-services` | list and start/stop/restart local AI services |
 
 ### Auth

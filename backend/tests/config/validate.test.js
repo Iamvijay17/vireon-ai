@@ -39,6 +39,17 @@ const validConfig = () => ({
     processing: { targetLoudness: -16, truePeakLimit: -1.5 },
     ducking: { duckAmount: 0.65, attackMs: 120, releaseMs: 400 },
   },
+  publishing: {
+    google: { clientId: '', clientSecret: '', redirectUri: '' },
+    encryptionKey: '',
+    frontendUrl: 'http://localhost:5173',
+    youtube: {
+      apiVerified: false, maxUploadBytes: 4 * 1024 ** 3, dailyUploadLimit: 100, chunkSizeBytes: 8 * 1024 * 1024,
+      requestTimeoutMs: 120000, maxAttempts: 5, processingPollMs: 10000, processingWindowMs: 600000, processingMaxChecks: 24,
+    },
+    export: { maxBytes: 20 * 1024 ** 3 },
+    rateLimit: { windowMs: 60000, max: 60 },
+  },
 });
 
 /** Run validateConfig on a config mutated by `mutate`, return the issues. */

@@ -19,6 +19,27 @@ const JOB_STATUS = Object.freeze({
   RETRY_SCHEDULED: 'RETRY_SCHEDULED',
 });
 
+// Publishing job lifecycle (models/PublishingJob). DRAFT is the pre-approval
+// state: nothing is queued, let alone uploaded, until a person submits it.
+// QUEUED -> VALIDATING -> UPLOADING -> PROCESSING -> COMPLETED is the happy
+// path; RETRYING is a scheduled automatic retry after a transient failure.
+const PUBLISH_STATUS = Object.freeze({
+  DRAFT: 'DRAFT',
+  QUEUED: 'QUEUED',
+  VALIDATING: 'VALIDATING',
+  UPLOADING: 'UPLOADING',
+  PROCESSING: 'PROCESSING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
+  RETRYING: 'RETRYING',
+});
+
+const PUBLISH_PLATFORM = Object.freeze({
+  YOUTUBE: 'youtube',
+  UDEMY_EXPORT: 'udemy-export',
+});
+
 const COURSE_STATUS = Object.freeze({
   DRAFT: 'Draft',
   IN_PROGRESS: 'In Progress',
@@ -238,6 +259,9 @@ const SOCKET_EVENTS = Object.freeze({
   COURSE_VIDEO_SCENE_AUDIO_READY: 'courseVideoSceneAudioReady',
   COURSE_WORKER_STATUS: 'courseWorkerStatus',
   COURSE_VIDEO_RENDER_READY: 'courseVideoRenderReady',
+  // Publishing (YouTube upload / Udemy package) job state + progress, global room
+  PUBLISHING_JOB_UPDATED: 'publishingJobUpdated',
+  PUBLISHING_ACCOUNT_UPDATED: 'publishingAccountUpdated',
   // Live server log stream
   SERVER_LOG: 'serverLog',
   // Audio Studio (standalone TTS) progressive generation events - fired as
@@ -294,6 +318,8 @@ const DIFFICULTIES = Object.freeze([
 module.exports = {
   JOB_STATUS,
   COURSE_STATUS,
+  PUBLISH_STATUS,
+  PUBLISH_PLATFORM,
   VIDEO_STATUS,
   STAGE_STATUS,
   JOB_STEPS,

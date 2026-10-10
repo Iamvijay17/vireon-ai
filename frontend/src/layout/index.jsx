@@ -30,6 +30,7 @@ const Jobs = lazy(() => import("../pages/jobs"));
 const Assets = lazy(() => import("../pages/assets"));
 const LiveLogs = lazy(() => import("../pages/logs"));
 const WorkflowPage = lazy(() => import("../pages/workflow"));
+const PublishingPage = lazy(() => import("../pages/publishing"));
 
 // Matches Tailwind's `lg`. At and above it the sidebar is a persistent,
 // collapsible rail; below it the sidebar is an off-canvas drawer so phones
@@ -96,6 +97,7 @@ const AppLayout = () => {
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/logs" element={<LiveLogs />} />
                   <Route path="/workflow" element={<WorkflowPage />} />
+                  <Route path="/publishing" element={<PublishingPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/editor/complete" element={<CompletedVideos />} />
                   <Route path="/courses" element={<CoursesList />} />

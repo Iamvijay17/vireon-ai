@@ -108,6 +108,32 @@ const configSchema = z.object({
     concurrency: positiveInt('VIDEO_WORKER_CONCURRENCY'),
   }),
 
+  publishing: z.object({
+    google: z.object({
+      clientId: z.string(),
+      clientSecret: z.string(),
+      redirectUri: z.string(),
+    }),
+    encryptionKey: z.string(),
+    frontendUrl: z.string().url('PUBLISHING_FRONTEND_URL must be a valid URL'),
+    youtube: z.object({
+      apiVerified: z.boolean(),
+      maxUploadBytes: positiveInt('YOUTUBE_MAX_UPLOAD_BYTES'),
+      dailyUploadLimit: positiveInt('YOUTUBE_DAILY_UPLOAD_LIMIT'),
+      chunkSizeBytes: positiveInt('YOUTUBE_UPLOAD_CHUNK_BYTES'),
+      requestTimeoutMs: positiveInt('YOUTUBE_REQUEST_TIMEOUT_MS'),
+      maxAttempts: z.number().int().min(1).max(20, 'PUBLISHING_MAX_ATTEMPTS must be at most 20'),
+      processingPollMs: positiveInt('YOUTUBE_PROCESSING_POLL_MS'),
+      processingWindowMs: positiveInt('YOUTUBE_PROCESSING_WINDOW_MS'),
+      processingMaxChecks: positiveInt('YOUTUBE_PROCESSING_MAX_CHECKS'),
+    }),
+    export: z.object({ maxBytes: positiveInt('PUBLISHING_EXPORT_MAX_BYTES') }),
+    rateLimit: z.object({
+      windowMs: positiveInt('PUBLISHING_RATE_LIMIT_WINDOW_MS'),
+      max: positiveInt('PUBLISHING_RATE_LIMIT_MAX'),
+    }),
+  }),
+
   speech: z.object({
     alignmentEnabled: z.boolean(),
     drivenAnimationEnabled: z.boolean(),
@@ -198,6 +224,58 @@ function crossFieldIssues(cfg) {
     issues.push({ path: 'audio.segmentMinChars', message: 'TTS_SEGMENT_MIN_CHARS must be smaller than TTS_SEGMENT_MAX_CHARS' });
   }
 
+  issues.push(...publishingIssues(cfg.publishing));
+
+  return issues;
+}
+
+// Publishing is optional, so an entirely empty section is fine. A *partly*
+// filled one is a half-finished setup that would only fail at the OAuth
+// callback, with Google's error page instead of ours - catch it at boot.
+const KEY_BYTES = 32;
+function decodeEncryptionKey(raw) {
+  if (/^[0-9a-fA-F]{64}$/.test(raw)) return Buffer.from(raw, 'hex');
+  if (/^[A-Za-z0-9+/_-]+={0,2}$/.test(raw)) {
+    const buf = Buffer.from(raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    if (buf.length === KEY_BYTES) return buf;
+  }
+  return null;
+}
+
+function publishingIssues(pub) {
+  const issues = [];
+  const { google, encryptionKey, youtube } = pub;
+
+  if (youtube.chunkSizeBytes % (256 * 1024) !== 0) {
+    issues.push({ path: 'publishing.youtube.chunkSizeBytes', message: 'YOUTUBE_UPLOAD_CHUNK_BYTES must be a multiple of 262144 (256 KiB) - YouTube rejects other chunk sizes' });
+  }
+
+  if (encryptionKey && !decodeEncryptionKey(encryptionKey)) {
+    issues.push({ path: 'publishing.encryptionKey', message: 'PUBLISHING_TOKEN_ENCRYPTION_KEY must be 32 bytes, as 64 hex characters or base64 (see docs/publishing.md for a one-line generator)' });
+  }
+
+  const anyGoogle = google.clientId || google.clientSecret || google.redirectUri;
+  if (anyGoogle) {
+    if (!google.clientId) issues.push({ path: 'publishing.google.clientId', message: 'GOOGLE_CLIENT_ID is required when any Google OAuth setting is present' });
+    if (!google.clientSecret) issues.push({ path: 'publishing.google.clientSecret', message: 'GOOGLE_CLIENT_SECRET is required when any Google OAuth setting is present' });
+    if (!google.redirectUri) {
+      issues.push({ path: 'publishing.google.redirectUri', message: 'GOOGLE_REDIRECT_URI is required when any Google OAuth setting is present' });
+    } else {
+      try {
+        const url = new URL(google.redirectUri);
+        const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+        if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) {
+          issues.push({ path: 'publishing.google.redirectUri', message: 'GOOGLE_REDIRECT_URI must be https (http is only accepted for localhost) - Google rejects anything else' });
+        }
+        if (url.hash) issues.push({ path: 'publishing.google.redirectUri', message: 'GOOGLE_REDIRECT_URI must not contain a #fragment' });
+      } catch {
+        issues.push({ path: 'publishing.google.redirectUri', message: 'GOOGLE_REDIRECT_URI must be a valid URL' });
+      }
+    }
+    if (!encryptionKey) {
+      issues.push({ path: 'publishing.encryptionKey', message: 'PUBLISHING_TOKEN_ENCRYPTION_KEY is required when Google OAuth is configured (refresh tokens are stored encrypted)' });
+    }
+  }
   return issues;
 }
 
@@ -248,5 +326,5 @@ function assertValidOrExit(cfg) {
   }
 }
 
-module.exports = { validateConfig, assertValidOrExit, ConfigValidationError, configSchema };
+module.exports = { decodeEncryptionKey, validateConfig, assertValidOrExit, ConfigValidationError, configSchema };
 

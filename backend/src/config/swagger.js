@@ -30,6 +30,7 @@ const definition = {
   ],
   tags: [
     { name: 'Videos', description: 'Standalone video job pipeline (script -> audio -> render)' },
+    { name: 'Publishing', description: 'YouTube publishing (Data API v3, OAuth) and Udemy course-package export' },
     { name: 'Scenes', description: 'Per-scene editing for a video job' },
     { name: 'Courses', description: 'Udemy-style course management and curriculum generation' },
     { name: 'Course Videos', description: 'Individual lesson videos within a course' },

@@ -75,6 +75,21 @@ class StorageProvider {
     throw new Error('Method "deleteObject" must be implemented by subclass');
   }
 
+  /** @abstract @returns {Promise<{size:number, etag:string, lastModified:Date|null}|null>} */
+  async statObject(bucket, key) {
+    throw new Error('Method "statObject" must be implemented by subclass');
+  }
+
+  /** @abstract @returns {Promise<Buffer>} `length` bytes from `offset`. */
+  async getObjectRange(bucket, key, offset, length) {
+    throw new Error('Method "getObjectRange" must be implemented by subclass');
+  }
+
+  /** @abstract */
+  async putObjectFile(bucket, key, filePath, contentType) {
+    throw new Error('Method "putObjectFile" must be implemented by subclass');
+  }
+
   /**
    * Byte size of an already-uploaded object, or null if it doesn't exist.
    * Used to backfill Asset.size for rows recorded before the size was

@@ -13,6 +13,8 @@ const {
   generateCourseVideoId,
   generateFavoriteVoiceId,
   generateImageGenerationId,
+  generatePlatformAccountId,
+  generatePublishingJobId,
   generateSceneId,
   generateVideoJobId,
   ID_PATTERN,
@@ -32,6 +34,8 @@ const generators = {
   cou: generateCourseId,
   crc: generateCourseCurriculumId,
   fav: generateFavoriteVoiceId,
+  pac: generatePlatformAccountId,
+  pub: generatePublishingJobId,
 };
 
 describe('generateId', () => {

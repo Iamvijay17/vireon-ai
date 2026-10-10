@@ -325,6 +325,20 @@ export const onCourseWorkerStatus = (callback) => {
   return () => socket.off('courseWorkerStatus', callback);
 };
 
+// ─── Publishing ────────────────────────────────────────────────────────────────
+// Sanitised job summaries ({ jobId, status, progress, remote, error, ... }) pushed by
+// the publishing workers; the REST endpoints stay the source of truth.
+
+export const onPublishingJobUpdated = (callback) => {
+  socket.on('publishingJobUpdated', callback);
+  return () => socket.off('publishingJobUpdated', callback);
+};
+
+export const onPublishingAccountUpdated = (callback) => {
+  socket.on('publishingAccountUpdated', callback);
+  return () => socket.off('publishingAccountUpdated', callback);
+};
+
 // ─── Live Server Logs ──────────────────────────────────────────────────────────
 
 export const onServerLog = (callback) => {

@@ -46,6 +46,14 @@ export const queryKeys = {
     controlCenter: (days) => ['analytics', 'controlCenter', days],
     videoMetrics: (page) => ['analytics', 'videoMetrics', page],
   },
+  publishing: {
+    all: ['publishing'],
+    capabilities: ['publishing', 'capabilities'],
+    accounts: ['publishing', 'accounts'],
+    lessons: (courseId) => ['publishing', 'lessons', courseId],
+    jobs: (filters) => ['publishing', 'jobs', filters],
+    udemy: (courseId) => ['publishing', 'udemy', courseId],
+  },
   voices: {
     catalog: ['voices', 'catalog'],
   },
