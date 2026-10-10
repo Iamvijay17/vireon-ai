@@ -284,3 +284,15 @@ The Publishing page (`/publishing`) uploads finished videos to YouTube. It does 
 5. Re-run `deploy\install-workers.ps1` to register `VireonYouTubeWorker` and `VireonExportWorker`, start them, and redeploy so the API container picks up the new variables (`docker compose up -d backend`).
 
 Uploads stay private-only until the Google project passes YouTube's API audit (`YOUTUBE_API_VERIFIED=true`). Details: [docs/publishing.md](docs/publishing.md).
+
+## Promotion Studio - Facebook, Instagram, Threads (optional)
+
+The Promotion Studio (`/promotion`) posts and schedules promotions through Meta's official APIs. It does nothing until configured:
+
+1. **Meta / Threads side** (once): create the apps and register the redirect URIs `https://<your host>/api/social/oauth/meta/callback` and `.../api/social/oauth/threads/callback` (for this deployment the host is `vireon.tail5b6483.ts.net`). The OAuth redirect goes through your browser, so the tailnet-only address works.
+2. **Repo-root `.env`** (Docker Compose, API container): `META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`, `THREADS_APP_ID`, `THREADS_APP_SECRET`, `THREADS_REDIRECT_URI`, and the existing `PUBLISHING_TOKEN_ENCRYPTION_KEY`. See `.env.example`.
+3. **`backend/.env`** (native worker): the same values and the **same** encryption key (dev and prod share one database, so a different key makes stored tokens unreadable on one side).
+4. Re-run `deployinstall-workers.ps1` (registers **`VireonSocialWorker`**) or register just that task, start it, and redeploy the API container.
+5. Threads media and Instagram images are downloaded by Meta from a **public** URL. This deployment is private on purpose (no login, never `tailscale funnel` the app); to enable them expose **only** `/api/social/media/*` through a separate public hostname and set `SOCIAL_PUBLIC_MEDIA_BASE_URL`. Without it those posts are refused with an explanation; Facebook and Threads text posts still work.
+
+Not yet verified against real accounts. Full guide, limits and troubleshooting: [docs/social-promotion.md](docs/social-promotion.md).

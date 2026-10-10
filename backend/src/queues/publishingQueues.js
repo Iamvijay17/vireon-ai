@@ -26,6 +26,8 @@ const connection = () => ({ host: config.redis.host, port: config.redis.port });
 const QUEUE_NAMES = Object.freeze({
   youtube: 'youtube-publishing',
   export: 'course-export',
+  // Promotion Studio posts (Facebook / Instagram / Threads), incl. scheduled ones as delayed jobs.
+  social: 'social-publishing',
 });
 
 const queues = {};

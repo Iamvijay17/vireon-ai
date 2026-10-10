@@ -25,8 +25,8 @@ const seed = (over) => PublishingJob.seed({ platform: 'youtube', ownerId: 'local
 beforeEach(() => { PublishingJob.reset(); jest.clearAllMocks(); });
 
 describe('publishing queues', () => {
-  it('uses separate queues for YouTube uploads and package exports', () => {
-    expect(QUEUE_NAMES).toEqual({ youtube: 'youtube-publishing', export: 'course-export' });
+  it('uses separate queues for YouTube uploads, package exports and social posts', () => {
+    expect(QUEUE_NAMES).toEqual({ youtube: 'youtube-publishing', export: 'course-export', social: 'social-publishing' });
   });
 
   it('leaves retries to the application: one BullMQ attempt, bounded retention', () => {

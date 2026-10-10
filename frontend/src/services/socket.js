@@ -334,6 +334,12 @@ export const onPublishingJobUpdated = (callback) => {
   return () => socket.off('publishingJobUpdated', callback);
 };
 
+// Promotion Studio post state + progress. Summaries only (no tokens); REST stays the source of truth.
+export const onSocialPostUpdated = (callback) => {
+  socket.on('socialPostUpdated', callback);
+  return () => socket.off('socialPostUpdated', callback);
+};
+
 export const onPublishingAccountUpdated = (callback) => {
   socket.on('publishingAccountUpdated', callback);
   return () => socket.off('publishingAccountUpdated', callback);

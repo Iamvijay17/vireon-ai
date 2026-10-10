@@ -12,7 +12,8 @@ const oauthStateSchema = new mongoose.Schema(
     stateHash: { type: String, required: true, unique: true },
     ownerId: { type: String, required: true },
     platform: { type: String, required: true },
-    codeVerifierEnc: { type: String, required: true },
+    // YouTube's PKCE verifier; flows without PKCE (Meta, Threads) leave it empty.
+    codeVerifierEnc: { type: String, default: '' },
     // A path inside the SPA, validated against an allow-list before it is stored.
     returnTo: { type: String, default: '/publishing' },
     expiresAt: { type: Date, required: true },

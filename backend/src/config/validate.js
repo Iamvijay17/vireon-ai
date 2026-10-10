@@ -134,6 +134,27 @@ const configSchema = z.object({
     }),
   }),
 
+  social: z.object({
+    meta: z.object({ appId: z.string(), appSecret: z.string(), redirectUri: z.string(), graphVersion: z.string().regex(/^v\d+\.\d+$/, 'META_GRAPH_VERSION must look like v25.0') }),
+    threads: z.object({ appId: z.string(), appSecret: z.string(), redirectUri: z.string() }),
+    publicMediaBaseUrl: z.string(),
+    mediaTokenTtlMs: positiveInt('SOCIAL_MEDIA_TOKEN_TTL_MS'),
+    maxImageBytes: positiveInt('SOCIAL_MAX_IMAGE_BYTES'),
+    maxVideoBytes: positiveInt('SOCIAL_MAX_VIDEO_BYTES'),
+    requestTimeoutMs: positiveInt('SOCIAL_REQUEST_TIMEOUT_MS'),
+    uploadChunkBytes: positiveInt('SOCIAL_UPLOAD_CHUNK_BYTES'),
+    maxAttempts: z.number().int().min(1).max(20, 'SOCIAL_MAX_ATTEMPTS must be at most 20'),
+    processingPollMs: positiveInt('SOCIAL_PROCESSING_POLL_MS'),
+    processingWindowMs: positiveInt('SOCIAL_PROCESSING_WINDOW_MS'),
+    processingMaxChecks: positiveInt('SOCIAL_PROCESSING_MAX_CHECKS'),
+    schedulerIntervalMs: positiveInt('SOCIAL_SCHEDULER_INTERVAL_MS'),
+    minScheduleLeadMs: z.number().int().min(0, 'SOCIAL_MIN_SCHEDULE_LEAD_MS must not be negative'),
+    maxScheduleAheadDays: positiveInt('SOCIAL_MAX_SCHEDULE_AHEAD_DAYS'),
+    tokenRefreshWindowMs: positiveInt('SOCIAL_TOKEN_REFRESH_WINDOW_MS'),
+    insightsCacheMs: positiveInt('SOCIAL_INSIGHTS_CACHE_MS'),
+    dailyLimits: z.object({ instagram: positiveInt('SOCIAL_INSTAGRAM_DAILY_LIMIT'), facebook: positiveInt('SOCIAL_FACEBOOK_DAILY_LIMIT'), threads: positiveInt('SOCIAL_THREADS_DAILY_LIMIT') }),
+  }),
+
   speech: z.object({
     alignmentEnabled: z.boolean(),
     drivenAnimationEnabled: z.boolean(),
@@ -225,6 +246,7 @@ function crossFieldIssues(cfg) {
   }
 
   issues.push(...publishingIssues(cfg.publishing));
+  issues.push(...socialIssues(cfg.social, cfg.publishing.encryptionKey));
 
   return issues;
 }
@@ -274,6 +296,55 @@ function publishingIssues(pub) {
     }
     if (!encryptionKey) {
       issues.push({ path: 'publishing.encryptionKey', message: 'PUBLISHING_TOKEN_ENCRYPTION_KEY is required when Google OAuth is configured (refresh tokens are stored encrypted)' });
+    }
+  }
+  return issues;
+}
+
+// Redirect URIs must be https (http only for localhost) with no fragment - Meta rejects anything else.
+function redirectUriIssues(path, envVar, value) {
+  const issues = [];
+  try {
+    const url = new URL(value);
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) {
+      issues.push({ path, message: `${envVar} must be https (http is only accepted for localhost)` });
+    }
+    if (url.hash) issues.push({ path, message: `${envVar} must not contain a #fragment` });
+  } catch {
+    issues.push({ path, message: `${envVar} must be a valid URL` });
+  }
+  return issues;
+}
+
+// Like publishing, the social hub is optional; a PARTLY filled app section is the thing to catch at boot.
+function socialIssues(social, encryptionKey) {
+  const issues = [];
+  const apps = [
+    ['meta', 'META', [['appId', 'META_APP_ID'], ['appSecret', 'META_APP_SECRET'], ['redirectUri', 'META_REDIRECT_URI']]],
+    ['threads', 'THREADS', [['appId', 'THREADS_APP_ID'], ['appSecret', 'THREADS_APP_SECRET'], ['redirectUri', 'THREADS_REDIRECT_URI']]],
+  ];
+  for (const [key, label, fields] of apps) {
+    const section = social[key];
+    if (!fields.some(([f]) => section[f])) continue;
+    for (const [f, envVar] of fields) {
+      if (!section[f]) issues.push({ path: `social.${key}.${f}`, message: `${envVar} is required when any ${label}_* setting is present` });
+    }
+    if (section.redirectUri) issues.push(...redirectUriIssues(`social.${key}.redirectUri`, `${label}_REDIRECT_URI`, section.redirectUri));
+    if (!encryptionKey) {
+      issues.push({ path: 'publishing.encryptionKey', message: `PUBLISHING_TOKEN_ENCRYPTION_KEY is required when ${key === 'meta' ? 'Meta' : 'Threads'} is configured (access tokens are stored encrypted)` });
+    }
+  }
+  if (social.publicMediaBaseUrl) {
+    try {
+      const url = new URL(social.publicMediaBaseUrl);
+      if (url.protocol !== 'https:') issues.push({ path: 'social.publicMediaBaseUrl', message: 'SOCIAL_PUBLIC_MEDIA_BASE_URL must be an https origin - Meta will not fetch media over plain http' });
+      if (url.search || url.hash) issues.push({ path: 'social.publicMediaBaseUrl', message: 'SOCIAL_PUBLIC_MEDIA_BASE_URL must be an origin (no query or #fragment)' });
+    } catch {
+      issues.push({ path: 'social.publicMediaBaseUrl', message: 'SOCIAL_PUBLIC_MEDIA_BASE_URL must be a valid URL' });
+    }
+    if (!encryptionKey) {
+      issues.push({ path: 'publishing.encryptionKey', message: 'PUBLISHING_TOKEN_ENCRYPTION_KEY is required when SOCIAL_PUBLIC_MEDIA_BASE_URL is set (media links are signed with it)' });
     }
   }
   return issues;

@@ -471,3 +471,50 @@ export const createUdemyExport = (courseId, options) =>
 
 // A plain URL for <a download>: the browser streams the ZIP straight from the backend.
 export const getPublishingDownloadUrl = (jobId) => resolveMediaUrl(`/api/publishing/jobs/${jobId}/download`);
+
+// ─── Promotion Studio (Facebook / Instagram / Threads) ──────────────────────────
+// Nothing here posts on its own: publishCampaign is the one call that creates posts, and it needs
+// confirm: true. Tokens never reach the browser - only account ids, handles and status do.
+
+// A stored object ("/bucket/key", as sent by the API) -> a URL the browser can load.
+export const resolveStoragePath = (path) => (path ? resolveAssetUrl(`${MINIO_BASE}${path}`) : path);
+export const resolveThumbnailUrl = (url) => resolveAssetUrl(url);
+
+export const getSocialCapabilities = () => api.get('/api/social/capabilities');
+export const getSocialOverview = () => api.get('/api/social/overview');
+
+export const getSocialAccounts = () => api.get('/api/social/accounts');
+export const startSocialConnect = (provider, returnTo = '/promotion/accounts') =>
+  api.post(`/api/social/accounts/${provider}/connect`, { returnTo });
+export const validateSocialAccount = (id) => api.post(`/api/social/accounts/${id}/validate`);
+export const disconnectSocialAccount = (id) => api.delete(`/api/social/accounts/${id}`);
+
+export const getSocialLibrary = () => api.get('/api/social/library');
+
+export const createCampaign = (data) => api.post('/api/social/campaigns', data);
+export const getCampaigns = (params = {}) => api.get('/api/social/campaigns', { params });
+export const getCampaign = (id) => api.get(`/api/social/campaigns/${id}`);
+export const updateCampaign = (id, data) => api.patch(`/api/social/campaigns/${id}`, data);
+export const deleteCampaign = (id) => api.delete(`/api/social/campaigns/${id}`);
+// The file is the raw request body; the server checks its real type from the bytes.
+export const uploadCampaignMedia = (id, file, onUploadProgress) =>
+  api.put(`/api/social/campaigns/${id}/media`, file, {
+    headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': file.name || 'upload' },
+    onUploadProgress, timeout: 0, maxBodyLength: Infinity, maxContentLength: Infinity,
+  });
+export const generateCampaignCopy = (id, data) => api.post(`/api/social/campaigns/${id}/generate-copy`, data, { timeout: 180000 });
+export const validateCampaign = (id, data) => api.post(`/api/social/campaigns/${id}/validate`, data);
+// 422 means "no destination was created"; the body still carries the per-destination reasons.
+export const publishCampaign = (id, data) =>
+  api.post(`/api/social/campaigns/${id}/publish`, { ...data, confirm: true }, { validateStatus: (s) => s === 201 || s === 422 });
+
+export const getSocialPosts = (params = {}) => api.get('/api/social/posts', { params });
+export const getSocialPost = (id) => api.get(`/api/social/posts/${id}`);
+export const editSocialPost = (id, data) => api.patch(`/api/social/posts/${id}`, data);
+export const cancelSocialPost = (id) => api.post(`/api/social/posts/${id}/cancel`);
+export const retrySocialPost = (id, data = {}) => api.post(`/api/social/posts/${id}/retry`, data);
+export const deleteSocialPost = (id) => api.delete(`/api/social/posts/${id}`);
+export const getSocialCalendar = (params = {}) => api.get('/api/social/calendar', { params });
+
+export const getSocialAnalytics = (params = {}) => api.get('/api/social/analytics', { params });
+export const refreshSocialAnalytics = (data = {}) => api.post('/api/social/analytics/refresh', data, { timeout: 180000 });

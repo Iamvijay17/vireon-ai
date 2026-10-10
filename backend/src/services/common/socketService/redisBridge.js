@@ -95,6 +95,9 @@ function forwardEvent(event) {
     case 'publishingAccountUpdated':
       state.io.emit(SOCKET_EVENTS.PUBLISHING_ACCOUNT_UPDATED, data);
       break;
+    case 'socialPostUpdated':
+      state.io.emit(SOCKET_EVENTS.SOCIAL_POST_UPDATED, data);
+      break;
     default:
       LoggerService.warn('Unknown event type from Redis pub/sub', { type });
   }

@@ -80,6 +80,18 @@ services:
       PUBLISHING_TOKEN_ENCRYPTION_KEY: ${PUBLISHING_TOKEN_ENCRYPTION_KEY:-}
       PUBLISHING_FRONTEND_URL: ${PUBLIC_URL:-http://localhost:8080}
       YOUTUBE_API_VERIFIED: ${YOUTUBE_API_VERIFIED:-false}
+      # Promotion Studio (Facebook / Instagram / Threads). Empty = the page says "not configured".
+      # META_REDIRECT_URI is https://<PUBLIC_URL host>/api/social/oauth/meta/callback and THREADS_REDIRECT_URI
+      # .../api/social/oauth/threads/callback - both registered in the Meta developer dashboard.
+      # The SAME PUBLISHING_TOKEN_ENCRYPTION_KEY (above) must be in backend/.env for the native social worker.
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_REDIRECT_URI: ${META_REDIRECT_URI:-}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v25.0}
+      THREADS_APP_ID: ${THREADS_APP_ID:-}
+      THREADS_APP_SECRET: ${THREADS_APP_SECRET:-}
+      THREADS_REDIRECT_URI: ${THREADS_REDIRECT_URI:-}
+      SOCIAL_PUBLIC_MEDIA_BASE_URL: ${SOCIAL_PUBLIC_MEDIA_BASE_URL:-}
     volumes:
       # Same scratch/log dirs the native workers use.
       - ./backend/jobs:/app/jobs

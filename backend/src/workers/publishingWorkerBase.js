@@ -22,7 +22,7 @@ const { workerName } = require('./workerIdentity');
  * state, YouTube's resumable-session URL and its confirmed offset are all in
  * Mongo, and the next claim carries on from them.
  */
-function startPublishingWorker({ role, queueName, platform, concurrency, buildProcessor, enqueueFor }) {
+function startPublishingWorker({ role, queueName, platform, concurrency, buildProcessor, enqueueFor, idField = 'jobId', sweepOptions = {}, ticks = [] }) {
   process.on('uncaughtException', (err) => {
     LoggerService.error(`${role} worker uncaught exception`, { error: err.message, stack: err.stack });
     process.exit(1);
@@ -47,7 +47,7 @@ function startPublishingWorker({ role, queueName, platform, concurrency, buildPr
   const worker = new Worker(
     queueName,
     async (job) => {
-      const { jobId } = job.data;
+      const jobId = job.data[idField];
       LoggerService.border(`📤 ${role}: ${jobId}`, 'event');
       return LoggerService.runWithContext({ jobId }, () => processor(jobId));
     },
@@ -69,10 +69,18 @@ function startPublishingWorker({ role, queueName, platform, concurrency, buildPr
   worker.on('stalled', (id) => LoggerService.warn(`${role} job ${id} stalled - its worker likely crashed, reclaiming`));
 
   // Recovery: once at start (after Mongo is up) and then periodically.
-  const sweep = () => sweepPublishingJobs({ platform, enqueue }).catch((err) => LoggerService.warn('Publishing recovery sweep failed', { error: err.message }));
+  const sweep = () => sweepPublishingJobs({ platform, enqueue, ...sweepOptions }).catch((err) => LoggerService.warn('Publishing recovery sweep failed', { error: err.message }));
   mongoose.connection.once('open', sweep);
   const sweepTimer = setInterval(() => { if (mongoose.connection.readyState === 1) sweep(); }, SWEEP_INTERVAL_MS);
   sweepTimer.unref();
+
+  // Extra periodic duties of a particular worker (the social worker promotes due scheduled posts and renews tokens).
+  for (const tick of ticks) {
+    const run = () => Promise.resolve().then(() => tick.run()).catch((err) => LoggerService.warn(`${role} ${tick.name} failed`, { error: err.message }));
+    mongoose.connection.once('open', run);
+    const timer = setInterval(() => { if (mongoose.connection.readyState === 1) run(); }, tick.everyMs);
+    timer.unref();
+  }
 
   let shuttingDown = false;
   async function shutdown(signal) {

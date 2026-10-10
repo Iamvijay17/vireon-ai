@@ -30,6 +30,16 @@ const CODES = Object.freeze({
   REMOTE_REJECTED: { retryable: false, action: 'YouTube rejected or failed to process the video. Open YouTube Studio for the reason.' },
   PROCESSING_TIMEOUT: { retryable: true, action: 'YouTube is still processing the video. Retry to keep checking - it will not be uploaded again.' },
   CANCELLED: { retryable: false, action: '' },
+  // ── Social posts (Facebook / Instagram / Threads) ──
+  PERMISSION_DENIED: { retryable: false, action: 'Reconnect the account and approve every permission it asks for (a required permission was refused or never granted).', reauth: true },
+  MEDIA_INVALID: { retryable: false, action: 'The platform rejected the media (format, size, length or aspect ratio). Pick or re-render a compatible file, then retry.' },
+  MEDIA_UNREACHABLE: { retryable: true, action: '' },
+  MEDIA_NOT_READY: { retryable: true, action: '' },
+  PUBLIC_MEDIA_UNAVAILABLE: { retryable: false, action: 'Instagram and Threads fetch media from a public https URL. Set SOCIAL_PUBLIC_MEDIA_BASE_URL (see docs/social-promotion.md), or post to Facebook only.' },
+  CONTENT_REJECTED: { retryable: false, action: 'The platform refused this content (policy or spam check). Edit the caption or media, then retry.' },
+  PUBLISH_LIMIT_REACHED: { retryable: true, action: 'The platform\'s rolling 24-hour publishing limit for this account is used up. The post continues automatically when the allowance frees up.', defer: true },
+  ACCOUNT_INELIGIBLE: { retryable: false, action: 'This account cannot publish through the API (it must be a professional account in good standing, and for Instagram linked to a Facebook Page). Fix that on the platform, then reconnect.' },
+  OUTCOME_UNKNOWN: { retryable: false, action: 'The publish request was sent but its result was never confirmed. Open the account on the platform: if the post is there, nothing more to do; if not, use "It isn\'t posted - retry".' },
   UNKNOWN: { retryable: false, action: 'Check the worker logs for details, then retry.' },
 });
 

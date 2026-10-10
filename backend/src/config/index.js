@@ -510,6 +510,62 @@ const config = Object.freeze({
     },
   },
 
+  // Social Media Promotion Hub (services/social/): Facebook Pages, Instagram
+  // professional accounts and Threads through Meta's official APIs. Opt-in like
+  // publishing above - with no app credentials the hub reports "not configured"
+  // and nothing is ever posted. Tokens are encrypted with
+  // publishing.encryptionKey (the same key as YouTube's), secrets are env-only.
+  social: {
+    meta: {
+      // One Meta app serves Facebook Pages AND the Instagram accounts linked to them.
+      appId: process.env.META_APP_ID || '',
+      appSecret: process.env.META_APP_SECRET || '',
+      // BACKEND callback Meta redirects the browser to:
+      // https://<host>/api/social/oauth/meta/callback (must match the app's
+      // "Valid OAuth Redirect URIs" exactly).
+      redirectUri: process.env.META_REDIRECT_URI || '',
+      graphVersion: process.env.META_GRAPH_VERSION || 'v25.0',
+    },
+    threads: {
+      // Threads is a separate app/use case on developers.facebook.com with its own id + secret.
+      appId: process.env.THREADS_APP_ID || '',
+      appSecret: process.env.THREADS_APP_SECRET || '',
+      redirectUri: process.env.THREADS_REDIRECT_URI || '',
+    },
+    // Instagram and Threads fetch media from a URL, so media for those needs a
+    // PUBLIC https origin that serves GET /api/social/media/<token> (nothing
+    // else of the app). Empty = media posts to those platforms are refused with
+    // an explanation rather than attempted. See docs/social-promotion.md.
+    publicMediaBaseUrl: (process.env.SOCIAL_PUBLIC_MEDIA_BASE_URL || '').trim().replace(/\/+$/, ''),
+    mediaTokenTtlMs: parseInt(process.env.SOCIAL_MEDIA_TOKEN_TTL_MS, 10) || 6 * 3600_000,
+    maxImageBytes: parseInt(process.env.SOCIAL_MAX_IMAGE_BYTES, 10) || 8 * 1024 * 1024,
+    maxVideoBytes: parseInt(process.env.SOCIAL_MAX_VIDEO_BYTES, 10) || 1024 ** 3,
+    requestTimeoutMs: parseInt(process.env.SOCIAL_REQUEST_TIMEOUT_MS, 10) || 60000,
+    // Resumable-upload chunk (Meta accepts a whole file in one request, but a
+    // bounded buffer keeps worker memory flat and a retry cheap).
+    uploadChunkBytes: parseInt(process.env.SOCIAL_UPLOAD_CHUNK_BYTES, 10) || 8 * 1024 * 1024,
+    maxAttempts: parseInt(process.env.SOCIAL_MAX_ATTEMPTS, 10) || 5,
+    // Polling for "container finished processing" inside one worker run, and
+    // how many times a run may hand the check back to the queue.
+    processingPollMs: parseInt(process.env.SOCIAL_PROCESSING_POLL_MS, 10) || 8000,
+    processingWindowMs: parseInt(process.env.SOCIAL_PROCESSING_WINDOW_MS, 10) || 5 * 60_000,
+    processingMaxChecks: parseInt(process.env.SOCIAL_PROCESSING_MAX_CHECKS, 10) || 12,
+    // How often a worker promotes due SCHEDULED posts (the delayed BullMQ job
+    // is only the precise path; this tick is what makes scheduling restart-proof).
+    schedulerIntervalMs: parseInt(process.env.SOCIAL_SCHEDULER_INTERVAL_MS, 10) || 30_000,
+    minScheduleLeadMs: parseInt(process.env.SOCIAL_MIN_SCHEDULE_LEAD_MS, 10) || 2 * 60_000,
+    maxScheduleAheadDays: parseInt(process.env.SOCIAL_MAX_SCHEDULE_AHEAD_DAYS, 10) || 180,
+    // Refresh a long-lived token (Threads: 60 days) once it is this close to expiry.
+    tokenRefreshWindowMs: parseInt(process.env.SOCIAL_TOKEN_REFRESH_WINDOW_MS, 10) || 10 * 24 * 3600_000,
+    insightsCacheMs: parseInt(process.env.SOCIAL_INSIGHTS_CACHE_MS, 10) || 30 * 60_000,
+    // Platform publishing quotas (rolling 24h) - enforced locally before Meta has to refuse.
+    dailyLimits: {
+      instagram: parseInt(process.env.SOCIAL_INSTAGRAM_DAILY_LIMIT, 10) || 100,
+      facebook: parseInt(process.env.SOCIAL_FACEBOOK_DAILY_LIMIT, 10) || 30,
+      threads: parseInt(process.env.SOCIAL_THREADS_DAILY_LIMIT, 10) || 250,
+    },
+  },
+
   security: {
     // Extra hosts a scene image URL may point at even though they are (or
     // resolve to) a private address - comma-separated hostnames or host:port.

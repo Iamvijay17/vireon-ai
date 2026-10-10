@@ -145,7 +145,8 @@ class YouTubeAuthService {
   // ── Accounts ─────────────────────────────────────────────────────────────
 
   async listAccounts(ownerId) {
-    const accounts = await PlatformAccount.find({ ownerId }).select('+refreshTokenEnc').sort({ connectedAt: -1 });
+    // YouTube only: Facebook / Instagram / Threads accounts live in the same collection but belong to the Promotion Studio.
+    const accounts = await PlatformAccount.find({ ownerId, platform: 'youtube' }).select('+refreshTokenEnc').sort({ connectedAt: -1 });
     return accounts.map((a) => {
       const json = a.toJSON();
       // A key change/loss makes the stored token unreadable - say so up front

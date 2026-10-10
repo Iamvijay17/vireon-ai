@@ -18,6 +18,7 @@ import {
   Workflow,
   Boxes,
   Send,
+  Megaphone,
   X,
 } from "lucide-react";
 import { cn } from "../../components/ui/cn";
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
     ],
   },
   { key: "publishing", label: "Publishing", icon: Send, route: "/publishing" },
+  { key: "promotion", label: "Promotion Studio", icon: Megaphone, route: "/promotion" },
   { key: "analytics", label: "Analytics", icon: BarChart3, route: "/analytics" },
   { key: "logs", label: "Live Logs", icon: Terminal, route: "/logs" },
   { key: "settings", label: "Settings", icon: Settings, route: "/settings" },

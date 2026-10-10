@@ -55,6 +55,17 @@ export const queryKeys = {
     jobs: (filters) => ['publishing', 'jobs', filters],
     udemy: (courseId) => ['publishing', 'udemy', courseId],
   },
+  social: {
+    all: ['social'],
+    capabilities: ['social', 'capabilities'],
+    overview: ['social', 'overview'],
+    accounts: ['social', 'accounts'],
+    library: ['social', 'library'],
+    campaign: (id) => ['social', 'campaign', id],
+    posts: (filters) => ['social', 'posts', filters],
+    calendar: (range) => ['social', 'calendar', range],
+    analytics: (filters) => ['social', 'analytics', filters],
+  },
   voices: {
     catalog: ['voices', 'catalog'],
   },
