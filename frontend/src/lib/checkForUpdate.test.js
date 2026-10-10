@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import { compareBuild } from "./checkForUpdate";
 
 const FULL = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678";
