@@ -69,6 +69,13 @@ describe('outputSizeFor', () => {
     expect(ImageGenerationService.outputSizeFor('16:9', '1k')).toEqual({ width: 1024, height: 576 });
   });
 
+  it('scales the long edge to 854 / 1280 / 1920 for sd / hd / fhd, keeping the aspect', () => {
+    expect(ImageGenerationService.outputSizeFor('16:9', 'sd')).toEqual({ width: 854, height: 480 });
+    expect(ImageGenerationService.outputSizeFor('16:9', 'hd')).toEqual({ width: 1280, height: 720 });
+    expect(ImageGenerationService.outputSizeFor('16:9', 'fhd')).toEqual({ width: 1920, height: 1080 });
+    expect(ImageGenerationService.outputSizeFor('9:16', 'fhd')).toEqual({ width: 1080, height: 1920 });
+  });
+
   it('scales the long edge to 2048 for 2k and 3840 for 4k, keeping the aspect', () => {
     expect(ImageGenerationService.outputSizeFor('16:9', '2k')).toEqual({ width: 2048, height: 1152 });
     expect(ImageGenerationService.outputSizeFor('16:9', '4k')).toEqual({ width: 3840, height: 2160 });

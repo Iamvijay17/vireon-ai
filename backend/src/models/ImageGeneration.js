@@ -26,11 +26,11 @@ const imageGenerationSchema = new mongoose.Schema(
       enum: ['fast', 'standard', 'high'],
       default: 'standard',
     },
-    // Size of the saved picture: 1k = as sampled, 2k/4k = enlarged (width/height below hold the final size).
+    // Size of the saved picture: sd/hd/fhd/2k/4k (width/height below hold the final size); 1k = legacy native size.
     resolution: {
       type: String,
-      enum: ['1k', '2k', '4k'],
-      default: '1k',
+      enum: ['sd', 'hd', 'fhd', '2k', '4k', '1k'],
+      default: 'hd',
     },
     // "Avoid" (negative) prompt; non-empty means the picture was rendered in guided mode.
     negative: {

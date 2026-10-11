@@ -21,7 +21,7 @@ import { PromptBar } from "./PromptBar";
 import { ImageTile } from "./ImageTile";
 import { ImagePreview } from "./ImagePreview";
 import { Segmented } from "./Segmented";
-import { loadStudioSettings, saveStudioSettings, pipesToLines, linesToPipes, MAX_TEXT_LINES } from "./constants";
+import { loadStudioSettings, saveStudioSettings, pipesToLines, linesToPipes, reusableResolution, MAX_TEXT_LINES } from "./constants";
 
 // While something renders: the list is re-checked every few seconds (a safety
 // net - a finished render is noticed sooner, see the effect below), and the
@@ -143,7 +143,7 @@ const ImagesPage = () => {
     startGeneration({
       prompt: item.prompt,
       aspectRatio: item.aspectRatio,
-      resolution: item.resolution || "1k",
+      resolution: reusableResolution(item.resolution),
       quality: item.quality || "standard",
       style: item.style || "none",
       negative: item.negative || "",
@@ -158,7 +158,7 @@ const ImagesPage = () => {
     setText(linesToPipes(item.text));
     setOpts({
       aspectRatio: item.aspectRatio === "4:5" ? "9:16" : item.aspectRatio,
-      resolution: item.resolution || "1k",
+      resolution: reusableResolution(item.resolution),
       quality: item.quality || "standard",
       style: item.style || "none",
       count: 1,

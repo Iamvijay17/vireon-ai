@@ -21,14 +21,19 @@ export const ASPECTS = [
   { value: "1:1", label: "Square", box: "h-3 w-3" },
 ];
 
-// Size of the saved picture. The model samples at 1K either way (a 6GB card can't
-// sample 2K/4K); 2K/4K enlarge it afterwards to a 2048 / 3840 px long edge.
+// Size of the saved picture. The model samples at about 1K either way (a 6GB card
+// can't sample 2K/4K); the picture is then resized to the chosen long edge.
 export const RESOLUTIONS = [
-  { value: "1k", label: "1K", title: "As generated (about 1024 px long edge)" },
-  { value: "2k", label: "2K", title: "Enlarged to a 2048 px long edge" },
-  { value: "4k", label: "4K", title: "Enlarged to a 3840 px long edge (3840x2160 for landscape); large file" },
+  { value: "sd", label: "SD", title: "854 px long edge (854x480 for landscape)" },
+  { value: "hd", label: "HD", title: "1280 px long edge (1280x720 for landscape)" },
+  { value: "fhd", label: "Full HD", title: "1920 px long edge (1920x1080 for landscape)" },
+  { value: "2k", label: "2K", title: "2048 px long edge (2048x1152 for landscape)" },
+  { value: "4k", label: "4K", title: "3840 px long edge (3840x2160 for landscape); large file" },
 ];
-export const RESOLUTION_LABEL = Object.fromEntries(RESOLUTIONS.map((r) => [r.value, r.label]));
+// "1k" only exists on pictures made before these sizes: shown, but no longer offered.
+export const RESOLUTION_LABEL = { ...Object.fromEntries(RESOLUTIONS.map((r) => [r.value, r.label])), "1k": "1K" };
+// What a reused/varied picture asks for: its own size, or HD for a legacy "1k" one.
+export const reusableResolution = (value) => (RESOLUTIONS.some((r) => r.value === value) ? value : "hd");
 
 export const COUNTS = [1, 2, 3, 4].map((n) => ({ value: n, label: `${n}` }));
 
@@ -57,7 +62,7 @@ export const EXAMPLES = [
 ];
 
 const STORAGE_KEY = "vireon-image-studio";
-const DEFAULTS = { aspectRatio: "16:9", resolution: "1k", quality: "standard", style: "none", count: 1 };
+const DEFAULTS = { aspectRatio: "16:9", resolution: "hd", quality: "standard", style: "none", count: 1 };
 
 const oneOf = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
 
