@@ -65,7 +65,7 @@ export const ImagePreview = ({ item, onClose, onDownload, onReuseSettings }) => 
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border-light pt-4 sm:grid-cols-3">
           <Detail label="Shape">{item.aspectRatio}</Detail>
           <Detail label="Size">
-            {RESOLUTION_LABEL[item.resolution] || "1K"}
+            {RESOLUTION_LABEL[item.resolution] || "HD"}
             {item.width && item.height ? ` (${item.width}x${item.height})` : ""}
           </Detail>
           <Detail label="Quality">{QUALITY_LABEL[item.quality] || "Standard"}</Detail>

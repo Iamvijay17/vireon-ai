@@ -56,7 +56,7 @@ export const ImageTile = ({ item, progress, deleting, onOpen, onDelete, onDownlo
         <div className="mt-2.5 flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Badge variant="neutral">{item.aspectRatio}</Badge>
-            {item.resolution && item.resolution !== "1k" && <Badge variant="accent">{RESOLUTION_LABEL[item.resolution]}</Badge>}
+            {item.resolution && item.resolution !== "1k" && item.resolution !== "hd" && <Badge variant="accent">{RESOLUTION_LABEL[item.resolution]}</Badge>}
             {item.quality === "fast" && <Badge variant="warning">Fast</Badge>}
             {item.quality === "high" && <Badge variant="info">High</Badge>}
             {item.text && <Badge variant="neutral" title={`Text: ${item.text.split("\n").join(" | ")}`}>Text</Badge>}

@@ -93,7 +93,7 @@ export const PromptBar = ({ promptRef, prompt, setPrompt, negative, setNegative,
           <Segmented label="Shape" options={ASPECTS} value={opts.aspectRatio} onChange={(v) => setOpt("aspectRatio", v)} className="sm:w-64" />
         </Field>
         <Field label="Size" className="w-full sm:w-auto">
-          <Segmented label="Size" options={RESOLUTIONS} value={opts.resolution} onChange={(v) => setOpt("resolution", v)} className="sm:w-40" />
+          <Segmented label="Size" options={RESOLUTIONS} value={opts.resolution} onChange={(v) => setOpt("resolution", v)} className="sm:w-96" />
         </Field>
         <Field label="Quality" className="w-full sm:w-auto">
           <Segmented label="Quality" options={QUALITIES} value={opts.quality} onChange={(v) => setOpt("quality", v)} className="sm:w-72" />

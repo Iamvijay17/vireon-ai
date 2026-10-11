@@ -22,8 +22,9 @@ const { fillWorkflow, placeholdersIn, firstOutputImage } = require('./workflow')
 // Misconfiguration, not a transient failure - retrying cannot fix it.
 const configError = (message) => Object.assign(new Error(message), { permanent: true });
 
-// Long edge of the saved picture per Image Studio resolution; "1k" is the native size.
-const OUTPUT_LONG_EDGE = { '2k': 2048, '4k': 3840 };
+// Long edge of the saved picture per Image Studio size (SD = 480p, HD = 720p, Full HD = 1080p for 16:9).
+// "1k" is the legacy native size, kept so older records still resolve; sampling is always at sizeFor().
+const OUTPUT_LONG_EDGE = { sd: 854, hd: 1280, fhd: 1920, '2k': 2048, '4k': 3840 };
 
 class ImageGenerationService {
   /** Native generation size for a video aspect ratio ("16:9", "9:16", "1:1", "4:5"). */
@@ -37,9 +38,10 @@ class ImageGenerationService {
 
   /**
    * Size of the saved picture. The model always samples at sizeFor() (a 6GB card
-   * cannot sample 2K/4K), and the workflow's ImageScale node enlarges the result
-   * so its long edge is 2048 ("2k") or 3840 ("4k", i.e. 3840x2160 for 16:9).
-   * "1k" keeps the native size.
+   * cannot sample above ~1K), and the workflow's ImageScale node resizes the
+   * result so its long edge is 854 ("sd"), 1280 ("hd"), 1920 ("fhd"), 2048 ("2k")
+   * or 3840 ("4k"); for 16:9 that is 854x480, 1280x720, 1920x1080, 2048x1152
+   * and 3840x2160. "1k" (the default for the video pipeline, and legacy records) keeps the native size.
    */
   static outputSizeFor(aspectRatio, resolution = '1k') {
     const native = this.sizeFor(aspectRatio);

@@ -146,7 +146,7 @@ class ImageController {
           jobId: id,
           prompt: composeFinalPrompt(record.prompt, record.style, record.text),
           aspectRatio: record.aspectRatio,
-          resolution: record.resolution || '1k',
+          resolution: record.resolution || '1k', // records saved before sizes existed were native
           variant: record.variant,
           steps: stepsFor(record.quality),
           seed: record.seed ?? null,
