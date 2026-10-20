@@ -92,7 +92,7 @@
         position: absolute;
         inset: 0;
         background: radial-gradient(70% 60% at 50% 50%, transparent 30%, var(--bg) 100%);
-        opacity: 0.55;
+        opacity: 0.4;
       }
 
       main {
@@ -243,7 +243,7 @@
 
     <script>
       // Backdrop: a slowly drifting node network with signal pulses travelling along the links.
-      // Cheap on purpose (<= 60 nodes, ~30fps, DPR capped, paused when the tab is hidden) because
+      // Cheap on purpose (<= 80 nodes, ~30fps, DPR capped, paused when the tab is hidden) because
       // this page may be the only thing a struggling machine is showing. Turns green and speeds
       // up when the poller reports the server is back.
       (function () {
@@ -263,8 +263,8 @@
         var light = document.documentElement.classList.contains("light");
         var COLD = rgb("--accent-fg", [167, 139, 250]);
         var OK = rgb("--success", [31, 169, 113]);
-        var LINK_ALPHA = light ? 0.2 : 0.22;
-        var MAX_LINK = 150;
+        var LINK_ALPHA = light ? 0.34 : 0.4;
+        var MAX_LINK = 175;
 
         var w = 0, h = 0, dpr = 1, nodes = [], pulses = [];
         var back = false, last = 0, lastSpawn = 0;
@@ -274,7 +274,7 @@
           w = window.innerWidth; h = window.innerHeight;
           canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          var count = Math.max(22, Math.min(60, Math.round((w * h) / 24000)));
+          var count = Math.max(34, Math.min(80, Math.round((w * h) / 13000)));
           nodes = [];
           for (var i = 0; i < count; i++) {
             var a = Math.random() * Math.PI * 2, sp = 6 + Math.random() * 12; // px per second
@@ -319,7 +319,7 @@
             }
           }
           for (var k = 0; k < nodes.length; k++) {
-            ctx.fillStyle = col(tint, light ? 0.55 : 0.5);
+            ctx.fillStyle = col(tint, light ? 0.75 : 0.7);
             ctx.beginPath(); ctx.arc(nodes[k].x, nodes[k].y, nodes[k].r, 0, 6.2832); ctx.fill();
           }
 
