@@ -1,87 +1,101 @@
-# Generation-time audit and baseline (Phase 1)
+# Generation-time audit, baseline and tooling
 
-Date: 2026-10-20. Audit of the real repo plus read-only queries of the real job history.
-Nothing here is estimated unless it says so. Machine: Ryzen 5 5600G (12 threads), 16 GB RAM
-(about 4.7 GB free with the browser open), RTX 2060 6 GB (about 0.76 GB held by the desktop when idle).
+Date: 2026-10-20. Everything below was measured on this PC (Ryzen 5 5600G 12 threads, RTX 2060 6 GB,
+16 GB RAM, Windows 11) or read from the repo. Where something was not measured it says so.
 
-## 1. What already exists (so it is not rebuilt)
+## 1. What already existed (so it was not rebuilt)
 
-The brief asks for a "Local Inference Runtime", dependency-aware orchestration and observability.
-Most of the substance is already in the repo:
-
-| Brief item | Where it already lives | Gap |
+| Brief item | Where it lives | Gap found |
 |---|---|---|
-| Single GPU admission, VRAM thresholds, breaker, retries, cancel | `services/gpu/*` (`GpuScheduler`, `vram.js`, `CircuitBreaker`), `services/localAI/*Manager.js` are the provider adapters | VRAM figures are config estimates (5000 MB each), never measured per service |
-| Model load/unload/warm reuse | `gpuResourceManager.js` (warm reuse, idle eviction, Redis lease) | no load-time vs inference-time split |
-| Stage tracking, timeouts, structured errors, resume | `services/pipeline/*`, `VideoJob.stages`, `resumeLogic.js`, `startup/recovery.js` | **0 jobs have run since it shipped**, so no per-stage data exists yet |
-| Dependency graph | `core/graph/DagRunner.js`, `videoStepGraph.js` | parked on purpose, see `src/core/README.md` (TTS and ComfyUI serialize on the one GPU slot) |
-| Smart Cache with provenance | `services/cache/*` (`cacheKeys`, `CacheLedger`, `GenerationCoordinator`) | only 6 ledger entries so far, no hit-rate evidence |
+| GPU admission, VRAM checks, breaker, cancel, retries | `services/gpu/*`, `services/localAI/*Manager.js` (the provider adapters) | VRAM figures are config estimates; admission could stall on orphaned VRAM (section 5) |
+| Stage tracking, timeouts, structured errors, resume | `services/pipeline/*`, `VideoJob.stages` | no memory data per stage |
+| Dependency graph | `core/graph/*` | parked on purpose, see `src/core/README.md` |
+| Smart Cache with provenance | `services/cache/*` | none changed |
 | Output validation before COMPLETED | `services/qc/video/qualityGate.js` | none |
-| Perf analytics | `scripts/perfAudit.js`, `/api/analytics/control-center`, `benchRemotionConcurrency.js` | no VRAM / RAM / CPU during a stage |
+| Runtime readiness, queue, live memory | GPU & Resources page, `/api/system/resources`, `/api/system/ai-services` | none, reused as is |
 
-Recommendation: do **not** add a new runtime layer on top of these. Extend them.
+So no new "runtime layer" was added: it would have duplicated these. Stage dependencies are already explicit
+(`pipeline/stages.js` `DOWNSTREAM` / `STAGE_RESUME`) and every step skips work already stored.
 
-## 2. Pipeline as it runs today
+## 2. Measured baseline
 
-`runVideoJob` (`workers/videoWorker/processor.js`) runs six stages strictly in sequence, each wrapped in `runStage`:
+Same topic ("How a bill becomes a law"), 2 minutes requested, 1080p, 4 scenes, images on, full pipeline through the quality gate.
+The LLM writes a different script each run, so audio length differs (97 s vs 84 s); one run of each is not a benchmark.
+Differences under about 5% are noise.
 
-`script` (Ollama, GPU) -> `audio` (Qwen3-TTS, GPU, caption alignment on CPU) -> `images` (ComfyUI, GPU) -> `assets` (CPU) -> `render` (Remotion, CPU) -> quality gate -> `upload` (MinIO).
+| Run | Code | Result | Total | Script | Audio | Images | Render |
+|---|---|---|---|---|---|---|---|
+| 1 | production worker, cold (services stopped) | completed | 12.8 min | 157 s | 394 s (4.05x real time) | 78 s | 129 s |
+| 3 | this branch, sampler on, warm | completed, quality gate passed | 12.6 min | 198 s | 376 s (4.45x) | 63 s | ~113 s |
+| 2 | this branch | **failed** at render (see section 6) | n/a | | | | |
+| 4 | this branch | **invalid, cancelled** (another process interfered, section 6) | n/a | 57 s | | | |
 
-`VIDEO_WORKER_CONCURRENCY=1`. The course-video worker is a separate process sharing the GPU through the Redis lease.
+Run 1 to run 3 is 12.8 to 12.6 min: no measurable change, and none is claimed. Audio is about half of active time in both.
+Run 1's script and audio overlapped my own test runs; treat it as indicative.
 
-## 3. Baseline: 13 completed jobs (scripts/perfAudit.js, read-only)
+Measured peaks, run 3 (machine-wide, so they include everything else open: browser, editor, this tool):
 
-| Stage | Holds | Mean | Median | Max | Share of active time |
-|---|---|---|---|---|---|
-| SCRIPT_GENERATION | GPU (Ollama) | 61.8 s | 57.9 s | 1.8 m | 5.9% |
-| GENERATING_AUDIO | GPU (TTS) + CPU alignment | 8.3 m | 7.3 m | 30.0 m | **47.9%** |
-| GENERATING_IMAGES | GPU (ComfyUI) | 3.7 m | 1.9 m | 18.9 m | **21.3%** |
-| PREPARING_ASSETS | CPU / disk | 13 s | 7 s | 82 s | 1.2% |
-| RENDERING | CPU (Remotion) | 4.1 m | 2.1 m | 12.0 m | **23.4%** |
-| UPLOADING | network / disk | 2.8 s | 0.7 s | 25 s | 0.3% |
+| Stage | VRAM at stage start | VRAM peak | RAM peak (of 15.9 GB) | CPU avg / peak |
+|---|---|---|---|---|
+| script | 3972 MiB | 5834 MiB | 16.1 GB | 13% / 34% |
+| audio | 5834 MiB | 5900 MiB (of 6144) | 14.5 GB | 24% / 49% |
+| images | 5846 MiB | 5846 MiB | 14.2 GB | 22% / 37% |
+| render | 4059 MiB | 4084 MiB | 15.3 GB | up to 100% peak |
 
-Active total about 17.4 m mean. Queue wait: median 0.2 s (mean 32 s, one 6.4 m outlier). Jobs are 3 to 6 scenes, all 1080p.
+Reading: the card is within about 250 MiB of full during the three GPU stages, so there is no room to overlap a second GPU model.
+RAM is close to exhausted by the whole machine, which is why the low-memory profile exists.
 
-Caveats: the spread is wide (max values are 4 to 9x the median), the history mixes code versions, and only one
-job in the current log has TTS timing (3 scenes, 63 s of audio in 238 s, about 3.8x real time; one job is an anecdote, not a benchmark).
-Of the 18 recorded retries, none are in the 8 most recent completed jobs, so retries are not a current bottleneck.
+Remotion `--concurrency` sweep (3-scene 1080p, idle machine, one sample each): 2 = 43.2 s (+1.4 GB RAM), 4 = 38.5 s (+1.8 GB),
+6 = 38.1 s (+2.1 GB), 12 = 37.5 s (+2.9 GB). Beyond 4 the gain is within noise. Pre-bundling Remotion saves about 1.4 s a render (about 1%), so it was dropped.
 
-## 4. Findings (verified), most valuable first
+## 3. Findings
 
-1. **No per-stage resource data exists.** The scheduler admits on 5000 MB estimates and nothing records real VRAM, RAM or CPU during a stage. Every profile or concurrency decision in the brief needs this first. *Addressed in section 6.*
-2. **Audio is about half the active time and is GPU-bound.** Alignment is already pipelined with the next scene's synthesis (`sceneSynthesis.js`), so the remaining lever is the TTS itself (chunk size, warm model, cache hits), not scheduling.
-3. **Within one job there is no safe overlap left.** TTS and ComfyUI both need the GPU (the 6 GB card fits one), render needs all audio and images, and alignment already overlaps. A per-scene DAG would not shorten wall time (this is why the graph was parked).
-4. **The remaining overlap is across jobs**: job N+1's GPU stages while job N renders on the CPU. Untested. The risk is that TTS and Remotion compete for the same 12 threads, so it must be measured before changing `VIDEO_WORKER_CONCURRENCY`.
-5. **Remotion bundling is not worth optimising.** Measured: pre-bundling saves about 1.4 s per render (6.0 s to 4.6 s on a 3 s clip, warm webpack cache; first-ever bundle about 4 s). Against a 2.1 m median render that is about 1%. Not pursued.
-6. **Image generation (21%, mean 3.7 m) is unexamined.** ComfyUI version, workflows and cache hit rate were not inspected yet.
+1. **Orphaned VRAM stalls the next job for up to 2 minutes.** In run 3, 123 s of the 198 s script stage was the scheduler waiting for VRAM
+   "held by another application" (1983 MiB free, 4000 needed). The holder was ComfyUI, an always-on service whose models stay resident
+   after the worker that used it was killed. The real LLM work was 32 s load plus about 41 s inference. In run 4 (no orphan) the same
+   stage took 57 s. This is 16% of run 3's total. **Fixed in code, not yet verified live** (section 5).
+2. **Audio (TTS) is about half of active time**, GPU-bound, alignment already overlaps the next scene. No change made; component profiling of TTS chunk size and the faster-whisper model was not done.
+3. **No safe overlap remains inside one job.** The remaining idea is overlapping the next video's GPU stages with this one's render.
+   `scripts/benchOverlap.js` measures it; **it has not been run**, so the worker concurrency is unchanged.
+4. A second stack's boot-time recovery sweep re-queues another stack's in-flight job (the database is shared). See section 6.
 
-## 5. Baseline measurement plan (needs your go-ahead)
+## 4. What was added
 
-Running real jobs writes to your live Atlas DB and holds the GPU for tens of minutes, so I have not done it.
+- **Per-stage resource sampling** (`services/pipeline/resourceSampler.js`): machine-wide VRAM (nvidia-smi), RAM, CPU every 3 s while a stage runs, saved to `VideoJob.stages.<key>.resources`. `null` means not measured, never 0. Cost: one nvidia-smi call is about 51 ms, under 2% of a core. Skipped for stages that reused stored output; a retried job keeps measurements only for the stages it re-ran.
+- **Benchmark tooling**: `scripts/benchPipeline.js` (run one real video, store a `PerfBenchmark` record with hardware, model and workflow versions, settings, per-stage time and memory, cache change, quality-gate verdict; `--list`, `--compare a b`), `scripts/benchOverlap.js`, `scripts/perfAudit.js` (now prints per-stage memory), shared `scripts/lib/benchComposition.js`.
+- **Analysis** (`services/perf/*`): slowest-stage explanation quoting only measured facts, before/after comparison that refuses to call runs comparable when the amount of work differs by more than a third.
+- **Profiles** (`config/perfProfiles.js`, `PERF_PROFILE`): `balanced` (default, changes nothing), `low-memory` (render uses 2 tabs, about 13% slower, 0.7 GB less RAM), `throughput` (4 tabs, within noise of the default, 0.3 GB less RAM, no speed-up of its own), `preview` (advertises draft quality and the 0.6B voice for drafts only). Every set knob carries its evidence; knobs with no measurement are listed as unmeasured, not given values. A profile never changes output quality. `REMOTION_CONCURRENCY` overrides it. The recommendation (low-memory when under 3 GB RAM is free) is advice only and the threshold is a judgement.
+- **API**: `GET /api/system/perf-profile`, `GET /api/analytics/benchmarks`, `GET /api/analytics/benchmarks/compare?before=&after=`; the control-center response gains per-stage `resources` and a `bottleneck`.
+- **UI** (Analytics page): peak VRAM / RAM / CPU columns and a slowest-stage note in the timing table, plus a Performance panel (active profile with evidence, benchmark history, before/after). Component tests pass; **not yet looked at in a browser**.
+- **GPU scheduler fix**: before waiting out foreign VRAM, ask idle services to drop their models once (only with `GPU_COORDINATOR=redis`, i.e. when the line proved nobody else is using the card).
+- **`VIDEO_QUEUE_PREFIX`** (unset by default): gives a dev API + worker a private queue so benchmarks do not race the production worker.
 
-Proposed: one fixed 4-scene 1080p script with images on, run 3 times, first run cold and the next two warm, via the normal API.
-Per run the pipeline now records, per stage: duration, peak VRAM, VRAM baseline, peak RAM, CPU peak and average.
-`node scripts/perfAudit.js` prints them. Later changes are compared against the same script. Report medians, not best runs.
+## 5. Setup, configuration, rollback
 
-## 6. What changed in this step
+| Setting | Default | Effect | Rollback |
+|---|---|---|---|
+| `PIPELINE_RESOURCE_SAMPLING` | on | per-stage memory sampling | `=false` |
+| `PIPELINE_RESOURCE_SAMPLE_MS` | 3000 (min 1000) | sample interval | unset |
+| `PERF_PROFILE` | balanced | see section 4 | unset |
+| `REMOTION_CONCURRENCY` | unset | Chrome tabs per render | unset |
+| `VIDEO_QUEUE_PREFIX` | unset | private queue for dev benchmarks; API and worker must agree | unset |
 
-Per-stage resource sampling, behaviour-neutral:
+New database field is additive (`stages.<key>.resources`, collection `perfbenchmarks`); nothing is migrated and nothing is deleted. The scheduler fix has no switch: revert `GpuScheduler.js` `_waitForMemory` and `GPUResourceManager.reclaimUnownedModels` to undo it.
 
-- `services/pipeline/resourceSampler.js` samples machine-wide VRAM (nvidia-smi), RAM and CPU every 3 s while a stage runs.
-  Unavailable readings are `null`, never 0. It never throws into the stage, never overlaps its own reads, and its timer is unref'd.
-- `stageRunner` starts/stops it per stage; `stageTracker` persists it to `VideoJob.stages.<key>.resources` on completion, failure and cancellation. A reused stage records nothing; a new attempt clears the old record.
-- `config.pipeline.resourceSampling`: `PIPELINE_RESOURCE_SAMPLING=false` disables it, `PIPELINE_RESOURCE_SAMPLE_MS` sets the interval (minimum 1000). Always off under Jest.
-- `scripts/perfAudit.js` prints a per-stage resource table (`n/a` where not measured).
+Run a benchmark: start the API and video worker, then `node scripts/benchPipeline.js --label baseline`. It creates a normal job in the database the API uses.
+Do it on a quiet machine: nothing else generating, no other worker running.
 
-Rollback: set `PIPELINE_RESOURCE_SAMPLING=false`. The new field is additive and optional; no migration; old jobs are unaffected.
+## 6. Troubleshooting (all hit while measuring)
 
-Cost, measured: one `nvidia-smi` query is about 51 ms wall; at 3 s that is under 2% of one core. In a 12 s real-machine run the sampler recorded VRAM 761 MiB baseline (matches `nvidia-smi`), RAM and CPU readings.
+- **Render fails with `ECONNREFUSED 192.168.1.2:9000`**: the dev `backend/.env` has `MINIO_PUBLIC_URL=http://192.168.1.2:9000` but this PC's LAN address is now `192.168.1.3`, and Remotion downloads assets from that URL. Update it (or use `http://127.0.0.1:9000`). I did not edit your `.env`; the benchmark runs overrode it from outside the repo.
+- **A benchmark job ran on the production worker**: the production workers (scheduled tasks, `vireon-prod` clone) share the Redis queue. Use `VIDEO_QUEUE_PREFIX` on both the dev API and worker. Production only gets this code after you push and deploy.
+- **A job is marked "interrupted by a server restart" while still running**: any process that starts and runs the recovery sweep (including `npm run dev`) treats in-flight jobs in the shared database as orphaned and re-queues them, and the duplicate-task guard then fails the second attempt (`GPU_DUPLICATE`). Do not start a second stack while a job is running.
+- **Port 3000 busy**: a benchmark API from this work is still running; stop the `node ... src/server.js` process.
 
-Not verified: a real job end to end through the worker with sampling on (no job was run), and the Socket.IO `stageUpdate` payload now carries `resources` (small, but the frontend ignores unknown fields; not exercised in a browser).
+## 7. Not done / not verified
 
-## 7. Next steps, in order
-
-1. Run the section 5 baseline (needs approval).
-2. Read the VRAM/RAM data. If peak VRAM during TTS or ComfyUI is well under 6 GB, only then revisit the 5000 MB estimates and the cross-job overlap in finding 4.
-3. Inspect ComfyUI (version, `workflows/`, cache hits) and the TTS settings against that baseline.
-4. Surface the resources in the Analytics control center (Phase 5), once real data exists to show.
+- The scheduler fix has unit tests (including a mutation check) but was **not verified live**: a run reproducing the orphaned-VRAM case after a worker crash was planned and not run.
+- `benchOverlap.js` not run, so no conclusion on overlapping jobs and no concurrency change.
+- No clean second baseline of the production code, so there is no before/after speed comparison and the 20% target is neither met nor shown to be reachable. The only measured avoidable cost is finding 1 (16% in that scenario, none in a normal run).
+- ComfyUI version and workflows not inspected; ComfyUI, TTS chunk size and faster-whisper not profiled independently; the draft-preview time saving not measured; no cache-key changes.
+- UI not viewed in a browser.
