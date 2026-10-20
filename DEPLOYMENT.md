@@ -224,6 +224,36 @@ Audio Studio runs inside the API container, which cannot launch GPU apps, so Qwe
 - Workers reuse the running server and only spawn their own when nothing answers on :7860.
 - Error "Qwen3-TTS is not running and TTS_AUTO_START=false": the task is down. `Start-ScheduledTask VireonTTS`.
 
+## 8f. Offline page (when the server is down)
+Vireon shows its own "Can't reach the server" screens instead of the browser's error page. Three layers, from
+inside out - each covers a different failure:
+
+| Failure | What users see | Where it lives |
+|---|---|---|
+| **API down**, frontend up (backend container stopped/restarting, dev API crashed) | Full-area "Can't reach the Vireon server" screen over the app, auto-retry, "View last loaded data" to keep reading. The page underneath stays mounted, so unsaved edits are not lost. API errors from nginx are JSON (`503 {"message": ...}`), so toasts say something useful. | `frontend/src/lib/useBackendStatus.js`, `components/ServerUnreachable`, `layout/AppShell.jsx`, `error_page` in `frontend/nginx.conf` |
+| **Frontend down** after the app was opened once on this browser (dev server stopped, frontend container down) | `offline.html`: branded page that polls and reloads itself the moment the app answers. | `frontend/public/sw.js` + `offline.html` (service worker; only https or `localhost`, only after a first visit) |
+| **Frontend / Docker down**, any visitor, first visit included | The same `offline.html`, served by the gate. Without the gate Tailscale shows a bare 502. | `deploy/fallback-gate.cjs` (task `VireonGate`) |
+
+Preview the page any time at `/offline.html`. It follows the app's saved light/dark theme.
+
+### Turning on the gate (one-time, prod PC)
+The gate is a dependency-free Node proxy: Tailscale Serve -> **gate `127.0.0.1:8081`** -> nginx `127.0.0.1:8080`.
+It forwards everything unchanged (video ranges, socket.io WebSockets) and only answers itself when nginx is unreachable.
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\install-workers.ps1    # registers VireonGate (safe to re-run)
+Start-ScheduledTask VireonGate
+Invoke-WebRequest http://127.0.0.1:8081/__gate/health -UseBasicParsing   # gate alive -> 200 "ok"
+tailscale serve --bg --https=443 http://127.0.0.1:8081                   # point Serve at the gate
+```
+Undo: `tailscale serve --bg --https=443 http://127.0.0.1:8080` (Serve straight to nginx again). The gate is optional:
+if it is not running and Serve points at it, Tailscale shows its own 502, so keep the task at logon (it is
+registered with restart-on-failure like the workers). Env overrides: `GATE_PORT`, `GATE_UPSTREAM_PORT`, `GATE_PAGE`.
+The path-scoped Funnel for `/api/social/media` (port 8443) keeps pointing at nginx directly and is not affected.
+
+### Changing the page
+Edit `frontend/public/offline.html` and bump `VERSION` in `frontend/public/sw.js` so browsers refetch the cached copy.
+The gate reads the file from disk on each outage; the container image serves its own copy from the build.
+
 ## 9. Troubleshooting
 - **Videos/audio show 502 Bad Gateway on `/media/...`:** MinIO is not running. It is the `VireonMinio` scheduled task
   (starts at logon, ~10 s to come up). Check `Get-ScheduledTask VireonMinio`, then `Start-ScheduledTask VireonMinio`.

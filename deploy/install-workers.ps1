@@ -6,6 +6,7 @@
    VireonMinio                              MinIO object storage (start at logon)
    VireonComfyUI                            ComfyUI, headless, 127.0.0.1:8188 (start at logon)
    VireonTTS                                Qwen3-TTS (Audio Studio), 127.0.0.1:7860 (start at logon)
+   VireonGate                               fallback proxy 127.0.0.1:8081 -> nginx :8080; shows the Vireon offline page when nginx/Docker is down
    VireonWatchdog                           every 2 min: health checks, auto-restart, alerts
    VireonBackup                             nightly 03:00
    VireonDeployPoll                         every 1 min: pull-based deploy
@@ -101,6 +102,13 @@ if ((Test-Path $ttsPython) -and (Test-Path (Join-Path $ttsRoot 'app.py'))) {
 } else {
   Write-Host "Qwen3-TTS not found at $ttsRoot - VireonTTS not registered; Audio Studio stays off."
 }
+
+# Fallback gate (deploy\fallback-gate.cjs): a dependency-free proxy in front of nginx. Registering
+# it changes nothing by itself - Tailscale keeps pointing at :8080 until you run the one command in
+# DEPLOYMENT.md ("Offline page") to point Serve at :8081. Then, if Docker or the frontend container
+# is down, visitors get Vireon's own offline page (which reconnects automatically) instead of
+# Tailscale's bare 502.
+Register 'VireonGate' (New-HiddenAction $node 'deploy\fallback-gate.cjs' $repo) (New-ScheduledTaskTrigger -AtLogOn -User $user) (New-ServiceSettings)
 
 # Watchdog: every 2 minutes.
 Register 'VireonWatchdog' (New-HiddenAction 'powershell.exe' "$psArgs -File `"$PSScriptRoot\watchdog.ps1`"" $repo) `

@@ -428,7 +428,7 @@ export const getRecentLogs = (limit = 300) => api.get('/api/logs/recent', { para
 
 // ─── Health ────────────────────────────────────────────────────────────────────
 
-export const getHealth = () => api.get('/health');
+export const getHealth = (config) => api.get('/health', config);
 
 // Build stamp ({ version, commit, ... }) - the only system-info call that is safe to show anywhere.
 export const getApiVersion = () => api.get('/api/version');
