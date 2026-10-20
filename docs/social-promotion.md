@@ -167,6 +167,19 @@ server {
 }
 ```
 
+**Tailscale Funnel (what the prod PC uses).** Funnel is per port, so keep the private app on 443 and publish a
+*path-scoped* handler on a second Funnel port (443, 8443 or 10000 are allowed). Every other path on that port answers 404:
+
+```bash
+tailscale funnel --bg --https=8443 --set-path=/api/social/media http://127.0.0.1:8080/api/social/media
+# then SOCIAL_PUBLIC_MEDIA_BASE_URL=https://<machine>.<tailnet>.ts.net:8443  (vireon-prod/.env AND vireon-prod/backend/.env)
+# restart the API container and the VireonSocialWorker task so both read it
+tailscale funnel --https=8443 off   # to undo
+```
+
+Check from outside: `/`, `/api/health` and `/api/social/accounts` on `:8443` must return 404; only
+`/api/social/media/<valid token>/<file>` serves a file. Never run `tailscale funnel` on port 443 or without `--set-path`.
+
 A Cloudflare Tunnel with a path-restricted ingress rule does the same job. Without this setting, Threads media posts and
 Instagram image posts are **refused up front with an explanation**; Facebook posts and Threads text posts still work.
 

@@ -5,10 +5,12 @@ import Topbar from "./Topbar";
 import CommandPalette from "./CommandPalette";
 import LogDrawer from "../components/LogDrawer";
 import { LoadingState, ErrorBoundary } from "../components";
+import { ServerUnreachable, ServerUnreachableBanner } from "../components/ServerUnreachable";
 import { cn } from "../components/ui/cn";
 import { SidebarContext } from "../shared/sidebarContextValue";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { useJobNotifications } from "../lib/useJobNotifications";
+import { useBackendStatus } from "../lib/useBackendStatus";
 import { useEscapeKey, useLockBodyScroll } from "../components/ui/hooks";
 
 const Overview = lazy(() => import("../pages/dashboard"));
@@ -50,6 +52,16 @@ const AppShell = () => {
   // the user is, if they have not turned that off in Settings.
   useJobNotifications();
 
+  // When the API stops answering, say so once, in one place, instead of every page
+  // failing in its own way. The routed page stays mounted underneath (just inert) so
+  // unsaved edits survive the outage; "View last loaded data" tucks the screen away
+  // for this outage only - a new outage shows it again.
+  const backend = useBackendStatus();
+  const [dismissedOutage, setDismissedOutage] = useState(null);
+  const backendDown = backend.status === "down";
+  const outageDismissed = backendDown && dismissedOutage === backend.downSince;
+  const showOutageScreen = backendDown && !outageDismissed;
+
   const [collapsed, setCollapsed] = useState(false);
   // The drawer is remembered as "opened at <pathname>", so navigating
   // anywhere (or growing past the breakpoint) closes it without an effect.
@@ -89,8 +101,11 @@ const AppShell = () => {
         <Topbar collapsed={isDesktop ? effectiveCollapsed : !drawerOpen} onToggle={toggleSidebar} isDrawer={!isDesktop} />
         <CommandPalette />
 
-        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 p-4 outline-none sm:p-6">
-          <div key={location.pathname} className="mx-auto w-full max-w-[1600px] animate-fade-in">
+        <main id="main-content" tabIndex={-1} className="relative min-w-0 flex-1 p-4 outline-none sm:p-6">
+          {outageDismissed && (
+            <ServerUnreachableBanner checking={backend.checking} nextCheckAt={backend.nextCheckAt} onRetry={backend.retry} />
+          )}
+          <div key={location.pathname} inert={showOutageScreen} className="mx-auto w-full max-w-[1600px] animate-fade-in">
             {/* Inside the layout, not around it: a page crash keeps the
                 sidebar, top bar and log drawer alive so the user can
                 navigate away instead of hitting a blank screen. Resets on
@@ -130,6 +145,17 @@ const AppShell = () => {
               </Suspense>
             </ErrorBoundary>
           </div>
+          {showOutageScreen && (
+            <ServerUnreachable
+              kind={backend.kind}
+              checking={backend.checking}
+              nextCheckAt={backend.nextCheckAt}
+              downSince={backend.downSince}
+              failures={backend.failures}
+              onRetry={backend.retry}
+              onDismiss={() => setDismissedOutage(backend.downSince)}
+            />
+          )}
         </main>
       </div>
 

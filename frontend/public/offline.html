@@ -1,0 +1,566 @@
+<!doctype html>
+<!--
+  Vireon "can't reach the server" page. Completely self-contained (inline CSS +
+  JS, no bundle, no API) because it is shown precisely when nothing else works.
+
+  Served from three places, always with HTTP 503:
+    1. frontend/public/sw.js    - the service worker answers a failed page load with this
+                                  (dev server stopped, prod frontend container down).
+    2. deploy/fallback-gate.cjs - the host-level gate in front of nginx answers with it
+                                  when nothing listens on :8080.
+    3. directly at /offline.html - handy for previewing the design.
+
+  It polls the page it replaced and reloads itself the moment the server is back.
+  The status must stay non-2xx: the poll treats `res.ok` as "the app is back".
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="robots" content="noindex" />
+    <title>Vireon AI - offline</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2309090B%22%2F%3E%3Cg%20transform%3D%22translate%284.48%204.48%29%20scale%280.86%29%22%3E%3Cpath%20d%3D%22M4%2014L21%2014L31%2033L31%2058Z%22%20fill%3D%22%237C3AED%22%2F%3E%3Cpath%20d%3D%22M60%206L43%206L33%2025L33%2050Z%22%20fill%3D%22%23A78BFA%22%2F%3E%3Cpath%20d%3D%22M30%208Q31.12%2013.88%2037%2015Q31.12%2016.12%2030%2022Q28.88%2016.12%2023%2015Q28.88%2013.88%2030%208Z%22%20fill%3D%22%23FFFFFF%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0e;
+        --surface: #111116;
+        --surface-hover: #17171d;
+        --text: #ececf1;
+        --text-2: #a3a3b1;
+        --text-3: #8a8a99;
+        --border: #24242d;
+        --border-strong: #34343f;
+        --accent: #7857f7;
+        --accent-hover: #6d4cf2;
+        --accent-fg: #a78bfa;
+        --danger: #e5484d;
+        --success: #1fa971;
+        --glow: rgb(120 87 247 / 0.16);
+      }
+      :root.light {
+        color-scheme: light;
+        --bg: #f6f6f9;
+        --surface: #ffffff;
+        --surface-hover: #f2f2f6;
+        --text: #18181b;
+        --text-2: #52525b;
+        --text-3: #666672;
+        --border: #e4e4e7;
+        --border-strong: #d4d4d8;
+        --accent-fg: #5b3fef;
+        --glow: rgb(120 87 247 / 0.1);
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px 16px;
+        background:
+          radial-gradient(60rem 30rem at 50% -10%, var(--glow), transparent 70%),
+          var(--bg);
+        color: var(--text);
+        font: 15px/1.5 Inter, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* --- Animated backdrop: slow aurora blobs + a drifting node network (canvas, see script) --- */
+      .bg { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+      .bg canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .aurora span {
+        position: absolute;
+        width: 46vmax;
+        height: 46vmax;
+        border-radius: 50%;
+        filter: blur(70px);
+        opacity: 0.75;
+        will-change: transform;
+      }
+      .aurora span:nth-child(1) { left: -12vmax; top: -16vmax; background: radial-gradient(closest-side, var(--glow), transparent); animation: drift-a 13s ease-in-out infinite alternate; }
+      .aurora span:nth-child(2) { right: -14vmax; bottom: -18vmax; background: radial-gradient(closest-side, rgb(59 130 246 / 0.12), transparent); animation: drift-b 17s ease-in-out infinite alternate; }
+      .aurora span:nth-child(3) { left: 30%; top: 40%; width: 34vmax; height: 34vmax; background: radial-gradient(closest-side, rgb(229 72 77 / 0.07), transparent); animation: drift-c 10s ease-in-out infinite alternate; }
+      @keyframes drift-a { to { transform: translate(18vmax, 12vmax) scale(1.15); } }
+      @keyframes drift-b { to { transform: translate(-16vmax, -10vmax) scale(1.2); } }
+      @keyframes drift-c { to { transform: translate(-10vmax, 8vmax) scale(0.85); } }
+      /* Sonar: rings leave the card and fade out, like the page is pinging for a signal. */
+      .sonar { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+      .sonar i {
+        position: absolute;
+        left: -22vmin;
+        top: -22vmin;
+        width: 44vmin;
+        height: 44vmin;
+        border-radius: 50%;
+        border: 1.5px solid var(--accent-fg);
+        opacity: 0;
+        animation: ping 6s cubic-bezier(0.1, 0.6, 0.3, 1) infinite;
+      }
+      .sonar i:nth-child(2) { animation-delay: 2s; }
+      .sonar i:nth-child(3) { animation-delay: 4s; }
+      @keyframes ping { 0% { transform: scale(0.5); opacity: 0.5; } 100% { transform: scale(3.4); opacity: 0; } }
+
+      /* Film frames drifting upward: tiny video thumbnails, because that is what Vireon makes. */
+      .frames b {
+        position: absolute;
+        left: var(--x);
+        bottom: -90px;
+        width: calc(64px * var(--s));
+        aspect-ratio: 16 / 10;
+        border: 1.5px solid var(--accent-fg);
+        border-radius: 8px;
+        opacity: 0;
+        animation: float-up var(--d) linear var(--dl) infinite;
+        will-change: transform, opacity;
+      }
+      .frames b::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-35%, -50%);
+        border-style: solid;
+        border-width: 6px 0 6px 10px;
+        border-color: transparent transparent transparent var(--accent-fg);
+      }
+      @keyframes float-up {
+        0% { transform: translateY(0) rotate(var(--r0)); opacity: 0; }
+        12% { opacity: 0.38; }
+        85% { opacity: 0.38; }
+        100% { transform: translateY(-125vh) rotate(var(--r1)); opacity: 0; }
+      }
+      /* When the server answers, everything turns green. */
+      .is-back .sonar i, .is-back .frames b { border-color: var(--success); }
+      .is-back .frames b::after { border-left-color: var(--success); }
+      .is-back .sonar i { animation-duration: 1.6s; }
+
+      /* Soft vignette keeps the network from competing with the card. */
+      .bg::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(70% 60% at 50% 50%, transparent 30%, var(--bg) 100%);
+        opacity: 0.4;
+      }
+
+      main {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 460px;
+        padding: 36px 32px 28px;
+        text-align: center;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: 0 20px 40px -12px rgb(0 0 0 / 0.38);
+        animation: rise 240ms cubic-bezier(0, 0, 0.2, 1) both;
+      }
+      @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 22px;
+        font-weight: 600;
+        font-size: 14px;
+        letter-spacing: 0.01em;
+        color: var(--text-2);
+      }
+      .brand svg { flex: none; }
+      .brand .spark { fill: var(--text); }
+
+      /* Flatline with a heartbeat that never quite lands: "alive, but no signal". */
+      .signal { display: block; width: 168px; height: 56px; margin: 0 auto 18px; }
+      .signal path { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .signal .base { stroke: var(--border-strong); }
+      .signal .beat {
+        stroke: var(--accent-fg);
+        stroke-dasharray: 90 170;
+        animation: sweep 2.4s ease-in-out infinite;
+      }
+      @keyframes sweep { from { stroke-dashoffset: 170; } to { stroke-dashoffset: -90; } }
+
+      h1 { margin: 0 0 6px; font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+      .lede { margin: 0 auto; max-width: 36ch; color: var(--text-2); font-size: 14px; }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 22px 0 4px;
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface-hover);
+        color: var(--text-2);
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex: none; }
+      .status.checking .dot { background: var(--accent-fg); animation: pulse 1s ease-in-out infinite; }
+      .status.back .dot { background: var(--success); }
+      @keyframes pulse { 50% { opacity: 0.3; } }
+
+      .meta { margin: 6px 0 0; color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+      .actions { display: flex; justify-content: center; gap: 8px; margin-top: 22px; }
+      button {
+        height: 36px;
+        padding: 0 16px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 150ms, border-color 150ms;
+      }
+      button:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+      button.primary { background: var(--accent); border-color: transparent; color: #fff; }
+      button.primary:hover { background: var(--accent-hover); }
+      button:disabled { opacity: 0.6; cursor: default; }
+      button:focus-visible { outline: 2px solid var(--accent-fg); outline-offset: 2px; }
+
+      details { margin-top: 22px; text-align: left; border-top: 1px solid var(--border); padding-top: 14px; }
+      summary { cursor: pointer; color: var(--text-2); font-size: 13px; font-weight: 500; list-style: none; text-align: center; }
+      summary::-webkit-details-marker { display: none; }
+      summary:hover { color: var(--text); }
+      .tips { margin: 12px 0 0; padding-left: 18px; color: var(--text-2); font-size: 13px; }
+      .tips li + li { margin-top: 6px; }
+      code {
+        padding: 1px 5px;
+        border-radius: 5px;
+        background: var(--surface-hover);
+        border: 1px solid var(--border);
+        font: 12px ui-monospace, "Cascadia Mono", "JetBrains Mono", monospace;
+        color: var(--text);
+      }
+      [hidden] { display: none !important; }
+
+      @media (prefers-reduced-motion: reduce) {
+        main { animation: none; }
+        .aurora span { animation: none; }
+        .sonar i, .frames b { animation: none; opacity: 0; }
+        .signal .beat { animation: none; stroke-dasharray: none; }
+        .status.checking .dot { animation: none; }
+      }
+    </style>
+    <script>
+      // Same preference the app stores ("dark" | "light"); fall back to the OS setting.
+      try {
+        var saved = localStorage.getItem("vireon-theme");
+        var light = saved ? saved === "light" : matchMedia("(prefers-color-scheme: light)").matches;
+        if (light) document.documentElement.classList.add("light");
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div class="bg" aria-hidden="true">
+      <div class="aurora"><span></span><span></span><span></span></div>
+      <div class="sonar"><i></i><i></i><i></i></div>
+      <div class="frames"><b style="--x:6%;--s:1;--d:19s;--dl:-0s;--r0:-8deg;--r1:14deg"></b><b style="--x:17%;--s:0.7;--d:24s;--dl:-6s;--r0:12deg;--r1:-10deg"></b><b style="--x:29%;--s:1.3;--d:28s;--dl:-2s;--r0:-14deg;--r1:6deg"></b><b style="--x:41%;--s:0.8;--d:21s;--dl:-11s;--r0:6deg;--r1:-16deg"></b><b style="--x:58%;--s:1.1;--d:26s;--dl:-4s;--r0:-6deg;--r1:18deg"></b><b style="--x:70%;--s:0.7;--d:20s;--dl:-9s;--r0:10deg;--r1:-6deg"></b><b style="--x:82%;--s:1.2;--d:29s;--dl:-1s;--r0:-12deg;--r1:12deg"></b><b style="--x:93%;--s:0.9;--d:23s;--dl:-7s;--r0:8deg;--r1:-14deg"></b></div>
+      <canvas id="net"></canvas>
+    </div>
+    <main>
+      <div class="brand"><svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true"><path d="M4 14H21L31 33V58Z" fill="#7C3AED"/><path d="M60 6H43L33 25V50Z" fill="#A78BFA"/><path class="spark" d="M30 8Q31.12 13.88 37 15Q31.12 16.12 30 22Q28.88 16.12 23 15Q28.88 13.88 30 8Z"/></svg> Vireon AI</div>
+
+      <svg class="signal" viewBox="0 0 168 56" aria-hidden="true">
+        <path class="base" d="M4 28 H164" />
+        <path class="beat" d="M4 28 H60 L68 12 L80 46 L90 8 L100 28 H164" />
+      </svg>
+
+      <h1 id="title">Can’t reach Vireon</h1>
+      <p class="lede" id="lede">The server isn’t responding. It may be restarting or switched off.</p>
+
+      <div class="status checking" id="status" role="status" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span><span id="status-text">Checking…</span>
+      </div>
+      <p class="meta" id="meta"></p>
+
+      <div class="actions">
+        <button class="primary" id="retry" type="button">Retry now</button>
+      </div>
+
+      <details>
+        <summary>Troubleshooting</summary>
+        <ul class="tips" id="tips"></ul>
+      </details>
+
+      <noscript><p class="meta">Turn on JavaScript to reconnect automatically, or reload this page.</p></noscript>
+    </main>
+
+    <script>
+      // Backdrop: a slowly drifting node network with signal pulses travelling along the links.
+      // Cheap on purpose (<= 80 nodes, ~30fps, DPR capped, paused when the tab is hidden) because
+      // this page may be the only thing a struggling machine is showing. Turns green and speeds
+      // up when the poller reports the server is back.
+      (function () {
+        var canvas = document.getElementById("net");
+        var ctx = canvas && canvas.getContext && canvas.getContext("2d");
+        if (!ctx) return;
+
+        var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+        var css = getComputedStyle(document.documentElement);
+        function rgb(name, fallback) {
+          var v = (css.getPropertyValue(name) || "").trim();
+          var m = /^#([0-9a-f]{6})$/i.exec(v);
+          if (!m) return fallback;
+          var n = parseInt(m[1], 16);
+          return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        }
+        var light = document.documentElement.classList.contains("light");
+        var COLD = rgb("--accent-fg", [167, 139, 250]);
+        var OK = rgb("--success", [31, 169, 113]);
+        var LINK_ALPHA = light ? 0.34 : 0.4;
+        var MAX_LINK = 175;
+
+        var w = 0, h = 0, dpr = 1, nodes = [], pulses = [], streaks = [];
+        var mx = -9999, my = -9999, lastStreak = 0;
+        var back = false, last = 0, lastSpawn = 0;
+
+        function resize() {
+          dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+          w = window.innerWidth; h = window.innerHeight;
+          canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          var count = Math.max(34, Math.min(80, Math.round((w * h) / 13000)));
+          nodes = [];
+          for (var i = 0; i < count; i++) {
+            var a = Math.random() * Math.PI * 2, sp = 16 + Math.random() * 28; // px per second
+            nodes.push({ x: Math.random() * w, y: Math.random() * h, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 1.2 + Math.random() * 1.6 });
+          }
+          pulses = [];
+        }
+
+        function col(c, a) { return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a + ")"; }
+
+        function spawnPulse() {
+          // Pick a random node, then one of its current neighbours.
+          for (var tries = 0; tries < 12; tries++) {
+            var a = nodes[(Math.random() * nodes.length) | 0], b = nodes[(Math.random() * nodes.length) | 0];
+            if (a === b) continue;
+            var d = Math.hypot(a.x - b.x, a.y - b.y);
+            if (d < MAX_LINK) { pulses.push({ a: a, b: b, t: 0, dur: (back ? 0.5 : 0.85) + d / 260 }); return; }
+          }
+        }
+
+        function frame(now) {
+          if (!last) last = now;
+          var dt = Math.min((now - last) / 1000, 0.1);
+          last = now;
+          var tint = back ? OK : COLD;
+
+          ctx.clearRect(0, 0, w, h);
+          for (var i = 0; i < nodes.length; i++) {
+            var n = nodes[i];
+            var boost = back ? 2.2 : 1, px = 0, py = 0;
+            // The cursor pushes nearby nodes away, so the network ripples as you move.
+            var cx = n.x - mx, cy = n.y - my, cd = Math.sqrt(cx * cx + cy * cy);
+            if (cd < 150 && cd > 0.1) { var push = (1 - cd / 150) * 260; px = (cx / cd) * push; py = (cy / cd) * push; }
+            n.x += (n.vx * boost + px) * dt; n.y += (n.vy * boost + py) * dt;
+            if (n.x < -20) n.x = w + 20; else if (n.x > w + 20) n.x = -20;
+            if (n.y < -20) n.y = h + 20; else if (n.y > h + 20) n.y = -20;
+          }
+          ctx.lineWidth = 1;
+          for (var a = 0; a < nodes.length; a++) {
+            for (var b = a + 1; b < nodes.length; b++) {
+              var dx = nodes[a].x - nodes[b].x, dy = nodes[a].y - nodes[b].y, d2 = dx * dx + dy * dy;
+              if (d2 < MAX_LINK * MAX_LINK) {
+                ctx.strokeStyle = col(tint, (1 - Math.sqrt(d2) / MAX_LINK) * LINK_ALPHA);
+                ctx.beginPath(); ctx.moveTo(nodes[a].x, nodes[a].y); ctx.lineTo(nodes[b].x, nodes[b].y); ctx.stroke();
+              }
+            }
+          }
+          // Lines from the cursor to the nodes around it.
+          if (mx > -999) {
+            for (var c = 0; c < nodes.length; c++) {
+              var ddx = nodes[c].x - mx, ddy = nodes[c].y - my, dd = Math.sqrt(ddx * ddx + ddy * ddy);
+              if (dd < 190) {
+                ctx.strokeStyle = col(tint, (1 - dd / 190) * 0.5);
+                ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(nodes[c].x, nodes[c].y); ctx.stroke();
+              }
+            }
+          }
+          // Light streaks: quick diagonal comets crossing the screen now and then.
+          if (now - lastStreak > (back ? 500 : 1700) && streaks.length < 4) {
+            lastStreak = now;
+            var fromLeft = Math.random() < 0.5, sx = fromLeft ? -40 : w + 40, spd = 520 + Math.random() * 360;
+            streaks.push({ x: sx, y: Math.random() * h * 0.7, vx: (fromLeft ? 1 : -1) * spd, vy: spd * (0.25 + Math.random() * 0.3) });
+          }
+          for (var q = streaks.length - 1; q >= 0; q--) {
+            var st = streaks[q];
+            st.x += st.vx * dt; st.y += st.vy * dt;
+            if (st.x < -200 || st.x > w + 200 || st.y > h + 200) { streaks.splice(q, 1); continue; }
+            var len = Math.hypot(st.vx, st.vy), tx = st.x - (st.vx / len) * 130, ty = st.y - (st.vy / len) * 130;
+            var lg = ctx.createLinearGradient(tx, ty, st.x, st.y);
+            lg.addColorStop(0, col(tint, 0)); lg.addColorStop(1, col(tint, 0.75));
+            ctx.strokeStyle = lg; ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(st.x, st.y); ctx.stroke();
+            ctx.lineWidth = 1;
+          }
+          for (var k = 0; k < nodes.length; k++) {
+            ctx.fillStyle = col(tint, light ? 0.75 : 0.7);
+            ctx.beginPath(); ctx.arc(nodes[k].x, nodes[k].y, nodes[k].r, 0, 6.2832); ctx.fill();
+          }
+
+          // Pulses: a bright dot with a short glow riding a link.
+          if (now - lastSpawn > (back ? 80 : 260) && pulses.length < 28) { spawnPulse(); lastSpawn = now; }
+          for (var p = pulses.length - 1; p >= 0; p--) {
+            var pu = pulses[p];
+            pu.t += dt / pu.dur;
+            if (pu.t >= 1) { pulses.splice(p, 1); continue; }
+            var x = pu.a.x + (pu.b.x - pu.a.x) * pu.t, y = pu.a.y + (pu.b.y - pu.a.y) * pu.t;
+            var fade = Math.sin(pu.t * Math.PI);
+            var g = ctx.createRadialGradient(x, y, 0, x, y, 9);
+            g.addColorStop(0, col(tint, 0.9 * fade)); g.addColorStop(1, col(tint, 0));
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(x, y, 9, 0, 6.2832); ctx.fill();
+          }
+        }
+
+        resize();
+        var resizeTimer;
+        window.addEventListener("resize", function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { resize(); if (reduce) frame(performance.now()); }, 150); });
+        document.addEventListener("vireon-back", function () { back = true; document.documentElement.classList.add("is-back"); });
+        window.addEventListener("pointermove", function (e) { mx = e.clientX; my = e.clientY; }, { passive: true });
+        document.addEventListener("pointerleave", function () { mx = my = -9999; });
+
+        if (reduce) { frame(performance.now()); return; } // one still frame, no motion
+        // ~30fps: plenty for slow drift, half the work of every display refresh.
+        var skip = 0;
+        (function loop(now) {
+          requestAnimationFrame(loop);
+          if ((skip = !skip)) return;
+          frame(now);
+        })(performance.now());
+      })();
+    </script>
+
+    <script>
+      (function () {
+        var $ = function (id) { return document.getElementById(id); };
+        var statusEl = $("status"), statusText = $("status-text"), meta = $("meta"), retryBtn = $("retry");
+
+        var startedAt = Date.now();
+        var attempts = 0;
+        var lastCheckAt = null;
+        var nextAt = 0;
+        var timer = null;
+        var checking = false;
+        // Backoff in seconds: quick at first (a restart is usually seconds), then calmer.
+        var STEPS = [3, 3, 5, 5, 8, 10, 15];
+
+        // --- Environment-specific wording ---------------------------------------------
+        // Opened directly at /offline.html to look at the design: pretend every check fails
+        // (otherwise the real server answering would bounce this page away at once).
+        var isPreview = location.pathname === "/offline.html";
+        var host = location.hostname;
+        var isDev = location.port === "5173" || location.port === "5174";
+        var isTailnet = /\.ts\.net$/.test(host);
+        var tips = [];
+        if (isDev) {
+          $("lede").textContent = "The dev server isn’t running. Start it again and this page will reconnect on its own.";
+          tips.push("From the repo root run <code>npm run dev</code> (or <code>npm run dev:frontend</code> for just the UI).");
+          tips.push("Check that nothing else is using port <code>" + (location.port || "5173") + "</code>.");
+        } else if (isTailnet) {
+          $("lede").textContent = "The Vireon PC isn’t answering. It may be asleep, restarting or offline.";
+          tips.push("Make sure the Vireon PC is on and Tailscale is connected on <em>this</em> device too.");
+          tips.push("On the PC: <code>docker compose ps</code> should list <code>frontend</code> and <code>backend</code> as healthy.");
+          tips.push("If only this page is down, <code>docker compose up -d</code> brings the containers back.");
+        } else {
+          tips.push("Check that the Vireon server (or its Docker containers) is running.");
+          tips.push("Confirm this device is on the same network as the server.");
+        }
+        tips.push("This page retries automatically and opens the app as soon as the server answers.");
+        $("tips").innerHTML = tips.map(function (t) { return "<li>" + t + "</li>"; }).join("");
+
+        // --- Helpers ------------------------------------------------------------------
+        function fmt(sec) {
+          if (sec < 60) return sec + "s";
+          var m = Math.floor(sec / 60), s = sec % 60;
+          return m + "m " + (s < 10 ? "0" : "") + s + "s";
+        }
+        function clock(ts) {
+          return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        }
+        function render() {
+          var now = Date.now();
+          if (!statusEl.classList.contains("back")) {
+            if (checking) {
+              statusEl.className = "status checking";
+              statusText.textContent = "Checking now…";
+            } else {
+              statusEl.className = "status";
+              statusText.textContent = "Trying again in " + Math.max(0, Math.ceil((nextAt - now) / 1000)) + "s";
+            }
+          }
+          var parts = ["Offline for " + fmt(Math.floor((now - startedAt) / 1000))];
+          if (lastCheckAt) parts.push("last checked " + clock(lastCheckAt));
+          if (attempts) parts.push(attempts + (attempts === 1 ? " attempt" : " attempts"));
+          meta.textContent = parts.join(" · ");
+        }
+
+        // --- Probe --------------------------------------------------------------------
+        // Re-request the page this one replaced. The service worker only intercepts
+        // navigations, so this fetch reaches the real server. Any 2xx = it is back;
+        // this page itself is always served as 503 (see header comment).
+        function probe() {
+          if (checking) return;
+          checking = true;
+          clearTimeout(timer);
+          retryBtn.disabled = true;
+          render();
+
+          var ctrl = typeof AbortController === "function" ? new AbortController() : null;
+          var abort = ctrl && setTimeout(function () { ctrl.abort(); }, 4000);
+          var request = isPreview
+            ? new Promise(function (resolve) { setTimeout(function () { resolve(false); }, 600); })
+            : fetch(location.href, { cache: "no-store", credentials: "same-origin", signal: ctrl ? ctrl.signal : undefined })
+                .then(function (res) { return res.ok; }, function () { return false; });
+          request
+            .then(function (ok) {
+              clearTimeout(abort);
+              checking = false;
+              attempts += 1;
+              lastCheckAt = Date.now();
+              retryBtn.disabled = false;
+              if (ok) {
+                statusEl.className = "status back";
+                statusText.textContent = "Back online - reconnecting…";
+                document.dispatchEvent(new Event("vireon-back"));
+                setTimeout(function () { location.reload(); }, 400);
+                return;
+              }
+              schedule();
+            });
+        }
+
+        function schedule() {
+          var wait = STEPS[Math.min(attempts - 1, STEPS.length - 1)] || STEPS[0];
+          nextAt = Date.now() + wait * 1000;
+          clearTimeout(timer);
+          timer = setTimeout(probe, wait * 1000);
+          render();
+        }
+
+        retryBtn.addEventListener("click", probe);
+        window.addEventListener("online", probe);
+        document.addEventListener("visibilitychange", function () {
+          if (!document.hidden) probe();
+        });
+
+        setInterval(render, 1000);
+        // First check right away: the page often loads a moment after the server returns.
+        nextAt = Date.now();
+        probe();
+      })();
+    </script>
+  </body>
+</html>
