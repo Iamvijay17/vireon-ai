@@ -38,6 +38,25 @@ const KIND_LABELS = {
 };
 export const kindLabel = (kind) => KIND_LABELS[kind] || kind;
 
+// Why a cache lookup did not hit. `no-entry` is deliberately worded as "no match": cache keys are
+// content hashes, so a changed prompt looks exactly like a first-ever request.
+const REASON_LABELS = {
+  "no-entry": "No matching entry (new or changed inputs)",
+  "lookup-failed": "Cache lookup failed",
+  "object-missing": "Stored file was missing (entry evicted)",
+  "copy-failed": "Cached file could not be copied",
+  "inputs-changed": "Inputs changed since the last render",
+  "no-previous-render": "No earlier render to reuse",
+};
+export const reasonLabel = (reason) => REASON_LABELS[reason] || reason;
+
+/** Non-zero miss reasons, biggest first - [] when none were recorded (older entries carry no reason). */
+export const missReasons = (reasons) =>
+  Object.entries(reasons || {})
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, count]) => ({ reason, count, label: reasonLabel(reason) }));
+
 /** The status of a worker queue for display: online / offline / unavailable. */
 export const queueState = (queue) => {
   if (!queue || queue.available === false) return { label: "Unavailable", tone: "danger" };

@@ -71,7 +71,7 @@ async function render(jobId, assets, ctx, script) {
   await VideoService.updateStatus(jobId, JOB_STATUS.RENDERING);
   SocketService.emitJobProgress({ _id: jobId, progress: JOB_STEPS[JOB_STATUS.RENDERING].progress, status: JOB_STATUS.RENDERING, currentStep: JOB_STATUS.RENDERING, currentScene: 0 });
 
-  const renderIsCurrent = await RemotionService.isRenderCurrent(jobId, assets);
+  const { current: renderIsCurrent, reason: renderMissReason } = await RemotionService.renderCurrency(jobId, assets);
   // The finished video is a cached artifact too: "is this render still current?" is the
   // cache lookup. Recorded in the ledger so reuse and render time show up with the others.
   const renderLedgerKey = renderKey(assets, { quality: assets.quality });
@@ -127,7 +127,7 @@ async function render(jobId, assets, ctx, script) {
       RemotionStatus.end();
     }
 
-    cacheLedger.miss('render', renderLedgerKey);
+    cacheLedger.miss('render', renderLedgerKey, renderMissReason);
     cacheLedger.generated('render', renderLedgerKey, renderResult.durationMs);
     LoggerService.success('[Render] Video rendered successfully', { stage: 'render', ...renderResult });
     emitSpeechStage(SocketService, jobId, SPEECH_EVENTS.RENDER_COMPLETE);

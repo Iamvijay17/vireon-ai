@@ -25,6 +25,18 @@ const cacheEntrySchema = new mongoose.Schema(
     shared: { type: Number, default: 0 },
     // Times the metadata was present but the stored object was missing.
     stale: { type: Number, default: 0 },
+    // WHY a lookup did not hit (or an entry stopped being trusted): one counter per reason in
+    // CacheLedger.REASONS. Only reasons the code can actually tell apart are recorded - a
+    // content-addressed key cannot say whether its inputs changed, only that it was never stored.
+    reasons: {
+      'no-entry': { type: Number, default: 0 },
+      'lookup-failed': { type: Number, default: 0 },
+      'object-missing': { type: Number, default: 0 },
+      'copy-failed': { type: Number, default: 0 },
+      'inputs-changed': { type: Number, default: 0 },
+      'no-previous-render': { type: Number, default: 0 },
+    },
+    lastReason: { type: String, default: null },
 
     // Cost of making it: summed over every time it was generated, plus the last one.
     generations: { type: Number, default: 0 },

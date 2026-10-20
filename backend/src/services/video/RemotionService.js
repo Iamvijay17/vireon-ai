@@ -258,6 +258,15 @@ class RemotionService {
    * faster, never wrong.
    */
   static async isRenderCurrent(jobId, assetsFile) {
+    return (await this.renderCurrency(jobId, assetsFile)).current;
+  }
+
+  /**
+   * Same check as isRenderCurrent, but says WHY a render is not reusable so the cache ledger
+   * can record it: 'no-previous-render' (no video, or no fingerprint to compare with) or
+   * 'inputs-changed' (a render exists but was built from other scenes/assets).
+   */
+  static async renderCurrency(jobId, assetsFile) {
     const jobDir = path.resolve(__dirname, '../../../jobs', jobId);
     const videoPath = path.join(jobDir, 'render', 'video.mp4');
     const fingerprintPath = path.join(jobDir, '.render-fingerprint');
@@ -265,9 +274,10 @@ class RemotionService {
     try {
       await fs.access(videoPath);
       const stored = await fs.readFile(fingerprintPath, 'utf-8');
-      return stored.trim() === this._fingerprintAssets(assetsFile);
+      if (stored.trim() === this._fingerprintAssets(assetsFile)) return { current: true, reason: null };
+      return { current: false, reason: 'inputs-changed' };
     } catch {
-      return false;
+      return { current: false, reason: 'no-previous-render' };
     }
   }
 

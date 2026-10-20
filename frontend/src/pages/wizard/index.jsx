@@ -18,6 +18,7 @@ import { OutputStep } from "./OutputStep";
 import { ReviewStep } from "./ReviewStep";
 import { SummaryPanel } from "./SummaryPanel";
 import { JobCreated } from "./JobCreated";
+import { DraftPreview } from "./DraftPreview";
 
 const LAST_STEP = STEPS.length - 1;
 
@@ -176,6 +177,11 @@ const Wizard = () => {
           onViewProgress={() => navigate(`/render?id=${result.jobId}`)}
           onCreateAnother={resetForm}
           onProjects={() => navigate("/projects")}
+        />
+        <DraftPreview
+          jobId={result.jobId}
+          onOpenStudio={() => navigate(`/studio?id=${result.jobId}`)}
+          onOpenRender={() => navigate(`/render?id=${result.jobId}`)}
         />
       </div>
     );

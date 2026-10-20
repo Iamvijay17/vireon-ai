@@ -7,7 +7,7 @@ import { Table } from "../../components/ui/Table";
 import { useApiQuery } from "../../lib/useApiQuery";
 import { queryKeys } from "../../lib/queryClient";
 import { formatPercent } from "./format";
-import { showCount, showDuration, showRate, stageCoverageNote, kindLabel, queueState } from "./controlCenterFormat";
+import { showCount, showDuration, showRate, stageCoverageNote, kindLabel, queueState, missReasons } from "./controlCenterFormat";
 
 const Stat = ({ label, value, hint }) => (
   <div>
@@ -144,6 +144,19 @@ export function ControlCenter({ days }) {
             <Table rowKey="kind" data={cache.byKind} columns={CACHE_COLUMNS} className="mt-3" />
           ) : (
             <EmptyState description="No cache activity recorded in this range yet." />
+          )}
+          {missReasons(cache.total.reasons).length > 0 && (
+            <div className="px-4 pb-4 pt-3" data-testid="cache-miss-reasons">
+              <p className="text-[11px] text-text-tertiary">Why lookups did not hit</p>
+              <ul className="mt-1 space-y-0.5 text-xs text-text-secondary">
+                {missReasons(cache.total.reasons).map((r) => (
+                  <li key={r.reason} className="flex justify-between gap-3">
+                    <span>{r.label}</span>
+                    <span className="tabular-nums text-text-primary">{showCount(r.count)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </Panel>
       </div>

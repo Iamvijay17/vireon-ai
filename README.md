@@ -151,6 +151,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for the step-by-step guide.
 
 ## More documentation
 
+- [docs/windows-setup-and-recovery.md](docs/windows-setup-and-recovery.md) — day-to-day operation and recovery on the Windows PC (stuck jobs, GPU, quality gate, cache)
 - [backend/README.md](backend/README.md) — backend architecture and API notes
 - [frontend/README.md](frontend/README.md) — frontend pages and setup
 - [backend/remotion/README.md](backend/remotion/README.md) — Remotion templates

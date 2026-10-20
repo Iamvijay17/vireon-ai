@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { LoadingState } from "../../../components";
+import { LoadingState, ErrorState } from "../../../components";
 import { useSetBreadcrumbLabel } from "../../../shared/breadcrumbContextValue";
 import { useCourseWorkerStatus } from "../../../shared/useCourseWorkerStatus";
 import { Card, CardHeader } from "../../../components/ui/Card";
@@ -36,6 +36,8 @@ const CourseVideoEditor = () => {
   const [video, setVideo] = useState(null);
   useSetBreadcrumbLabel(video?.title);
   const [loading, setLoading] = useState(true);
+  // The last load failure: a 404 means the lesson is gone, anything else means it could not be reached.
+  const [loadError, setLoadError] = useState(null);
   const [editingScript, setEditingScript] = useState(false);
   const [scriptText, setScriptText] = useState("");
   const workerRunning = useCourseWorkerStatus();
@@ -54,17 +56,25 @@ const CourseVideoEditor = () => {
     try {
       const res = await getCourseVideo(videoId);
       const v = res.data.video;
+      setLoadError(null);
       setVideo(v);
       setScriptText(scriptToText(v.script));
 
       addActivity(`Status: ${v.status}`, v.updatedAt);
     } catch (err) {
+      // Stay on the page: a failed refetch must not throw away a lesson that is already on screen,
+      // and a failed first load gets an error with Retry below instead of a silent redirect.
+      setLoadError(err);
       toast.error(err.friendlyMessage || "Failed to load video");
-      navigate(`/courses/${courseId}`);
     } finally {
       setLoading(false);
     }
-  }, [videoId, courseId, navigate, addActivity]);
+  }, [videoId, addActivity]);
+
+  const retryLoad = useCallback(() => {
+    setLoading(true);
+    return fetchVideo();
+  }, [fetchVideo]);
 
   const actions = useLessonActions({
     videoId,
@@ -90,6 +100,17 @@ const CourseVideoEditor = () => {
   });
 
   if (loading) return <LoadingState label="Loading lesson…" />;
+
+  if (!video && loadError && loadError.response?.status !== 404) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-20">
+        <ErrorState message="Could not load this lesson" description={loadError.friendlyMessage || loadError.message} onRetry={retryLoad} />
+        <Button variant="secondary" onClick={() => navigate(`/courses/${courseId}`)}>
+          Back to course
+        </Button>
+      </div>
+    );
+  }
 
   if (!video) {
     return (

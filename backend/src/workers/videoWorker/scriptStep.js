@@ -8,7 +8,7 @@ const ScriptParserService = require('../../services/video/ScriptParserService');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS } = require('../../constants');
-const { bailIfCancelled, renderConfigFor } = require('./shared');
+const { bailIfCancelled, checkpoint, renderConfigFor } = require('./shared');
 const { checkSceneGraph } = require('../../services/video/sceneGraphCheck');
 
 /**
@@ -63,6 +63,9 @@ async function run(jobId, videoJob, currentStatus, ctx) {
   // and hold it across every call the Director makes, releasing only once
   // the whole script is generated - the audio step right after this one
   // will then need to wait/evict to get its turn.
+  // Captured now: runStage restores ctx.signal when the stage ends, so a Director still running
+  // after a stage timeout must keep watching the signal that timeout actually aborted.
+  const stageSignal = ctx.signal;
   const rawScript = await LocalAIService.gpu.withGPU('llm', () =>
     AIDirectorService.direct({
       videoType: videoJob.type,
@@ -77,7 +80,7 @@ async function run(jobId, videoJob, currentStatus, ctx) {
       guestVoice: videoJob.guestVoice,
       durationMinutes,
       jobId,
-      checkCancelled: () => bailIfCancelled(jobId),
+      checkCancelled: () => checkpoint(jobId, stageSignal),
       onProgress: async (chunkIndex, chunkCount, scenesGenerated) => {
         if (chunkCount <= 1) return;
         const progress = 10 + Math.round((chunkIndex / chunkCount) * 9); // 10-19%
@@ -89,7 +92,7 @@ async function run(jobId, videoJob, currentStatus, ctx) {
     // a dropped connection) is retried inside the task with the GPU released
     // while it backs off. Stop and the stage timeout both cancel a task that is
     // still waiting its turn.
-    { jobId, stage: 'script', priority: PRIORITY.NORMAL, signal: ctx.signal, retries: true }
+    { jobId, stage: 'script', priority: PRIORITY.NORMAL, signal: stageSignal, retries: true }
   );
 
   const validatedScript = ScriptParserService.validate(rawScript, videoJob.type, {

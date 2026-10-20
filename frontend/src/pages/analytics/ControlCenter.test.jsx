@@ -25,7 +25,7 @@ const data = (over = {}) => ({
     jobsWithStageData: 5, jobsWithoutStageData: 14,
   },
   cache: {
-    total: { hits: 30, misses: 10, shared: 2, stale: 1, hitRate: 75, timeSavedMs: 3_840_000 },
+    total: { hits: 30, misses: 10, shared: 2, stale: 1, hitRate: 75, timeSavedMs: 3_840_000, reasons: { "no-entry": 8, "object-missing": 1, "copy-failed": 0 } },
     byKind: [{ kind: "image", hits: 30, misses: 10, shared: 2, stale: 1, hitRate: 75, avgGenerationMs: 120_000, timeSavedMs: 3_840_000 }],
     legacyTtsHitRate: 14.2,
   },
@@ -94,6 +94,14 @@ describe("ControlCenter", () => {
     expect(root.textContent).toContain("75%");
     expect(root.textContent).toContain("Images");
     expect(root.textContent).toContain("1.1h"); // 3 840 000 ms saved
+  });
+
+  it("explains why cache lookups missed, leaving out reasons that never happened", async () => {
+    mount();
+    const reasons = await screen.findByTestId("cache-miss-reasons");
+    expect(reasons.textContent).toContain("No matching entry");
+    expect(reasons.textContent).toContain("Stored file was missing");
+    expect(reasons.textContent).not.toContain("could not be copied");
   });
 
   it("shows failure rate by stage and the top error with its message", async () => {

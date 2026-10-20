@@ -69,7 +69,7 @@ describe('image cache', () => {
 
   it('a plain miss (nothing was ever cached) is a miss, not a stale entry', async () => {
     expect(await CacheService.getImage('nope', 'job-1', 'f.png')).toBeNull();
-    expect(ledger.miss).toHaveBeenCalledWith('image', 'nope');
+    expect(ledger.miss).toHaveBeenCalledWith('image', 'nope', 'no-entry');
     expect(ledger.stale).not.toHaveBeenCalled();
     expect(MetricsService.increment).toHaveBeenCalledWith('cache.misses');
   });
@@ -79,7 +79,7 @@ describe('image cache', () => {
     expect(await CacheService.getImage('h2', 'job-1', 'img-h2.png')).toBeNull();
 
     expect(ledger.stale).toHaveBeenCalledWith('image', 'h2');
-    expect(ledger.miss).toHaveBeenCalledWith('image', 'h2');
+    expect(ledger.miss).toHaveBeenCalledWith('image', 'h2', 'object-missing');
     expect(ledger.hit).not.toHaveBeenCalled();
     expect(mockClient.removeObject).toHaveBeenCalledWith(expect.any(String), 'image/h2.json');
     expect(mockBucket.objects.has('image/h2.json')).toBe(false); // so the next lookup is a fast, honest miss
@@ -98,7 +98,7 @@ describe('image cache', () => {
     expect(await CacheService.getImage('h4', 'job-1', 'f.png')).toBeNull();
     expect(ledger.stale).not.toHaveBeenCalled();
     expect(mockClient.removeObject).not.toHaveBeenCalled();
-    expect(ledger.miss).toHaveBeenCalled();
+    expect(ledger.miss).toHaveBeenCalledWith('image', 'h4', 'copy-failed');
   });
 
   it('an unreadable sidecar is a miss, never a crash', async () => {
@@ -140,7 +140,7 @@ describe('TTS audio cache', () => {
     expect(ledger.hit).toHaveBeenCalledWith('tts', 't1');
 
     expect(await CacheService.getTtsAudio('t2', 'job-1', 'scene1.mp3')).toBeNull();
-    expect(ledger.miss).toHaveBeenCalledWith('tts', 't2');
+    expect(ledger.miss).toHaveBeenCalledWith('tts', 't2', 'no-entry');
 
     mockBucket.objects.set('tts/t3.json', Buffer.from('{"duration":1}'));
     expect(await CacheService.getTtsAudio('t3', 'job-1', 'scene1.mp3')).toBeNull();
@@ -160,7 +160,7 @@ describe('segment cache', () => {
 
   it('a miss counts under the segment kind', async () => {
     expect(await CacheService.getSegmentAudio('processed', 's2', '/tmp/s2.wav')).toBeNull();
-    expect(ledger.miss).toHaveBeenCalledWith('tts-seg-processed', 's2');
+    expect(ledger.miss).toHaveBeenCalledWith('tts-seg-processed', 's2', 'no-entry');
     expect(MetricsService.increment).toHaveBeenCalledWith('tts.segment.processed.miss');
   });
 
@@ -168,6 +168,7 @@ describe('segment cache', () => {
     mockBucket.objects.set('tts-seg/raw/s3.json', Buffer.from('{"durationMs":900}'));
     expect(await CacheService.getSegmentAudio('raw', 's3', '/tmp/s3.wav')).toBeNull();
     expect(ledger.stale).toHaveBeenCalledWith('tts-seg-raw', 's3');
+    expect(ledger.miss).toHaveBeenCalledWith('tts-seg-raw', 's3', 'object-missing');
     expect(mockBucket.objects.has('tts-seg/raw/s3.json')).toBe(false);
   });
 
@@ -188,6 +189,6 @@ describe('reference transcripts', () => {
     expect(await CacheService.getReferenceTranscript('voice1')).toBe('hello');
     expect(ledger.hit).toHaveBeenCalledWith('transcript', 'voice1');
     expect(await CacheService.getReferenceTranscript('other')).toBeNull();
-    expect(ledger.miss).toHaveBeenCalledWith('transcript', 'other');
+    expect(ledger.miss).toHaveBeenCalledWith('transcript', 'other', 'no-entry');
   });
 });
