@@ -520,6 +520,76 @@ describe('ledger and status', () => {
   });
 });
 
+describe('reclaiming orphaned models before the memory wait', () => {
+  // A model left resident by a worker that died: occupied until an idle service is asked to drop it.
+  const orphaned = (managers, { freesOn = ['comfyui'] } = {}) => {
+    let freed = false;
+    for (const name of freesOn) {
+      const original = managers[name].unload;
+      managers[name].unload = jest.fn(async () => { freed = true; await original(); });
+    }
+    return { read: jest.fn(async () => (freed ? { usedMb: 700, totalMb: 6144, freeMb: 5444 } : { usedMb: 4100, totalMb: 6144, freeMb: 2044 })) };
+  };
+  const withLine = (opts = {}) => {
+    const redis = new FakeRedis();
+    const global = new RedisTicketQueue({ client: redis, owner: 'a', ttlMs: 500, pollMs: 2 });
+    const managers = {};
+    const probe = { read: jest.fn() };
+    const proc = makeProcess({ global, probe, settings: settingsFor({ vram: { admissionTimeoutMs: opts.timeoutMs ?? 3000 } }) });
+    Object.assign(managers, proc.managers);
+    Object.assign(probe, orphaned(managers, opts));
+    return { ...proc, probe };
+  };
+
+  it('asks idle services to drop their models and goes ahead as soon as the memory is free, without waiting out the timeout', async () => {
+    const { gpu, managers, probe } = withLine();
+    const started = Date.now();
+    await gpu.withGPU('llm', async () => 'ok');
+    expect(managers.comfyui.unload).toHaveBeenCalledTimes(1);
+    expect(managers.tts.unload).toHaveBeenCalledTimes(1);
+    expect(Date.now() - started).toBeLessThan(1500); // the timeout here is 3s
+    expect(probe.read.mock.calls.length).toBeLessThanOrEqual(3);
+  });
+
+  it('only tries once per task: if the memory stays occupied it falls back to the normal bounded wait', async () => {
+    const { gpu, managers } = withLine({ freesOn: [], timeoutMs: 40 });
+    await expect(gpu.withGPU('llm', async () => 'went ahead')).resolves.toBe('went ahead');
+    expect(managers.comfyui.unload).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not touch other services without the cross-process line (nothing proves the card is not in use elsewhere)', async () => {
+    const probe = { read: jest.fn(async () => ({ usedMb: 4100, totalMb: 6144, freeMb: 2044 })) };
+    const { gpu, managers } = makeProcess({ probe, settings: settingsFor({ vram: { admissionTimeoutMs: 30 } }) });
+    await gpu.withGPU('llm', async () => {});
+    expect(managers.comfyui.unload).not.toHaveBeenCalled();
+    expect(managers.tts.unload).not.toHaveBeenCalled();
+  });
+
+  it('does not reclaim when there is enough free memory to begin with', async () => {
+    const redis = new FakeRedis();
+    const global = new RedisTicketQueue({ client: redis, owner: 'a', ttlMs: 500, pollMs: 2 });
+    const probe = { read: jest.fn(async () => ({ usedMb: 800, totalMb: 6144, freeMb: 5344 })) };
+    const { gpu, managers } = makeProcess({ global, probe });
+    await gpu.withGPU('tts', async () => {});
+    expect(managers.comfyui.unload).not.toHaveBeenCalled();
+  });
+
+  it('a service whose unload throws does not fail the task', async () => {
+    const { gpu, managers } = withLine({ timeoutMs: 60 });
+    managers.comfyui.unload = jest.fn(async () => { throw new Error('ComfyUI not answering'); });
+    await expect(gpu.withGPU('llm', async () => 'ok')).resolves.toBe('ok');
+  });
+
+  it('never unloads a model this process itself holds', async () => {
+    const { gpu, managers, probe } = withLine({ timeoutMs: 60 });
+    await gpu.acquire('llm');
+    await gpu.release('llm'); // llm stays warm here
+    probe.read.mockClear();
+    await gpu.withGPU('llm', async () => {});
+    expect(managers.llm.unload).not.toHaveBeenCalled(); // and the memory check is skipped entirely
+  });
+});
+
 describe('cross-process ordering', () => {
   /** A shared FakeLease like the one in gpuResourceManager.test.js, reduced to what these tests need. */
   class SharedLease {

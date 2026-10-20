@@ -107,6 +107,28 @@ describe('shapePipeline', () => {
     expect(p.stages.find((s) => s.key === 'render').avgMs).toBe(200_000);
   });
 
+  it('carries measured stage resources, and null (not zero) for a stage that was never measured', () => {
+    const rows = [
+      { ...stageRows[0], resourceRuns: 3, vramPeakMb: 5400, vramBaseMb: 760, vramTotalMb: 6144, ramPeakMb: 9000, cpuAvgPct: 22.46 },
+      { ...stageRows[1], resourceRuns: 0, vramPeakMb: null, ramPeakMb: null, cpuAvgPct: null },
+    ];
+    const p = shape.shapePipeline({ stageRows: rows, generationRows: [], stageDataRows: [], queueWaitMs: null });
+    expect(p.stages.find((s) => s.key === 'audio').resources).toEqual({ runs: 3, vramPeakMb: 5400, vramBaseMb: 760, vramTotalMb: 6144, ramPeakMb: 9000, cpuAvgPct: 22.5 });
+    expect(p.stages.find((s) => s.key === 'render').resources).toBeNull();
+    expect(p.stages.find((s) => s.key === 'script').resources).toBeNull();
+  });
+
+  it('keeps a missing VRAM reading null inside a measured stage (nvidia-smi absent)', () => {
+    const p = shape.shapePipeline({ stageRows: [{ ...stageRows[0], resourceRuns: 2, vramPeakMb: null, ramPeakMb: 8000, cpuAvgPct: null }], generationRows: [], stageDataRows: [], queueWaitMs: null });
+    expect(p.stages.find((s) => s.key === 'audio').resources).toMatchObject({ runs: 2, vramPeakMb: null, ramPeakMb: 8000, cpuAvgPct: null });
+  });
+
+  it('names the stage that dominates the averages as the bottleneck, none when nothing ran', () => {
+    const p = shape.shapePipeline({ stageRows, generationRows: [], stageDataRows: [], queueWaitMs: null });
+    expect(p.bottleneck).toMatchObject({ stage: 'render' });
+    expect(shape.shapePipeline({ stageRows: [], generationRows: [], stageDataRows: [], queueWaitMs: null }).bottleneck).toBeNull();
+  });
+
   it('a stage nobody has run has a null average, not zero', () => {
     const p = shape.shapePipeline({ stageRows, generationRows: [], stageDataRows: [], queueWaitMs: null });
     expect(p.stages.find((s) => s.key === 'script')).toMatchObject({ jobs: 0, avgMs: null, maxMs: null });

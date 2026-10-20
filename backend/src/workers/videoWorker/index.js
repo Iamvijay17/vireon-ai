@@ -68,6 +68,7 @@ const worker = new Worker(
   processVideoJob,
   {
     connection,
+    ...(config.videoWorker.queuePrefix ? { prefix: config.videoWorker.queuePrefix } : {}),
     // Role, environment, commit and pid - see workerIdentity.js.
     name: workerName('video'),
     // See config/index.js's videoWorker.concurrency comment - scales with

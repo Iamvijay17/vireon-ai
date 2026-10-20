@@ -14,7 +14,7 @@ jest.mock('../../src/services/video/VideoService', () => ({
 }));
 jest.mock('../../src/services/video/RemotionService', () => ({
   validateAssets: jest.fn().mockResolvedValue(),
-  isRenderCurrent: jest.fn(),
+  renderCurrency: jest.fn(),
   renderVideo: jest.fn().mockResolvedValue({ video: 'render/video.mp4' }),
 }));
 jest.mock('../../src/services/localAI/remotionStatus', () => ({ begin: jest.fn(), end: jest.fn() }));
@@ -40,7 +40,7 @@ const ctx = () => ({ currentStep: null, signal: new AbortController().signal });
 
 beforeEach(() => {
   jest.clearAllMocks();
-  RemotionService.isRenderCurrent.mockResolvedValue(false);
+  RemotionService.renderCurrency.mockResolvedValue({ current: false, reason: 'no-previous-render' });
   runVideoQualityGate.mockResolvedValue({ status: 'passed' });
 });
 
@@ -59,7 +59,7 @@ describe('renderStep.render: output quality gate', () => {
   });
 
   it('also checks a reused render - a file that survived a crash is exactly the one worth re-checking', async () => {
-    RemotionService.isRenderCurrent.mockResolvedValue(true);
+    RemotionService.renderCurrency.mockResolvedValue({ current: true, reason: null });
     await renderStep.render('job-1', assets, ctx(), script);
 
     expect(RemotionService.renderVideo).not.toHaveBeenCalled();

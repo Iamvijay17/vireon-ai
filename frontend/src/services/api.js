@@ -411,6 +411,14 @@ export const getAnalyticsOverview = (days = 30) =>
 export const getControlCenter = (days = 30) =>
   api.get('/api/analytics/control-center', { params: { days } });
 
+// Performance: stored benchmark runs (scripts/benchPipeline.js), a before/after comparison of two,
+// and the active performance profile with the evidence behind each profile's settings.
+export const getBenchmarks = (limit = 20) =>
+  api.get('/api/analytics/benchmarks', { params: { limit } });
+export const compareBenchmarks = (before, after) =>
+  api.get('/api/analytics/benchmarks/compare', { params: { before, after } });
+export const getPerfProfile = () => api.get('/api/system/perf-profile');
+
 export const getVideoMetrics = (params = {}) =>
   api.get('/api/analytics/videos', { params });
 

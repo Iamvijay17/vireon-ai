@@ -27,6 +27,8 @@ export function useStudioJob(jobId, onLoaded) {
   // refetch never blanks the editor and a missing ?id isn't stuck loading.
   const [loadedId, setLoadedId] = useState(null);
   const loading = Boolean(jobId) && loadedId !== jobId;
+  // The last fetch failure, so the page can tell "does not exist" (404) from "could not be reached".
+  const [loadError, setLoadError] = useState(null);
   const [socketStatus, setSocketStatus] = useState(() => (isConnected() ? "connected" : "disconnected"));
 
   // State is only set in the promise callbacks, so calling this from the
@@ -35,10 +37,14 @@ export function useStudioJob(jobId, onLoaded) {
     if (!jobId) return Promise.resolve();
     return getVideoJob(jobId)
       .then((res) => {
+        setLoadError(null);
         setJob(res.data.job);
         onLoaded(res.data.job.script?.scenes || []);
       })
-      .catch((err) => toast.error(err.friendlyMessage || "Failed to fetch job"))
+      .catch((err) => {
+        setLoadError(err);
+        toast.error(err.friendlyMessage || "Failed to fetch job");
+      })
       .finally(() => setLoadedId(jobId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
@@ -88,5 +94,11 @@ export function useStudioJob(jobId, onLoaded) {
     };
   }, [jobId]);
 
-  return { job, setJob, loading, socketStatus, fetchJob };
+  // Retry after a failed load: back to the loading state so the click visibly does something.
+  const retry = useCallback(() => {
+    setLoadedId(null);
+    return fetchJob();
+  }, [fetchJob]);
+
+  return { job, setJob, loading, loadError, socketStatus, fetchJob, retry };
 }

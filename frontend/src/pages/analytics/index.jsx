@@ -21,6 +21,7 @@ import { ChartCard } from "./ChartCard";
 import { VideoMetricsTable } from "./VideoMetricsTable";
 import { RecentFailures } from "./RecentFailures";
 import { ControlCenter } from "./ControlCenter";
+import { PerformancePanel } from "./PerformancePanel";
 
 const RANGE_OPTIONS = [
   { value: "7", label: "Last 7 days" },
@@ -180,6 +181,8 @@ const Analytics = () => {
       </Card>
 
       <ControlCenter days={days} />
+
+      <PerformancePanel />
 
       <VideoMetricsTable />
 

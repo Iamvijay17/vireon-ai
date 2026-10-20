@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { LoadingState, EmptyState } from "../../components";
+import { LoadingState, EmptyState, ErrorState } from "../../components";
 import ProjectWorkspaceNav from "../../components/ProjectWorkspaceNav";
 import { useSetBreadcrumbLabel } from "../../shared/breadcrumbContextValue";
 import { useUnsavedChangesGuard } from "../../lib/useUnsavedChangesGuard";
@@ -29,7 +29,7 @@ const StudioPage = () => {
   useForceSidebarCollapsed(true);
 
   const editor = useSceneEditor(jobId);
-  const { job, setJob, loading, socketStatus } = useStudioJob(jobId, editor.resetScenes);
+  const { job, setJob, loading, loadError, socketStatus, retry } = useStudioJob(jobId, editor.resetScenes);
   useSetBreadcrumbLabel(job?.topic);
 
   // Leaving with unsaved edits asks first. Navigations the editor itself makes
@@ -63,6 +63,17 @@ const StudioPage = () => {
   );
 
   if (loading) return <LoadingState label="Loading studio..." />;
+
+  // A failed fetch is not a missing project: only a 404 means it is gone.
+  if (!job && loadError && loadError.response?.status !== 404) {
+    return (
+      <ErrorState
+        message="Could not load this project"
+        description={loadError.friendlyMessage || loadError.message}
+        onRetry={retry}
+      />
+    );
+  }
 
   if (!job) {
     return <EmptyState title="Project not found" description="It may have been deleted." actionLabel="Back to My Projects" onAction={() => navigate("/projects")} />;

@@ -351,6 +351,27 @@ class GPUResourceManager {
     return !(await this._lease.isHeld(GPU_LEASE_NAME));
   }
 
+  /**
+   * Ask every service that has nothing loaded in THIS process to drop its models.
+   *
+   * VRAM can stay occupied by a model nobody here owns: ComfyUI and Qwen3-TTS run as always-on
+   * services, so when the worker that last used them is killed or crashes, their models stay
+   * resident. Only safe to call once this process knows no other Vireon process is using the
+   * card (the scheduler calls it after waiting out the cross-process line). Each unload() is
+   * the same idempotent hook eviction uses and is a no-op for a service that is not running.
+   * Returns the services asked; never throws.
+   */
+  async reclaimUnownedModels() {
+    const names = [...this.services.entries()]
+      .filter(([, entry]) => !SLOT_HOLDING_STATES.has(entry.state))
+      .map(([name]) => name);
+    await Promise.allSettled(names.map(async (name) => {
+      const { manager } = this.services.get(name);
+      if (typeof manager.unload === 'function') await manager.unload();
+    }));
+    return names;
+  }
+
   /** Nudge whoever holds the card for convenience (a warm, idle model) to hand it off. */
   async requestCard() {
     if (!this._lease || this._held) return;

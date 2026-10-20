@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { getCourseVideo, updateCourseVideoScript } from "../../services/api";
 import { templateNames } from "vireon-remotion-templates/src/templates/TemplateCategories";
-import { LoadingState, EmptyState } from "../../components";
+import { LoadingState, EmptyState, ErrorState } from "../../components";
 import { ScenePreview } from "../../components/video/ScenePreview";
 import { SceneThumbnail } from "../../components/video/SceneThumbnail";
 import { TemplatePickerModal } from "../../components/video/TemplatePickerModal";
@@ -58,6 +58,8 @@ const CourseVideoStudio = () => {
   // after a save doesn't blank the editor.
   const [loadedId, setLoadedId] = useState(null);
   const loading = loadedId !== videoId;
+  // A 404 means the lesson is gone; anything else means it could not be reached (shown with Retry).
+  const [loadError, setLoadError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [scriptMeta, setScriptMeta] = useState(null);
   const [editedScenes, setEditedScenes] = useState([]);
@@ -73,16 +75,25 @@ const CourseVideoStudio = () => {
       getCourseVideo(videoId)
         .then((res) => {
           const v = res.data.video || res.data;
+          setLoadError(null);
           setVideo(v);
           setScriptMeta(v.script || null);
           setEditedScenes(v.script?.scenes || []);
           setHasChanges(false);
           setSelectedSceneIndex(0);
         })
-        .catch((err) => toast.error(err.friendlyMessage || "Failed to load video"))
+        .catch((err) => {
+          setLoadError(err);
+          toast.error(err.friendlyMessage || "Failed to load video");
+        })
         .finally(() => setLoadedId(videoId)),
     [videoId]
   );
+
+  const retryLoad = useCallback(() => {
+    setLoadedId(null);
+    return fetchVideo();
+  }, [fetchVideo]);
 
   useEffect(() => {
     fetchVideo();
@@ -183,6 +194,10 @@ const CourseVideoStudio = () => {
   );
 
   if (loading) return <LoadingState label="Loading studio..." />;
+
+  if (!video && loadError && loadError.response?.status !== 404) {
+    return <ErrorState message="Could not load this lesson" description={loadError.friendlyMessage || loadError.message} onRetry={retryLoad} />;
+  }
 
   if (!video) {
     return <EmptyState title="Lesson not found" description="It may have been deleted." actionLabel="Back to course" onAction={() => navigate(`/courses/${courseId}`)} />;

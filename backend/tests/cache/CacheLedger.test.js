@@ -41,8 +41,22 @@ describe('writes', () => {
 
   it('a miss increments misses', () => {
     ledger.miss('tts', 'k');
-    expect(last().update.$inc).toEqual({ misses: 1 });
+    expect(last().update.$inc).toEqual({ misses: 1, 'reasons.no-entry': 1 });
     expect(last().update.$set.lastMissAt).toBeInstanceOf(Date);
+    expect(last().update.$set.lastReason).toBe('no-entry');
+  });
+
+  it('a miss records why, for every known reason', () => {
+    for (const reason of ledger.REASONS) {
+      ledger.miss('image', 'k', reason);
+      expect(last().update.$inc).toEqual({ misses: 1, ['reasons.' + reason]: 1 });
+      expect(last().update.$set.lastReason).toBe(reason);
+    }
+  });
+
+  it('an unknown reason is recorded as no-entry rather than creating a stray counter', () => {
+    ledger.miss('image', 'k', 'made-up');
+    expect(last().update.$inc).toEqual({ misses: 1, 'reasons.no-entry': 1 });
   });
 
   it('a shared wait counts as a reuse', () => {
@@ -53,8 +67,8 @@ describe('writes', () => {
 
   it('a stale entry is flagged', () => {
     ledger.stale('image', 'k');
-    expect(last().update.$inc).toEqual({ stale: 1 });
-    expect(last().update.$set.status).toBe('stale');
+    expect(last().update.$inc).toEqual({ stale: 1, 'reasons.object-missing': 1 });
+    expect(last().update.$set).toMatchObject({ status: 'stale', lastReason: 'object-missing' });
   });
 
   it('a generation adds its time and remembers the last one, and clears a stale flag', () => {
@@ -97,8 +111,9 @@ describe('writes', () => {
 });
 
 describe('stats', () => {
+  const noReasons = Object.fromEntries(ledger.REASONS.map((r) => [r, 0]));
   const rows = [
-    { _id: 'image', entries: 4, hits: 30, misses: 10, shared: 2, stale: 1, generations: 10, generationMs: 1_200_000, sizeBytes: 5_000_000, timeSavedMs: 3_840_000 },
+    { _id: 'image', entries: 4, hits: 30, misses: 10, shared: 2, stale: 1, reason_no_entry: 8, reason_object_missing: 1, reason_copy_failed: 1, generations: 10, generationMs: 1_200_000, sizeBytes: 5_000_000, timeSavedMs: 3_840_000 },
     { _id: 'tts-seg-raw', entries: 20, hits: 5, misses: 0, shared: 0, stale: 0, generations: 0, generationMs: 0, sizeBytes: 0, timeSavedMs: 0 },
   ];
 
@@ -109,7 +124,15 @@ describe('stats', () => {
     expect(out.days).toBe(7);
     expect(out.byKind[0]).toEqual({
       kind: 'image', entries: 4, hits: 30, misses: 10, shared: 2, stale: 1, hitRate: 75, avgGenerationMs: 120_000, timeSavedMs: 3_840_000, sizeBytes: 5_000_000,
+      reasons: { ...noReasons, 'no-entry': 8, 'object-missing': 1, 'copy-failed': 1 },
     });
+  });
+
+  it('reports why lookups missed, per kind and in total', async () => {
+    mockAggregate.mockResolvedValue(rows);
+    const out = await ledger.stats();
+    expect(out.byKind[1].reasons).toEqual(noReasons);
+    expect(out.total.reasons).toEqual({ ...noReasons, 'no-entry': 8, 'object-missing': 1, 'copy-failed': 1 });
   });
 
   it('does not invent a cost for an entry nobody has generated through the ledger', async () => {

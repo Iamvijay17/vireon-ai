@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { showRate, showCount, showDuration, stageCoverageNote, kindLabel, queueState } from "./controlCenterFormat";
+import { showRate, showCount, showDuration, showMb, showPct, describeDelta, deltaTone, stageCoverageNote, kindLabel, queueState, missReasons } from "./controlCenterFormat";
 
 describe("showing figures with nothing behind them", () => {
   it("a missing rate is a dash, but a measured 0% is shown as 0%", () => {
@@ -61,5 +61,47 @@ describe("queueState", () => {
 
   it("does not call a queue with no reading 'no worker online'", () => {
     expect(queueState({ available: true, workersOnline: null, active: 0 }).label).toBe("Idle");
+  });
+});
+
+describe("missReasons", () => {
+  it("lists only reasons that happened, biggest first, with readable labels", () => {
+    const out = missReasons({ "no-entry": 2, "object-missing": 5, "copy-failed": 0 });
+    expect(out.map((r) => r.reason)).toEqual(["object-missing", "no-entry"]);
+    expect(out[0].label).toMatch(/missing/i);
+  });
+  it("is empty when nothing was recorded", () => {
+    expect(missReasons(undefined)).toEqual([]);
+    expect(missReasons({})).toEqual([]);
+  });
+});
+
+describe("showMb / showPct", () => {
+  it("shows a dash for an unmeasured reading and a real zero as zero", () => {
+    expect(showMb(null)).toBe("—");
+    expect(showMb(undefined)).toBe("—");
+    expect(showMb(0)).toBe("0 MB");
+    expect(showMb(812)).toBe("812 MB");
+    expect(showMb(5400)).toBe("5.3 GB");
+    expect(showPct(null)).toBe("—");
+    expect(showPct(0)).toBe("0.0%");
+    expect(showPct(22.46)).toBe("22.5%");
+  });
+});
+
+describe("describeDelta / deltaTone", () => {
+  it("words a before/after change, with negative meaning faster", () => {
+    expect(describeDelta(-23.4)).toBe("23.4% faster");
+    expect(describeDelta(8)).toBe("8% slower");
+    expect(describeDelta(0)).toBe("no change");
+    expect(describeDelta(null)).toBe("—");
+  });
+
+  it("only colours a change large enough to be more than noise", () => {
+    expect(deltaTone(-3)).toBe("neutral");
+    expect(deltaTone(4.9)).toBe("neutral");
+    expect(deltaTone(-20)).toBe("success");
+    expect(deltaTone(20)).toBe("danger");
+    expect(deltaTone(null)).toBe("neutral");
   });
 });

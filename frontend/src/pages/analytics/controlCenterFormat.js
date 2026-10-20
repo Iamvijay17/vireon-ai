@@ -38,10 +38,51 @@ const KIND_LABELS = {
 };
 export const kindLabel = (kind) => KIND_LABELS[kind] || kind;
 
+// Why a cache lookup did not hit. `no-entry` is deliberately worded as "no match": cache keys are
+// content hashes, so a changed prompt looks exactly like a first-ever request.
+const REASON_LABELS = {
+  "no-entry": "No matching entry (new or changed inputs)",
+  "lookup-failed": "Cache lookup failed",
+  "object-missing": "Stored file was missing (entry evicted)",
+  "copy-failed": "Cached file could not be copied",
+  "inputs-changed": "Inputs changed since the last render",
+  "no-previous-render": "No earlier render to reuse",
+};
+export const reasonLabel = (reason) => REASON_LABELS[reason] || reason;
+
+/** Non-zero miss reasons, biggest first - [] when none were recorded (older entries carry no reason). */
+export const missReasons = (reasons) =>
+  Object.entries(reasons || {})
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, count]) => ({ reason, count, label: reasonLabel(reason) }));
+
 /** The status of a worker queue for display: online / offline / unavailable. */
 export const queueState = (queue) => {
   if (!queue || queue.available === false) return { label: "Unavailable", tone: "danger" };
   if (queue.workersOnline === 0) return { label: "No worker online", tone: "warning" };
   if (queue.active > 0) return { label: "Working", tone: "success" };
   return { label: "Idle", tone: "neutral" };
+};
+
+/** A memory reading in MB as GB/MB, or "—" when it was never measured (0 is a real reading). */
+export { formatMb as showMb } from "../../lib/format";
+
+/** A percentage with one decimal, or "—" when never measured. */
+export const showPct = (value) => (value === null || value === undefined ? "—" : `${Number(value).toFixed(1)}%`);
+
+/**
+ * "-23.4% faster" / "+8.0% slower" / "no change" for a before/after delta where negative means
+ * the later run took less time. null in -> "—" (no basis), never a fake zero.
+ */
+export const describeDelta = (deltaPct) => {
+  if (deltaPct === null || deltaPct === undefined) return "—";
+  if (deltaPct === 0) return "no change";
+  return `${Math.abs(deltaPct)}% ${deltaPct < 0 ? "faster" : "slower"}`;
+};
+
+/** Tone for a delta badge: only a clear change in either direction is coloured. */
+export const deltaTone = (deltaPct) => {
+  if (deltaPct === null || deltaPct === undefined || Math.abs(deltaPct) < 5) return "neutral";
+  return deltaPct < 0 ? "success" : "danger";
 };

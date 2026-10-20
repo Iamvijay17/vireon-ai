@@ -55,6 +55,7 @@ async function begin(jobId, key) {
       [path(key, 'durationMs')]: null,
       [path(key, 'reused')]: false,
       [path(key, 'error')]: null,
+      [path(key, 'resources')]: null,
     },
     $inc: { [path(key, 'attempt')]: 1 },
   }, 'stage start');
@@ -65,7 +66,7 @@ async function begin(jobId, key) {
   return { attempt };
 }
 
-async function complete(jobId, key, { durationMs, reused = false } = {}) {
+async function complete(jobId, key, { durationMs, reused = false, resources = null } = {}) {
   const stage = await write(jobId, key, {
     $set: {
       [path(key, 'status')]: STAGE_STATE.COMPLETED,
@@ -73,6 +74,7 @@ async function complete(jobId, key, { durationMs, reused = false } = {}) {
       [path(key, 'durationMs')]: durationMs ?? null,
       [path(key, 'reused')]: reused,
       [path(key, 'error')]: null,
+      [path(key, 'resources')]: reused ? null : resources,
     },
   }, 'stage completion');
   LoggerService.info(reused ? '[Stage] reused stored output' : '[Stage] completed', { jobId, stage: key, durationMs, reused });
@@ -80,13 +82,14 @@ async function complete(jobId, key, { durationMs, reused = false } = {}) {
   return stage;
 }
 
-async function fail(jobId, key, error, { durationMs } = {}) {
+async function fail(jobId, key, error, { durationMs, resources = null } = {}) {
   const stage = await write(jobId, key, {
     $set: {
       [path(key, 'status')]: STAGE_STATE.FAILED,
       [path(key, 'completedAt')]: new Date(),
       [path(key, 'durationMs')]: durationMs ?? null,
       [path(key, 'error')]: publicError(error),
+      [path(key, 'resources')]: resources,
     },
   }, 'stage failure');
   LoggerService.error('[Stage] failed', {
@@ -96,12 +99,13 @@ async function fail(jobId, key, error, { durationMs } = {}) {
   return stage;
 }
 
-async function cancel(jobId, key, { durationMs } = {}) {
+async function cancel(jobId, key, { durationMs, resources = null } = {}) {
   const stage = await write(jobId, key, {
     $set: {
       [path(key, 'status')]: STAGE_STATE.CANCELLED,
       [path(key, 'completedAt')]: new Date(),
       [path(key, 'durationMs')]: durationMs ?? null,
+      [path(key, 'resources')]: resources,
     },
   }, 'stage cancellation');
   LoggerService.info('[Stage] cancelled', { jobId, stage: key });
@@ -124,6 +128,7 @@ async function invalidate(jobId, fromKey) {
     $set[path(key, 'durationMs')] = null;
     $set[path(key, 'reused')] = false;
     $set[path(key, 'error')] = null;
+    $set[path(key, 'resources')] = null;
   }
   try {
     await VideoJob.updateOne({ _id: jobId, stages: { $exists: true } }, { $set });

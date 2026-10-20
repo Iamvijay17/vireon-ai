@@ -103,6 +103,45 @@ describe('stage lifecycle', () => {
     expect(SocketService.emitStageUpdate).toHaveBeenLastCalledWith('j1', 'audio', expect.objectContaining({ status: 'completed' }));
   });
 
+  describe('measured resources', () => {
+    const resources = { sampleCount: 3, vram: { peakUsedMb: 5400 }, ram: { peakUsedMb: 9000 }, cpu: null };
+
+    it('persists them on completion, failure and cancellation', async () => {
+      await tracker.begin('j1', 'audio');
+      await tracker.complete('j1', 'audio', { durationMs: 1, resources });
+      expect(mockStore.doc.stages.audio.resources).toEqual(resources);
+
+      await tracker.begin('j1', 'render');
+      await tracker.fail('j1', 'render', toStructuredError(new Error('x'), { stage: 'render' }), { durationMs: 1, resources });
+      expect(mockStore.doc.stages.render.resources).toEqual(resources);
+
+      await tracker.begin('j1', 'images');
+      await tracker.cancel('j1', 'images', { durationMs: 1, resources });
+      expect(mockStore.doc.stages.images.resources).toEqual(resources);
+    });
+
+    it('stores null (not measured) when none were taken, and drops them for a reused stage', async () => {
+      await tracker.begin('j1', 'audio');
+      await tracker.complete('j1', 'audio', { durationMs: 1 });
+      expect(mockStore.doc.stages.audio.resources).toBeNull();
+
+      await tracker.begin('j1', 'images');
+      await tracker.complete('j1', 'images', { durationMs: 1, reused: true, resources });
+      expect(mockStore.doc.stages.images.resources).toBeNull();
+    });
+
+    it('clears earlier measurements when the stage starts again, and when it is invalidated', async () => {
+      await tracker.begin('j1', 'render');
+      await tracker.complete('j1', 'render', { durationMs: 1, resources });
+      await tracker.begin('j1', 'render');
+      expect(mockStore.doc.stages.render.resources).toBeNull();
+
+      await tracker.complete('j1', 'render', { durationMs: 1, resources });
+      await tracker.invalidate('j1', 'render');
+      expect(mockStore.doc.stages.render.resources).toBeNull();
+    });
+  });
+
   it('records a cancelled stage', async () => {
     await tracker.begin('j1', 'images');
     await tracker.cancel('j1', 'images', { durationMs: 3 });

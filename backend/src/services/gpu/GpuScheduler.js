@@ -419,6 +419,7 @@ class GpuScheduler {
 
     const deadline = this.now() + vram.admissionTimeoutMs;
     let announced = false;
+    let reclaimed = false;
 
     for (let polls = 0; ; polls += 1) {
       const reading = await this.probe.read({ fresh: polls > 0 });
@@ -427,6 +428,25 @@ class GpuScheduler {
 
       const needed = Math.round(Math.min(this._estimateMb(task.service), this._budget()) * (vram.liveFactor ?? 1));
       if (reading.freeMb >= needed) return;
+
+      // Still occupied although the cross-process line proved no other Vireon process is using the
+      // card: the likeliest holder is a model left resident by a worker that died (ComfyUI and
+      // Qwen3-TTS outlive their workers). Ask the idle services to drop it once, rather than
+      // sitting out the whole admission wait. Needs the Redis line - without it nothing proves
+      // the card is not in use by another process, so this stays a plain wait.
+      if (!reclaimed && this.global && typeof this.gpu.reclaimUnownedModels === 'function') {
+        reclaimed = true;
+        this.log.info('[GPU] GPU memory is occupied with no other Vireon task in line - asking idle services to drop their models', {
+          service: task.service, freeMb: reading.freeMb, neededMb: needed, jobId: task.jobId,
+        });
+        try {
+          await this.gpu.reclaimUnownedModels();
+          this._metric('increment', 'gpu.admission.reclaimed');
+        } catch (err) {
+          this.log.warn('[GPU] Could not reclaim idle models', { error: err.message });
+        }
+        continue; // read again, fresh
+      }
 
       if (this.now() >= deadline) {
         task.underPressure = true;

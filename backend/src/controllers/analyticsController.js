@@ -1,5 +1,6 @@
 const AnalyticsService = require('../services/common/AnalyticsService');
 const ControlCenterService = require('../services/common/ControlCenterService');
+const BenchmarkService = require('../services/perf/benchmarkService');
 
 class AnalyticsController {
   /**
@@ -24,6 +25,24 @@ class AnalyticsController {
     try {
       const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
       res.json(await ControlCenterService.getControlCenter({ days }));
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** GET /api/analytics/benchmarks?limit=20 - stored benchmark runs (scripts/benchPipeline.js), newest first. */
+  static async benchmarks(req, res, next) {
+    try {
+      res.json({ runs: await BenchmarkService.list({ limit: parseInt(req.query.limit, 10) || 20 }) });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** GET /api/analytics/benchmarks/compare?before=<id>&after=<id> - two stored runs side by side. */
+  static async compareBenchmarks(req, res, next) {
+    try {
+      res.json(await BenchmarkService.compare(req.query.before, req.query.after));
     } catch (err) {
       next(err);
     }

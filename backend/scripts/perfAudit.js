@@ -133,6 +133,29 @@ async function main() {
   const withStages = jobs.filter((j) => j.stages && typeof j.stages === 'object');
   console.log(`\nJobs with per-stage state (run since stage tracking): ${withStages.length}`);
 
+  // ---- measured peak VRAM / RAM / CPU per stage (stages.<key>.resources) --------------------------
+  // Machine-wide, not per process. A cell is "n/a" when that reading was never taken (nvidia-smi
+  // missing, no CPU delta) - never 0. Only stages that did real work carry a record.
+  const STAGE_KEYS = ['script', 'audio', 'images', 'assets', 'render', 'upload'];
+  const peaks = (key, pick) => withStages.map((j) => pick(j.stages?.[key]?.resources)).filter((v) => typeof v === 'number');
+  const withResources = withStages.filter((j) => STAGE_KEYS.some((k) => j.stages?.[k]?.resources));
+  console.log(`Jobs with measured stage resources: ${withResources.length}${withResources.length === 0 ? ' (run a video; each stage records its peaks from now on)' : ''}`);
+  if (withResources.length) {
+    console.log('stage'.padEnd(10), 'runs'.padStart(5), 'VRAM peak MiB'.padStart(15), 'VRAM base MiB'.padStart(15), 'RAM peak MiB'.padStart(14), 'CPU peak %'.padStart(11), 'CPU avg %'.padStart(10));
+    for (const key of STAGE_KEYS) {
+      const runs = withResources.filter((j) => j.stages?.[key]?.resources).length;
+      if (!runs) continue;
+      const cell = (xs, f = (v) => v.toFixed(0)) => (xs.length ? f(Math.max(...xs)) : 'n/a');
+      console.log(key.padEnd(10), String(runs).padStart(5),
+        cell(peaks(key, (r) => r?.vram?.peakUsedMb)).padStart(15),
+        cell(peaks(key, (r) => r?.vram?.startUsedMb)).padStart(15),
+        cell(peaks(key, (r) => r?.ram?.peakUsedMb)).padStart(14),
+        cell(peaks(key, (r) => r?.cpu?.peakPct), (v) => v.toFixed(1)).padStart(11),
+        cell(peaks(key, (r) => r?.cpu?.avgPct), (v) => v.toFixed(1)).padStart(10));
+    }
+    console.log('(max across jobs; VRAM includes whatever else holds the card - read it against the base column)');
+  }
+
   // ---- duplicate generation in the cache ledger ---------------------------------------------------
   const cacheEntries = await mongoose.connection.db.collection('cacheentries').countDocuments().catch(() => 0);
   console.log(`Cache ledger entries: ${cacheEntries}${cacheEntries === 0 ? ' (no ledger data yet: nothing to say about reuse or duplicate generation)' : ''}`);

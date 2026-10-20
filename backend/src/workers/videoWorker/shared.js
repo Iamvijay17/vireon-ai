@@ -1,5 +1,6 @@
 const VideoService = require('../../services/video/VideoService');
 const { JOB_STATUS } = require('../../constants');
+const { makeAbortError } = require('../../utils/abortableDelay');
 
 /**
  * Thrown when a job is found to be CANCELLED at one of the worker's
@@ -29,6 +30,18 @@ async function bailIfCancelled(jobId) {
 }
 
 /**
+ * bailIfCancelled plus the step's AbortSignal. Long GPU work (the Director's chunk loop) calls this
+ * between units of work. The signal is what a stage timeout fires: without checking it, a timed-out
+ * stage's callback would keep generating while holding the GPU slot and the task's dedupe key, and the
+ * stage's own retry would queue behind it (or be rejected as a duplicate) until it finished by itself.
+ * A Stop is checked first so it still surfaces as a cancellation rather than as a bare abort.
+ */
+async function checkpoint(jobId, signal) {
+  await bailIfCancelled(jobId);
+  if (signal?.aborted) throw makeAbortError();
+}
+
+/**
  * The job-level settings RemotionService.prepareAssets and the SceneGraph
  * compiler read, in one place so the script-stage and render-stage
  * compiles see the same config.
@@ -45,4 +58,4 @@ function renderConfigFor(videoJob) {
   };
 }
 
-module.exports = { JobCancelledError, bailIfCancelled, renderConfigFor };
+module.exports = { JobCancelledError, bailIfCancelled, checkpoint, renderConfigFor };

@@ -77,8 +77,8 @@ class CacheService {
     MetricsService.increment(metric);
   }
 
-  static #miss(kind, hash, metric = 'cache.misses') {
-    ledger.miss(kind, hash);
+  static #miss(kind, hash, metric = 'cache.misses', reason = 'no-entry') {
+    ledger.miss(kind, hash, reason);
     MetricsService.increment(metric);
   }
 
@@ -104,13 +104,15 @@ class CacheService {
     const metaKey = `tts/${hash}.json`;
 
     let metadata;
+    let lookupFailed = false;
     try {
       metadata = await this.#readJson(metaKey);
     } catch (err) {
+      lookupFailed = true;
       LoggerService.warn('Smart Cache TTS lookup failed', { hash, error: err.message });
     }
     if (!metadata) {
-      this.#miss('tts', hash);
+      this.#miss('tts', hash, 'cache.misses', lookupFailed ? 'lookup-failed' : 'no-entry');
       return null;
     }
 
@@ -118,9 +120,10 @@ class CacheService {
       const provider = getStorageProvider();
       await provider.copyObject(config.minio.scenesBucket, `${jobId}/audio/${fileName}`, config.minio.cacheBucket, audioKey);
     } catch (err) {
-      if (this.#isMissing(err)) await this.#evictStale('tts', hash, metaKey, err.message);
+      const gone = this.#isMissing(err);
+      if (gone) await this.#evictStale('tts', hash, metaKey, err.message);
       else LoggerService.warn('Smart Cache TTS copy failed', { hash, error: err.message });
-      this.#miss('tts', hash);
+      this.#miss('tts', hash, 'cache.misses', gone ? 'object-missing' : 'copy-failed');
       return null;
     }
 
@@ -170,22 +173,25 @@ class CacheService {
     const metric = `tts.segment.${kind}`;
 
     let metadata;
+    let lookupFailed = false;
     try {
       metadata = await this.#readJson(metaKey);
     } catch (err) {
+      lookupFailed = true;
       LoggerService.warn('Smart Cache segment lookup failed', { kind, hash, error: err.message });
     }
     if (!metadata) {
-      this.#miss(ledgerKind, hash, `${metric}.miss`);
+      this.#miss(ledgerKind, hash, `${metric}.miss`, lookupFailed ? 'lookup-failed' : 'no-entry');
       return null;
     }
 
     try {
       await this.#client().fGetObject(config.minio.cacheBucket, audioKey, destPath);
     } catch (err) {
-      if (this.#isMissing(err)) await this.#evictStale(ledgerKind, hash, metaKey, err.message);
+      const gone = this.#isMissing(err);
+      if (gone) await this.#evictStale(ledgerKind, hash, metaKey, err.message);
       else LoggerService.warn('Smart Cache segment download failed', { kind, hash, error: err.message });
-      this.#miss(ledgerKind, hash, `${metric}.miss`);
+      this.#miss(ledgerKind, hash, `${metric}.miss`, gone ? 'object-missing' : 'copy-failed');
       return null;
     }
 
@@ -240,22 +246,25 @@ class CacheService {
     const metaKey = `image/${hash}.json`;
 
     let metadata;
+    let lookupFailed = false;
     try {
       metadata = await this.#readJson(metaKey);
     } catch (err) {
+      lookupFailed = true;
       LoggerService.warn('Smart Cache image lookup failed', { hash, error: err.message });
     }
     if (!metadata) {
-      this.#miss('image', hash);
+      this.#miss('image', hash, 'cache.misses', lookupFailed ? 'lookup-failed' : 'no-entry');
       return null;
     }
 
     try {
       await getStorageProvider().copyObject(config.minio.scenesBucket, `${jobId}/images/${fileName}`, config.minio.cacheBucket, imageKey);
     } catch (err) {
-      if (this.#isMissing(err)) await this.#evictStale('image', hash, metaKey, err.message);
+      const gone = this.#isMissing(err);
+      if (gone) await this.#evictStale('image', hash, metaKey, err.message);
       else LoggerService.warn('Smart Cache image copy failed', { hash, error: err.message });
-      this.#miss('image', hash);
+      this.#miss('image', hash, 'cache.misses', gone ? 'object-missing' : 'copy-failed');
       return null;
     }
 
@@ -297,8 +306,8 @@ class CacheService {
       LoggerService.info('Smart Cache hit: reference transcript', { cacheKey });
       this.#hit('transcript', cacheKey);
       return Buffer.concat(chunks).toString('utf8');
-    } catch {
-      this.#miss('transcript', cacheKey);
+    } catch (err) {
+      this.#miss('transcript', cacheKey, 'cache.misses', this.#isMissing(err) ? 'no-entry' : 'lookup-failed');
       return null;
     }
   }

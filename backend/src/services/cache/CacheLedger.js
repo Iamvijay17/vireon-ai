@@ -13,6 +13,20 @@ const LoggerService = require('../common/LoggerService');
 
 const idOf = (kind, key) => `${kind}:${key}`;
 
+/**
+ * Why a lookup missed or an entry was dropped. Observable per kind in stats().
+ *   no-entry            nothing stored under this key (never generated, or - because keys are
+ *                       content hashes - its inputs differ from everything generated before)
+ *   lookup-failed       the cache backend errored; treated as a miss, never as a failure
+ *   object-missing      metadata present, stored bytes gone (stale; the entry is evicted)
+ *   copy-failed         the bytes exist but could not be copied/downloaded
+ *   inputs-changed      a previous artifact exists for the same job but was built from other inputs
+ *   no-previous-render  no earlier render to compare against
+ */
+const REASONS = ['no-entry', 'lookup-failed', 'object-missing', 'copy-failed', 'inputs-changed', 'no-previous-render'];
+const reasonOf = (reason, fallback) => (REASONS.includes(reason) ? reason : fallback);
+const reasonField = (r) => 'reason_' + r.replace(/-/g, '_');
+
 function write(kind, key, update, label) {
   // Not connected (a script, a unit test, the gap during a reconnect): Mongoose would buffer
   // the write for ten seconds before failing it. A statistic is not worth that - skip it.
@@ -37,15 +51,20 @@ const hit = (kind, key) =>
   write(kind, key, { $inc: { hits: 1 }, $set: { lastHitAt: new Date(), status: 'ready' } }, 'hit');
 
 /** Not in the cache; it will have to be generated. */
-const miss = (kind, key) =>
-  write(kind, key, { $inc: { misses: 1 }, $set: { lastMissAt: new Date() } }, 'miss');
+const miss = (kind, key, reason = 'no-entry') => {
+  const r = reasonOf(reason, 'no-entry');
+  write(kind, key, { $inc: { misses: 1, ['reasons.' + r]: 1 }, $set: { lastMissAt: new Date(), lastReason: r } }, 'miss');
+};
 
 /** Waited for an identical in-flight generation instead of starting another. */
 const shared = (kind, key) => write(kind, key, { $inc: { shared: 1 }, $set: { lastHitAt: new Date() } }, 'shared wait');
 
 /** Metadata said it was cached but the stored object is gone: the entry is not trustworthy. */
 const stale = (kind, key) =>
-  write(kind, key, { $inc: { stale: 1 }, $set: { status: 'stale', lastStaleAt: new Date() } }, 'stale entry');
+  write(kind, key, {
+    $inc: { stale: 1, 'reasons.object-missing': 1 },
+    $set: { status: 'stale', lastStaleAt: new Date(), lastReason: 'object-missing' },
+  }, 'stale entry');
 
 /** Generated, and how long it took. */
 const generated = (kind, key, generationMs) =>
@@ -83,6 +102,7 @@ async function stats({ days = 30 } = {}) {
         misses: { $sum: '$misses' },
         shared: { $sum: '$shared' },
         stale: { $sum: '$stale' },
+        ...Object.fromEntries(REASONS.map((r) => [reasonField(r), { $sum: { $ifNull: ['$reasons.' + r, 0] } }])),
         generations: { $sum: '$generations' },
         generationMs: { $sum: '$generationMs' },
         sizeBytes: { $sum: { $ifNull: ['$sizeBytes', 0] } },
@@ -107,6 +127,8 @@ async function stats({ days = 30 } = {}) {
     misses: r.misses,
     shared: r.shared,
     stale: r.stale,
+    // Counted from the moment reasons were introduced; older misses carry no reason.
+    reasons: Object.fromEntries(REASONS.map((x) => [x, r[reasonField(x)] || 0])),
     hitRate: r.hits + r.misses > 0 ? Math.round((r.hits / (r.hits + r.misses)) * 1000) / 10 : null,
     avgGenerationMs: r.generations > 0 ? Math.round(r.generationMs / r.generations) : null,
     timeSavedMs: Math.round(r.timeSavedMs),
@@ -117,11 +139,12 @@ async function stats({ days = 30 } = {}) {
     (acc, k) => ({ hits: acc.hits + k.hits, misses: acc.misses + k.misses, shared: acc.shared + k.shared, stale: acc.stale + k.stale, timeSavedMs: acc.timeSavedMs + k.timeSavedMs, sizeBytes: acc.sizeBytes + k.sizeBytes }),
     { hits: 0, misses: 0, shared: 0, stale: 0, timeSavedMs: 0, sizeBytes: 0 }
   );
+  const reasons = Object.fromEntries(REASONS.map((r) => [r, byKind.reduce((n, k) => n + k.reasons[r], 0)]));
   return {
     days,
     byKind,
-    total: { ...total, hitRate: total.hits + total.misses > 0 ? Math.round((total.hits / (total.hits + total.misses)) * 1000) / 10 : null },
+    total: { ...total, reasons, hitRate: total.hits + total.misses > 0 ? Math.round((total.hits / (total.hits + total.misses)) * 1000) / 10 : null },
   };
 }
 
-module.exports = { hit, miss, shared, stale, generated, stored, stats, idOf };
+module.exports = { hit, miss, shared, stale, generated, stored, stats, idOf, REASONS };
