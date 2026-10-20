@@ -6,6 +6,8 @@ const issuesFor = (mutate) => {
   const cfg = base();
   cfg.publishing.google = { clientId: '', clientSecret: '', redirectUri: '' };
   cfg.publishing.encryptionKey = '';
+  // The real .env may configure Meta/Threads/Instagram; this helper models a blank install.
+  for (const app of ['meta', 'threads', 'instagram']) cfg.social[app] = { ...cfg.social[app], appId: '', appSecret: '', redirectUri: '' };
   mutate(cfg.publishing);
   try {
     validateConfig(cfg);

@@ -69,8 +69,8 @@ async function exportAsJpeg({ storage, source, destBucket, destKey, maxBytes, fi
     LoggerService.warn('Could not convert the Image Studio picture to JPEG; using the original', { error: err.message });
     return null;
   } finally {
-    fs.promises.unlink(input).catch(() => {});
-    fs.promises.unlink(output).catch(() => {});
+    // Awaited so the temp files are gone when the caller resumes (and a test can assert it).
+    await Promise.all([input, output].map((f) => fs.promises.unlink(f).catch(() => {})));
   }
 }
 

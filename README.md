@@ -18,7 +18,7 @@ Job stages, in order: `QUEUED` → `SCRIPT_GENERATION` → `SCRIPT_COMPLETED` �
 
 | Path | What it is |
 |------|------------|
-| `frontend/` | React 19 + Vite + Tailwind 4 UI (wizard, studio, render progress, courses, assets, analytics, logs). Embeds `@remotion/player` for live previews. |
+| `frontend/` | React 19 + Vite + Tailwind 4 UI, dark by default: overview, stepped Create Video, projects, templates, media library, generation jobs, GPU & resources, quality control, voice and image studios, courses, publishing, analytics, logs. Embeds `@remotion/player` for live previews. Design system and page notes: [docs/ui-redesign.md](docs/ui-redesign.md). |
 | `backend/` | Express 5 API, BullMQ workers, Mongoose models, local-AI service managers. |
 | `backend/remotion/` | Remotion project: the video templates and caption engine (npm workspace `vireon-remotion-templates`). |
 | `backend/src/workers/` | `videoWorker` (single videos) and `courseVideoWorker` (course lessons). |
@@ -26,7 +26,7 @@ Job stages, in order: `QUEUED` → `SCRIPT_GENERATION` → `SCRIPT_COMPLETED` �
 | `deploy/` | PowerShell scripts for the production PC: deploy, backup, watchdog, worker install, Tailscale config. |
 | `docker-compose.yml` | Production stack: Redis, API, frontend (nginx), optional Tailscale / quick tunnel. |
 | `DEPLOYMENT.md` | Full deployment guide. |
-| `docs/` | Audits (`docs/audits/`), the course-workflow design prompt, Pinokio API notes, the [publishing guide](docs/publishing.md) (YouTube upload + Udemy course package) and the [Promotion Studio guide](docs/social-promotion.md) (Facebook / Instagram / Threads). |
+| `docs/` | Audits (`docs/audits/`), the course-workflow design prompt, Pinokio API notes, the [UI redesign notes](docs/ui-redesign.md), the [publishing guide](docs/publishing.md) (YouTube upload + Udemy course package) and the [Promotion Studio guide](docs/social-promotion.md) (Facebook / Instagram / Threads). |
 
 The root `package.json` is an npm workspace (`frontend`, `backend/remotion`) with scripts that start everything at once.
 
@@ -117,7 +117,7 @@ The suffix is 8 characters from `a-z0-9` (36^8 ≈ 2.8 trillion per prefix), dra
 
 | Prefix | Resource |
 | --- | --- |
-| `aud-` | Audio Studio generation |
+| `aud-` | Voice Studio generation |
 | `img-` | Image Studio generation |
 | `job-` | Video job (`VideoJob` / `Project`) |
 | `vid-` | Course video |
