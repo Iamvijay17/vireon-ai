@@ -3,11 +3,11 @@ import { cn } from "./cn";
 
 const fieldBase =
   "w-full rounded-lg border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-tertiary " +
-  "transition-colors outline-none focus:border-accent focus:ring-4 focus:ring-accent/10 " +
+  "transition-colors outline-none hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 
 export const Label = ({ className, required, children, ...props }) => (
-  <label className={cn("mb-1.5 block text-[13px] font-medium text-text-secondary", className)} {...props}>
+  <label className={cn("mb-1.5 block text-xs font-medium text-text-secondary", className)} {...props}>
     {children}
     {required && <span className="ml-0.5 text-danger-500">*</span>}
   </label>
@@ -35,7 +35,7 @@ export const Input = forwardRef(function Input(
           fieldBase,
           "h-9",
           icon && "pl-9",
-          error && "border-danger-500 focus:border-danger-500 focus:ring-danger-500/10",
+          error && "border-danger-500 focus:border-danger-500 focus:ring-danger-500/20",
           className
         )}
         {...props}

@@ -21,7 +21,7 @@ export const Segmented = ({ options, value, onChange, label, disabled = false, c
         className={cn(
           "flex h-7 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
           disabled ? "cursor-not-allowed" : "cursor-pointer",
-          value === o.value ? "bg-surface text-accent shadow-xs" : "text-text-secondary hover:text-text-primary"
+          value === o.value ? "bg-surface text-accent-fg shadow-xs" : "text-text-secondary hover:text-text-primary"
         )}
       >
         {o.icon ?? (o.box ? <span className={cn("rounded-[2px] border-[1.5px] border-current", o.box)} /> : null)}

@@ -7,7 +7,7 @@ import { cn } from "../../components/ui/cn";
  */
 export function ChartCard({ icon: Icon, title, subtitle, extra, stagger, className, bodyClassName = "p-3", children }) {
   return (
-    <Card className={cn("animate-slide-up rounded-2xl shadow-sm", className)} style={{ "--stagger-index": stagger }}>
+    <Card className={cn("animate-slide-up rounded-xl shadow-sm", className)} style={{ "--stagger-index": stagger }}>
       <CardHeader
         title={
           <span className="flex items-center gap-2">

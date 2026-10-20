@@ -3,16 +3,18 @@ import { Alert } from "../ui/Alert";
 import { Button } from "../ui/Button";
 
 /**
- * Consistent persistent error banner (as opposed to a transient toast) for
- * page-level failures, with an optional retry action.
+ * Persistent error block (as opposed to a transient toast) for a failure the
+ * user has to act on, with an optional Retry. Say what failed and, when it is
+ * known, why - `description` is for the server's own message.
  */
-const ErrorState = ({ message = "Something went wrong", description, onRetry, retryLabel = "Retry" }) => (
+const ErrorState = ({ message = "Something went wrong", description, onRetry, retryLabel = "Retry", className }) => (
   <Alert
     type="error"
     title={message}
+    className={className}
     action={
       onRetry && (
-        <Button size="sm" variant="danger" icon={<RotateCw className="size-3.5" />} onClick={onRetry}>
+        <Button size="sm" variant="secondary" icon={<RotateCw className="size-3.5" />} onClick={onRetry}>
           {retryLabel}
         </Button>
       )

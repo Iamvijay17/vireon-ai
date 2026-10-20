@@ -36,6 +36,7 @@ const analyticsRoutes = require('./routes/analytics');
 const logsRoutes = require('./routes/logs');
 const aiServicesRoutes = require('./routes/aiServices');
 const systemWorkerRoutes = require('./routes/systemWorkers');
+const systemResourceRoutes = require('./routes/systemResources');
 const publishingRoutes = require('./routes/publishing');
 const socialRoutes = require('./routes/social');
 
@@ -173,6 +174,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/system/ai-services', aiServicesRoutes);
 app.use('/api/system/workers', systemWorkerRoutes);
+app.use('/api/system/resources', systemResourceRoutes);
 app.use('/api/publishing', publishingRoutes);
 app.use('/api/social', socialRoutes.webhookRouter);
 app.use('/api/social', socialRoutes);

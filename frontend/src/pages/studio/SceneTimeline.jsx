@@ -51,7 +51,7 @@ export const SceneTimeline = ({
               <SceneThumbnail scene={s} jobId={jobId} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className={cn("truncate text-[11px] font-medium", isActive ? "text-accent" : "text-text-primary")}>
+              <p className={cn("truncate text-[11px] font-medium", isActive ? "text-accent-fg" : "text-text-primary")}>
                 {s.sceneNumber || i + 1}. {s.title || "Untitled"}
               </p>
               <p className="mt-0.5 text-[10px] text-text-tertiary">{Math.round(s.duration || 8)}s</p>

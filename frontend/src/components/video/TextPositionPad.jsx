@@ -77,7 +77,7 @@ export function TextPositionPad({ positions, hasSubtitle = true, onChange, onRes
             className={cn(
               "flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
               activeRole === r.key
-                ? "border-accent bg-accent-subtle text-accent"
+                ? "border-accent bg-accent-subtle text-accent-fg"
                 : "border-border-light text-text-tertiary hover:text-text-primary",
               disabled && "cursor-not-allowed opacity-50"
             )}

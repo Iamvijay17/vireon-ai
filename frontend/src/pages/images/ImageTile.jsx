@@ -103,7 +103,7 @@ export const ImageTile = ({ item, progress, deleting, onOpen, onDelete, onDownlo
 
         <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-text-tertiary">
           <RelativeTime value={item.createdAt} />
-          <button type="button" onClick={() => onReuse(item)} className="cursor-pointer font-medium text-accent hover:underline">
+          <button type="button" onClick={() => onReuse(item)} className="cursor-pointer font-medium text-accent-fg hover:underline">
             Use prompt
           </button>
         </div>

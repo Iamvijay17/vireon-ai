@@ -1,10 +1,15 @@
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "./cn";
 import { Spinner } from "./Spinner";
 
 const hasLabel = (col) => typeof col.title === "string" && col.title.length > 0;
 
 /**
- * Minimal data table. columns: [{ key, title, render?(record), width?, align? }]
+ * Minimal data table. columns: [{ key, title, render?(record), width?, align?, sortable? }]
+ *
+ * Sorting is controlled and never reorders rows itself: pass `sort`
+ * ({ key, dir: "asc" | "desc" }) and `onSort(key)`, and sort `data` where it
+ * is fetched or held. A sortable header is a real button with `aria-sort`.
  *
  * Below `md` (unless `stack={false}`) each row collapses into a labelled
  * card instead of scrolling sideways: the header row is hidden and every
@@ -21,6 +26,8 @@ export const Table = ({
   className,
   emptyContent = "No data",
   stack = true,
+  sort = null,
+  onSort = null,
 }) => (
   <div className={cn("overflow-x-auto", className)}>
     <table className={cn("w-full border-collapse text-left text-sm", stack && "max-md:block")}>
@@ -30,12 +37,34 @@ export const Table = ({
             <th
               key={col.key}
               style={{ width: col.width }}
+              scope="col"
+              aria-sort={
+                col.sortable && sort?.key === col.key ? (sort.dir === "asc" ? "ascending" : "descending") : undefined
+              }
               className={cn(
-                "px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary",
+                "px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary",
                 col.align === "right" && "text-right"
               )}
             >
-              {col.title}
+              {col.sortable && onSort ? (
+                <button
+                  type="button"
+                  onClick={() => onSort(col.key)}
+                  className={cn(
+                    "-mx-1 inline-flex cursor-pointer items-center gap-1 rounded px-1 uppercase tracking-wide transition-colors hover:text-text-primary",
+                    sort?.key === col.key && "text-text-primary"
+                  )}
+                >
+                  {col.title}
+                  {sort?.key === col.key ? (
+                    sort.dir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />
+                  ) : (
+                    <ChevronsUpDown className="size-3 opacity-50" />
+                  )}
+                </button>
+              ) : (
+                col.title
+              )}
             </th>
           ))}
         </tr>
@@ -85,14 +114,14 @@ export const Table = ({
                 "border-b border-border-light last:border-0 transition-colors",
                 stack && "max-md:flex max-md:flex-wrap max-md:items-center max-md:px-4 max-md:py-3",
                 onRowClick &&
-                  "cursor-pointer hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-500"
+                  "cursor-pointer hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
               )}
             >
               {columns.map((col) => (
                 <td
                   key={col.key}
                   className={cn(
-                    "px-4 py-3 text-text-secondary",
+                    "px-4 py-2.5 text-text-secondary",
                     col.align === "right" && "text-right",
                     // Labelled cells fill a card row. Unlabelled ones (select
                     // checkbox, action menu) share the first line instead of

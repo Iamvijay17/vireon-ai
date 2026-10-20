@@ -14,7 +14,7 @@ export const SceneAudioCard = ({ job, isActive, regeneratingScene, onRegenerateS
     <Card className="animate-slide-up p-4 sm:p-6" style={{ "--stagger-index": 1 }}>
       <div className="mb-4 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-[15px] font-semibold text-text-primary">
-          <AudioLines className="size-[18px] text-accent" /> Scene Audio
+          <AudioLines className="size-[18px] text-accent-fg" /> Scene Audio
         </h3>
         <span className="text-xs font-medium text-text-tertiary">{readyScenes.length}/{scenes.length} ready</span>
       </div>
@@ -31,7 +31,7 @@ export const SceneAudioCard = ({ job, isActive, regeneratingScene, onRegenerateS
                 ready
                   ? "border-success-500/30 bg-success-500/10 text-success-600"
                   : isCurrent
-                  ? "animate-pulse border-accent bg-accent/10 text-accent"
+                  ? "animate-pulse border-accent bg-accent/10 text-accent-fg"
                   : "border-border text-text-tertiary"
               }`}
             >

@@ -1,79 +1,37 @@
 import { useContext } from "react";
 import { ChevronRight } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { BreadcrumbContext } from "../shared/breadcrumbContextValue";
-import { isEntityId } from "../lib/entityId";
+import { buildCrumbs } from "./crumbs";
 
-const STATIC_LABELS = {
-  wizard: "Create Video",
-  render: "Render",
-  studio: "Studio",
-  projects: "Projects",
-  workflow: "Workflow",
-  analytics: "Analytics",
-  publishing: "Publishing",
-  promotion: "Promotion Studio",
-  accounts: "Accounts",
-  create: "Create promotion",
-  posts: "Posts",
-  calendar: "Calendar",
-  settings: "Settings",
-  courses: "Courses",
-  editor: "Editor",
-  complete: "Complete",
-  videos: null, // structural segment, not shown
-};
-
+/** The trail, compact enough for the top bar. Collapses to the current page on small screens. */
 const Breadcrumbs = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
+  const { pathname, search } = useLocation();
   const { label } = useContext(BreadcrumbContext);
-
-  const segments = location.pathname.split("/").filter(Boolean);
-  if (segments.length === 0) return null;
-
-  const items = [{ title: "Dashboard", onClick: () => navigate("/") }];
-  let path = "";
-
-  segments.forEach((segment, index) => {
-    path += `/${segment}`;
-    const isLast = index === segments.length - 1;
-
-    if (isEntityId(segment)) {
-      items.push({ title: (isLast && label) || "Details" });
-      return;
-    }
-
-    const staticLabel = STATIC_LABELS[segment];
-    if (staticLabel === null) return; // skip structural segments like "videos"
-
-    const title = staticLabel || segment;
-    items.push(isLast ? { title } : { title, onClick: () => navigate(path) });
-  });
-
-  if (items.length <= 1) return null;
+  const items = buildCrumbs(pathname, search, label);
 
   return (
-    <div className="border-b border-border-light bg-surface px-4 py-2.5 sm:px-6">
-      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap text-[13px] [scrollbar-width:none]">
-        {items.map((item, i) => (
-          <span key={i} className="flex shrink-0 items-center gap-1.5">
-            {i > 0 && <ChevronRight className="size-3.5 text-text-tertiary" />}
-            {item.onClick ? (
-              <button
-                type="button"
-                onClick={item.onClick}
-                className="cursor-pointer text-text-secondary transition-colors hover:text-text-primary"
-              >
-                {item.title}
-              </button>
-            ) : (
-              <span className="font-medium text-text-primary">{item.title}</span>
-            )}
-          </span>
-        ))}
-      </nav>
-    </div>
+    <nav aria-label="Breadcrumb" className="min-w-0">
+      <ol className="flex items-center gap-1.5 whitespace-nowrap text-[13px]">
+        {items.map((item, i) => {
+          const last = i === items.length - 1;
+          return (
+            <li key={`${item.title}-${i}`} className={last ? "flex min-w-0 items-center gap-1.5" : "hidden min-w-0 items-center gap-1.5 md:flex"}>
+              {i > 0 && <ChevronRight className="hidden size-3.5 shrink-0 text-text-tertiary md:block" aria-hidden="true" />}
+              {item.to ? (
+                <Link to={item.to} className="truncate text-text-tertiary transition-colors hover:text-text-primary">
+                  {item.title}
+                </Link>
+              ) : (
+                <span aria-current="page" className="truncate font-medium text-text-primary">
+                  {item.title}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 };
 

@@ -3,8 +3,8 @@
 @custom-variant dark (&:where(.theme-dark, .theme-dark *));
 
 @theme {
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --font-sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "Fira Code", ui-monospace, monospace;
 
   /* Neutral scale — near-black/near-white, monochrome base */
   --color-neutral-0: #ffffff;
@@ -47,11 +47,13 @@
   --color-info-500: #3b82f6;
   --color-info-600: #2563eb;
 
+  /* Elevation is expressed with borders first; shadows are reserved for
+     floating layers (menus, dialogs, toasts) and kept short. */
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.04);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
-  --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
-  --shadow-lg: 0 12px 24px -6px rgb(0 0 0 / 0.1), 0 4px 8px -4px rgb(0 0 0 / 0.06);
-  --shadow-xl: 0 24px 48px -12px rgb(0 0 0 / 0.16);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.14);
+  --shadow-lg: 0 12px 28px -8px rgb(0 0 0 / 0.28);
+  --shadow-xl: 0 20px 40px -12px rgb(0 0 0 / 0.38);
 
   --animate-fade-in: vireon-fade-in 200ms cubic-bezier(0, 0, 0.2, 1) both;
   --animate-slide-up: vireon-slide-up 240ms cubic-bezier(0, 0, 0.2, 1) both;
@@ -72,68 +74,82 @@
 }
 
 /* ─── Theme-aware raw tokens ─────────────────────────────────────────────── */
-/* Light is the default; .theme-dark overrides. These feed the semantic
+/* Dark is the default. .theme-light overrides. These feed the semantic
    utility classes registered below (bg-surface, text-text-primary, ...),
-   so a single class works correctly in both themes without a dark: variant. */
+   so a single class works correctly in both themes without a dark: variant.
+
+   Accent is deliberately split in two so violet stays accessible on dark:
+     --accent     solid fill (buttons, switches, progress)  - white text on it
+     --accent-fg  accent used as TEXT / icons / focus on a dark surface   */
 :root,
-.theme-light {
-  --bg: var(--color-neutral-50);
-  --surface: var(--color-neutral-0);
-  --surface-hover: var(--color-neutral-100);
-  --surface-active: var(--color-neutral-150);
+.theme-dark {
+  color-scheme: dark;
 
-  --sidebar: var(--color-neutral-950);
-  --sidebar-text: var(--color-neutral-400);
-  --sidebar-text-active: #ffffff;
-  --sidebar-hover: rgb(255 255 255 / 0.06);
-  --sidebar-active-bg: rgb(255 255 255 / 0.1);
+  --bg: #0a0a0e;
+  --surface: #111116;
+  --surface-hover: #17171d;
+  --surface-active: #1f1f27;
+  --surface-raised: #17171d;
 
-  --text-primary: var(--color-neutral-900);
-  --text-secondary: var(--color-neutral-600);
-  --text-tertiary: var(--color-neutral-400);
-  --text-inverse: #ffffff;
+  --sidebar: #0d0d12;
+  --sidebar-text: #8b8b9a;
+  --sidebar-text-active: #f4f4f8;
+  --sidebar-hover: rgb(255 255 255 / 0.05);
+  --sidebar-active-bg: rgb(139 108 255 / 0.12);
 
-  --border: var(--color-neutral-200);
-  --border-light: var(--color-neutral-150);
+  --text-primary: #ececf1;
+  --text-secondary: #a3a3b1;
+  --text-tertiary: #7f7f8f;
+  --text-inverse: #0a0a0e;
 
-  --accent: var(--color-accent-500);
-  --accent-hover: var(--color-accent-600);
-  --accent-active: var(--color-accent-700);
-  --accent-subtle: var(--color-accent-50);
+  --border: #24242d;
+  --border-light: #1b1b22;
+  --border-strong: #34343f;
 
-  --scrollbar-thumb: var(--color-neutral-300);
-  --scrollbar-thumb-hover: var(--color-neutral-400);
-  --focus-ring: var(--color-accent-500);
+  --accent: #7857f7;
+  --accent-hover: #8a6dfa;
+  --accent-active: #6a48ec;
+  --accent-fg: #a78bfa;
+  --accent-subtle: rgb(139 108 255 / 0.13);
+
+  --scrollbar-thumb: #2c2c36;
+  --scrollbar-thumb-hover: #3c3c48;
+  --focus-ring: #a78bfa;
 }
 
-.theme-dark {
-  --bg: var(--color-neutral-950);
-  --surface: var(--color-neutral-900);
-  --surface-hover: var(--color-neutral-850);
-  --surface-active: var(--color-neutral-800);
+.theme-light {
+  color-scheme: light;
 
-  --sidebar: #000000;
-  --sidebar-text: var(--color-neutral-500);
+  --bg: #f6f6f9;
+  --surface: #ffffff;
+  --surface-hover: #f2f2f6;
+  --surface-active: #e9e9ef;
+  --surface-raised: #ffffff;
+
+  --sidebar: #0d0d12;
+  --sidebar-text: #8b8b9a;
   --sidebar-text-active: #ffffff;
-  --sidebar-hover: rgb(255 255 255 / 0.05);
-  --sidebar-active-bg: rgb(255 255 255 / 0.08);
+  --sidebar-hover: rgb(255 255 255 / 0.06);
+  --sidebar-active-bg: rgb(139 108 255 / 0.16);
 
-  --text-primary: var(--color-neutral-50);
-  --text-secondary: var(--color-neutral-400);
-  --text-tertiary: var(--color-neutral-500);
-  --text-inverse: var(--color-neutral-950);
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-tertiary: #71717a;
+  --text-inverse: #ffffff;
 
-  --border: var(--color-neutral-800);
-  --border-light: var(--color-neutral-850);
+  --border: #e4e4ea;
+  --border-light: #eeeef2;
+  --border-strong: #cfcfd8;
 
-  --accent: var(--color-accent-400);
-  --accent-hover: var(--color-accent-300);
-  --accent-active: var(--color-accent-500);
-  --accent-subtle: rgb(148 120 255 / 0.12);
+  --accent: #5b3fef;
+  --accent-hover: #4c30d6;
+  --accent-active: #3f28ad;
+  --accent-fg: #5b3fef;
+  --accent-subtle: #f1efff;
 
-  --scrollbar-thumb: var(--color-neutral-700);
-  --scrollbar-thumb-hover: var(--color-neutral-600);
-  --focus-ring: var(--color-accent-400);
+  --scrollbar-thumb: #d4d4dc;
+  --scrollbar-thumb-hover: #a1a1ac;
+  --focus-ring: #5b3fef;
 }
 
 @theme inline {
@@ -141,6 +157,7 @@
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-surface-active: var(--surface-active);
+  --color-surface-raised: var(--surface-raised);
 
   --color-sidebar: var(--sidebar);
   --color-sidebar-text: var(--sidebar-text);
@@ -155,10 +172,12 @@
 
   --color-border: var(--border);
   --color-border-light: var(--border-light);
+  --color-border-strong: var(--border-strong);
 
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-active: var(--accent-active);
+  --color-accent-fg: var(--accent-fg);
   --color-accent-subtle: var(--accent-subtle);
 }
 

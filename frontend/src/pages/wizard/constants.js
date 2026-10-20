@@ -1,18 +1,19 @@
 import { loadSettings } from "../../shared/settingsStorage";
 
 export const VIDEO_TYPES = [
-  { value: "educational", label: "Educational" },
-  { value: "marketing", label: "Marketing" },
-  { value: "story", label: "Story" },
-  { value: "youtube_shorts", label: "YouTube Shorts" },
-  { value: "podcast", label: "Podcast" },
-  { value: "motivational", label: "Motivational" },
-  { value: "business", label: "Business" },
+  { value: "educational", label: "Educational", hint: "Explains a topic step by step" },
+  { value: "marketing", label: "Marketing", hint: "Promotes a product or idea" },
+  { value: "story", label: "Story", hint: "Narrative with a beginning and an end" },
+  { value: "youtube_shorts", label: "YouTube Shorts", hint: "Vertical, 1-3 minutes" },
+  { value: "podcast", label: "Podcast", hint: "Two speakers in conversation" },
+  { value: "motivational", label: "Motivational", hint: "Inspiring, high-energy delivery" },
+  { value: "business", label: "Business", hint: "Professional, presentation style" },
 ];
 
 export const RESOLUTIONS = [
   { value: "1920x1080", label: "1080p (1920x1080)" },
   { value: "1080x1920", label: "1080p Vertical (1080x1920)" },
+  { value: "1080x1080", label: "Square (1080x1080)" },
   { value: "1080x1350", label: "Instagram 4:5 (1080x1350)" },
   { value: "1280x720", label: "720p (1280x720)" },
   { value: "720x1280", label: "720p Vertical (720x1280)" },
@@ -20,12 +21,49 @@ export const RESOLUTIONS = [
   { value: "2160x3840", label: "4K Vertical (2160x3840)" },
 ];
 
+// The aspect ratio is not a separate setting: it follows from the resolution
+// (the backend derives it the same way). The Create Video page offers the
+// ratio first and the sizes inside it, so this groups RESOLUTIONS by ratio.
+export const ASPECT_RATIOS = [
+  { value: "16:9", label: "Landscape", hint: "YouTube, web, presentations", box: "h-[18px] w-8" },
+  { value: "9:16", label: "Vertical", hint: "Shorts, Reels, TikTok", box: "h-8 w-[18px]" },
+  { value: "1:1", label: "Square", hint: "Feed posts", box: "size-6" },
+  { value: "4:5", label: "Portrait", hint: "Instagram feed", box: "h-7 w-[22px]" },
+];
+
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+
+/** "1080x1350" -> "4:5". Unknown shapes fall back to landscape/vertical like the server does. */
+export const aspectOf = (resolution) => {
+  const [w, h] = String(resolution || "").split("x").map(Number);
+  if (!w || !h) return "16:9";
+  const d = gcd(w, h);
+  const reduced = `${w / d}:${h / d}`;
+  if (ASPECT_RATIOS.some((a) => a.value === reduced)) return reduced;
+  if (w === h) return "1:1";
+  return w > h ? "16:9" : "9:16";
+};
+
+export const resolutionsForAspect = (aspect) => RESOLUTIONS.filter((r) => aspectOf(r.value) === aspect);
+
+// Curated Google Font pairs (title + body). Mirrors the backend's
+// FONT_PAIRINGS enum / backend/remotion/src/fonts.js.
+export const FONT_PAIRINGS = [
+  { value: "default", label: "System default", sample: "Helvetica Neue" },
+  { value: "modern-sans", label: "Modern sans", sample: "Montserrat + Inter" },
+  { value: "elegant-serif", label: "Elegant serif", sample: "Playfair Display + Lora" },
+  { value: "friendly-rounded", label: "Friendly rounded", sample: "Poppins + Roboto" },
+  { value: "clean-mono", label: "Clean technical", sample: "Space Grotesk + IBM Plex Sans" },
+  { value: "bold-impact", label: "Bold impact", sample: "Archivo Black + Work Sans" },
+  { value: "editorial", label: "Editorial", sample: "Merriweather + Source Sans 3" },
+];
+
 // Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js)
 // - resolved to an actual encode CRF at render time (config.remotion.qualityCrf).
 export const QUALITY_PRESETS = [
-  { value: "draft", label: "Draft (fast, lower quality)" },
-  { value: "standard", label: "Standard" },
-  { value: "hd", label: "HD (best quality, slower render)" },
+  { value: "draft", label: "Draft", hint: "Fastest render, lower quality - good for checking a script" },
+  { value: "standard", label: "Standard", hint: "Balanced quality and render time" },
+  { value: "hd", label: "HD", hint: "Cleanest output, slowest render" },
 ];
 
 // Mirrors the backend's CAPTION_STYLES enum (backend/src/constants/index.js) -
@@ -161,6 +199,7 @@ export const DEFAULT_VALUES = {
   resolution: "1920x1080",
   quality: "standard",
   captionAnimation: "fadeInUp",
+  fontPairing: "default",
   fastGeneration: false,
   autoApprove: false,
   fastAudio: false,
@@ -192,5 +231,6 @@ export const buildInitialValues = () => {
     resolution: isShorts && !isVerticalResolution(resolution) ? VERTICAL_RESOLUTIONS[0].value : resolution,
     quality: QUALITY_PRESETS.some((q) => q.value === prefs.defaultQuality) ? prefs.defaultQuality : DEFAULT_VALUES.quality,
     captionAnimation: CAPTION_STYLES.some((c) => c.value === prefs.defaultCaptionStyle) ? prefs.defaultCaptionStyle : DEFAULT_VALUES.captionAnimation,
+    fontPairing: FONT_PAIRINGS.some((f) => f.value === prefs.defaultFontPairing) ? prefs.defaultFontPairing : DEFAULT_VALUES.fontPairing,
   };
 };

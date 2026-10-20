@@ -50,7 +50,7 @@ export const NameSelect = ({ value, onChange, placeholder = "Select or add a nam
                 className={cn(
                   "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer",
                   name === value
-                    ? "bg-accent-subtle text-accent"
+                    ? "bg-accent-subtle text-accent-fg"
                     : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
                 )}
               >

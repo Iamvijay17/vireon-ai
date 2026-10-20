@@ -23,8 +23,8 @@ export const VIDEO_STATUS = {
 // chip in the table's Pipeline column instead of a separate column each.
 export const STAGE_DOT_CLASSES = {
   Pending: "border-border text-text-tertiary",
-  Queued: "border-accent/40 bg-accent/10 text-accent",
-  Processing: "border-accent bg-accent/10 text-accent animate-pulse",
+  Queued: "border-accent/40 bg-accent/10 text-accent-fg",
+  Processing: "border-accent bg-accent/10 text-accent-fg animate-pulse",
   Completed: "border-success-500/40 bg-success-500/10 text-success-600",
   Failed: "border-danger-500/40 bg-danger-500/10 text-danger-500",
   Cancelled: "border-border text-text-tertiary",

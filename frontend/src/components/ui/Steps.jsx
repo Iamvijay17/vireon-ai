@@ -45,7 +45,7 @@ export const Steps = ({ items = [], current = 0, status = "process", onStepClick
                   : isDone
                   ? "border-accent bg-accent text-white"
                   : isActive
-                  ? "border-accent bg-surface text-accent"
+                  ? "border-accent bg-surface text-accent-fg"
                   : "border-border bg-surface text-text-tertiary"
               )}
             >

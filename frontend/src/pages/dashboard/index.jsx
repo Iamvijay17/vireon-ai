@@ -1,354 +1,206 @@
-import { useState, useMemo } from "react";
-import {
-  FolderKanban,
-  CheckCircle2,
-  XCircle,
-  RefreshCw,
-  Plus,
-  Eye,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  Video,
-  Sparkles,
-} from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { getVideoJobs, deleteVideoJob, bulkDeleteVideoJobs } from "../../services/api";
-import { LoadingState, EmptyState, StatusTag } from "../../components";
-import { useApiQuery, useInvalidate } from "../../lib/useApiQuery";
-import { queryKeys } from "../../lib/queryClient";
-import { Card } from "../../components/ui/Card";
+import { useMemo } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { AlertTriangle, ArrowRight, CheckCircle2, Film, Loader2, Plus, RefreshCw, XCircle } from "lucide-react";
+import { PageHeader, EmptyState, ErrorState } from "../../components";
+import ProjectGrid from "../../components/ProjectCard/ProjectGrid";
 import { Button } from "../../components/ui/Button";
-import { Input } from "../../components/ui/Input";
-import { Progress } from "../../components/ui/Progress";
-import { toast } from "../../components/ui/toastBus";
-import { confirmDialog } from "../../components/ui/confirmBus";
-import { classifyStatus } from "../../lib/statusTone";
-import { isJobRunning } from "../../lib/jobStatus";
+import { Card, CardHeader } from "../../components/ui/Card";
+import { StatTile } from "../../components/ui/StatTile";
+import { useProjects } from "../../lib/useProjects";
+import { useActiveJobs } from "../../lib/useActiveJobs";
+import { sortProjects } from "../../lib/projectModel";
+import { formatBytes, formatDuration } from "../../lib/format";
 import { timeAgo } from "../../lib/timeAgo";
+import { useOverview } from "./useOverview";
+import QuickActions from "./QuickActions";
+import LiveActivity from "./LiveActivity";
+import ResourcePanel from "./ResourcePanel";
 
-const FILTERS = [
-  { value: "all", label: "All" },
-  { value: "processing", label: "Processing" },
-  { value: "success", label: "Completed" },
-  { value: "error", label: "Failed" },
-];
-
-const toneCls = {
-  accent: "bg-gradient-to-br from-accent-500/20 to-accent-500/5 text-accent",
-  warning: "bg-gradient-to-br from-warning-500/20 to-warning-500/5 text-warning-600 dark:text-warning-500",
-  success: "bg-gradient-to-br from-success-500/20 to-success-500/5 text-success-600 dark:text-success-500",
-  danger: "bg-gradient-to-br from-danger-500/20 to-danger-500/5 text-danger-600 dark:text-danger-500",
-  neutral: "bg-surface-hover text-text-tertiary",
+const greeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 5) return "Working late";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 };
 
-const EMPTY_JOBS = [];
+const RECENT_COUNT = 8;
 
-const Dashboard = () => {
+/**
+ * Overview: how the studio is doing right now. Totals come from persisted
+ * analytics (not from the page of jobs on screen), live work from the jobs
+ * feed, machine load from measured telemetry - and anything that cannot be
+ * read says so instead of showing a plausible-looking zero.
+ */
+const Overview = () => {
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+  const { summary, recentFailures, loading: summaryLoading, error: summaryError, refetch: refetchSummary } = useOverview();
+  const { projects, loading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjects({ limit: RECENT_COUNT });
 
-  const { data, loading, refetch } = useApiQuery(
-    queryKeys.videos.list(page, {}),
-    () => getVideoJobs(page),
-    { errorMessage: "Failed to fetch jobs" }
-  );
+  const { running, queued, loading: activeLoading } = useActiveJobs();
 
-  const invalidate = useInvalidate();
+  const recent = useMemo(() => sortProjects(projects, "updated").slice(0, RECENT_COUNT), [projects]);
 
-  // Memoized so `jobs` keeps a stable identity between renders; the React
-  // compiler cannot see through a bare `??` expression.
-  const jobs = useMemo(() => data?.jobs ?? EMPTY_JOBS, [data]);
-  const pagination = data?.pagination ?? { page, total: 0, pages: 0 };
-
-  // The jobCreated/jobCompleted/jobFailed listeners this page used to keep
-  // are gone: lib/useSocketQuerySync.js invalidates queryKeys.videos.all on
-  // those same events, app-wide. Merging them into local state here as
-  // well meant two sources of truth for one row - a partial socket payload
-  // could overwrite fields the list renders but the event doesn't carry.
-
-  const handleDelete = async (job) => {
-    if (!(await confirmDialog({ title: `Delete "${job.topic}"?`, content: "This can't be undone.", danger: true, confirmText: "Delete" }))) {
-      return;
-    }
-    try {
-      await deleteVideoJob(job._id);
-      toast.success("Job deleted");
-      invalidate(queryKeys.videos.all, queryKeys.jobs.all);
-    } catch {
-      toast.error("Failed to delete job");
-    }
-  };
-
-  const toggleSelect = (jobId) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(jobId)) next.delete(jobId);
-      else next.add(jobId);
-      return next;
-    });
-  };
-
-  const toggleSelectAll = () => {
-    setSelectedIds((prev) => (prev.size === filtered.length ? new Set() : new Set(filtered.map((j) => j._id))));
-  };
-
-  const handleBulkDelete = async () => {
-    const jobIds = Array.from(selectedIds);
-    const ok = await confirmDialog({
-      title: "Delete Jobs",
-      content: `Are you sure you want to delete ${jobIds.length} selected job${jobIds.length === 1 ? "" : "s"}? This can't be undone.`,
-      confirmText: "Delete",
-      danger: true,
-    });
-    if (!ok) return;
-    setBulkDeleteLoading(true);
-    try {
-      const res = await bulkDeleteVideoJobs(jobIds);
-      toast.success(`Deleted ${res.data.deletedCount || jobIds.length} job${(res.data.deletedCount || jobIds.length) === 1 ? "" : "s"}`);
-      invalidate(queryKeys.videos.all, queryKeys.jobs.all);
-      setSelectedIds(new Set());
-    } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to delete jobs");
-    } finally {
-      setBulkDeleteLoading(false);
-    }
-  };
-
-  const stats = [
-    { title: "Total Jobs", value: pagination.total, icon: FolderKanban, tone: "accent" },
-    {
-      title: "Processing",
-      value: jobs.filter((j) => !["COMPLETED", "FAILED", "QUEUED"].includes(j.status)).length,
-      icon: RefreshCw,
-      tone: "warning",
-    },
-    { title: "Completed", value: jobs.filter((j) => j.status === "COMPLETED").length, icon: CheckCircle2, tone: "success" },
-    { title: "Failed", value: jobs.filter((j) => j.status === "FAILED").length, icon: XCircle, tone: "danger" },
-  ];
-
-  // Not memoized: at most one page of jobs, and the React Compiler rule
-  // (preserve-manual-memoization) could not preserve a hand-written useMemo here.
-  const q = query.trim().toLowerCase();
-  const filtered = jobs.filter((j) => {
-    if (statusFilter !== "all" && classifyStatus(j.status) !== statusFilter) return false;
-    if (!q) return true;
-    return j.topic?.toLowerCase().includes(q) || j.type?.toLowerCase().includes(q);
-  });
-
-  const pageSize = 20;
-  const totalPages = pagination.pages || Math.ceil(pagination.total / pageSize) || 1;
+  const isNewUser = !summaryLoading && !projectsLoading && !summaryError && summary && summary.totalVideoJobs === 0 && summary.totalCourses === 0;
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-text-primary">Video Dashboard</h1>
-          <p className="mt-1 text-sm text-text-secondary">Track every render job from script to finished video.</p>
-        </div>
-        <Button variant="primary" size="lg" icon={<Plus className="size-4" />} onClick={() => navigate("/wizard")}>
-          Create Video
-        </Button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={`${greeting()}`}
+        description="Here is what the studio is doing right now."
+        extra={
+          <Button
+            variant="secondary"
+            iconOnly
+            aria-label="Refresh overview"
+            title="Refresh overview"
+            icon={<RefreshCw className="size-4" />}
+            onClick={() => {
+              refetchSummary();
+              refetchProjects();
+            }}
+          />
+        }
+      />
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s, i) => (
-          <Card key={s.title} hoverable className="animate-slide-up overflow-hidden p-5" style={{ "--stagger-index": i }}>
-            <div className={`mb-3 flex size-10 items-center justify-center rounded-[10px] ${toneCls[s.tone]}`}>
-              <s.icon className="size-[19px]" />
-            </div>
-            <p className="text-xs font-medium text-text-tertiary">{s.title}</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight text-text-primary">{s.value}</p>
-          </Card>
-        ))}
-      </div>
-
-      {/* Job List */}
-      <Card className="mt-6 animate-slide-up overflow-hidden" style={{ "--stagger-index": 4 }}>
-        <div className="flex flex-wrap items-center gap-3 border-b border-border-light px-5 py-4">
-          {filtered.length > 0 && (
-            <input
-              type="checkbox"
-              className="size-4 shrink-0 cursor-pointer accent-accent"
-              aria-label="Select all jobs"
-              checked={selectedIds.size === filtered.length}
-              onChange={toggleSelectAll}
-            />
-          )}
-          <div>
-            <h3 className="text-[15px] font-semibold text-text-primary">Recent Jobs</h3>
-            <p className="mt-0.5 text-xs text-text-tertiary">{pagination.total} total</p>
-          </div>
-
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-full border border-border bg-surface-hover/50 p-1">
-              {FILTERS.map((f) => (
-                <button
-                  key={f.value}
-                  type="button"
-                  onClick={() => setStatusFilter(f.value)}
-                  className={`cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                    statusFilter === f.value
-                      ? "bg-surface text-text-primary shadow-sm"
-                      : "text-text-tertiary hover:text-text-secondary"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-            <Input
-              icon={<Search className="size-4" />}
-              placeholder="Search jobs..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="w-48"
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              iconOnly
-              aria-label="Refresh jobs"
-              loading={loading}
-              icon={<RefreshCw className="size-4" />}
-              onClick={() => refetch()}
-            />
-          </div>
-        </div>
-
-        {selectedIds.size > 0 && (
-          <div className="flex flex-wrap items-center gap-3 border-b border-border-light bg-surface-hover/40 px-5 py-2.5">
-            <span className="text-[13px] font-semibold text-text-primary">{selectedIds.size} selected</span>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
-              Clear
-            </Button>
-            <div className="ml-auto">
-              <Button
-                variant="danger"
-                size="sm"
-                icon={<Trash2 className="size-3.5" />}
-                loading={bulkDeleteLoading}
-                onClick={handleBulkDelete}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {loading && jobs.length === 0 ? (
-          <LoadingState label="Loading jobs..." />
-        ) : filtered.length === 0 ? (
-          jobs.length === 0 ? (
-            <EmptyState
-              description="No jobs yet. Create your first video!"
-              actionLabel="Create Video"
-              actionIcon={<Plus className="size-4" />}
-              onAction={() => navigate("/wizard")}
-            />
+      {isNewUser ? (
+        <Card>
+          <EmptyState
+            icon={Film}
+            title="Make your first video"
+            description="Give it a topic and Vireon writes the script, records the narration, builds the scenes and renders the result. Everything you make shows up here."
+            actionLabel="Create Video"
+            actionIcon={<Plus className="size-4" />}
+            onAction={() => navigate("/wizard")}
+            secondaryLabel="Browse templates"
+            onSecondary={() => navigate("/templates")}
+          />
+        </Card>
+      ) : (
+        <>
+          {summaryError ? (
+            <ErrorState message="Totals could not be loaded" description={summaryError.friendlyMessage || summaryError.message} onRetry={refetchSummary} />
           ) : (
-            <EmptyState description="No jobs match your search or filter." />
-          )
-        ) : (
-          <>
-            <div className="divide-y divide-border-light">
-              {filtered.map((job) => {
-                const tone = classifyStatus(job.status);
-                const isActive = tone === "processing";
-                const iconTone =
-                  tone === "success" ? "success" : tone === "error" ? "danger" : tone === "processing" ? "accent" : "neutral";
-                return (
-                  <div key={job._id} className="group flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-surface-hover">
-                    <input
-                      type="checkbox"
-                      className="size-4 shrink-0 cursor-pointer accent-accent"
-                      aria-label={`Select ${job.topic}`}
-                      checked={selectedIds.has(job._id)}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={() => toggleSelect(job._id)}
-                    />
-                    <div className={`flex size-9 shrink-0 items-center justify-center rounded-[10px] ${toneCls[iconTone]}`}>
-                      {isActive ? <Sparkles className="size-4" /> : <Video className="size-4" />}
-                    </div>
+            <section aria-label="Totals" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatTile
+                label="Videos created"
+                icon={Film}
+                tone="accent"
+                loading={summaryLoading}
+                value={summary?.totalVideoJobs}
+                hint={summary && summary.totalCourseVideos ? `+ ${summary.totalCourseVideos} course lessons` : undefined}
+                onClick={() => navigate("/projects")}
+              />
+              <StatTile
+                label="In progress"
+                icon={Loader2}
+                tone="accent"
+                loading={activeLoading}
+                value={running.length + queued.length}
+                hint={`${running.length} running · ${queued.length} queued`}
+                onClick={() => navigate("/jobs?status=processing")}
+              />
+              <StatTile
+                label="Completed"
+                icon={CheckCircle2}
+                tone="success"
+                loading={summaryLoading}
+                value={summary?.completedVideoJobs}
+                hint={summary?.jobSuccessRate != null ? `${summary.jobSuccessRate}% success rate` : "No finished jobs yet"}
+                onClick={() => navigate("/projects")}
+              />
+              <StatTile
+                label="Failed"
+                icon={XCircle}
+                tone={summary?.failedVideoJobs ? "danger" : "neutral"}
+                loading={summaryLoading}
+                value={summary?.failedVideoJobs}
+                hint={summary?.avgGenerationTimeMs != null ? `Typical run ${formatDuration(summary.avgGenerationTimeMs)}` : undefined}
+                onClick={() => navigate("/jobs?status=error")}
+              />
+            </section>
+          )}
 
+          <QuickActions />
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+            <LiveActivity />
+            <ResourcePanel />
+          </div>
+
+          <section aria-labelledby="recent-projects">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 id="recent-projects" className="text-sm font-semibold text-text-primary">
+                Recent projects
+              </h2>
+              <Link to="/projects" className="inline-flex items-center gap-1 text-xs font-medium text-text-secondary transition-colors hover:text-text-primary">
+                View all <ArrowRight className="size-3.5" />
+              </Link>
+            </div>
+            {projectsError && recent.length === 0 ? (
+              <ErrorState message="Recent projects could not be loaded" description={projectsError.friendlyMessage || projectsError.message} onRetry={refetchProjects} />
+            ) : projectsLoading ? (
+              <ProjectGrid loading />
+            ) : recent.length === 0 ? (
+              <Card>
+                <EmptyState compact icon={Film} title="No projects yet" description="Projects you create will be listed here." />
+              </Card>
+            ) : (
+              <ProjectGrid projects={recent} />
+            )}
+          </section>
+
+          {recentFailures.length > 0 && (
+            <Card>
+              <CardHeader
+                title={
+                  <span className="flex items-center gap-2">
+                    <AlertTriangle className="size-4 text-danger-500" /> Needs attention
+                  </span>
+                }
+                subtitle="Latest failures"
+                extra={
+                  <Link to="/jobs" className="text-xs font-medium text-text-secondary hover:text-text-primary">
+                    Open Generation Jobs
+                  </Link>
+                }
+              />
+              <ul className="divide-y divide-border-light">
+                {recentFailures.slice(0, 4).map((f) => (
+                  <li key={`${f.source}-${f.id}`} className="flex items-start gap-3 px-4 py-2.5">
                     <div className="min-w-0 flex-1">
-                      <button
-                        onClick={() => navigate(`/render?id=${job._id}`)}
-                        className="cursor-pointer max-w-full truncate text-left text-[13.5px] font-medium text-text-primary hover:text-accent"
+                      <Link
+                        to={f.source === "videoJob" ? `/render?id=${f.id}` : "/courses"}
+                        className="block truncate text-[13px] font-medium text-text-primary hover:text-accent-fg"
+                        title={f.title}
                       >
-                        {job.topic}
-                      </button>
-                      <p className="mt-0.5 truncate text-xs text-text-tertiary">
-                        {job.type} · {timeAgo(job.createdAt)}
+                        {f.title}
+                      </Link>
+                      <p className="mt-0.5 line-clamp-2 text-xs text-danger-500" title={f.message}>
+                        {f.message}
                       </p>
                     </div>
+                    <span className="shrink-0 text-xs text-text-tertiary" title={new Date(f.occurredAt).toLocaleString()}>
+                      {timeAgo(f.occurredAt)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
-                    {isActive && (
-                      <div className="hidden w-32 shrink-0 sm:block">
-                        <Progress percent={job.progress || 0} size="sm" status="active" trickle={isJobRunning(job.status)} />
-                      </div>
-                    )}
-
-                    <div className="shrink-0">
-                      <StatusTag status={job.status} />
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        iconOnly
-                        aria-label={`View progress for ${job.topic}`}
-                        onClick={() => navigate(`/render?id=${job._id}`)}
-                        icon={<Eye className="size-4" />}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        iconOnly
-                        aria-label={`Delete ${job.topic}`}
-                        onClick={() => handleDelete(job)}
-                        icon={<Trash2 className="size-4 text-danger-500" />}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {totalPages > 1 && (
-              <div className="flex items-center justify-end gap-2 border-t border-border-light px-5 py-3">
-                <span className="mr-2 text-xs text-text-tertiary">
-                  Page {pagination.page} of {totalPages}
-                </span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconOnly
-                  disabled={pagination.page <= 1}
-                  onClick={() => { setPage(pagination.page - 1); setSelectedIds(new Set()); }}
-                  icon={<ChevronLeft className="size-4" />}
-                />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconOnly
-                  disabled={pagination.page >= totalPages}
-                  onClick={() => { setPage(pagination.page + 1); setSelectedIds(new Set()); }}
-                  icon={<ChevronRight className="size-4" />}
-                />
-              </div>
-            )}
-          </>
-        )}
-      </Card>
+          {summary?.totalStorageBytes ? (
+            <p className="text-xs text-text-tertiary">
+              {formatBytes(summary.totalStorageBytes)} of generated media in storage ·{" "}
+              <Link to="/media" className="hover:text-text-primary">
+                Media Library
+              </Link>
+            </p>
+          ) : null}
+        </>
+      )}
     </div>
   );
 };
 
-export default Dashboard;
+export default Overview;

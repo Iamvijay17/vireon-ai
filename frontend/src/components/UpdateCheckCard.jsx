@@ -49,7 +49,7 @@ export default function UpdateCheckCard() {
       <CardBody>
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border-light px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-subtle text-accent">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-subtle text-accent-fg">
               <Rocket className="size-4" />
             </div>
             <div className="min-w-0">

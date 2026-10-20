@@ -81,7 +81,7 @@ const PromotionPage = () => {
       {attention.length > 0 && tab !== "accounts" && (
         <Alert
           type="warning" title="An account needs reconnecting" className="mb-4"
-          action={<button type="button" className="cursor-pointer text-[13px] font-medium text-accent hover:underline" onClick={() => go("accounts")}>Go to Accounts</button>}
+          action={<button type="button" className="cursor-pointer text-[13px] font-medium text-accent-fg hover:underline" onClick={() => go("accounts")}>Go to Accounts</button>}
         >
           {attention.map((a) => a.displayName || a.externalId).join(", ")} can&apos;t be used for posting until you reconnect {attention.length === 1 ? "it" : "them"}.
         </Alert>

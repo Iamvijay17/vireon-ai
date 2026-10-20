@@ -1,6 +1,10 @@
 import { useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { LoadingState, EmptyState } from "../../components";
+import ProjectWorkspaceNav from "../../components/ProjectWorkspaceNav";
+import { useSetBreadcrumbLabel } from "../../shared/breadcrumbContextValue";
+import { useUnsavedChangesGuard } from "../../lib/useUnsavedChangesGuard";
+import { confirmDialog } from "../../components/ui/confirmBus";
 import { ScenePreview } from "../../components/video/ScenePreview";
 import { useForceSidebarCollapsed } from "../../shared/sidebarContextValue";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
@@ -26,7 +30,26 @@ const StudioPage = () => {
 
   const editor = useSceneEditor(jobId);
   const { job, setJob, loading, socketStatus } = useStudioJob(jobId, editor.resetScenes);
-  const actions = useStudioActions({ jobId, job, setJob, editor, navigate });
+  useSetBreadcrumbLabel(job?.topic);
+
+  // Leaving with unsaved edits asks first. Navigations the editor itself makes
+  // after a successful save pass through `bypass` so they are not second-guessed.
+  const guard = useUnsavedChangesGuard(editor.hasChanges);
+  const guardedNavigate = (to) => {
+    guard.bypass();
+    navigate(to);
+  };
+  const actions = useStudioActions({ jobId, job, setJob, editor, navigate: guardedNavigate });
+
+  const handleDiscard = async () => {
+    const ok = await confirmDialog({
+      title: "Discard your changes?",
+      content: "The scenes go back to what was last saved. This can't be undone.",
+      confirmText: "Discard changes",
+      danger: true,
+    });
+    if (ok) editor.resetScenes(job?.script?.scenes || []);
+  };
 
   const [inspectorTab, setInspectorTab] = useState("content");
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
@@ -42,7 +65,7 @@ const StudioPage = () => {
   if (loading) return <LoadingState label="Loading studio..." />;
 
   if (!job) {
-    return <EmptyState description="Job not found" actionLabel="Back to Dashboard" onAction={() => navigate("/")} />;
+    return <EmptyState title="Project not found" description="It may have been deleted." actionLabel="Back to My Projects" onAction={() => navigate("/projects")} />;
   }
 
   const stage = getStudioStage(job);
@@ -52,15 +75,16 @@ const StudioPage = () => {
   // stack at natural height and the page itself scrolls, instead of
   // squeezing each pane into a few rows of nested scroll.
   return (
-    <div className="flex flex-col gap-3 lg:h-[calc(100dvh-8rem)] lg:min-h-[560px]">
+    <div className="flex flex-col gap-3 lg:h-[calc(100dvh-6.5rem)] lg:min-h-[560px]">
       <StudioToolbar
         job={job}
         stage={stage}
         socketStatus={socketStatus}
         hasChanges={hasChanges}
         actions={actions}
-        onBack={() => navigate("/")}
+        onDiscard={handleDiscard}
       />
+      <ProjectWorkspaceNav jobId={jobId} active="editor" hasScript onNavigate={navigate} />
 
       {editedScenes.length === 0 ? (
         <EmptyState description="No scenes found" />
@@ -114,7 +138,7 @@ const StudioPage = () => {
             regeneratingImage={actions.regeneratingImage}
             onRegenerateImage={actions.handleRegenerateImage}
             hasChanges={hasChanges}
-            onRegenerationQueued={() => navigate(`/render?id=${jobId}`)}
+            onRegenerationQueued={() => guardedNavigate(`/render?id=${jobId}`)}
           />
         </div>
       )}

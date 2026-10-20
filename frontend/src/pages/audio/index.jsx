@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AudioLines, Mic2 } from "lucide-react";
+import { PageHeader } from "../../components";
 import { generateAudio, generateDialogueAudio, getVoices, getTtsVoices } from "../../services/api";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -13,6 +14,7 @@ import { useTtsPreview } from "../../shared/useTtsPreview";
 import { SingleVoicePanel } from "./SingleVoicePanel";
 import { DialoguePanel } from "./DialoguePanel";
 import { HistoryPanel } from "./HistoryPanel";
+import VoiceStatusStrip from "./VoiceStatusStrip";
 import { useAudioHistory } from "./useAudioHistory";
 
 const FALLBACK_VOICES = [
@@ -203,17 +205,22 @@ const AudioPage = () => {
 
   return (
     <div>
-      <div className="mb-5 flex items-center gap-3">
-        <h1 className="text-xl font-semibold tracking-tight text-text-primary">Audio Studio</h1>
-        <Badge variant="accent" icon={<AudioLines className="size-3" />}>
-          Text to Speech
-        </Badge>
-      </div>
+      <PageHeader
+        title="Voice Studio"
+        description="Preview how a voice reads your text, direct its style, and generate narration or multi-speaker audio."
+        meta={
+          <Badge variant="accent" icon={<AudioLines className="size-3" />}>
+            Text to speech
+          </Badge>
+        }
+      />
+
+      <VoiceStatusStrip voiceCount={voiceCatalog.custom.length + voiceCatalog.clone.length} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card className="animate-slide-up">
           <Tabs
-            className="px-6 pt-1"
+            className="px-4 pt-1"
             active={mode}
             onChange={setMode}
             items={[
@@ -222,7 +229,7 @@ const AudioPage = () => {
             ]}
           />
 
-          <div className="p-4 sm:p-6">
+          <div className="p-4 sm:p-5">
             {mode === "single" ? (
               <SingleVoicePanel
                 text={text}

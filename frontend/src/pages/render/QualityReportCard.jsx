@@ -46,7 +46,7 @@ export const QualityReportCard = ({ report }) => {
             {hidden.length > 0 && (
               <li>
                 <details className="group">
-                  <summary className="cursor-pointer text-xs font-medium text-accent">
+                  <summary className="cursor-pointer text-xs font-medium text-accent-fg">
                     Show {hidden.length} more
                   </summary>
                   <ul className="mt-2 flex flex-col gap-2">

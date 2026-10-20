@@ -8,6 +8,7 @@ const {
   SHORTS_VIDEO_DURATIONS,
 } = require('../../../constants');
 const { NotFoundError, ValidationError } = require('../../../utils/errors');
+const { escapeRegex } = require('../../../utils/escapeRegex');
 
 // A job actively being worked on by the worker can't have its details
 // edited underneath it - the same "actively processing" concern as
@@ -117,7 +118,7 @@ async function getAllJobs(page = 1, limit = 20, filters = {}) {
     query.type = filters.type;
   }
   if (filters.search) {
-    query.topic = { $regex: filters.search, $options: 'i' };
+    query.topic = { $regex: escapeRegex(filters.search), $options: 'i' };
   }
 
   const [jobs, total] = await Promise.all([

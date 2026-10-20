@@ -81,7 +81,7 @@ export const VoiceDirection = ({ options, direction, setDirection, onPickPreset,
                 className={cn(
                   "cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                   activePreset === profile.id
-                    ? "border-accent bg-accent-subtle text-accent"
+                    ? "border-accent bg-accent-subtle text-accent-fg"
                     : "border-border bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
                 )}
               >

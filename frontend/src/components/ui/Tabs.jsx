@@ -7,11 +7,13 @@ import { cn } from "./cn";
 // of staying contained - this makes it scroll horizontally in that case
 // instead, with no visual change when everything already fits.
 export const Tabs = ({ items = [], active, onChange, className }) => (
-  <div className={cn("flex items-center gap-1 overflow-x-auto border-b border-border-light", className)}>
+  <div role="tablist" className={cn("flex items-center gap-1 overflow-x-auto border-b border-border-light", className)}>
     {items.map((item) => (
       <button
         key={item.key}
         type="button"
+        role="tab"
+        aria-selected={active === item.key}
         onClick={() => onChange?.(item.key)}
         className={cn(
           "relative flex shrink-0 cursor-pointer items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors",

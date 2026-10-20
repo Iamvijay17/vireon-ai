@@ -15,7 +15,7 @@ export const VideoPlayerCard = ({ job, videoRef }) => {
   return (
     <Card className="animate-slide-up p-4 sm:p-6" style={{ "--stagger-index": 2 }}>
       <h3 className="mb-5 flex items-center gap-2 text-[15px] font-semibold text-text-primary">
-        <PlayCircle className="size-[18px] text-accent" /> Output Video
+        <PlayCircle className="size-[18px] text-accent-fg" /> Output Video
       </h3>
 
       <div className="mx-auto max-w-2xl overflow-hidden rounded-xl bg-black shadow-lg">

@@ -18,6 +18,10 @@ export const queryKeys = {
   },
   videos: {
     all: ['videos'],
+    // Cheap recent-jobs feed for the top bar's activity menu.
+    activity: ['videos', 'activity'],
+    // The newest jobs, newest first, slimmed (the Overview page and Quality Control).
+    recent: (limit) => ['videos', 'recent', limit],
     list: (page, filters) => ['videos', 'list', page, filters],
     detail: (id) => ['videos', 'detail', id],
   },
@@ -72,6 +76,10 @@ export const queryKeys = {
   system: {
     health: ['system', 'health'],
     courseWorker: ['system', 'courseWorker'],
+    resources: ['system', 'resources'],
+    aiServices: ['system', 'aiServices'],
+    workers: ['system', 'workers'],
+    version: ['system', 'version'],
   },
 };
 

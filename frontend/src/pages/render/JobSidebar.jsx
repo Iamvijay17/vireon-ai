@@ -22,10 +22,10 @@ export function JobSidebar({ job, jobEvents, eventsLoading, activityLog }) {
     {
       label: "Job ID",
       value: (
-        <button onClick={copyJobId} className="flex items-center gap-1.5 font-mono text-xs hover:text-accent cursor-pointer">
+        <button onClick={copyJobId} className="flex items-center gap-1.5 font-mono text-xs hover:text-accent-fg cursor-pointer">
           {job?._id}
           <Copy className="size-3" />
-          {copied && <span className="text-[11px] text-accent">Copied</span>}
+          {copied && <span className="text-[11px] text-accent-fg">Copied</span>}
         </button>
       ),
     },

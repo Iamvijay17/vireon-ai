@@ -1,11 +1,9 @@
-import { Mic2 } from "lucide-react";
 import { VoiceSelect } from "../../components/ui/VoiceSelect";
 import { Select } from "../../components/ui/Select";
 import { Label, FieldHint } from "../../components/ui/Input";
 import { cn } from "../../components/ui/cn";
 import { PODCAST_VOICE_PAIRS, deriveNameFromVoiceLabel } from "./constants";
 import { NameSelect } from "./NameSelect";
-import { Section } from "./Section";
 
 /**
  * Voice settings: one narrator voice, or for a podcast a host and a guest
@@ -18,7 +16,7 @@ export function AudioSection({ values, setValues, setField, errors, voiceOptions
   );
 
   return (
-    <Section icon={Mic2} title="Configure audio settings" className={values.type === "podcast" ? "lg:col-span-2" : undefined}>
+    <div>
       {values.type === "podcast" ? (
         <>
           {availableVoicePairs.length > 0 && (
@@ -44,7 +42,7 @@ export function AudioSection({ values, setValues, setField, errors, voiceOptions
                       className={cn(
                         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
                         active
-                          ? "border-accent bg-accent-subtle text-accent"
+                          ? "border-accent bg-accent-subtle text-accent-fg"
                           : "border-border bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
                       )}
                     >
@@ -125,7 +123,7 @@ export function AudioSection({ values, setValues, setField, errors, voiceOptions
             isFavorite={isFavorite}
             onToggleFavorite={toggleFavorite}
           />
-          <FieldHint>Custom voices are built-in presets; Clone voices are generated from your reference .wav files in backend/voices/. Click the play button to hear a sample.</FieldHint>
+          <FieldHint>Custom voices are built-in presets; Clone voices are generated from your own reference recordings. Press play to hear a sample.</FieldHint>
 
           {voiceStyles.length > 0 && (
             <div className="mt-4">
@@ -138,11 +136,11 @@ export function AudioSection({ values, setValues, setField, errors, voiceOptions
                   ...voiceStyles.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) })),
                 ]}
               />
-              <FieldHint>How the narrator delivers the script. Auto picks a natural style for the video type; the Audio Studio can preview any style.</FieldHint>
+              <FieldHint>How the narrator delivers the script. Auto picks a natural style for the video type; Voice Studio can preview any style.</FieldHint>
             </div>
           )}
         </div>
       )}
-    </Section>
+    </div>
   );
 }

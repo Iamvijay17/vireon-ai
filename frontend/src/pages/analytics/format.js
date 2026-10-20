@@ -1,20 +1,8 @@
-export const formatDuration = (ms) => {
-  if (!ms && ms !== 0) return "—";
-  const seconds = ms / 1000;
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const minutes = ms / 60000;
-  if (minutes < 60) return `${minutes.toFixed(1)}m`;
-  return `${(minutes / 60).toFixed(1)}h`;
-};
+export { formatDuration } from "../../lib/format";
 
 export const formatPercent = (v) => (v === null || v === undefined ? "—" : `${v}%`);
 
-export const formatBytes = (bytes) => {
-  if (!bytes) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-  return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
-};
+export { formatBytes } from "../../lib/format";
 
 // Splits a trend series in half and returns the % change of `key`'s sum
 // between the two halves - a lightweight period-over-period delta without

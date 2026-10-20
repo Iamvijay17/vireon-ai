@@ -1,126 +1,74 @@
 import { useContext, useEffect, useState } from "react";
-import { Sun, Moon, Mic2, RefreshCw, Server, Cpu, RotateCcw } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "../../components";
-import { Card, CardHeader, CardBody } from "../../components/ui/Card";
-import { Switch } from "../../components/ui/Switch";
-import { Select } from "../../components/ui/Select";
-import { VoiceSelect } from "../../components/ui/VoiceSelect";
-import { Label, FieldHint } from "../../components/ui/Input";
-import { Badge } from "../../components/ui/Badge";
-import UpdateCheckCard from "../../components/UpdateCheckCard";
-import { Button } from "../../components/ui/Button";
+import { SettingsSection, SettingsRow } from "../../components/SettingsSection";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { toast } from "../../components/ui/toastBus";
 import { ThemeContext } from "../../shared/themeContextValue";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../../shared/settingsStorage";
-import { getHealth, getCourseWorkerStatus } from "../../services/api";
+import { getAiServices, getApiVersion, getCourseWorkerStatus, getSystemWorkers } from "../../services/api";
 import { connect, onCourseWorkerStatus } from "../../services/socket";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../../lib/queryClient";
+import { useSystemResources } from "../../lib/useSystemResources";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
 import { useVoiceOptions } from "../../shared/useVoiceOptions";
+import { useOverview } from "../dashboard/useOverview";
+import { DefaultsSection } from "./DefaultsSection";
+import { ProvidersSection, StorageSection, NotificationsSection, DiagnosticsSection } from "./SystemSections";
 
 const FALLBACK_VOICE_OPTIONS = [
   { value: "female-1", label: "Female Voice 1" },
   { value: "male-1", label: "Male Voice 1" },
 ];
 
-const LANGUAGE_OPTIONS = [
-  { value: "english", label: "English" },
-  { value: "hindi", label: "Hindi" },
-  { value: "spanish", label: "Spanish" },
-  { value: "french", label: "French" },
-  { value: "german", label: "German" },
-  { value: "japanese", label: "Japanese" },
-  { value: "korean", label: "Korean" },
+const NAV = [
+  { id: "general", label: "General" },
+  { id: "defaults", label: "Video defaults" },
+  { id: "providers", label: "Providers" },
+  { id: "storage", label: "Storage" },
+  { id: "notifications", label: "Notifications" },
+  { id: "diagnostics", label: "Diagnostics" },
 ];
 
-const VIDEO_TYPE_OPTIONS = [
-  { value: "educational", label: "Educational" },
-  { value: "marketing", label: "Marketing" },
-  { value: "story", label: "Story" },
-  { value: "youtube_shorts", label: "YouTube Shorts" },
-  { value: "podcast", label: "Podcast" },
-  { value: "motivational", label: "Motivational" },
-  { value: "business", label: "Business" },
+const THEME_OPTIONS = [
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+];
+const TIME_OPTIONS = [
+  { value: "24h", label: "24-hour" },
+  { value: "12h", label: "12-hour" },
 ];
 
-const RESOLUTION_OPTIONS = [
-  { value: "1920x1080", label: "1080p (1920x1080)" },
-  { value: "1080x1920", label: "1080p Vertical (1080x1920)" },
-  { value: "1080x1350", label: "Instagram 4:5 (1080x1350)" },
-  { value: "1280x720", label: "720p (1280x720)" },
-  { value: "720x1280", label: "720p Vertical (720x1280)" },
-  { value: "3840x2160", label: "4K (3840x2160)" },
-];
-
-// Mirrors the backend's QUALITY_PRESETS enum (backend/src/constants/index.js).
-const QUALITY_OPTIONS = [
-  { value: "draft", label: "Draft (fast, lower quality)" },
-  { value: "standard", label: "Standard" },
-  { value: "hd", label: "HD (best quality, slower render)" },
-];
-
-const CAPTION_STYLE_OPTIONS = [
-  { value: "fadeInUp", label: "Fade Up" },
-  { value: "popScale", label: "Pop" },
-  { value: "slideLeft", label: "Slide Left" },
-  { value: "slideRight", label: "Slide Right" },
-  { value: "bounce", label: "Bounce" },
-  { value: "typewriter", label: "Typewriter" },
-  { value: "glowActive", label: "Glow" },
-  { value: "zoom", label: "Zoom" },
-  { value: "blurToSharp", label: "Blur to Sharp" },
-];
-
-const COURSE_STYLE_OPTIONS = [
-  { value: "educational", label: "Educational" },
-  { value: "story", label: "Story" },
-  { value: "motivational", label: "Motivational" },
-  { value: "business", label: "Business" },
-];
-
-const COURSE_DURATION_OPTIONS = [
-  { value: 5, label: "5 minutes" },
-  { value: 10, label: "10 minutes" },
-  { value: 15, label: "15 minutes" },
-];
-
-const SettingsRow = ({ label, hint, children }) => (
-  <div className="grid grid-cols-1 items-start gap-2 py-3 first:pt-0 last:pb-0 sm:grid-cols-2 sm:items-center sm:gap-4">
-    <div>
-      <Label>{label}</Label>
-      {hint && <FieldHint>{hint}</FieldHint>}
-    </div>
-    <div className="sm:justify-self-end sm:w-64">{children}</div>
-  </div>
-);
-
+/**
+ * Settings: preferences that live in this browser (theme, defaults,
+ * notifications) and read-only views of what the server is configured with
+ * (providers, storage, health). Secrets never reach this page - the server
+ * keeps keys and credentials, and reports only whether things are working.
+ */
 const SettingsPage = () => {
   const { theme, toggleTheme } = useContext(ThemeContext);
-
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState(loadSettings);
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
+  const { voiceOptions } = useVoiceOptions(FALLBACK_VOICE_OPTIONS);
+  const resources = useSystemResources({ pollMs: 15000 });
+  const { storageByCategory } = useOverview();
 
-  const queryClient = useQueryClient();
-  // No retry: a failed health check *is* the answer ("Offline"), and
-  // retrying only delays showing it.
-  const healthQuery = useQuery({
-    queryKey: queryKeys.system.health,
-    queryFn: async () => (await getHealth()).data,
-    retry: false,
-  });
-  const workerQuery = useQuery({
+  const services = useQuery({ queryKey: queryKeys.system.aiServices, queryFn: async () => (await getAiServices()).data, retry: false, staleTime: 15_000 });
+  const workers = useQuery({ queryKey: queryKeys.system.workers, queryFn: async () => (await getSystemWorkers()).data, retry: false, staleTime: 15_000 });
+  const apiVersion = useQuery({ queryKey: queryKeys.system.version, queryFn: async () => (await getApiVersion()).data, retry: false, staleTime: 60_000 });
+  const courseWorker = useQuery({
     queryKey: queryKeys.system.courseWorker,
     queryFn: () => getCourseWorkerStatus().then((res) => res.data.running).catch(() => false),
   });
-  const health = healthQuery.data ?? null;
-  const healthError = Boolean(healthQuery.error);
-  const workerRunning = workerQuery.data ?? null;
-  const statusLoading = healthQuery.isFetching || workerQuery.isFetching;
 
-  const { voiceCatalog, voiceOptions } = useVoiceOptions(FALLBACK_VOICE_OPTIONS);
+  // After the first read, the course-worker indicator follows the socket push.
+  useEffect(() => {
+    connect();
+    return onCourseWorkerStatus((data) => queryClient.setQueryData(queryKeys.system.courseWorker, data.running));
+  }, [queryClient]);
 
-  const updateSetting = (key, value) => {
+  const update = (key, value) => {
     setSettings((prev) => {
       const next = { ...prev, [key]: value };
       saveSettings(next);
@@ -128,204 +76,96 @@ const SettingsPage = () => {
     });
   };
 
-  const resetSettings = () => {
-    setSettings(DEFAULT_SETTINGS);
-    saveSettings(DEFAULT_SETTINGS);
-    toast.success("Preferences reset to defaults");
+  const resetDefaults = () => {
+    setSettings((prev) => {
+      // Only the video defaults reset; notification and display choices stay.
+      const next = {
+        ...DEFAULT_SETTINGS,
+        timeFormat: prev.timeFormat,
+        notifyOnComplete: prev.notifyOnComplete,
+        notifyOnFail: prev.notifyOnFail,
+        desktopNotifications: prev.desktopNotifications,
+      };
+      saveSettings(next);
+      return next;
+    });
+    toast.success("Video defaults reset");
   };
 
-  const fetchStatus = () => {
-    healthQuery.refetch();
-    workerQuery.refetch();
+  const toggleDesktop = async (on) => {
+    if (!on) return update("desktopNotifications", false);
+    try {
+      const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+      if (permission === "granted") update("desktopNotifications", true);
+      else toast.error("The browser blocked notifications. Allow them for this site to turn this on.");
+    } catch {
+      toast.error("Desktop notifications are not available in this browser");
+    }
   };
 
-  // After the initial fetch, keep the worker indicator live via the socket
-  // push instead of re-polling on a timer.
-  useEffect(() => {
-    connect();
-    return onCourseWorkerStatus((data) => queryClient.setQueryData(queryKeys.system.courseWorker, data.running));
-  }, [queryClient]);
+  const refreshDiagnostics = () => {
+    resources.refetch();
+    services.refetch();
+    workers.refetch();
+    apiVersion.refetch();
+    courseWorker.refetch();
+  };
 
   return (
     <div>
-      <PageHeader title="Settings" description="Preferences and generation defaults for this browser, plus a live look at backend health." />
+      <PageHeader title="Settings" description="Your preferences for this browser, and the read-only state of the services behind the studio." />
 
-      <div className="space-y-6">
-        {/* Appearance */}
-        <Card>
-          <CardHeader title="Appearance" subtitle="Personalize how Vireon AI looks on this device" />
-          <CardBody>
-            <SettingsRow label="Theme" hint="Switch between light and dark mode">
-              <div className="flex items-center justify-end gap-3">
-                <Sun className="size-4 text-text-tertiary" />
-                <Switch checked={theme === "dark"} onChange={toggleTheme} />
-                <Moon className="size-4 text-text-tertiary" />
-              </div>
-            </SettingsRow>
-            <SettingsRow label="Time Format" hint="Used for timestamps on the Live Logs page">
-              <div className="flex items-center justify-end gap-4">
-                <label className="flex items-center gap-1.5 text-sm text-text-primary">
-                  <input
-                    type="radio"
-                    name="time-format"
-                    checked={settings.timeFormat === "12h"}
-                    onChange={() => updateSetting("timeFormat", "12h")}
-                    className="size-3.5 accent-accent"
-                  />
-                  12-hour
-                </label>
-                <label className="flex items-center gap-1.5 text-sm text-text-primary">
-                  <input
-                    type="radio"
-                    name="time-format"
-                    checked={settings.timeFormat === "24h"}
-                    onChange={() => updateSetting("timeFormat", "24h")}
-                    className="size-3.5 accent-accent"
-                  />
-                  24-hour
-                </label>
-              </div>
-            </SettingsRow>
-          </CardBody>
-        </Card>
-
-        {/* Generation Defaults */}
-        <Card>
-          <CardHeader
-            title="Generation Defaults"
-            subtitle="Pre-fill the Wizard and Course creation forms with your preferred options"
-            extra={
-              <Button variant="ghost" size="sm" icon={<RotateCcw className="size-3.5" />} onClick={resetSettings}>
-                Reset
-              </Button>
-            }
-          />
-          <CardBody className="divide-y divide-border-light">
-            <SettingsRow label="Default Voice" hint="Used across both the Wizard and Course video creation">
-              <VoiceSelect
-                options={voiceOptions}
-                value={settings.defaultVoice}
-                onChange={(v) => updateSetting("defaultVoice", v)}
-                placeholder="No preference"
-                isFavorite={isFavorite}
-                onToggleFavorite={toggleFavorite}
-              />
-            </SettingsRow>
-            <SettingsRow label="Default Language" hint="Used when creating course videos">
-              <Select options={LANGUAGE_OPTIONS} value={settings.defaultLanguage} onChange={(v) => updateSetting("defaultLanguage", v)} />
-            </SettingsRow>
-            <SettingsRow label="Default Video Type" hint="Preselected in step 1 of the Wizard">
-              <Select options={VIDEO_TYPE_OPTIONS} value={settings.defaultVideoType} onChange={(v) => updateSetting("defaultVideoType", v)} />
-            </SettingsRow>
-            <SettingsRow label="Default Resolution" hint="Used by the Wizard's resolution step - aspect ratio follows automatically">
-              <Select options={RESOLUTION_OPTIONS} value={settings.defaultResolution} onChange={(v) => updateSetting("defaultResolution", v)} />
-            </SettingsRow>
-            <SettingsRow label="Default Render Quality" hint="Preselected in the Wizard's output step - controls the render's encode CRF">
-              <Select options={QUALITY_OPTIONS} value={settings.defaultQuality} onChange={(v) => updateSetting("defaultQuality", v)} />
-            </SettingsRow>
-            <SettingsRow label="Default Caption Style" hint="Preselected in the Wizard's output step - podcast dialogue always uses its own highlight style">
-              <Select options={CAPTION_STYLE_OPTIONS} value={settings.defaultCaptionStyle} onChange={(v) => updateSetting("defaultCaptionStyle", v)} />
-            </SettingsRow>
-            <SettingsRow label="Default Course Style" hint="Preselected when creating a course video">
-              <Select options={COURSE_STYLE_OPTIONS} value={settings.defaultCourseStyle} onChange={(v) => updateSetting("defaultCourseStyle", v)} />
-            </SettingsRow>
-            <SettingsRow label="Default Course Duration" hint="Preselected when creating a course video">
-              <Select options={COURSE_DURATION_OPTIONS} value={settings.defaultCourseDuration} onChange={(v) => updateSetting("defaultCourseDuration", v)} />
-            </SettingsRow>
-            <SettingsRow label="Fast Generation" hint="Wizard videos run audio, images and render on their own after you approve the script. Off = you trigger each step, so you can change the voice in between">
-              <div className="flex justify-end">
-                <Switch
-                  checked={settings.defaultFastGeneration}
-                  onChange={(v) => {
-                    updateSetting("defaultFastGeneration", v);
-                    if (!v) updateSetting("defaultAutoApprove", false);
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[11rem_minmax(0,1fr)]">
+        <nav aria-label="Settings sections" className="lg:sticky lg:top-20 lg:self-start">
+          <ul className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
+            {NAV.map((item) => (
+              <li key={item.id} className="shrink-0">
+                <a
+                  href={`#${item.id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }}
-                />
-              </div>
-            </SettingsRow>
-            <SettingsRow label="Auto-approve Script" hint="With Fast Generation: skip the script review too - the video goes from topic to finished with no clicks. You can't edit the script or voice first">
-              <div className="flex justify-end">
-                <Switch
-                  checked={settings.defaultFastGeneration && settings.defaultAutoApprove}
-                  disabled={!settings.defaultFastGeneration}
-                  onChange={(v) => updateSetting("defaultAutoApprove", v)}
-                />
-              </div>
-            </SettingsRow>
-            <SettingsRow label="Fast Audio Generation" hint="Uses the smaller 0.6B TTS model by default in Audio Studio - quicker, lower quality">
-              <div className="flex justify-end">
-                <Switch checked={settings.fastAudioGeneration} onChange={(v) => updateSetting("fastAudioGeneration", v)} />
-              </div>
-            </SettingsRow>
-          </CardBody>
-        </Card>
+                  className="block rounded-md px-2.5 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-        <UpdateCheckCard />
+        <div className="min-w-0 space-y-5">
+          <SettingsSection id="general" title="General" description="How the interface looks. Stored in this browser.">
+            <SettingsRow label="Theme" hint="Dark is the default">
+              <div className="flex justify-end">
+                <SegmentedControl aria-label="Theme" value={theme} onChange={(v) => v !== theme && toggleTheme()} options={THEME_OPTIONS} />
+              </div>
+            </SettingsRow>
+            <SettingsRow label="Time format" hint="Used for timestamps on the Live Logs page">
+              <div className="flex justify-end">
+                <SegmentedControl aria-label="Time format" value={settings.timeFormat} onChange={(v) => update("timeFormat", v)} options={TIME_OPTIONS} />
+              </div>
+            </SettingsRow>
+          </SettingsSection>
 
-        {/* System Status */}
-        <Card>
-          <CardHeader
-            title="System Status"
-            subtitle="Live health of the backend API and the course video worker"
-            extra={
-              <Button variant="secondary" size="sm" loading={statusLoading} icon={<RefreshCw className="size-3.5" />} onClick={fetchStatus}>
-                Refresh
-              </Button>
-            }
+          <DefaultsSection settings={settings} update={update} onReset={resetDefaults} voiceOptions={voiceOptions} isFavorite={isFavorite} toggleFavorite={toggleFavorite} />
+
+          <ProvidersSection services={{ data: services.data, loading: services.isLoading, error: services.error }} />
+
+          <StorageSection resources={resources} storageByCategory={storageByCategory} />
+
+          <NotificationsSection settings={settings} update={update} onDesktopToggle={toggleDesktop} />
+
+          <DiagnosticsSection
+            resources={resources}
+            workers={{ data: workers.data, error: workers.error }}
+            courseWorker={courseWorker.data ?? null}
+            apiVersion={apiVersion.data}
+            onRefresh={refreshDiagnostics}
+            refreshing={resources.loading || services.isFetching || workers.isFetching}
           />
-          <CardBody className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-border-light px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-lg bg-accent-subtle text-accent">
-                  <Server className="size-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-text-primary">Backend API</p>
-                  <p className="text-xs text-text-tertiary">
-                    {health ? `Node ${health.nodeVersion} · ${health.platform} · up ${health.uptime}` : healthError ? "Could not reach the API" : "Checking..."}
-                  </p>
-                </div>
-              </div>
-              <Badge variant={healthError ? "danger" : health ? "success" : "neutral"} dot>
-                {healthError ? "Offline" : health ? "Healthy" : "Checking"}
-              </Badge>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-border-light px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-lg bg-accent-subtle text-accent">
-                  <Cpu className="size-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-text-primary">Course Video Worker</p>
-                  <p className="text-xs text-text-tertiary">
-                    {workerRunning
-                      ? "Listening for script, audio and render jobs"
-                      : "Start it with: npm run course-worker"}
-                  </p>
-                </div>
-              </div>
-              <Badge variant={workerRunning ? "success" : workerRunning === false ? "danger" : "neutral"} dot>
-                {workerRunning === null ? "Checking" : workerRunning ? "Running" : "Offline"}
-              </Badge>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-border-light px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-lg bg-accent-subtle text-accent">
-                  <Mic2 className="size-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-text-primary">Voice Catalog</p>
-                  <p className="text-xs text-text-tertiary">
-                    {voiceCatalog.custom.length + voiceCatalog.clone.length} voice{voiceCatalog.custom.length + voiceCatalog.clone.length === 1 ? "" : "s"} available
-                    ({voiceCatalog.custom.length} custom, {voiceCatalog.clone.length} cloned)
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
+        </div>
       </div>
     </div>
   );

@@ -37,13 +37,17 @@ export const ToastProvider = ({ children }) => {
     <>
       {children}
       {createPortal(
-        <div className="fixed top-4 left-1/2 z-200 flex -translate-x-1/2 flex-col items-center gap-2">
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed right-4 top-[4.25rem] z-200 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2"
+        >
           {toasts.map((t) => {
             const { Icon, cls } = ICONS[t.type] || ICONS.info;
             return (
               <div
                 key={t.id}
-                className="animate-slide-up flex max-w-sm items-center gap-2.5 rounded-xl border border-border bg-surface px-4 py-3 shadow-lg shadow-black/10"
+                className="pointer-events-auto animate-slide-up flex max-w-sm items-center gap-2.5 rounded-lg border border-border bg-surface-raised px-3.5 py-2.5 shadow-lg"
               >
                 <Icon className={cn("size-4 shrink-0", cls)} />
                 <span className="text-[13px] font-medium text-text-primary">{t.message}</span>

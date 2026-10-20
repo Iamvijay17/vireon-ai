@@ -383,7 +383,7 @@ describe("CreatePanel - the full flow", () => {
     api.getCampaign.mockResolvedValue({ data: { campaign, posts: [], summary: {} } });
     api.getSocialLibrary.mockResolvedValue({ data: { videos: [], lessons: [], images: [{ kind: "image", imageGenerationId: "img-aaaaaaaa", title: "Lighthouse at dusk", prompt: "Lighthouse at dusk, oil painting", aspectRatio: "1:1", width: 1024, height: 1024, thumbnailUrl: "http://127.0.0.1:9000/b/p.png" }] } });
     wrap(<CreatePanel caps={caps()} accounts={accounts} />, "/promotion/create");
-    fireEvent.click(await screen.findByRole("button", { name: /^images$/i }));
+    fireEvent.click(await screen.findByRole("tab", { name: /^images$/i }));
     expect(await screen.findByText(/1:1 · 1024×1024/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /lighthouse at dusk/i }));
     await waitFor(() => expect(api.createCampaign).toHaveBeenCalledWith(expect.objectContaining({ imageGenerationId: "img-aaaaaaaa" })));
@@ -392,7 +392,7 @@ describe("CreatePanel - the full flow", () => {
   it("tells you when Image Studio has no finished pictures yet", async () => {
     api.getSocialLibrary.mockResolvedValue({ data: { videos: [], lessons: [], images: [] } });
     wrap(<CreatePanel caps={caps()} accounts={accounts} />, "/promotion/create");
-    fireEvent.click(await screen.findByRole("button", { name: /^images$/i }));
+    fireEvent.click(await screen.findByRole("tab", { name: /^images$/i }));
     expect(await screen.findByText(/No generated images yet/)).toBeTruthy();
   });
 

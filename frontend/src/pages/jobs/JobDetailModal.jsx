@@ -39,8 +39,17 @@ export function JobDetailModal({ job, onClose, navigate }) {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={TYPE_BADGE[detail.job.type].variant}>{TYPE_BADGE[detail.job.type].label}</Badge>
             <StatusTag status={detail.job.status} />
-            {detail.job.error && <span className="text-xs text-danger-500">{detail.job.error}</span>}
+            {detail.job.updatedAt && (
+              <span className="text-xs text-text-tertiary">Updated {new Date(detail.job.updatedAt).toLocaleString()}</span>
+            )}
           </div>
+
+          {detail.job.error && (
+            <div className="rounded-lg border border-danger-500/25 bg-danger-500/8 p-3">
+              <p className="text-xs font-medium text-danger-600 dark:text-danger-500">What went wrong</p>
+              <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-text-primary">{detail.job.error}</p>
+            </div>
+          )}
 
           {detail.job.type === "course" ? (
             <div>
@@ -85,8 +94,8 @@ export function JobDetailModal({ job, onClose, navigate }) {
           )}
 
           <div className="flex justify-end border-t border-border-light pt-3">
-            <Button variant="secondary" size="sm" onClick={() => navigate(ROUTE_FOR[detail.job.type](detail.job.id))}>
-              Open
+            <Button variant="primary" size="sm" onClick={() => navigate(ROUTE_FOR[detail.job.type](detail.job.id))}>
+              {detail.job.type === "video" ? "Open project" : "Open"}
             </Button>
           </div>
         </div>

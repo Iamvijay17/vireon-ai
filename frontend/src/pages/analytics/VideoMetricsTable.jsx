@@ -74,7 +74,7 @@ export function VideoMetricsTable() {
   const pagination = data?.pagination || { page, total: 0, totalPages: 0 };
 
   return (
-    <Card className="mt-4 animate-slide-up overflow-hidden rounded-2xl shadow-sm" style={{ "--stagger-index": 17 }}>
+    <Card className="mt-4 animate-slide-up overflow-hidden rounded-xl shadow-sm" style={{ "--stagger-index": 17 }}>
       <CardHeader
         title={
           <span className="flex items-center gap-2">

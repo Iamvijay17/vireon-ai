@@ -144,7 +144,7 @@ export const JobEventTimeline = ({ events = [], limit, className, emptyText = "N
                     </Tooltip>
                   )}
                   {event.live && !event.replayed && i === 0 && (
-                    <Radio className="size-3 shrink-0 text-accent" aria-label="live" />
+                    <Radio className="size-3 shrink-0 text-accent-fg" aria-label="live" />
                   )}
                 </p>
                 <span className="flex shrink-0 items-center gap-2 text-xs text-text-tertiary tabular-nums">

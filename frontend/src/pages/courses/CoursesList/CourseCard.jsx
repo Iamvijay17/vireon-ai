@@ -18,7 +18,7 @@ export const CourseCard = ({ course, onOpen, onEdit, onDelete }) => {
       tabIndex={0}
       onClick={() => onOpen(course)}
       onKeyDown={(e) => e.key === "Enter" && onOpen(course)}
-      className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-border bg-surface transition-all hover:-translate-y-0.5 hover:shadow-md"
+      className="group flex cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-surface transition-all hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="flex items-start justify-between p-5 pb-3">
         <div className={`flex size-11 items-center justify-center rounded-[10px] ${toneForCategory(course.category)}`}>
@@ -30,7 +30,7 @@ export const CourseCard = ({ course, onOpen, onEdit, onDelete }) => {
       </div>
 
       <div className="flex-1 px-5 pb-4">
-        <h3 className="line-clamp-1 text-[15px] font-semibold text-text-primary transition-colors group-hover:text-accent">
+        <h3 className="line-clamp-1 text-[15px] font-semibold text-text-primary transition-colors group-hover:text-accent-fg">
           {course.title}
         </h3>
         <p className="mt-1 line-clamp-2 min-h-[2.25rem] text-xs leading-relaxed text-text-tertiary">

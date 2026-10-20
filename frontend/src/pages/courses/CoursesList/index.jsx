@@ -136,7 +136,7 @@ const CoursesList = () => {
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {loading && courses.length === 0
               ? Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-64 animate-pulse rounded-2xl border border-border bg-surface-hover" />
+                  <div key={i} className="h-64 animate-pulse rounded-xl border border-border bg-surface-hover" />
                 ))
               : courses.map((course, i) => (
                   <div key={course._id} className="animate-slide-up" style={{ "--stagger-index": Math.min(i, 8) }}>

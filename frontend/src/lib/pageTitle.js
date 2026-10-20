@@ -1,32 +1,12 @@
 // Browser tab titles: "<Page> · Vireon AI". Pure so it can be unit tested;
 // <PageTitle /> (components/PageTitle.jsx) applies it on every route change.
+import { PAGE_TITLES } from "../layout/navConfig";
+
 export const APP_NAME = "Vireon AI";
 
-// Static pages, matched on the exact path.
-const TITLES = {
-  "/": "Dashboard",
-  "/wizard": "Create Video",
-  "/render": "Render Queue",
-  "/studio": "Studio",
-  "/audio": "Audio Studio",
-  "/images": "Image Studio",
-  "/projects": "Projects",
-  "/jobs": "Jobs",
-  "/workflow": "Workflow",
-  "/assets": "Assets",
-  "/analytics": "Analytics",
-  "/publishing": "Publishing",
-  "/promotion": "Promotion Studio",
-  "/promotion/accounts": "Promotion · Accounts",
-  "/promotion/create": "Promotion · Create",
-  "/promotion/posts": "Promotion · Posts",
-  "/promotion/calendar": "Promotion · Calendar",
-  "/promotion/analytics": "Promotion · Analytics",
-  "/logs": "Live Logs",
-  "/settings": "Settings",
-  "/editor/complete": "Completed Videos",
-  "/courses": "Courses",
-};
+// Static pages, matched on the exact path. The list lives in layout/navConfig.js
+// so the sidebar, breadcrumbs and tab title always agree.
+const TITLES = PAGE_TITLES;
 
 const norm = (p) => (p.length > 1 ? p.replace(/\/+$/, "") : p);
 

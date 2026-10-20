@@ -90,7 +90,7 @@ const LogDrawer = () => {
             >
               <GripVertical className="size-4" />
             </span>
-            <Terminal className="size-4 text-accent" />
+            <Terminal className="size-4 text-accent-fg" />
             <span className="text-sm font-semibold text-text-primary">Live Logs</span>
             <span className="ml-1 flex size-1.5 rounded-full bg-emerald-500" title="Streaming" />
 
@@ -113,7 +113,7 @@ const LogDrawer = () => {
                 title={pinned ? "Unpin (collapse on mouse-out)" : "Pin open until closed"}
                 className={cn(
                   "cursor-pointer flex size-7 items-center justify-center rounded-md transition-colors hover:bg-surface-hover",
-                  pinned ? "text-accent" : "text-text-secondary hover:text-text-primary"
+                  pinned ? "text-accent-fg" : "text-text-secondary hover:text-text-primary"
                 )}
               >
                 {pinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
@@ -152,7 +152,7 @@ const LogDrawer = () => {
         onClick={handleToggle}
         title="Drag left/right to switch side · Click to toggle"
         className={cn(
-          "absolute z-10 flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing touch-none select-none border border-border bg-surface text-text-secondary shadow-lg shadow-black/5 transition-colors hover:bg-surface-hover hover:text-accent",
+          "absolute z-10 flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing touch-none select-none border border-border bg-surface text-text-secondary shadow-lg shadow-black/5 transition-colors hover:bg-surface-hover hover:text-accent-fg",
           handlePosition,
           handleShape,
           "px-1.5 py-3"

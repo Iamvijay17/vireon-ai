@@ -15,20 +15,20 @@ export default function UpdateBanner() {
   return (
     <div
       role="status"
-      className="fixed right-4 bottom-4 z-[100] flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-lg bg-slate-900 px-4 py-3 text-sm text-white shadow-lg"
+      className="fixed right-4 bottom-4 z-[100] flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-text-primary shadow-lg"
     >
       <span>A new version (v{latest}) is available.</span>
       <button
         type="button"
         onClick={() => window.location.reload()}
-        className="cursor-pointer rounded-md bg-white px-2.5 py-1 font-medium text-slate-900 hover:bg-slate-200"
+        className="cursor-pointer rounded-md bg-accent px-2.5 py-1 font-medium text-white hover:bg-accent-hover"
       >
         Reload
       </button>
       <button
         type="button"
         onClick={() => setDismissedFor(latest)}
-        className="cursor-pointer text-slate-300 hover:text-white"
+        className="cursor-pointer text-text-tertiary hover:text-text-primary"
       >
         Later
       </button>

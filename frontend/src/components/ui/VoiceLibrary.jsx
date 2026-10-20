@@ -135,7 +135,7 @@ export const VoiceLibrary = ({ open, onClose, options = [], value, onSelect, isF
               className={cn(
                 "cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition-all",
                 activeTag === t
-                  ? "border-accent bg-accent-subtle text-accent"
+                  ? "border-accent bg-accent-subtle text-accent-fg"
                   : "border-border bg-surface text-text-secondary hover:border-accent/40 hover:text-text-primary"
               )}
             >
@@ -149,7 +149,7 @@ export const VoiceLibrary = ({ open, onClose, options = [], value, onSelect, isF
         {filtered.length === 0 && (
           <div className="col-span-full flex flex-col items-center gap-1 py-14 text-center">
             <p className="text-sm font-medium text-text-secondary">No voices match your filters</p>
-            <button type="button" onClick={clearFilters} className="cursor-pointer text-xs font-medium text-accent hover:underline">
+            <button type="button" onClick={clearFilters} className="cursor-pointer text-xs font-medium text-accent-fg hover:underline">
               Clear filters
             </button>
           </div>
@@ -171,7 +171,7 @@ export const VoiceLibrary = ({ open, onClose, options = [], value, onSelect, isF
                 }
               }}
               className={cn(
-                "group relative flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 text-left transition-all",
+                "group relative flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-left transition-all",
                 selected
                   ? "border-accent bg-accent-subtle ring-1 ring-accent"
                   : "border-border bg-surface hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-md"

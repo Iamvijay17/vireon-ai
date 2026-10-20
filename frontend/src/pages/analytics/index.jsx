@@ -102,7 +102,7 @@ const Analytics = () => {
         <div className="flex flex-col gap-4">
           <ProcessingTimeCard summary={summary} />
 
-          <Card className="animate-slide-up flex flex-1 flex-col items-center justify-center rounded-2xl p-4 text-center shadow-sm" style={{ "--stagger-index": 6 }}>
+          <Card className="animate-slide-up flex flex-1 flex-col items-center justify-center rounded-xl p-4 text-center shadow-sm" style={{ "--stagger-index": 6 }}>
             <p className="self-start text-xs font-medium text-text-secondary">Cache Hit Rate</p>
             <GaugeRing
               value={summary.cacheHitRate}
@@ -158,7 +158,7 @@ const Analytics = () => {
           <RankedBarChart rows={data?.topLayouts || []} palette={CATEGORICAL_PALETTE} emptyLabel="No video jobs yet." />
         </ChartCard>
 
-        <Card className="animate-slide-up rounded-2xl p-4 shadow-sm" style={{ "--stagger-index": 15 }}>
+        <Card className="animate-slide-up rounded-xl p-4 shadow-sm" style={{ "--stagger-index": 15 }}>
           <p className="flex items-center gap-2 text-xs font-medium text-text-secondary">
             <Cpu className="size-4 text-text-tertiary" /> Worker Performance
           </p>
@@ -172,7 +172,7 @@ const Analytics = () => {
       </div>
 
       {/* Course pipeline health */}
-      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 16 }}>
+      <Card className="mt-4 animate-slide-up rounded-xl shadow-sm" style={{ "--stagger-index": 16 }}>
         <CardHeader title="Course Video Pipeline" subtitle="Script, audio and render stage status across all lessons" />
         <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-3">
           <StatusStackedBar label="Script" rows={data?.courseVideoStages?.script || []} />

@@ -49,7 +49,7 @@ export const RemoteLink = ({ url, children, className }) =>
   url ? (
     <a
       href={url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-      className={cn("inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:underline", className)}
+      className={cn("inline-flex items-center gap-1 text-[13px] font-medium text-accent-fg hover:underline", className)}
     >
       {children}
       <ExternalLink className="size-3" />

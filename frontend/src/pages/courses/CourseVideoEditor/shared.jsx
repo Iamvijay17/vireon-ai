@@ -5,7 +5,7 @@ import { STEP_CIRCLE_CLASSES } from "./constants";
 
 export const InlineEmpty = ({ description, children }) => (
   <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-    <div className="flex size-11 items-center justify-center rounded-2xl bg-surface-hover text-text-tertiary">
+    <div className="flex size-11 items-center justify-center rounded-xl bg-surface-hover text-text-tertiary">
       <Inbox className="size-5" />
     </div>
     <p className="max-w-xs text-sm text-text-tertiary">{description}</p>

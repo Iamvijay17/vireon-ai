@@ -9,6 +9,7 @@ const WIDTHS = {
   md: "max-w-md",
   lg: "max-w-lg",
   xl: "max-w-2xl",
+  "2xl": "max-w-4xl",
 };
 
 export const Modal = ({
@@ -93,7 +94,7 @@ export const Modal = ({
   return createPortal(
     <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 animate-fade-in bg-black/40 backdrop-blur-[2px]"
+        className="absolute inset-0 animate-fade-in bg-black/60"
         onClick={() => closable && onClose?.()}
       />
       <div
@@ -103,7 +104,7 @@ export const Modal = ({
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
         className={cn(
-          "relative z-10 flex max-h-[85vh] w-full animate-scale-in flex-col rounded-2xl border border-border bg-surface shadow-xl outline-none",
+          "relative z-10 flex max-h-[88vh] w-full animate-scale-in flex-col rounded-xl border border-border bg-surface-raised shadow-xl outline-none",
           WIDTHS[width],
           className
         )}
@@ -112,7 +113,7 @@ export const Modal = ({
           <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-5">
             <div className="min-w-0">
               {title && <h2 className="text-[15px] font-semibold text-text-primary">{title}</h2>}
-              {description && <p className="mt-1 text-[13px] text-text-tertiary">{description}</p>}
+              {description && <p className="mt-1 text-xs text-text-tertiary">{description}</p>}
             </div>
             {closable && (
               <button

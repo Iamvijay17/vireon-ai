@@ -97,7 +97,7 @@ export function KpiTiles({ summary, trend }) {
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {tiles.map((s, i) => (
-        <Card key={s.title} className="animate-slide-up rounded-2xl p-4 shadow-sm" style={{ "--stagger-index": i }}>
+        <Card key={s.title} className="animate-slide-up rounded-xl p-4 shadow-sm" style={{ "--stagger-index": i }}>
           <div className="flex items-start justify-between">
             <p className="text-xs font-medium text-text-tertiary">{s.title}</p>
             <div className={`flex size-8 shrink-0 items-center justify-center rounded-full ${toneCls[s.tone]}`}>
@@ -125,7 +125,7 @@ export function ProcessingTimeCard({ summary }) {
   ];
 
   return (
-    <Card className="animate-slide-up rounded-2xl p-4 shadow-sm" style={{ "--stagger-index": 5 }}>
+    <Card className="animate-slide-up rounded-xl p-4 shadow-sm" style={{ "--stagger-index": 5 }}>
       <p className="text-xs font-medium text-text-secondary">Processing Time</p>
       <div className="mt-3 space-y-3">
         {stats.map((s) => (
