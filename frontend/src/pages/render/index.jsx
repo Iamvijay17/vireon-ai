@@ -15,8 +15,7 @@ import { useJobSocket } from "./useJobSocket";
 import { useRenderActions } from "./useRenderActions";
 import { useEditDetails } from "./useEditDetails";
 import { deriveJobView } from "./jobView";
-import { PipelineActionsCard } from "./PipelineActionsCard";
-import { ProgressCard } from "./ProgressCard";
+import { PipelineCard } from "./PipelineCard";
 import { QualityReportCard } from "./QualityReportCard";
 import { SceneAudioCard } from "./SceneAudioCard";
 import { SpeechProgressCard } from "./SpeechProgressCard";
@@ -132,38 +131,17 @@ const RenderPage = () => {
 
       <ProjectWorkspaceNav jobId={jobId} active="progress" hasScript={v.hasScript} />
 
-      <PipelineActionsCard
-        hasScript={v.hasScript}
-        canRegenerateScript={v.canRegenerateScript}
-        scriptStageReason={v.scriptStageReason}
-        regenerateScriptLoading={actions.regenerateScriptLoading}
-        onRegenerateScript={actions.handleRegenerateScript}
-        showReviewScript={v.showReviewScript}
-        approvalStageReason={v.approvalStageReason}
-        onReviewApprove={() => navigate(`/studio?id=${jobId}`)}
-        showGenerateAudio={v.showGenerateAudio}
-        showRegenerateAudio={v.showRegenerateAudio}
-        audioStageReason={v.audioStageReason}
-        generateAudioLoading={actions.generateAudioLoading}
-        onGenerateAudio={actions.handleGenerateAudio}
-        showGenerateRender={v.showGenerateRender}
-        canReRenderComplete={v.canReRenderComplete}
-        renderStageReason={v.renderStageReason}
-        generateRenderLoading={actions.generateRenderLoading}
-        rerenderLoading={actions.rerenderLoading}
-        onGenerateOrRerender={v.showGenerateRender ? actions.handleGenerateRender : actions.handleRerender}
-      />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        {/* Left column: the result first when there is one, then the pipeline and what it produced */}
+        <div className="flex min-w-0 flex-col gap-4">
+          {v.isComplete && job?.videoUrl && <VideoPlayerCard job={job} videoRef={videoRef} />}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        {/* Left Column - primary progress + output */}
-        <div className="flex flex-col gap-4">
-          <ProgressCard
+          <PipelineCard
             job={job}
-            currentStepIndex={v.currentStepIndex}
-            isComplete={v.isComplete}
-            isFailed={v.isFailed}
-            isCancelled={v.isCancelled}
-            isActive={v.isActive}
+            v={v}
+            actions={actions}
+            onReviewApprove={() => navigate(`/studio?id=${jobId}`)}
+            onGenerateOrRerender={v.showGenerateRender ? actions.handleGenerateRender : actions.handleRerender}
           />
 
           <QualityReportCard report={job?.qualityReport} />
@@ -178,8 +156,6 @@ const RenderPage = () => {
               onRegenerateScene={actions.handleRegenerateScene}
             />
           )}
-
-          {v.isComplete && job?.videoUrl && <VideoPlayerCard job={job} videoRef={videoRef} />}
 
           {v.hasScript && showSpeechDebug(searchParams) && <SpeechTimelineDebug jobId={jobId} />}
         </div>

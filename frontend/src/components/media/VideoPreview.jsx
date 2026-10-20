@@ -9,7 +9,7 @@ import { resolveMediaUrl } from "../../services/api";
  * access, and says so when the file cannot be played instead of showing a
  * blank black box.
  */
-const VideoPreview = ({ src, poster, portrait = false, className, autoPlay = false }) => {
+const VideoPreview = ({ src, poster, portrait = false, className, autoPlay = false, videoRef }) => {
   const [failed, setFailed] = useState(false);
   const url = resolveMediaUrl(src);
   const posterUrl = resolveMediaUrl(poster);
@@ -27,6 +27,7 @@ const VideoPreview = ({ src, poster, portrait = false, className, autoPlay = fal
       ) : (
         <video
           key={url}
+          ref={videoRef}
           src={url}
           poster={posterUrl || undefined}
           controls

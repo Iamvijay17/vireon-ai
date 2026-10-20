@@ -62,3 +62,10 @@ describe("gpuHeadline", () => {
     expect(gpuHeadline({ gpuTasks: { available: true, active: [] } })).toBe("No GPU task is running");
   });
 });
+
+describe("gpuHeadline without telemetry", () => {
+  it("never calls the GPU idle when there is no task data at all", () => {
+    expect(gpuHeadline(null)).toBe("GPU task history is unavailable");
+    expect(gpuHeadline({})).toBe("GPU task history is unavailable");
+  });
+});

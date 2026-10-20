@@ -141,7 +141,7 @@ const Projects = () => {
           aria-label="Filter by status"
           value={status}
           onChange={setStatus}
-          options={STATUS_FILTERS.map((f) => ({ ...f, count: loading ? undefined : counts[f.value] }))}
+          options={STATUS_FILTERS.map((f) => ({ ...f, count: loading || everythingFailed ? undefined : counts[f.value] }))}
         />
         <Select aria-label="Filter by type" className="w-36" value={kind} onChange={setKind} options={KIND_OPTIONS} />
         <Select aria-label="Sort by" className="w-44" value={sort} onChange={setSort} options={SORTS} />

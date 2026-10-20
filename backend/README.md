@@ -151,6 +151,7 @@ Interactive docs: `http://localhost:3000/api-docs` (raw spec at `/api-docs.json`
 | `/api/logs` | `recent` application logs |
 | `/api/publishing` | YouTube publishing (OAuth accounts, drafts, explicit-confirm submit, retry/cancel, history) and Udemy course-package export. Needs the YouTube / export workers. Guide: [`docs/publishing.md`](../docs/publishing.md) |
 | `/api/system/ai-services` | list and start/stop/restart local AI services |
+| `/api/system/resources` | measured CPU, RAM, GPU/VRAM (nvidia-smi), the GPU task ledger and dependency health; anything unmeasurable is `null` |
 
 ### Auth
 

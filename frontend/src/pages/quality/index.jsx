@@ -80,6 +80,8 @@ const QualityPage = () => {
   const coverage = useMemo(() => checkCoverage(rows), [rows]);
   const visible = useMemo(() => filterRows(rows, { verdict, search }), [rows, verdict, search]);
 
+  // A failed load is not "0 of everything": figures are unknown, not zero.
+  const unknown = query.isLoading || Boolean(query.error);
   const total = query.data?.pagination?.total ?? 0;
   const loaded = query.data?.jobs?.length ?? 0;
   const modes = [...new Set(rows.map((r) => r.mode).filter(Boolean))];
@@ -103,11 +105,11 @@ const QualityPage = () => {
       )}
 
       <section aria-label="Quality summary" className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <StatTile label="Passed" icon={CheckCircle2} tone="success" loading={query.isLoading} value={counts.passed} onClick={() => setVerdict("passed")} />
-        <StatTile label="With warnings" icon={TriangleAlert} tone="warning" loading={query.isLoading} value={counts["passed-with-warnings"]} onClick={() => setVerdict("passed-with-warnings")} />
-        <StatTile label="Failed" icon={ShieldAlert} tone={counts.failed ? "danger" : "neutral"} loading={query.isLoading} value={counts.failed} onClick={() => setVerdict("failed")} />
-        <StatTile label="Skipped" icon={ShieldCheck} loading={query.isLoading} value={counts.skipped} hint="Checker unavailable" onClick={() => setVerdict("skipped")} />
-        <StatTile label="Not checked" icon={ShieldQuestion} tone={counts.unchecked ? "warning" : "neutral"} loading={query.isLoading} value={counts.unchecked} hint="No report on file" onClick={() => setVerdict("unchecked")} />
+        <StatTile label="Passed" icon={CheckCircle2} tone="success" loading={query.isLoading} value={unknown ? null : counts.passed} onClick={() => setVerdict("passed")} />
+        <StatTile label="With warnings" icon={TriangleAlert} tone="warning" loading={query.isLoading} value={unknown ? null : counts["passed-with-warnings"]} onClick={() => setVerdict("passed-with-warnings")} />
+        <StatTile label="Failed" icon={ShieldAlert} tone={counts.failed ? "danger" : "neutral"} loading={query.isLoading} value={unknown ? null : counts.failed} onClick={() => setVerdict("failed")} />
+        <StatTile label="Skipped" icon={ShieldCheck} loading={query.isLoading} value={unknown ? null : counts.skipped} hint="Checker unavailable" onClick={() => setVerdict("skipped")} />
+        <StatTile label="Not checked" icon={ShieldQuestion} tone={counts.unchecked ? "warning" : "neutral"} loading={query.isLoading} value={unknown ? null : counts.unchecked} hint="No report on file" onClick={() => setVerdict("unchecked")} />
       </section>
 
       <FilterBar
@@ -120,7 +122,7 @@ const QualityPage = () => {
           aria-label="Filter by quality verdict"
           value={verdict}
           onChange={setVerdict}
-          options={VERDICTS.map((v) => ({ ...v, count: query.isLoading ? undefined : counts[v.value] }))}
+          options={VERDICTS.map((v) => ({ ...v, count: unknown ? undefined : counts[v.value] }))}
         />
       </FilterBar>
 

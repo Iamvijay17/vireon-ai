@@ -1,57 +1,45 @@
-import { PlayCircle, Download } from "lucide-react";
-import { Card } from "../../components/ui/Card";
+import { Download, ExternalLink } from "lucide-react";
+import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
+import VideoPreview from "../../components/media/VideoPreview";
 import { resolveMediaUrl } from "../../services/api";
 import { isPortraitResolution } from "../../shared/resolution";
 
+/**
+ * The finished video. The player only fetches the file's header until you
+ * press play (VideoPreview), and says so if the file cannot be loaded.
+ * job.videoUrl / thumbnailUrl are stored MinIO URLs that can point at a
+ * loopback host; VideoPreview and resolveMediaUrl re-home them to the page's
+ * own origin so they play from any device.
+ */
 export const VideoPlayerCard = ({ job, videoRef }) => {
-  // job.videoUrl / job.thumbnailUrl are stored MinIO URLs that may point at a
-  // loopback host (127.0.0.1:9000) - fine on the backend machine, unreachable
-  // from any other LAN device. resolveMediaUrl re-homes them to the host the
-  // page was loaded from.
   const videoUrl = resolveMediaUrl(job?.videoUrl);
-  const thumbnailUrl = resolveMediaUrl(job?.thumbnailUrl);
+  const portrait = isPortraitResolution(job?.resolution);
 
   return (
-    <Card className="animate-slide-up p-4 sm:p-6" style={{ "--stagger-index": 2 }}>
-      <h3 className="mb-5 flex items-center gap-2 text-[15px] font-semibold text-text-primary">
-        <PlayCircle className="size-[18px] text-accent-fg" /> Output Video
-      </h3>
-
-      <div className="mx-auto max-w-2xl overflow-hidden rounded-xl bg-black shadow-lg">
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          controls
-          poster={thumbnailUrl || undefined}
-          className="block w-full object-contain"
-          style={{ aspectRatio: isPortraitResolution(job?.resolution) ? "9/16" : "16/9" }}
-        >
-          Your browser does not support the video tag.
-        </video>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4 text-[13px] text-text-secondary">
-          {job.resolution && (
-            <span>
-              Resolution: <span className="font-semibold text-text-primary">{job.resolution}</span>
-            </span>
-          )}
-          {job.duration && (
-            <span>
-              Duration: <span className="font-semibold text-text-primary">{job.duration}s</span>
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button href={videoUrl} target="_blank" rel="noopener noreferrer" variant="primary" icon={<PlayCircle className="size-4" />}>
-            Open in new tab
-          </Button>
-          <Button href={videoUrl} target="_blank" rel="noopener noreferrer" download variant="secondary" icon={<Download className="size-4" />}>
-            Download
-          </Button>
-        </div>
+    <Card className="overflow-hidden">
+      <CardHeader
+        title="Output video"
+        subtitle={[job.resolution, job.duration ? `${job.duration} min target` : null].filter(Boolean).join(" · ") || undefined}
+        extra={
+          <>
+            <Button href={videoUrl} target="_blank" rel="noopener noreferrer" size="sm" variant="secondary" icon={<ExternalLink className="size-3.5" />}>
+              Open
+            </Button>
+            <Button href={videoUrl} target="_blank" rel="noopener noreferrer" download size="sm" variant="secondary" icon={<Download className="size-3.5" />}>
+              Download
+            </Button>
+          </>
+        }
+      />
+      <div className="flex justify-center bg-black p-3">
+        <VideoPreview
+          src={job.videoUrl}
+          poster={job.thumbnailUrl}
+          portrait={portrait}
+          videoRef={videoRef}
+          className={portrait ? "w-full max-w-xs" : "w-full max-w-3xl"}
+        />
       </div>
     </Card>
   );

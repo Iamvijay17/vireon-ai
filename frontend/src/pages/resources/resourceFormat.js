@@ -87,7 +87,7 @@ export function gpuHeadline(resources, aiGpu) {
   if (running.length > 0) {
     return `Running: ${running.map((t) => t.label || t.service).join(", ")}`;
   }
-  if (resources?.gpuTasks?.available === false) return "GPU task history is unavailable";
+  if (resources?.gpuTasks?.available !== true) return "GPU task history is unavailable";
   if (aiGpu?.currentService) return `Holding the GPU: ${aiGpu.currentService}`;
   return "No GPU task is running";
 }

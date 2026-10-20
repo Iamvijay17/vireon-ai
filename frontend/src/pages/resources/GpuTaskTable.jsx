@@ -54,7 +54,9 @@ const columns = [
  * worker process writes to, so it is complete across processes.
  */
 const GpuTaskTable = ({ tasks }) => {
-  const available = tasks?.available;
+  // Only an affirmative "available" counts: no data at all (the telemetry
+  // request failed) must not read as an idle GPU.
+  const available = tasks?.available === true;
   const active = tasks?.active ?? [];
   const recent = tasks?.recent ?? [];
 
@@ -66,9 +68,9 @@ const GpuTaskTable = ({ tasks }) => {
             <Cpu className="size-4 text-text-tertiary" /> GPU tasks
           </span>
         }
-        subtitle={available === false ? "The task ledger could not be read" : `${active.length} running or waiting${recent.length ? ` · ${recent.length} finished recently, below` : ""}`}
+        subtitle={!available ? "The task ledger could not be read" : `${active.length} running or waiting${recent.length ? ` · ${recent.length} finished recently, below` : ""}`}
       />
-      {available === false ? (
+      {!available ? (
         <EmptyState compact title="Task history unavailable" description="The database that records GPU tasks did not answer, so nothing is shown rather than a possibly wrong list." />
       ) : active.length === 0 ? (
         <EmptyState compact title="The GPU is idle" description="No task is running or waiting. Narration, scripts and images appear here while they use the card." />

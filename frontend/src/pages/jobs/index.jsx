@@ -158,7 +158,7 @@ const JobsPage = () => {
           aria-label="Filter by status"
           value={statusFilter}
           onChange={setStatusFilter}
-          options={STATUS_FILTERS.map((f) => ({ ...f, count: loading ? undefined : counts[f.value] }))}
+          options={STATUS_FILTERS.map((f) => ({ ...f, count: loading || error ? undefined : counts[f.value] }))}
         />
         <Select aria-label="Filter by type" className="w-40" value={typeFilter} onChange={(v) => { setTypeFilter(v); setPage(1); }} options={TYPE_OPTIONS} />
       </FilterBar>
