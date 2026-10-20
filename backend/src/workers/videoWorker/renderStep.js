@@ -9,6 +9,7 @@ const SocketService = require('../../services/common/SocketService');
 const { JOB_STATUS, JOB_STEPS } = require('../../constants');
 const { PROGRESS_BANDS, mapToBand } = require('../../utils/progressBands');
 const { runLayoutQc } = require('../../services/qc/runLayoutQc');
+const { runVideoQualityGate } = require('../../services/qc/video/qualityGate');
 const cacheLedger = require('../../services/cache/CacheLedger');
 const { renderKey } = require('../../services/cache/cacheKeys');
 const { SPEECH_EVENTS, emitSpeechStage } = require('../../services/audio/pipeline/speech/events');
@@ -130,6 +131,25 @@ async function render(jobId, assets, ctx, script) {
     cacheLedger.generated('render', renderLedgerKey, renderResult.durationMs);
     LoggerService.success('[Render] Video rendered successfully', { stage: 'render', ...renderResult });
     emitSpeechStage(SocketService, jobId, SPEECH_EVENTS.RENDER_COMPLETE);
+  }
+
+  // Output quality gate: read the finished file back before anything is uploaded or
+  // the job can be marked complete. Runs for a reused render too - a file that
+  // survived a crash is exactly the one worth re-checking. A failure throws, so the
+  // upload stage never starts; see services/qc/video/qualityGate.js for how a
+  // fixable-by-re-rendering fault differs from a content fault.
+  ctx.currentStep = 'Quality check';
+  try {
+    await runVideoQualityGate({
+      id: jobId,
+      scenes: script.scenes,
+      resolution: assets.resolution,
+      signal: ctx.signal,
+      save: (report) => VideoService.saveQualityReport(jobId, report),
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new JobCancelledError(jobId);
+    throw err;
   }
 }
 

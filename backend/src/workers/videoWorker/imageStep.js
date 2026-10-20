@@ -2,6 +2,7 @@ const config = require('../../config');
 const LoggerService = require('../../services/common/LoggerService');
 const ActivityLogService = require('../../services/common/ActivityLogService');
 const LocalAIService = require('../../services/localAI');
+const { PRIORITY } = require('../../services/gpu/priorities');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const { ensureSceneImages, needsImage } = require('../../services/image/sceneImages');
@@ -60,7 +61,7 @@ async function run(jobId, ctx) {
   try {
     // The GPU slot is only worth claiming when there is a real ComfyUI to run -
     // with generation off this step only rewrites scenes and touches no model.
-    result = await (config.imageGen.enabled ? LocalAIService.gpu.withGPU('comfyui', generate) : generate());
+    result = await (config.imageGen.enabled ? LocalAIService.gpu.withGPU('comfyui', generate, { jobId, stage: 'images', priority: PRIORITY.NORMAL, signal: ctx.signal }) : generate());
   } catch (err) {
     // ctx.signal aborts the moment a Stop request reaches this process (see
     // cancellationBus); ComfyUI is interrupted so the card is freed, not just ignored.

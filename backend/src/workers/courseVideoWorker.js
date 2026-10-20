@@ -140,7 +140,7 @@ const courseVideoWorker = new Worker(
         // video worker.
         const attempt = video?.error?.retryCount || 0;
         const maxRetries = video?.maxRetries || 3;
-        const retry = decideRetry({ attempt, maxRetries, eligible: !!video && action !== 'retry' });
+        const retry = decideRetry({ attempt, maxRetries, eligible: !!video && action !== 'retry' && err?.permanent !== true });
 
         if (retry.shouldRetry) {
           const step = video.error?.step || action;

@@ -5,6 +5,8 @@ const { JOB_STATUS, VIDEO_STATUS, STAGE_STATUS, SOCKET_EVENTS } = require('../co
 const { IN_FLIGHT_VIDEO_STATUSES } = require('../constants/jobTransitions');
 const stageTracker = require('../services/pipeline/stageTracker');
 const { JobStalledError, toStructuredError } = require('../services/pipeline/pipelineErrors');
+const { decideRetry, describeRetry } = require('../services/common/retryPolicy');
+const config = require('../config');
 
 // Boot-time (and, for stranded retries, periodic) recovery sweeps: put
 // records a crashed or restarted process left mid-flight back into a state
@@ -67,6 +69,7 @@ async function reapStuckVideoJobs() {
 
   const candidates = await VideoJob.find({ status: { $in: STUCK_VIDEO_STATUSES } });
   let reaped = 0;
+  let resumed = 0;
 
   for (const job of candidates) {
     // findLiveJobs, not getJob(job._id): an automatic retry runs under its
@@ -84,6 +87,19 @@ async function reapStuckVideoJobs() {
     }
 
     const previousStatus = job.status;
+
+    // Resume on its own while the job still has retry budget. The attempt counts
+    // against maxRetries like any other failure, so a job that keeps killing its
+    // process cannot loop forever: it runs out of budget and is failed below.
+    if (config.recovery.autoResumeInterrupted) {
+      const attempt = (job.error?.retryCount || 0) + 1;
+      const retry = decideRetry({ attempt, maxRetries: job.maxRetries || 3 });
+      if (retry.shouldRetry && (await resumeInterruptedJob(job, previousStatus, retry))) {
+        resumed += 1;
+        continue;
+      }
+    }
+
     const message = 'Job was interrupted by a server restart. Click Restart Job to resume.';
     // The stage that was mid-run did not finish: record that on the stage itself
     // and on the job, so Restart resumes exactly there rather than guessing.
@@ -97,8 +113,57 @@ async function reapStuckVideoJobs() {
     reaped += 1;
   }
 
+  if (resumed > 0) {
+    LoggerService.warn(`Resumed ${resumed} interrupted video job(s) automatically after restart`);
+  }
   if (reaped > 0) {
     LoggerService.warn(`Marked ${reaped} stuck video job(s) as failed after restart`);
+  }
+}
+
+/**
+ * Put an interrupted job back on the queue instead of failing it. Returns true
+ * when the job is handled (this process scheduled the retry, or another process
+ * already had), false when it could not be - the caller then falls back to
+ * marking it failed, which is always safe.
+ */
+async function resumeInterruptedJob(job, previousStatus, retry) {
+  const videoQueueJobs = require('../services/video/videoQueueJobs');
+  const ActivityLogService = require('../services/common/ActivityLogService');
+
+  const message = 'Job was interrupted by a server restart - resuming automatically.';
+  const structured = toStructuredError(new JobStalledError(message), { stage: null, attempt: retry.attempt });
+  try {
+    const interruptedStage = await stageTracker.markInterrupted(job._id, structured);
+    const scheduled = await VideoService.scheduleRetry(job._id, {
+      message,
+      detail: message,
+      step: previousStatus,
+      retryCount: retry.attempt,
+      nextRetryAt: retry.nextRetryAt,
+      structured: { ...structured, stage: interruptedStage || structured.stage },
+      fromStatus: previousStatus,
+    });
+    if (!scheduled) return true; // another process already took it - not ours to fail
+    await videoQueueJobs.ensureScheduledRetry(scheduled);
+    SocketService.emitJobProgress(scheduled);
+    await ActivityLogService.add(
+      job._id,
+      describeRetry({ step: previousStatus, attempt: retry.attempt, maxRetries: retry.maxRetries, delayMs: retry.delayMs, reason: 'interrupted by a server restart' })
+    );
+    return true;
+  } catch (err) {
+    LoggerService.warn('Could not resume interrupted job automatically - marking it failed instead', { jobId: job._id, error: err.message });
+    return false;
+  }
+}
+
+// GPU task rows a dead process left queued/running (see services/gpu/gpuTaskLedger).
+async function reapAbandonedGpuTasks() {
+  const gpuTaskLedger = require('../services/gpu/gpuTaskLedger');
+  const reaped = await gpuTaskLedger.reapAbandoned({ staleMs: config.gpu.scheduler.staleTaskMs });
+  if (reaped > 0) {
+    LoggerService.warn(`Closed ${reaped} GPU task record(s) left open by a stopped process`);
   }
 }
 
@@ -258,6 +323,8 @@ module.exports = {
   RETRY_SWEEP_MS,
   reapOrphanedAudioGenerations,
   reapStuckVideoJobs,
+  resumeInterruptedJob,
+  reapAbandonedGpuTasks,
   recoverStrandedRetries,
   recoverStrandedCourseRetries,
   reapStuckCourseVideoJobs,

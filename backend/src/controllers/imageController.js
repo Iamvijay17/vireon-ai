@@ -1,6 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const config = require('../config');
+const { PRIORITY } = require('../services/gpu/priorities');
 const ImageGeneration = require('../models/ImageGeneration');
 const ImageGenerationService = require('../services/image/ImageGenerationService');
 const LocalAIService = require('../services/localAI');
@@ -154,7 +155,9 @@ class ImageController {
           negative: record.negative || null,
           cfg: record.negative ? config.imageGen.guidedCfg : null,
           onProgress: (update) => setProgress(id, update),
-        })
+        }),
+        // Image Studio: someone is watching this render, so it goes ahead of queued video work.
+        { priority: PRIORITY.INTERACTIVE, label: 'image-studio' }
       ));
 
       record.status = 'COMPLETED';

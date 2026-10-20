@@ -15,6 +15,7 @@ import { useEditDetails } from "./useEditDetails";
 import { deriveJobView } from "./jobView";
 import { PipelineActionsCard } from "./PipelineActionsCard";
 import { ProgressCard } from "./ProgressCard";
+import { QualityReportCard } from "./QualityReportCard";
 import { SceneAudioCard } from "./SceneAudioCard";
 import { SpeechProgressCard } from "./SpeechProgressCard";
 import { SpeechTimelineDebug } from "../../components/speech/SpeechTimelineDebug";
@@ -162,6 +163,8 @@ const RenderPage = () => {
             isCancelled={v.isCancelled}
             isActive={v.isActive}
           />
+
+          <QualityReportCard report={job?.qualityReport} />
 
           {v.isActive && <SpeechProgressCard events={jobEvents} />}
 

@@ -23,7 +23,9 @@ const execFileAsync = promisify(execFile);
  */
 async function synthesizeToFile(...args) {
   const LocalAIService = require("../../localAI");
-  return LocalAIService.gpu.withGPU("tts", () => synthesizeOnGPU(...args));
+  const { PRIORITY } = require("../../gpu/priorities");
+  // Audio Studio: a person is waiting on this clip.
+  return LocalAIService.gpu.withGPU("tts", () => synthesizeOnGPU(...args), { priority: PRIORITY.INTERACTIVE, label: "audio-studio" });
 }
 
 async function synthesizeOnGPU(outputFile, text, voice, seed, instruct, logCtx, fastMode = false) {

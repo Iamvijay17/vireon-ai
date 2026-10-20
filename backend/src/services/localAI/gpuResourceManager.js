@@ -75,6 +75,21 @@ class GPUResourceManager {
     // demand-triggered release can't interleave into "released the lease but
     // kept the model loaded" (or the reverse, which is the dangerous one).
     this._leaseOps = Promise.resolve();
+
+    // Set by attachScheduler(). Without one, withGPU() is the plain
+    // acquire -> run -> release it always was.
+    this._scheduler = null;
+  }
+
+  /**
+   * Route withGPU() through a GpuScheduler (services/gpu/): every call becomes
+   * a queued task with a priority, a place in line and VRAM-aware admission.
+   * The scheduler calls back into acquire()/release() below, so the state
+   * machine, warm reuse and the lease are unchanged - it only decides *when*
+   * a task may ask for the card. Also makes eviction VRAM-aware (_hasRoom).
+   */
+  attachScheduler(scheduler) {
+    this._scheduler = scheduler;
   }
 
   /** Serialize a lease mutation behind any other in-flight one. */
@@ -291,12 +306,68 @@ class GPUResourceManager {
     }
   }
 
+  /**
+   * Is there room for `name` to load, alongside whatever else is resident?
+   * Slots first (config.gpu.maxConcurrent); then, when a scheduler is attached,
+   * VRAM - so a bigger card can keep two models loaded while the 6GB one stays
+   * exclusive. A `false` makes acquire() evict the oldest idle service, or wait.
+   */
+  _hasRoom(name) {
+    if (this._usedSlots() >= config.gpu.maxConcurrent) return false;
+    if (!this._scheduler) return true;
+    const holders = [];
+    for (const [other, entry] of this.services) {
+      if (other !== name && SLOT_HOLDING_STATES.has(entry.state)) holders.push(other);
+    }
+    return this._scheduler.vramFits(name, holders);
+  }
+
   _usedSlots() {
     let count = 0;
     for (const entry of this.services.values()) {
       if (SLOT_HOLDING_STATES.has(entry.state)) count += 1;
     }
     return count;
+  }
+
+  /** Slots this process is occupying right now (warm or busy). */
+  localSlotCount() {
+    return this._usedSlots();
+  }
+
+  /** Does this process own the card? True when nothing else can contend for it (no lease configured). */
+  holdsProcessLease() {
+    return !this._lease || Boolean(this._held);
+  }
+
+  /**
+   * Could this process take the card right now without waiting? True when it
+   * already owns it, or nothing does. Without a lease there is nothing to wait
+   * on (true). Used by the scheduler to contend only for a free card.
+   */
+  async cardIsFree() {
+    if (!this._lease || this._held) return true;
+    if (typeof this._lease.isHeld !== 'function') return true;
+    return !(await this._lease.isHeld(GPU_LEASE_NAME));
+  }
+
+  /** Nudge whoever holds the card for convenience (a warm, idle model) to hand it off. */
+  async requestCard() {
+    if (!this._lease || this._held) return;
+    await this._lease.signalDemand(GPU_LEASE_NAME);
+  }
+
+  /** Services whose model is loaded here (warm-idle or busy) - what a queued task may reuse for free. */
+  warmServices() {
+    const warm = new Set();
+    for (const [name, entry] of this.services) {
+      if (entry.state === STATE.READY || entry.state === STATE.BUSY) warm.add(name);
+    }
+    return warm;
+  }
+
+  serviceState(name) {
+    return this.services.get(name)?.state || null;
   }
 
   isLocked() {
@@ -416,7 +487,7 @@ class GPUResourceManager {
     }
 
     for (;;) {
-      if (this._usedSlots() < config.gpu.maxConcurrent) break;
+      if (this._hasRoom(name)) break;
 
       const victim = this._oldestIdleService(name);
       if (victim) {
@@ -490,8 +561,13 @@ class GPUResourceManager {
    * Convenience wrapper: acquire -> run fn -> always release, even on
    * error. Ensures a service is only ever considered for eviction after
    * its current operation has actually finished (never mid-generation).
+   *
+   * `opts` (jobId, stage, priority, signal, retries) is read only by the
+   * attached GpuScheduler - see GpuScheduler.run.
    */
-  async withGPU(name, fn) {
+  async withGPU(name, fn, opts) {
+    if (this._scheduler) return this._scheduler.run(name, fn, opts);
+
     await this.acquire(name);
     try {
       return await fn();
@@ -538,6 +614,7 @@ class GPUResourceManager {
     await this._releaseProcessLease().catch(() => {});
     this._unsubscribeDemand?.();
     if (this._lease) await this._lease.close().catch(() => {});
+    await this._scheduler?.close().catch(() => {});
   }
 }
 

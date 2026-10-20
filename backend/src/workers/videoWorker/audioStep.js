@@ -2,6 +2,7 @@ const LoggerService = require('../../services/common/LoggerService');
 const ActivityLogService = require('../../services/common/ActivityLogService');
 const AudioService = require('../../services/audio/audioService');
 const LocalAIService = require('../../services/localAI');
+const { PRIORITY } = require('../../services/gpu/priorities');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
 const MetricsService = require('../../services/common/MetricsService');
@@ -137,7 +138,7 @@ async function run(jobId, videoJob, script, ctx) {
             }),
         }
       );
-    });
+    }, { jobId, stage: 'audio', priority: PRIORITY.NORMAL, signal: ctx.signal });
   } catch (err) {
     // ctx.signal (see processor.js) is aborted the moment a Stop request
     // reaches this process - see cancellationBus - which interrupts

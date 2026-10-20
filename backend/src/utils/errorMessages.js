@@ -12,6 +12,12 @@ function classifyError(err, step) {
   const detail = err?.message || String(err);
   const lower = detail.toLowerCase();
 
+  // The quality gate's own message already says exactly what is wrong with the video
+  // (services/qc/video); wrapping it in "<step> failed:" or matching it against the
+  // service patterns below would only bury that.
+  if (err?.name === 'QualityCheckError') {
+    return { friendly: detail, detail };
+  }
   if (/(ollama|llm) failed/i.test(detail)) {
     return { friendly: 'Script generation failed - the AI model server did not respond in time. This is usually temporary.', detail };
   }

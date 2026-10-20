@@ -4,6 +4,7 @@ const SocketService = require('../../common/SocketService');
 const ActivityLogService = require('../../common/ActivityLogService');
 const AudioService = require('../../audio/audioService');
 const LocalAIService = require('../../localAI');
+const { PRIORITY } = require('../../gpu/priorities');
 const ScriptParserService = require('../../video/ScriptParserService');
 const { getStorageProvider } = require('../../storage/providers');
 const { VIDEO_STATUS, STAGE_STATUS } = require('../../../constants');
@@ -102,7 +103,8 @@ async function generateAudio(videoId) {
         null,
         // Only the segmented TTS pipeline reads this (TTS_SEGMENTED=true).
         { videoType: 'educational', totalScenes: audioScenes.length }
-      )
+      ),
+      { jobId, stage: 'audio', priority: PRIORITY.BATCH }
     );
 
     // Update each scene with actual audio duration
@@ -213,7 +215,10 @@ async function regenerateSceneAudio(videoId, sceneNumber) {
       AudioService.generateAllAudio(jobId, [audioScene], video.voice, undefined, undefined, video.fastAudio, true, null, {
         videoType: 'educational',
         totalScenes: video.script?.scenes?.length,
-      })
+      }),
+      // A person clicked Regenerate on this scene: they are waiting for it. A
+      // stage of its own, so it is not mistaken for the lesson's batch audio.
+      { jobId, stage: `audio-scene-${sceneNumber}`, priority: PRIORITY.INTERACTIVE }
     );
     if (!result) {
       throw new Error('Audio generation returned no result');

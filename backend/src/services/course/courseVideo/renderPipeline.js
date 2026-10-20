@@ -8,9 +8,11 @@ const ActivityLogService = require('../../common/ActivityLogService');
 const RemotionService = require('../../video/RemotionService');
 const RemotionStatus = require('../../localAI/remotionStatus');
 const LocalAIService = require('../../localAI');
+const { PRIORITY } = require('../../gpu/priorities');
 const config = require('../../../config');
 const { ensureSceneImages, needsImage } = require('../../image/sceneImages');
 const { runLayoutQc } = require('../../qc/runLayoutQc');
+const { runVideoQualityGate } = require('../../qc/video/qualityGate');
 const { IMAGE_SCENE_FIELDS } = require('../../image/fields');
 const StorageService = require('../../storage/StorageService');
 const { getStorageProvider } = require('../../storage/providers');
@@ -82,7 +84,7 @@ async function renderVideo(videoId) {
         onProgress: (done, total) =>
           SocketService.emitCourseVideoProgress(video, VIDEO_STATUS.GENERATING_IMAGES, mapToBand(PROGRESS_BANDS.course.images, done / total), 'Generating scene images...'),
       });
-      const imageResult = await (config.imageGen.enabled ? LocalAIService.gpu.withGPU('comfyui', generate) : generate());
+      const imageResult = await (config.imageGen.enabled ? LocalAIService.gpu.withGPU('comfyui', generate, { jobId: String(video._id), stage: 'images', priority: PRIORITY.BATCH }) : generate());
 
       scenes = imageResult.scenes;
       scriptData.scenes = scenes;
@@ -194,6 +196,15 @@ async function renderVideo(videoId) {
     } finally {
       RemotionStatus.end();
     }
+
+    // Output quality gate - the lesson is not uploaded or completed unless the rendered
+    // file passes (services/qc/video/qualityGate.js). A failure lands in the catch below.
+    await runVideoQualityGate({
+      id: jobId,
+      scenes: scenesWithAudio,
+      resolution: jobConfig.resolution,
+      save: (report) => CourseVideo.updateOne({ _id: videoId }, { $set: { qualityReport: report } }),
+    });
 
     video.renderedAt = new Date();
     video.renderProgress = 90;

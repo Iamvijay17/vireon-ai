@@ -5,6 +5,7 @@ const ActivityLogService = require('../../common/ActivityLogService');
 const AIDirectorService = require('../../director/AIDirectorService');
 const { planScriptBudget } = require('../../director/scriptBudget');
 const LocalAIService = require('../../localAI');
+const { PRIORITY } = require('../../gpu/priorities');
 const Course = require('../../../models/Course');
 const { bailIfCancelled } = require('./shared');
 const ScriptParserService = require('../../video/ScriptParserService');
@@ -79,7 +80,9 @@ async function generateScript(videoId) {
         titleOverride: video.title,
         jobId: String(video._id),
         checkCancelled: () => bailIfCancelled(videoId),
-      })
+      }),
+      // Bulk course work yields to a single video job and to anything interactive.
+      { jobId: String(video._id), stage: 'script', priority: PRIORITY.BATCH, retries: true }
     );
 
     // Parse and validate script to ensure scene_meta is generated and scene types are normalized.

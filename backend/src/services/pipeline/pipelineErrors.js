@@ -28,6 +28,14 @@ class JobStalledError extends AppError {
 const CODES = Object.freeze({
   STAGE_TIMEOUT: 'STAGE_TIMEOUT',
   JOB_STALLED: 'JOB_STALLED',
+  // Raised by the GPU scheduler (services/gpu/gpuErrors.js): a model service is
+  // down / its breaker is open, the card never freed up, or an identical task
+  // is already in flight. All transient - the job-level retry backs off and tries again.
+  GPU_UNAVAILABLE: 'GPU_UNAVAILABLE',
+  GPU_BUSY: 'GPU_BUSY',
+  GPU_DUPLICATE: 'GPU_DUPLICATE',
+  // The finished video failed the output quality gate (services/qc/video).
+  QUALITY_FAILED: 'QUALITY_FAILED',
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   CONFIG_INVALID: 'CONFIG_INVALID',
   DISK_FULL: 'DISK_FULL',
@@ -89,6 +97,8 @@ function isPermanent(err) {
 
 function codeFor(err, stage) {
   if (err instanceof StageTimeoutError) return CODES.STAGE_TIMEOUT;
+  if (err?.gpuCode && CODES[err.gpuCode]) return CODES[err.gpuCode];
+  if (err?.name === 'QualityCheckError') return CODES.QUALITY_FAILED;
   if (err instanceof JobStalledError) return CODES.JOB_STALLED;
   if (err?.code === 'ENOSPC') return CODES.DISK_FULL;
   if (err?.permanent === true) return CODES.CONFIG_INVALID;

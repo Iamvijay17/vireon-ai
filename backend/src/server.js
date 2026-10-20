@@ -195,8 +195,10 @@ async function startServer() {
     await recovery.reapOrphanedAudioGenerations();
     await recovery.reapStuckVideoJobs();
     await recovery.recoverStrandedRetries();
+    await recovery.reapAbandonedGpuTasks().catch((err) => LoggerService.warn('GPU task sweep failed', { error: err.message }));
     setInterval(() => {
       recovery.recoverStrandedRetries().catch((err) => LoggerService.warn('Retry sweep failed', { error: err.message }));
+      recovery.reapAbandonedGpuTasks().catch((err) => LoggerService.warn('GPU task sweep failed', { error: err.message }));
     }, recovery.RETRY_SWEEP_MS).unref();
     await recovery.reapStuckCourseVideoJobs();
     await recovery.healCancelledStageStatuses();

@@ -109,6 +109,8 @@ const courseVideoSchema = new mongoose.Schema(
       default: STAGE_STATUS.PENDING,
       index: true,
     },
+    // Output quality report for the rendered lesson - same shape as VideoJob.qualityReport.
+    qualityReport: { type: mongoose.Schema.Types.Mixed, default: null },
     scriptError: {
       message: { type: String, default: '' },
       failedAt: { type: Date, default: null },
