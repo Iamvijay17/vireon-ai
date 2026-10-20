@@ -11,7 +11,7 @@
  * can't exist before its first visit) and only on https or localhost.
  * Bump VERSION when offline.html changes so every browser refetches it.
  */
-const VERSION = "v3";
+const VERSION = "v4";
 const CACHE = `vireon-offline-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
 

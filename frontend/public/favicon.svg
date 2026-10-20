@@ -1,10 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#9478ff"/>
-      <stop offset="1" stop-color="#5b3fef"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="15" fill="url(#g)"/>
-  <path d="M16 18h9.5L32 38.5 38.5 18H48L36.5 48h-9z" fill="#fff"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Vireon AI"><rect width="64" height="64" rx="14" fill="#09090B"/><g transform="translate(4.48 4.48) scale(0.86)"><path d="M4 14L21 14L31 33L31 58Z" fill="#7C3AED"/><path d="M60 6L43 6L33 25L33 50Z" fill="#A78BFA"/><path d="M30 8Q31.12 13.88 37 15Q31.12 16.12 30 22Q28.88 16.12 23 15Q28.88 13.88 30 8Z" fill="#FFFFFF"/></g></svg>

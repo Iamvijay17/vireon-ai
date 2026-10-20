@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { X } from "lucide-react";
 import { cn } from "../components/ui/cn";
 import VersionLabel from "../components/VersionLabel";
+import { Logo, LogoMark } from "../components/Logo";
 import { NAV_SECTIONS, isNavItemActive } from "./navConfig";
 
 const NavRow = ({ item, active, collapsed }) => {
@@ -63,14 +64,11 @@ const Sidebar = ({ collapsed, isDrawer = false, open = false, onClose }) => {
             to="/"
             aria-label="Vireon AI - Overview"
             className={cn(
-              "flex h-full min-w-0 flex-1 items-center gap-2.5 px-4 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--focus-ring)]",
+              "flex h-full min-w-0 flex-1 items-center px-4 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--focus-ring)]",
               collapsed && "justify-center px-0"
             )}
           >
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-accent text-[13px] font-bold text-white">
-              V
-            </span>
-            {!collapsed && <span className="truncate text-sm font-semibold tracking-tight text-sidebar-text-active">Vireon AI</span>}
+            {collapsed ? <LogoMark size={30} className="shrink-0" /> : <Logo variant="compact" height={30} className="shrink-0" />}
           </Link>
           {isDrawer && (
             <button
