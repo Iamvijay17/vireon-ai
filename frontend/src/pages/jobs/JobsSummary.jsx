@@ -23,7 +23,7 @@ export function JobsSummary({ onFilter }) {
         loading={loading}
         value={queue ? queue.active : null}
         hint={queue ? `of ${queue.concurrency} worker slots` : queueNote}
-        onClick={() => onFilter("processing")}
+        onClick={() => onFilter("active")}
       />
       <StatTile
         label="Waiting on you"
@@ -40,7 +40,7 @@ export function JobsSummary({ onFilter }) {
         loading={loading}
         value={videos?.successful}
         hint={videos?.successRate != null ? `${videos.successRate}% success · last ${windowDays} days` : `Last ${windowDays} days`}
-        onClick={() => onFilter("success")}
+        onClick={() => onFilter("completed")}
       />
       <StatTile
         label="Failed"
@@ -49,7 +49,7 @@ export function JobsSummary({ onFilter }) {
         loading={loading}
         value={videos?.failed}
         hint={`Last ${windowDays} days`}
-        onClick={() => onFilter("error")}
+        onClick={() => onFilter("failed")}
       />
     </section>
   );

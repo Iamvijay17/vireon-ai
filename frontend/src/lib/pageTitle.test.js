@@ -28,6 +28,13 @@ describe("documentTitle", () => {
     expect(documentTitle("/courses/cou-A/videos/vid-B")).toBe("Course Video · Vireon AI");
   });
 
+  it("titles a project's progress and editor views by the project's name", () => {
+    expect(documentTitle("/render", "Quantum computing", "?id=vid-abc12345")).toBe("Quantum computing · Progress · Vireon AI");
+    expect(documentTitle("/studio", "Quantum computing", "?id=vid-abc12345")).toBe("Quantum computing · Editor · Vireon AI");
+    expect(documentTitle("/render", null, "?id=vid-abc12345")).toBe("Progress · Vireon AI");
+    expect(documentTitle("/render")).toBe("Render Queue · Vireon AI");
+  });
+
   it("falls back to the app name for unknown routes", () => {
     expect(documentTitle("/nope")).toBe("Vireon AI");
   });

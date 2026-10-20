@@ -98,7 +98,7 @@ const Overview = () => {
                 loading={activeLoading}
                 value={running.length + queued.length}
                 hint={`${running.length} running · ${queued.length} queued`}
-                onClick={() => navigate("/jobs?status=processing")}
+                onClick={() => navigate("/jobs?status=active")}
               />
               <StatTile
                 label="Completed"
@@ -116,7 +116,7 @@ const Overview = () => {
                 loading={summaryLoading}
                 value={summary?.failedVideoJobs}
                 hint={summary?.avgGenerationTimeMs != null ? `Typical run ${formatDuration(summary.avgGenerationTimeMs)}` : undefined}
-                onClick={() => navigate("/jobs?status=error")}
+                onClick={() => navigate("/jobs?status=failed")}
               />
             </section>
           )}

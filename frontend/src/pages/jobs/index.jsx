@@ -12,10 +12,10 @@ import { Card } from "../../components/ui/Card";
 import { Select } from "../../components/ui/Select";
 import { SearchInput } from "../../components/ui/SearchInput";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
-import { classifyStatus } from "../../lib/statusTone";
+import { jobPhase } from "../../lib/jobStatus";
 import { useSocketStatus } from "../../lib/useSocketStatus";
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from "../../lib/useDebouncedValue";
-import { rowKeyOf, TYPE_OPTIONS, STATUS_FILTERS } from "./constants";
+import { rowKeyOf, TYPE_OPTIONS, STATUS_FILTERS, matchesStatusFilter } from "./constants";
 import { useJobActions } from "./useJobActions";
 import { buildJobColumns } from "./jobColumns";
 import { JobDetailModal } from "./JobDetailModal";
@@ -28,6 +28,8 @@ const PAGE_SIZE = 20;
 const ACTIVE_POLL_MS = 10000;
 
 const VALID_STATUS = new Set(STATUS_FILTERS.map((f) => f.value));
+// Links made before the filters were regrouped (?status=error, ...) keep working.
+const LEGACY_STATUS = { processing: "active", success: "completed", error: "failed" };
 
 /**
  * Generation Jobs: every video job, course and Voice Studio generation in one
@@ -47,7 +49,8 @@ const JobsPage = () => {
 
   // The status filter lives in the URL so a tile elsewhere ("3 failed") can
   // link straight to it, and the browser's back button undoes a filter.
-  const urlStatus = searchParams.get("status");
+  const rawStatus = searchParams.get("status");
+  const urlStatus = LEGACY_STATUS[rawStatus] || rawStatus;
   const statusFilter = VALID_STATUS.has(urlStatus) ? urlStatus : "all";
   const setStatusFilter = (value) => {
     setSearchParams(
@@ -72,17 +75,17 @@ const JobsPage = () => {
     limit: PAGE_SIZE,
     filters,
     // The safety net runs only while something is actually processing.
-    isActive: (job) => classifyStatus(job.status) === "processing",
+    isActive: (job) => ["running", "queued"].includes(jobPhase(job.status)),
     activePollMs: ACTIVE_POLL_MS,
   });
 
-  const filtered = useMemo(() => (statusFilter === "all" ? jobs : jobs.filter((j) => classifyStatus(j.status) === statusFilter)), [jobs, statusFilter]);
+  const filtered = useMemo(() => jobs.filter((j) => matchesStatusFilter(j, statusFilter, jobPhase)), [jobs, statusFilter]);
 
   // Counts are for the page on screen (the server filters by type and search,
   // not by this status grouping), and labelled that way below.
   const counts = useMemo(() => {
     const by = { all: jobs.length };
-    for (const f of STATUS_FILTERS) if (f.value !== "all") by[f.value] = jobs.filter((j) => classifyStatus(j.status) === f.value).length;
+    for (const f of STATUS_FILTERS) if (f.value !== "all") by[f.value] = jobs.filter((j) => matchesStatusFilter(j, f.value, jobPhase)).length;
     return by;
   }, [jobs]);
 
@@ -127,7 +130,7 @@ const JobsPage = () => {
     setPage(1);
   };
 
-  const hasRunning = jobs.some((j) => classifyStatus(j.status) === "processing");
+  const hasRunning = jobs.some((j) => ["running", "queued"].includes(jobPhase(j.status)));
 
   return (
     <div>

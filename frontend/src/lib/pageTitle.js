@@ -14,11 +14,18 @@ const norm = (p) => (p.length > 1 ? p.replace(/\/+$/, "") : p);
  * @param {string} pathname  current location.pathname
  * @param {string|null} label  record name a detail page registered through
  *   useSetBreadcrumbLabel (course/video title), if any
+ * @param {string} [search]  location.search, for pages keyed by ?id=
  * @returns {string} the full document title
  */
-export function documentTitle(pathname, label = null) {
+export function documentTitle(pathname, label = null, search = "") {
   const path = norm(pathname || "/");
   let page = TITLES[path];
+
+  // One project's two views live at /render?id= and /studio?id=.
+  if ((path === "/render" || path === "/studio") && new URLSearchParams(search).get("id")) {
+    const view = path === "/studio" ? "Editor" : "Progress";
+    page = label ? `${label} · ${view}` : view;
+  }
 
   if (!page) {
     // Detail routes: prefer the record's own name over a generic label.
