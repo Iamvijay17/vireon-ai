@@ -1,92 +1,105 @@
-import { BookOpen, Pencil, Trash2, Layers, Globe2, GraduationCap } from "lucide-react";
-import { Button } from "../../../components/ui/Button";
-import { Badge } from "../../../components/ui/Badge";
+import { Link } from "react-router-dom";
+import { GraduationCap, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Dropdown, DropdownItem, DropdownDivider } from "../../../components/ui/Dropdown";
 import { Progress } from "../../../components/ui/Progress";
+import { cn } from "../../../components/ui/cn";
+import StatusBadge from "../../../components/StatusBadge";
 import { timeAgo } from "../../../lib/timeAgo";
-import { STATUS_VARIANT, STATUS_ICON, toneForCategory } from "./constants";
 
-/** One course in the grid: status, tags, video progress, hover actions. */
-export const CourseCard = ({ course, onOpen, onEdit, onDelete }) => {
-  const StatusIcon = STATUS_ICON[course.status] || BookOpen;
+/**
+ * One course in the grid: status, what it is, how many lessons are done. The
+ * title is the real link (stretched over the card); Edit / Delete live in a
+ * menu so the card has no hidden hover-only controls.
+ */
+export const CourseCard = ({ course, onEdit, onDelete }) => {
   const total = course.videoCount || 0;
   const completed = course.completedVideoCount || 0;
-  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : null;
+  const meta = [course.category, course.difficulty, course.language && `${course.language[0].toUpperCase()}${course.language.slice(1)}`].filter(Boolean);
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onOpen(course)}
-      onKeyDown={(e) => e.key === "Enter" && onOpen(course)}
-      className="group flex cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-surface transition-all hover:-translate-y-0.5 hover:shadow-md"
-    >
-      <div className="flex items-start justify-between p-5 pb-3">
-        <div className={`flex size-11 items-center justify-center rounded-[10px] ${toneForCategory(course.category)}`}>
-          <GraduationCap className="size-5" />
+    <div className="hover-lift group relative flex flex-col rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-hover text-text-tertiary">
+          <GraduationCap className="size-[18px]" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <Link
+            to={`/courses/${course._id}`}
+            className="line-clamp-2 text-sm font-medium leading-snug text-text-primary outline-none after:absolute after:inset-0 hover:text-accent-fg focus-visible:text-accent-fg"
+            title={course.title}
+          >
+            {course.title}
+          </Link>
+          <p className="mt-1 truncate text-xs text-text-tertiary">{meta.join(" · ")}</p>
         </div>
-        <Badge variant={STATUS_VARIANT[course.status] || "neutral"} icon={<StatusIcon className="size-3" />}>
-          {course.status}
-        </Badge>
-      </div>
-
-      <div className="flex-1 px-5 pb-4">
-        <h3 className="line-clamp-1 text-[15px] font-semibold text-text-primary transition-colors group-hover:text-accent-fg">
-          {course.title}
-        </h3>
-        <p className="mt-1 line-clamp-2 min-h-[2.25rem] text-xs leading-relaxed text-text-tertiary">
-          {course.description || "No description yet."}
-        </p>
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-text-tertiary">
-          <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-hover px-2 py-0.5">
-            <Layers className="size-3" /> {course.category}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-hover px-2 py-0.5">
-            {course.difficulty}
-          </span>
-          {course.language && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-hover px-2 py-0.5 capitalize">
-              <Globe2 className="size-3" /> {course.language}
-            </span>
+        <Dropdown
+          align="end"
+          trigger={({ toggle, open, id }) => (
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={`Actions for ${course.title}`}
+              aria-haspopup="menu"
+              aria-expanded={open}
+              aria-controls={open ? id : undefined}
+              className={cn(
+                "relative z-10 flex size-7 cursor-pointer items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-surface-active hover:text-text-primary",
+                open && "bg-surface-active text-text-primary"
+              )}
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
           )}
-        </div>
+        >
+          {({ close }) => (
+            <>
+              <DropdownItem
+                icon={<Pencil />}
+                onClick={() => {
+                  close();
+                  onEdit(course);
+                }}
+              >
+                Edit details
+              </DropdownItem>
+              <DropdownDivider />
+              <DropdownItem
+                icon={<Trash2 />}
+                danger
+                onClick={() => {
+                  close();
+                  onDelete(course);
+                }}
+              >
+                Delete…
+              </DropdownItem>
+            </>
+          )}
+        </Dropdown>
       </div>
 
-      <div className="px-5 pb-4">
+      <p className="mt-3 line-clamp-2 min-h-8 text-xs leading-relaxed text-text-tertiary">{course.description || "No description yet."}</p>
+
+      <div className="mt-4">
         <div className="mb-1.5 flex items-center justify-between text-xs">
-          <span className="text-text-tertiary">Videos</span>
-          <span className="font-medium text-text-secondary">
-            {completed}/{total}
+          <span className="text-text-tertiary">Lessons</span>
+          <span className="tabular font-medium text-text-secondary">
+            {completed} / {total}
           </span>
         </div>
-        <Progress percent={pct} showLabel={false} size="sm" status={pct === 100 && total > 0 ? "success" : "active"} />
+        {pct === null ? (
+          <div className="h-1.5 rounded-full bg-surface-active" aria-hidden="true" />
+        ) : (
+          <Progress percent={pct} showLabel={false} size="sm" status={pct === 100 ? "success" : "active"} />
+        )}
       </div>
 
-      <div className="mt-auto flex items-center justify-between border-t border-border-light px-5 py-3">
-        <span className="text-[11px] text-text-tertiary">Updated {timeAgo(course.updatedAt)}</span>
-        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <Button
-            variant="ghost"
-            size="sm"
-            iconOnly
-            aria-label={`Edit ${course.title}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(course);
-            }}
-            icon={<Pencil className="size-3.5" />}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            iconOnly
-            aria-label={`Delete ${course.title}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(course);
-            }}
-            icon={<Trash2 className="size-3.5 text-danger-500" />}
-          />
-        </div>
+      <div className="mt-4 flex items-center justify-between gap-2 border-t border-border-light pt-3">
+        <StatusBadge status={course.status} />
+        <span className="text-[11px] text-text-tertiary" title={course.updatedAt ? new Date(course.updatedAt).toLocaleString() : undefined}>
+          Updated {timeAgo(course.updatedAt)}
+        </span>
       </div>
     </div>
   );

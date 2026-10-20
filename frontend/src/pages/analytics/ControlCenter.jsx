@@ -18,7 +18,7 @@ const Stat = ({ label, value, hint }) => (
 );
 
 const Panel = ({ icon: Icon, title, subtitle, children, className }) => (
-  <Card className={`animate-slide-up rounded-xl shadow-sm ${className || ""}`}>
+  <Card className={`overflow-hidden ${className || ""}`}>
     <CardHeader
       title={
         <span className="flex items-center gap-2">

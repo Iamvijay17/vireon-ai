@@ -1,19 +1,10 @@
 import {
-  Video, CheckCircle2, XCircle, AlertTriangle, GraduationCap, Hourglass, Timer, Mic2, Clock,
+  Video, CheckCircle2, XCircle, AlertTriangle, GraduationCap,
   TrendingUp, TrendingDown, Minus,
 } from "lucide-react";
 import { Card } from "../../components/ui/Card";
+import { StatTile } from "../../components/ui/StatTile";
 import { formatDuration, formatPercent, trendDelta, successRateDelta } from "./format";
-
-// Solid, circular icon badges (not soft gradient squares) to match a
-// real-dashboard look - each KPI card's icon reads as a colored dot.
-const toneCls = {
-  accent: "bg-accent-500/15 text-accent-600 dark:text-accent-400",
-  warning: "bg-warning-500/15 text-warning-600 dark:text-warning-500",
-  success: "bg-success-500/15 text-success-600 dark:text-success-500",
-  danger: "bg-danger-500/15 text-danger-600 dark:text-danger-500",
-  info: "bg-info-500/15 text-info-600 dark:text-info-500",
-};
 
 // Pill-shaped delta badge (solid tint background, not just colored text) -
 // reads more like a real dashboard's "+15.5%" chip than plain inline text.
@@ -22,7 +13,7 @@ const toneCls = {
 const DeltaBadge = ({ delta, suffix = "%", invert = false }) => {
   if (!delta || delta.pct === 0) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-neutral-500/10 px-1.5 py-0.5 text-[11px] font-medium text-text-tertiary">
+      <span className="inline-flex items-center gap-1 rounded-full bg-surface-active px-1.5 py-0.5 text-[11px] font-medium text-text-tertiary">
         <Minus className="size-3" /> flat
       </span>
     );
@@ -95,51 +86,46 @@ export function KpiTiles({ summary, trend }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      {tiles.map((s, i) => (
-        <Card key={s.title} className="animate-slide-up rounded-xl p-4 shadow-sm" style={{ "--stagger-index": i }}>
-          <div className="flex items-start justify-between">
-            <p className="text-xs font-medium text-text-tertiary">{s.title}</p>
-            <div className={`flex size-8 shrink-0 items-center justify-center rounded-full ${toneCls[s.tone]}`}>
-              <s.icon className="size-4" />
-            </div>
-          </div>
-          <p className="mt-3 text-[26px] font-bold leading-none tracking-tight text-text-primary">{s.value}</p>
-          <div className="mt-2.5 flex items-center gap-1.5">
-            {s.delta && <DeltaBadge delta={s.delta} suffix={s.deltaSuffix || "%"} invert={s.invertDelta} />}
-            <span className="truncate text-[11px] text-text-tertiary">{s.caption}</span>
-          </div>
-        </Card>
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      {tiles.map((s) => (
+        <StatTile
+          key={s.title}
+          label={s.title}
+          icon={s.icon}
+          tone={s.tone}
+          value={s.value}
+          hint={
+            <span className="inline-flex items-center gap-1.5">
+              {s.delta && <DeltaBadge delta={s.delta} suffix={s.deltaSuffix || "%"} invert={s.invertDelta} />}
+              <span>{s.caption}</span>
+            </span>
+          }
+        />
       ))}
     </div>
   );
 }
 
-/** Average time per pipeline phase, as a compact icon list. */
+/** Average time per pipeline phase. A phase with no timed runs shows a dash. */
 export function ProcessingTimeCard({ summary }) {
   const stats = [
-    { title: "Avg. Generation Time", value: formatDuration(summary.avgGenerationTimeMs), icon: Hourglass, tone: "info" },
-    { title: "Avg. Render Time", value: formatDuration(summary.avgRenderTimeMs), icon: Timer, tone: "warning" },
-    { title: "Avg. TTS Time", value: formatDuration(summary.avgTtsTimeMs), icon: Mic2, tone: "accent" },
-    { title: "Queue Wait Time", value: formatDuration(summary.avgQueueWaitMs), icon: Clock, tone: "success" },
+    { title: "Generation (whole pipeline)", value: formatDuration(summary.avgGenerationTimeMs) },
+    { title: "Render", value: formatDuration(summary.avgRenderTimeMs) },
+    { title: "Narration (TTS)", value: formatDuration(summary.avgTtsTimeMs) },
+    { title: "Queue wait", value: formatDuration(summary.avgQueueWaitMs) },
   ];
 
   return (
-    <Card className="animate-slide-up rounded-xl p-4 shadow-sm" style={{ "--stagger-index": 5 }}>
-      <p className="text-xs font-medium text-text-secondary">Processing Time</p>
-      <div className="mt-3 space-y-3">
+    <Card>
+      <p className="border-b border-border-light px-4 py-3 text-sm font-semibold text-text-primary">Average processing time</p>
+      <dl className="divide-y divide-border-light px-4">
         {stats.map((s) => (
-          <div key={s.title} className="flex items-center gap-2.5">
-            <div className={`flex size-8 shrink-0 items-center justify-center rounded-full ${toneCls[s.tone]}`}>
-              <s.icon className="size-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-[11px] text-text-tertiary">{s.title}</p>
-              <p className="text-base font-semibold tracking-tight text-text-primary">{s.value}</p>
-            </div>
+          <div key={s.title} className="flex items-baseline justify-between gap-3 py-2.5">
+            <dt className="text-xs text-text-tertiary">{s.title}</dt>
+            <dd className="tabular text-sm font-semibold text-text-primary">{s.value}</dd>
           </div>
         ))}
-      </div>
+      </dl>
     </Card>
   );
 }

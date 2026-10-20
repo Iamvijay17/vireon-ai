@@ -2,17 +2,14 @@ import { Link2, Wand2, CalendarClock, TriangleAlert } from "lucide-react";
 import { Card, CardHeader, CardBody } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Alert";
+import { StatTile } from "../../components/ui/StatTile";
 import { ErrorState, EmptyState } from "../../components";
 import { useSocialOverview } from "./usePromotion";
 import { PlatformBadge, StatusBadge, SkeletonRows, ErrorNotice } from "./shared";
 import { formatInZone, describeDistance } from "./format";
 
-const Tile = ({ label, value, tone }) => (
-  <div className="rounded-xl border border-border-light p-4">
-    <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">{label}</p>
-    <p className={`mt-1.5 text-2xl font-semibold tabular-nums ${tone || "text-text-primary"}`}>{value}</p>
-  </div>
-);
+const TONES = { "text-success-600": "success", "text-danger-500": "danger" };
+const Tile = ({ label, value, tone }) => <StatTile label={label} value={value} tone={TONES[tone] || "neutral"} />;
 
 /** Where things stand: accounts needing attention, what is about to go out, what failed recently. */
 export const OverviewPanel = ({ caps, go }) => {

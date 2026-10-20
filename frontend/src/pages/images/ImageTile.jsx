@@ -21,7 +21,7 @@ export const ImageTile = ({ item, progress, deleting, onOpen, onDelete, onDownlo
   const done = item.status === "COMPLETED" && item.imageUrl;
 
   return (
-    <div className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-border-light bg-surface shadow-xs">
+    <div className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-border-light bg-surface">
       {done ? (
         <button
           type="button"

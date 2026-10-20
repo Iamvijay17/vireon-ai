@@ -1,17 +1,20 @@
-import { useState } from "react";
-import { Plus, Search, BookOpen, CheckCircle2, PlayCircle, ChevronLeft, ChevronRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { EmptyState } from "../../../components";
-import { Card } from "../../../components/ui/Card";
+import { useMemo, useState } from "react";
+import { BookOpen, Plus } from "lucide-react";
+import { PageHeader, EmptyState, ErrorState } from "../../../components";
+import FilterBar from "../../../components/FilterBar";
 import { Button } from "../../../components/ui/Button";
-import { Input } from "../../../components/ui/Input";
 import { Select } from "../../../components/ui/Select";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { SegmentedControl } from "../../../components/ui/SegmentedControl";
+import { Pagination } from "../../../components/ui/Pagination";
+import { SkeletonCard } from "../../../components/ui/Skeleton";
 import { toast } from "../../../components/ui/toastBus";
 import { useApiQuery, useInvalidate } from "../../../lib/useApiQuery";
 import { queryKeys } from "../../../lib/queryClient";
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from "../../../lib/useDebouncedValue";
 import { confirmDialog } from "../../../components/ui/confirmBus";
 import { getCourses, deleteCourse } from "../../../services/api";
-import { CATEGORY_OPTIONS, STATUS_OPTIONS, STAT_TONES } from "./constants";
+import { CATEGORY_OPTIONS, STATUS_OPTIONS } from "./constants";
 import { CourseCard } from "./CourseCard";
 import { CourseFormModal } from "./CourseFormModal";
 
@@ -20,29 +23,42 @@ import { CourseFormModal } from "./CourseFormModal";
 const EMPTY_COURSES = [];
 const PAGE_LIMIT = 20;
 
-const CoursesList = () => {
-  const navigate = useNavigate();
+const STATUS_TABS = [{ value: "", label: "All" }, ...STATUS_OPTIONS];
+const CATEGORY_FILTER = [{ value: "", label: "All categories" }, ...CATEGORY_OPTIONS];
 
+/**
+ * Courses: multi-lesson video courses. Search, status and category are all
+ * applied by the server, so they cover every course, not just the page shown.
+ */
+const CoursesList = () => {
   const [page, setPage] = useState(1);
-  const [filters, setFiltersState] = useState({ search: "", status: undefined, category: undefined });
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [category, setCategory] = useState("");
   // `key` changes on every open so the form remounts fresh for each course.
   const [modal, setModal] = useState({ open: false, course: null, key: 0 });
 
-  const { data, loading } = useApiQuery(
+  const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
+  const filters = useMemo(
+    () => ({ search: debouncedSearch || undefined, status: status || undefined, category: category || undefined }),
+    [debouncedSearch, status, category]
+  );
+
+  const { data, loading, refreshing, error, refetch } = useApiQuery(
     queryKeys.courses.list(page, filters),
     () => getCourses(page, PAGE_LIMIT, filters),
     { errorMessage: "Failed to load courses" }
   );
-
   const invalidate = useInvalidate();
 
   const courses = data?.courses ?? EMPTY_COURSES;
   const pagination = data?.pagination ?? { page, limit: PAGE_LIMIT, total: 0, pages: 0 };
+  const filtersActive = Boolean(debouncedSearch || status || category);
 
-  // Narrowing the filters should return to page 1 - otherwise a filter
-  // applied while on page 3 lands on an empty table.
-  const setFilters = (next) => {
-    setFiltersState(next);
+  // Narrowing the filters returns to page 1 - a filter applied on page 3
+  // would otherwise land on an empty page.
+  const reset = (setter) => (value) => {
+    setter(value);
     setPage(1);
   };
 
@@ -51,8 +67,8 @@ const CoursesList = () => {
 
   const handleDelete = async (course) => {
     const ok = await confirmDialog({
-      title: "Delete Course",
-      content: `Are you sure you want to delete "${course.title}"? All videos in this course will also be deleted.`,
+      title: `Delete “${course.title}”?`,
+      content: "The course and all of its lessons, with their generated files, will be deleted. This can't be undone.",
       confirmText: "Delete",
       danger: true,
     });
@@ -66,98 +82,64 @@ const CoursesList = () => {
     }
   };
 
-  const stats = [
-    { title: "Total Courses", value: pagination.total, icon: BookOpen, tone: "accent" },
-    { title: "In Progress", value: courses.filter((c) => c.status === "In Progress").length, icon: PlayCircle, tone: "info" },
-    { title: "Completed", value: courses.filter((c) => c.status === "Completed").length, icon: CheckCircle2, tone: "success" },
-    { title: "Draft", value: courses.filter((c) => c.status === "Draft").length, icon: BookOpen, tone: "neutral" },
-  ];
-
-  const totalPages = pagination.pages || Math.ceil(pagination.total / pagination.limit) || 1;
-
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-text-primary">Courses</h1>
-          <p className="mt-1 text-sm text-text-secondary">Create and manage your AI-powered video courses</p>
+      <PageHeader
+        title="Courses"
+        description={`Turn a curriculum into a series of lesson videos.${!loading && !error ? ` ${pagination.total} course${pagination.total === 1 ? "" : "s"}${filtersActive ? " match" : ""}.` : ""}`}
+        extra={
+          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => openModal()}>
+            Create course
+          </Button>
+        }
+      />
+
+      <FilterBar
+        search={<SearchInput value={search} onChange={reset(setSearch)} placeholder="Search courses" />}
+        onRefresh={refetch}
+        refreshing={refreshing}
+        refreshLabel="Refresh courses"
+      >
+        <SegmentedControl aria-label="Filter by status" value={status} onChange={reset(setStatus)} options={STATUS_TABS} />
+        <Select aria-label="Filter by category" className="w-48" value={category} onChange={reset(setCategory)} options={CATEGORY_FILTER} />
+      </FilterBar>
+
+      {error && courses.length === 0 ? (
+        <ErrorState message="Could not load courses" description={error.friendlyMessage || error.message} onRetry={refetch} />
+      ) : loading && courses.length === 0 ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
-        <Button variant="primary" size="lg" icon={<Plus className="size-4" />} onClick={() => openModal()}>
-          Create Course
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s, i) => (
-          <Card key={s.title} hoverable className="animate-slide-up overflow-hidden p-5" style={{ "--stagger-index": i }}>
-            <div className={`mb-3 flex size-10 items-center justify-center rounded-[10px] ${STAT_TONES[s.tone]}`}>
-              <s.icon className="size-[18px]" />
-            </div>
-            <p className="text-xs font-medium text-text-tertiary">{s.title}</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight text-text-primary">{s.value}</p>
-          </Card>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <Card className="mb-6 p-4">
-        <div className="flex flex-wrap gap-3">
-          <Input
-            placeholder="Search courses..."
-            icon={<Search className="size-4" />}
-            className="w-64"
-            onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-          />
-          <Select
-            placeholder="Filter by status"
-            className="w-44"
-            options={STATUS_OPTIONS}
-            value={filters.status}
-            onChange={(v) => setFilters((prev) => ({ ...prev, status: v }))}
-          />
-          <Select
-            placeholder="Filter by category"
-            className="w-52"
-            options={CATEGORY_OPTIONS}
-            value={filters.category}
-            onChange={(v) => setFilters((prev) => ({ ...prev, category: v }))}
-          />
-        </div>
-      </Card>
-
-      {/* Grid */}
-      {!loading && courses.length === 0 ? (
-        <Card>
-          <EmptyState description="No courses yet" actionLabel="Create Your First Course" onAction={() => openModal()} />
-        </Card>
+      ) : courses.length === 0 ? (
+        <EmptyState
+          icon={BookOpen}
+          title={filtersActive ? "No courses match" : "No courses yet"}
+          description={filtersActive ? "Try another status, category or search." : "Create a course, generate its curriculum, then produce each lesson as a video."}
+          actionLabel={filtersActive ? "Clear filters" : "Create your first course"}
+          actionIcon={filtersActive ? undefined : <Plus className="size-4" />}
+          onAction={
+            filtersActive
+              ? () => {
+                  setSearch("");
+                  setStatus("");
+                  setCategory("");
+                  setPage(1);
+                }
+              : () => openModal()
+          }
+        />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {loading && courses.length === 0
-              ? Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-64 animate-pulse rounded-xl border border-border bg-surface-hover" />
-                ))
-              : courses.map((course, i) => (
-                  <div key={course._id} className="animate-slide-up" style={{ "--stagger-index": Math.min(i, 8) }}>
-                    <CourseCard
-                      course={course}
-                      onOpen={(c) => navigate(`/courses/${c._id}`)}
-                      onEdit={openModal}
-                      onDelete={handleDelete}
-                    />
-                  </div>
-                ))}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {courses.map((course) => (
+              <CourseCard key={course._id} course={course} onEdit={openModal} onDelete={handleDelete} />
+            ))}
           </div>
-          {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-end gap-2">
-              <span className="mr-2 text-xs text-text-tertiary">
-                Page {pagination.page} of {totalPages}
-              </span>
-              <Button variant="secondary" size="sm" iconOnly disabled={pagination.page <= 1} onClick={() => setPage(pagination.page - 1)} icon={<ChevronLeft className="size-4" />} />
-              <Button variant="secondary" size="sm" iconOnly disabled={pagination.page >= totalPages} onClick={() => setPage(pagination.page + 1)} icon={<ChevronRight className="size-4" />} />
-            </div>
-          )}
+          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface empty:hidden">
+            <Pagination page={pagination.page} pages={pagination.pages} total={pagination.total} onChange={setPage} className="flex items-center justify-between gap-2 px-4 py-2.5" />
+          </div>
         </>
       )}
 

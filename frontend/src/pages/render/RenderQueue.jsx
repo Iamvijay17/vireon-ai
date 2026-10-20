@@ -1,16 +1,18 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Plus, RefreshCw, Rocket, Eye, CheckCircle2, XCircle, Film, Redo2, Pencil, Square, CircleSlash } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Plus, RefreshCw, Rocket, Film, Redo2, Pencil, Square, AlertTriangle } from "lucide-react";
 import { restartVideoJob, stopVideoJob } from "../../services/api";
 import { useVideoJobs, useInvalidateJobs } from "../../lib/useJobs";
-import { LoadingState, EmptyState, StatusTag } from "../../components";
+import { LoadingState, EmptyState, ErrorState, PageHeader, StatusBadge, ConnectionIndicator } from "../../components";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Progress } from "../../components/ui/Progress";
-import { Badge } from "../../components/ui/Badge";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
-import { isJobRunning } from "../../lib/jobStatus";
+import { isJobRunning, staleForMs } from "../../lib/jobStatus";
+import { formatElapsed } from "../../lib/format";
+import { timeAgo } from "../../lib/timeAgo";
+import { typeLabel } from "../../lib/projectModel";
 
 const TERMINAL_STATUSES = ["COMPLETED", "FAILED", "CANCELLED"];
 // Safety net only - see useVideoJobs. Socket events invalidate this query
@@ -42,10 +44,6 @@ const RenderQueue = () => {
   });
 
   const invalidateJobs = useInvalidateJobs();
-
-  useEffect(() => {
-    if (error) toast.error(error.friendlyMessage || "Failed to load render queue");
-  }, [error]);
 
   const active = jobs.filter((j) => !TERMINAL_STATUSES.includes(j.status));
 
@@ -146,182 +144,116 @@ const RenderQueue = () => {
     .slice(0, 6);
 
   if (loading && jobs.length === 0) {
-    return <LoadingState label="Loading render queue..." />;
+    return <LoadingState label="Loading render queue…" />;
   }
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-text-primary">Render Queue</h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            Live status of everything currently rendering, updated automatically.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" loading={loading || refreshing} onClick={() => refetch()} icon={<RefreshCw className="size-4" />}>
-            Refresh
-          </Button>
-          <Button variant="primary" size="lg" icon={<Plus className="size-4" />} onClick={() => navigate("/wizard")}>
-            Create Video
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Render Queue"
+        description="Everything that is not finished yet, live. Open a job to follow it; stop or restart it from here."
+        meta={<ConnectionIndicator />}
+        extra={
+          <Button variant="secondary" iconOnly aria-label="Refresh render queue" title="Refresh" loading={loading || refreshing} onClick={() => refetch()} icon={<RefreshCw className="size-4" />} />
+        }
+      />
 
-      <Card className="animate-slide-up">
+      {error && jobs.length === 0 && <ErrorState className="mb-4" message="Could not load the render queue" description={error.friendlyMessage || error.message} onRetry={refetch} />}
+
+      <Card className="overflow-hidden">
         <CardHeader
-          title="Active Renders"
-          subtitle={active.length > 0 ? `${active.length} job${active.length === 1 ? "" : "s"} in progress` : undefined}
+          title="Active jobs"
+          subtitle={active.length > 0 ? `${active.length} not finished` : undefined}
           extra={
             active.length > 0 && (
-              <div className="flex items-center gap-2">
-                <Badge variant="accent" icon={<RefreshCw className="size-3 animate-spin" />}>Live</Badge>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<Redo2 className="size-4" />}
-                  loading={regenerateAllLoading}
-                  onClick={handleRegenerateAll}
-                >
-                  Regenerate All
+              <>
+                <Button variant="secondary" size="sm" icon={<Redo2 className="size-3.5" />} loading={regenerateAllLoading} onClick={handleRegenerateAll}>
+                  Regenerate all
                 </Button>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  icon={<Square className="size-4" />}
-                  loading={stopAllLoading}
-                  onClick={handleStopAll}
-                >
-                  Stop All
+                <Button variant="danger" size="sm" icon={<Square className="size-3.5" />} loading={stopAllLoading} onClick={handleStopAll}>
+                  Stop all
                 </Button>
-              </div>
+              </>
             )
           }
         />
-        <div className="p-2">
-          {active.length === 0 ? (
-            <EmptyState
-              description="Nothing is rendering right now."
-              actionLabel="Create Video"
-              actionIcon={<Rocket className="size-4" />}
-              onAction={() => navigate("/wizard")}
-            />
-          ) : (
-            <div className="divide-y divide-border-light">
-              {active.map((job) => {
-                const hasScript = job.script?.scenes?.length > 0;
-                return (
-                  <div
-                    key={job._id}
-                    className="flex w-full flex-col gap-3 px-3 py-3.5 transition-colors hover:bg-surface-hover sm:flex-row sm:items-center sm:gap-4"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/render?id=${job._id}`)}
-                      className="cursor-pointer flex min-w-0 flex-1 flex-col gap-3 text-left sm:flex-row sm:items-center sm:gap-4"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-[13px] font-medium text-text-primary">{job.topic}</p>
-                          <Badge variant="neutral">{job.type}</Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-text-tertiary">
-                          {(job.currentStep || job.status || "").replace(/_/g, " ")}
-                          {job.currentScene ? ` · Scene ${job.currentScene}` : ""}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3 sm:w-64">
-                        <StatusTag status={job.status} />
-                        {/* Creep only while the worker is really executing a step - not for jobs waiting on approval/retry/queue. */}
-                        <Progress percent={job.progress || 0} size="sm" className="flex-1" trickle={isJobRunning(job.status)} />
-                      </div>
-                    </button>
-                    <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                      {hasScript && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          iconOnly
-                          icon={<Pencil className="size-4" />}
-                          title="Open in Studio"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/studio?id=${job._id}`);
-                          }}
-                        />
-                      )}
-                      {job.status !== "QUEUED" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          iconOnly
-                          icon={<Redo2 className="size-4" />}
-                          title="Regenerate"
-                          loading={regeneratingId === job._id}
-                          onClick={(e) => handleRegenerate(job, e)}
-                        />
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        iconOnly
-                        icon={<Square className="size-4 text-danger-500" />}
-                        title="Stop"
-                        loading={stoppingId === job._id}
-                        onClick={(e) => handleStop(job, e)}
-                      />
-                    </div>
+        {active.length === 0 ? (
+          <EmptyState
+            compact
+            icon={Rocket}
+            title="Nothing is rendering"
+            description="Jobs that are queued, running or waiting for you show up here."
+            actionLabel="Create Video"
+            actionIcon={<Plus className="size-4" />}
+            onAction={() => navigate("/wizard")}
+          />
+        ) : (
+          <ul className="divide-y divide-border-light">
+            {active.map((job) => {
+              const hasScript = job.script?.scenes?.length > 0;
+              const stale = staleForMs(job);
+              return (
+                <li key={job._id} className="flex flex-col gap-3 px-4 py-3 transition-colors hover:bg-surface-hover sm:flex-row sm:items-center sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <Link to={`/render?id=${job._id}`} className="block truncate text-[13px] font-medium text-text-primary hover:text-accent-fg" title={job.topic}>
+                      {job.topic}
+                    </Link>
+                    <p className="mt-0.5 text-xs text-text-tertiary">
+                      {typeLabel(job.type)}
+                      {job.currentScene ? ` · Scene ${job.currentScene}` : ""}
+                      {` · Updated ${timeAgo(job.updatedAt)}`}
+                    </p>
+                    {stale && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-warning-600 dark:text-warning-500">
+                        <AlertTriangle className="size-3.5" /> No update for {formatElapsed(stale)} - the worker may have stopped.
+                      </p>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  <div className="flex items-center gap-3 sm:w-72">
+                    <StatusBadge status={job.status} className="shrink-0" />
+                    {/* Creep only while the worker is really executing a step - not for jobs waiting on approval/retry/queue. */}
+                    <Progress percent={job.progress || 0} size="sm" className="flex-1" status={stale ? "error" : "active"} trickle={isJobRunning(job.status) && !stale} />
+                  </div>
+                  <div className="flex items-center gap-1 self-end sm:self-auto">
+                    {hasScript && (
+                      <Button variant="ghost" size="sm" iconOnly aria-label={`Open ${job.topic} in the editor`} title="Open in editor" icon={<Pencil className="size-4" />} onClick={() => navigate(`/studio?id=${job._id}`)} />
+                    )}
+                    {job.status !== "QUEUED" && (
+                      <Button variant="ghost" size="sm" iconOnly aria-label={`Regenerate ${job.topic}`} title="Regenerate" icon={<Redo2 className="size-4" />} loading={regeneratingId === job._id} onClick={(e) => handleRegenerate(job, e)} />
+                    )}
+                    <Button variant="ghost" size="sm" iconOnly aria-label={`Stop ${job.topic}`} title="Stop" icon={<Square className="size-4 text-danger-500" />} loading={stoppingId === job._id} onClick={(e) => handleStop(job, e)} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </Card>
 
       {recent.length > 0 && (
-        <Card className="mt-6 animate-slide-up" style={{ "--stagger-index": 1 }}>
-          <CardHeader title="Recently Finished" subtitle="Last few jobs to complete or fail" />
-          <div className="p-2">
-            <div className="divide-y divide-border-light">
-              {recent.map((job) => {
-                const isComplete = job.status === "COMPLETED";
-                const isCancelled = job.status === "CANCELLED";
-                return (
-                  <button
-                    key={job._id}
-                    type="button"
-                    onClick={() => navigate(`/render?id=${job._id}`)}
-                    className="cursor-pointer flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-hover"
-                  >
-                    <div
-                      className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
-                        isComplete
-                          ? "bg-success-500/10 text-success-600 dark:text-success-500"
-                          : isCancelled
-                            ? "bg-neutral-500/10 text-text-tertiary"
-                            : "bg-danger-500/10 text-danger-600 dark:text-danger-500"
-                      }`}
-                    >
-                      {isComplete ? <CheckCircle2 className="size-4" /> : isCancelled ? <CircleSlash className="size-4" /> : <XCircle className="size-4" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium text-text-primary">{job.topic}</p>
-                      <p className="text-xs text-text-tertiary">
-                        {job.updatedAt ? new Date(job.updatedAt).toLocaleString() : "—"}
-                      </p>
-                    </div>
-                    <Eye className="size-4 shrink-0 text-text-tertiary" aria-hidden="true" />
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex justify-end border-t border-border-light px-3 py-3">
-              <Button variant="secondary" size="sm" icon={<Film className="size-4" />} onClick={() => navigate("/editor/complete")}>
-                View all completed videos
+        <Card className="mt-4 overflow-hidden">
+          <CardHeader
+            title="Recently finished"
+            subtitle="The last few to complete, fail or be stopped"
+            extra={
+              <Button variant="secondary" size="sm" icon={<Film className="size-3.5" />} onClick={() => navigate("/editor/complete")}>
+                All completed videos
               </Button>
-            </div>
-          </div>
+            }
+          />
+          <ul className="divide-y divide-border-light">
+            {recent.map((job) => (
+              <li key={job._id} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-hover">
+                <Link to={`/render?id=${job._id}`} className="min-w-0 flex-1 truncate text-[13px] font-medium text-text-primary hover:text-accent-fg" title={job.topic}>
+                  {job.topic}
+                </Link>
+                <StatusBadge status={job.status} className="shrink-0" />
+                <span className="hidden w-20 shrink-0 text-right text-xs text-text-tertiary sm:block" title={job.updatedAt ? new Date(job.updatedAt).toLocaleString() : undefined}>
+                  {timeAgo(job.updatedAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
     </div>

@@ -42,7 +42,7 @@ export const PromptBar = ({ promptRef, prompt, setPrompt, negative, setNegative,
     // relative z-10: the Style dropdown opens downward over the gallery toolbar,
     // and the animated Card is its own stacking context - without this the
     // toolbar's positioned inputs paint on top of the open list.
-    <Card className="relative z-10 animate-slide-up p-3 sm:p-4">
+    <Card className="relative z-10 p-4">
       <Textarea
         ref={promptRef}
         rows={3}
@@ -113,7 +113,7 @@ export const PromptBar = ({ promptRef, prompt, setPrompt, negative, setNegative,
               onChange={onSeedChange}
               placeholder="Random"
               title="Pin a seed to reproduce a picture or refine its prompt; leave empty for a random one"
-              className="h-9 w-full rounded-lg border border-border bg-surface px-3 pr-8 text-sm text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-accent focus:ring-4 focus:ring-accent/10"
+              className="h-9 w-full rounded-lg border border-border bg-surface px-3 pr-8 text-sm text-text-primary outline-none transition-colors placeholder:text-text-tertiary hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25"
             />
             {seeded && (
               <button

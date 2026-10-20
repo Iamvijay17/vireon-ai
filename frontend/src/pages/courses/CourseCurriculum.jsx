@@ -78,7 +78,7 @@ const CourseCurriculum = () => {
   return (
     <div>
       <PageHeader
-        title={course ? `${course.title} - Course Structure` : "Course Structure"}
+        title={course ? `${course.title}: structure` : "Course structure"}
         description="Read-only view of the generated lesson outline. Edit or regenerate it from the course page."
         extra={
           <div className="flex items-center gap-2">

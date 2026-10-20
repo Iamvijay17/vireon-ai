@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ImagePlus, RefreshCw, Trash2, Search, SearchX } from "lucide-react";
+import { ImagePlus, Trash2, SearchX } from "lucide-react";
 import {
   generateImage,
   getImageGenerations,
@@ -10,11 +10,11 @@ import {
 } from "../../services/api";
 import { queryKeys } from "../../lib/queryClient";
 import { useApiQuery, useInvalidate } from "../../lib/useApiQuery";
-import { Card } from "../../components/ui/Card";
+import { PageHeader, EmptyState, ErrorState } from "../../components";
+import { SearchInput } from "../../components/ui/SearchInput";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Spinner } from "../../components/ui/Spinner";
-import { Input } from "../../components/ui/Input";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 import { PromptBar } from "./PromptBar";
@@ -227,12 +227,15 @@ const ImagesPage = () => {
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-3">
-        <h1 className="text-xl font-semibold tracking-tight text-text-primary">Image Studio</h1>
-        <Badge variant="accent" icon={<ImagePlus className="size-3" />}>
-          Text to Image
-        </Badge>
-      </div>
+      <PageHeader
+        title="Image Studio"
+        description="Generate pictures from a prompt with the local image model. Use them in scenes, or promote them."
+        meta={
+          <Badge variant="accent" icon={<ImagePlus className="size-3" />}>
+            Text to image
+          </Badge>
+        }
+      />
 
       <PromptBar
         promptRef={promptRef}
@@ -252,7 +255,7 @@ const ImagesPage = () => {
 
       <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-[15px] font-semibold text-text-primary">Gallery</h2>
+          <h2 className="text-sm font-semibold text-text-primary">Gallery</h2>
           <span className="text-xs text-text-tertiary">
             {filtered ? `${visible.length} of ${history.length}` : history.length} image{history.length === 1 ? "" : "s"}
             {rendering ? ` · ${rendering} rendering` : ""}
@@ -261,16 +264,7 @@ const ImagesPage = () => {
 
         {history.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-48">
-              <Input
-                icon={<Search className="size-3.5" />}
-                aria-label="Search prompts"
-                placeholder="Search prompts"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-8 text-[13px]"
-              />
-            </div>
+            <SearchInput value={search} onChange={setSearch} placeholder="Search prompts" className="w-52" />
             <Segmented label="Filter by shape" options={SHAPE_FILTERS} value={shapeFilter} onChange={setShapeFilter} />
             {failed.length > 0 && (
               <Button variant="ghost" size="xs" icon={<Trash2 className="size-3.5" />} loading={clearing} onClick={handleClearFailed}>
@@ -286,33 +280,20 @@ const ImagesPage = () => {
           <Spinner size="sm" />
         </div>
       ) : historyError && history.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 py-10 text-center">
-          <p className="text-[13px] text-danger-500">{historyError.friendlyMessage || "Failed to load images"}</p>
-          <p className="text-xs text-text-tertiary">Your images are safe on the server - this just couldn't load them.</p>
-          <Button variant="secondary" size="sm" icon={<RefreshCw className="size-3.5" />} onClick={() => refetch()}>
-            Retry
-          </Button>
-        </Card>
+        <ErrorState message="Could not load images" description={(historyError.friendlyMessage || "Failed to load images") + ". Your images are safe on the server; this just could not load them."} onRetry={() => refetch()} />
       ) : history.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 py-14 text-center text-text-tertiary">
-          <ImagePlus className="size-8" />
-          <p className="text-[13px]">Generated images will appear here.</p>
-        </Card>
+        <EmptyState icon={ImagePlus} title="No images yet" description="Describe a picture above and press Generate. Finished images appear here." />
       ) : visible.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 py-12 text-center text-text-tertiary">
-          <SearchX className="size-7" />
-          <p className="text-[13px]">No images match.</p>
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => {
-              setSearch("");
-              setShapeFilter("all");
-            }}
-          >
-            Clear filters
-          </Button>
-        </Card>
+        <EmptyState
+          icon={SearchX}
+          title="No images match"
+          description="Try another search or shape."
+          actionLabel="Clear filters"
+          onAction={() => {
+            setSearch("");
+            setShapeFilter("all");
+          }}
+        />
       ) : (
         // Masonry: columns of tiles keep their own aspect ratio, so mixed
         // landscape / portrait / square images pack without gaps.

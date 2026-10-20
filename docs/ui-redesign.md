@@ -40,7 +40,8 @@ Nothing below is mocked. A figure that cannot be read is shown as "Unavailable" 
 | Overview `/` | totals from `/api/analytics/overview`; live work from `/api/videos`; load from `/api/system/resources` |
 | Create Video `/wizard` | `POST /api/videos` with exactly the fields `createVideoSchema` accepts. Adds the **1:1 size** and the **font pairing** option the backend already supported but the old form never exposed. Shows worker status (`/api/system/workers`) and the average generation time of finished jobs (analytics), labelled as an average |
 | My Projects `/projects` | `/api/videos` + `/api/courses`; search is server-side; status / type / sort act on what is loaded, and the page says when more exist ("Load more") |
-| Project (`/render?id=`, `/studio?id=`) | existing endpoints; shared header, Progress / Editor tabs, unsaved-changes guard, Discard |
+| Project (`/render?id=`, `/studio?id=`) | existing endpoints; shared header, Progress / Editor tabs, one pipeline card (status, tracker, stage actions), unsaved-changes guard, Discard |
+| Courses, Render Queue, Completed Videos, Analytics, Live Logs, Image Studio | existing endpoints, rebuilt on the shared header, filter bar, tiles, cards and states; Courses search / status / category are applied by the server |
 | Templates `/templates` | the renderer's own registry, names, descriptions and sample scenes (`vireon-remotion-templates`) |
 | Media Library `/media` | `/api/assets` (filter by the registry's own categories), storage totals from analytics |
 | Generation Jobs `/jobs` | `/api/jobs`, queue counts from `/api/analytics/control-center`, stale-job detection from `updatedAt` |
@@ -72,7 +73,7 @@ Nothing below is mocked. A figure that cannot be read is shown as "Unavailable" 
 | Queue position of a single job | Not exposed per job. The page shows queue length and slots instead |
 | An interactive multi-track timeline | The editor has a scene list with drag-to-reorder, per-scene editing and a live Remotion preview. There is no free-form timeline and none is drawn |
 | GPU telemetry beyond nvidia-smi | Non-NVIDIA cards, or a machine without the driver, report GPU figures as Unavailable. CPU and RAM are still measured |
-| Pages not restyled one by one (Courses, Publishing, Promotion, Analytics, Workflow, Logs, Images) | They inherit the new tokens and primitives and were checked for contrast and layout, but keep their own page layouts |
+| Panel-level layouts inside Publishing and Promotion Studio (their forms, tables and dialogs) | The page shells, tiles, tabs and states follow the new system; the individual panels inside them keep their own layouts and use the shared primitives |
 
 ## Verifying
 

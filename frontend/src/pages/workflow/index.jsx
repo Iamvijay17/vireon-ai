@@ -87,11 +87,11 @@ const WorkflowPage = () => {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0">
-          <Card className="relative h-[calc(100vh-17rem)] min-h-[460px] overflow-hidden">
+          <Card className="relative h-[calc(100vh-13rem)] min-h-[460px] overflow-hidden">
             <Canvas states={states} selectedId={selectedId} onSelect={setSelectedId} />
 
             {job && jobId && (
-              <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-2 rounded-lg border border-border bg-surface/90 px-2.5 py-1.5 backdrop-blur">
+              <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5">
                 <StatusTag status={job.status} />
                 <span className="max-w-[220px] truncate text-[13px] font-medium text-text-primary">{job.title || job.topic}</span>
               </div>
