@@ -1,19 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Square, Redo2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ListChecks, Redo2, Square, Trash2 } from "lucide-react";
 import { useJobs } from "../../lib/useJobs";
-import { PageHeader, LoadingState, EmptyState } from "../../components";
-import { Card } from "../../components/ui/Card";
-import { Table } from "../../components/ui/Table";
+import { PageHeader, EmptyState } from "../../components";
+import DataTable from "../../components/DataTable";
+import FilterBar from "../../components/FilterBar";
+import ConnectionIndicator from "../../components/ConnectionIndicator";
+import { Alert } from "../../components/ui/Alert";
 import { Button } from "../../components/ui/Button";
-import { toast } from "../../components/ui/toastBus";
-import { classifyStatus } from "../../lib/statusTone";
+import { Card } from "../../components/ui/Card";
+import { Select } from "../../components/ui/Select";
+import { SearchInput } from "../../components/ui/SearchInput";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { jobPhase } from "../../lib/jobStatus";
+import { useSocketStatus } from "../../lib/useSocketStatus";
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from "../../lib/useDebouncedValue";
-import { rowKeyOf } from "./constants";
+import { rowKeyOf, TYPE_OPTIONS, STATUS_FILTERS, matchesStatusFilter } from "./constants";
 import { useJobActions } from "./useJobActions";
 import { buildJobColumns } from "./jobColumns";
-import { JobFilters } from "./JobFilters";
 import { JobDetailModal } from "./JobDetailModal";
+import { JobsSummary } from "./JobsSummary";
 
 const PAGE_SIZE = 20;
 // Safety net only. Socket events invalidate this page's query (see
@@ -21,50 +27,67 @@ const PAGE_SIZE = 20;
 // and useJobs disables it entirely when nothing is actively processing.
 const ACTIVE_POLL_MS = 10000;
 
+const VALID_STATUS = new Set(STATUS_FILTERS.map((f) => f.value));
+// Links made before the filters were regrouped (?status=error, ...) keep working.
+const LEGACY_STATUS = { processing: "active", success: "completed", error: "failed" };
+
 /**
- * Cross-type job management console - lists video jobs, courses, and audio
- * generations together (see backend/src/services/job/jobAggregatorService.js
- * for the normalization), with cancel/retry/delete actions (single + bulk)
- * and a detail drill-down. Dashboard and Projects stay as their own
- * dedicated views - this page is the unified management surface.
+ * Generation Jobs: every video job, course and Voice Studio generation in one
+ * list - filter, cancel, retry, delete and drill into what happened. Actions
+ * are offered only where the backend says the job supports them, and the page
+ * says so when live updates are not arriving instead of leaving stale bars.
  */
 const JobsPage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [detailJob, setDetailJob] = useState(null);
+  const socketStatus = useSocketStatus();
+
+  // The status filter lives in the URL so a tile elsewhere ("3 failed") can
+  // link straight to it, and the browser's back button undoes a filter.
+  const rawStatus = searchParams.get("status");
+  const urlStatus = LEGACY_STATUS[rawStatus] || rawStatus;
+  const statusFilter = VALID_STATUS.has(urlStatus) ? urlStatus : "all";
+  const setStatusFilter = (value) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value === "all") next.delete("status");
+        else next.set("status", value);
+        return next;
+      },
+      { replace: true }
+    );
+    setSelectedIds(new Set());
+  };
 
   // The input stays bound to `search` (instant typing); only the query key uses
-  // the debounced copy, so a server request goes out when typing pauses
-  // rather than on every keystroke.
-  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
-  const filters = useMemo(
-    () => ({ type: typeFilter || undefined, search: debouncedSearch || undefined }),
-    [typeFilter, debouncedSearch]
-  );
+  // the debounced copy, so a server request goes out when typing pauses.
+  const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
+  const filters = useMemo(() => ({ type: typeFilter || undefined, search: debouncedSearch || undefined }), [typeFilter, debouncedSearch]);
 
   const { jobs, pagination, loading, refreshing, error, refetch } = useJobs({
     page,
     limit: PAGE_SIZE,
     filters,
     // The safety net runs only while something is actually processing.
-    isActive: (job) => classifyStatus(job.status) === "processing",
+    isActive: (job) => ["running", "queued"].includes(jobPhase(job.status)),
     activePollMs: ACTIVE_POLL_MS,
   });
 
-  const filtered = useMemo(() => {
-    if (statusFilter === "all") return jobs;
-    return jobs.filter((j) => classifyStatus(j.status) === statusFilter);
-  }, [jobs, statusFilter]);
+  const filtered = useMemo(() => jobs.filter((j) => matchesStatusFilter(j, statusFilter, jobPhase)), [jobs, statusFilter]);
 
-  // Keyed on the error object so a persistent failure toasts once per
-  // failed fetch, not once per re-render.
-  useEffect(() => {
-    if (error) toast.error(error.friendlyMessage || "Failed to load jobs");
-  }, [error]);
+  // Counts are for the page on screen (the server filters by type and search,
+  // not by this status grouping), and labelled that way below.
+  const counts = useMemo(() => {
+    const by = { all: jobs.length };
+    for (const f of STATUS_FILTERS) if (f.value !== "all") by[f.value] = jobs.filter((j) => matchesStatusFilter(j, f.value, jobPhase)).length;
+    return by;
+  }, [jobs]);
 
   const clearSelection = () => setSelectedIds(new Set());
 
@@ -83,16 +106,11 @@ const JobsPage = () => {
     });
   };
 
-  const toggleSelectAll = () => {
-    setSelectedIds((prev) =>
-      prev.size === filtered.length ? new Set() : new Set(filtered.map(rowKeyOf))
-    );
-  };
+  const allSelected = filtered.length > 0 && selectedIds.size === filtered.length;
+  const toggleSelectAll = () => setSelectedIds(allSelected ? new Set() : new Set(filtered.map(rowKeyOf)));
 
   const selectedJobs = filtered.filter((j) => selectedIds.has(rowKeyOf(j)));
   const actions = useJobActions({ selectedJobs, clearSelection });
-
-  const totalPages = pagination.pages || 1;
 
   const columns = buildJobColumns({
     selectedIds,
@@ -104,95 +122,98 @@ const JobsPage = () => {
     onDelete: actions.handleDelete,
   });
 
+  const filtersActive = Boolean(typeFilter || debouncedSearch || statusFilter !== "all");
+  const clearFilters = () => {
+    setTypeFilter("");
+    setSearch("");
+    setStatusFilter("all");
+    setPage(1);
+  };
+
+  const hasRunning = jobs.some((j) => ["running", "queued"].includes(jobPhase(j.status)));
+
   return (
     <div>
       <PageHeader
-        title="Job Management"
-        description="Every video job, course, and audio generation in one place - filter, cancel, retry, and drill into details."
+        title="Generation Jobs"
+        description="Every video, course and voice generation. Filter, stop, retry, or open a job to see what happened and where it stopped."
+        meta={<ConnectionIndicator />}
       />
 
-      <JobFilters
-        search={search}
-        onSearch={setSearch}
-        typeFilter={typeFilter}
-        onTypeFilter={setTypeFilter}
-        statusFilter={statusFilter}
-        onStatusFilter={setStatusFilter}
-        refreshing={loading || refreshing}
+      {socketStatus !== "connected" && (
+        <Alert type="warning" className="mb-4" title={socketStatus === "reconnecting" ? "Live updates are reconnecting" : "Live updates are off"}>
+          Progress shown here may be out of date{hasRunning ? ". This list refreshes itself every few seconds while jobs are running" : ""}.
+        </Alert>
+      )}
+
+      <JobsSummary onFilter={setStatusFilter} />
+
+      <FilterBar
+        search={<SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search jobs by title" />}
         onRefresh={() => refetch()}
-      />
+        refreshing={refreshing}
+        refreshLabel="Refresh jobs"
+      >
+        <SegmentedControl
+          aria-label="Filter by status"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={STATUS_FILTERS.map((f) => ({ ...f, count: loading || error ? undefined : counts[f.value] }))}
+        />
+        <Select aria-label="Filter by type" className="w-40" value={typeFilter} onChange={(v) => { setTypeFilter(v); setPage(1); }} options={TYPE_OPTIONS} />
+      </FilterBar>
 
       {selectedIds.size > 0 && (
-        <Card className="mb-4 flex flex-wrap items-center gap-3 p-3">
+        <Card className="mb-3 flex flex-wrap items-center gap-3 p-3" role="region" aria-label="Bulk actions">
           <span className="text-[13px] font-semibold text-text-primary">{selectedIds.size} selected</span>
           <Button variant="ghost" size="sm" onClick={clearSelection}>
             Clear
           </Button>
           <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
             <Button variant="secondary" size="sm" icon={<Square className="size-3.5" />} loading={actions.bulkLoading} onClick={() => actions.handleBulkAction("cancel")}>
-              Cancel Selected
+              Cancel selected
             </Button>
             <Button variant="secondary" size="sm" icon={<Redo2 className="size-3.5" />} loading={actions.bulkLoading} onClick={() => actions.handleBulkAction("retry")}>
-              Retry Selected
+              Retry selected
             </Button>
             <Button variant="danger" size="sm" icon={<Trash2 className="size-3.5" />} loading={actions.bulkLoading} onClick={() => actions.handleBulkAction("delete")}>
-              Delete Selected
+              Delete selected…
             </Button>
           </div>
         </Card>
       )}
 
-      <Card className="overflow-hidden">
-        {filtered.length > 0 && (
-          <div className="flex items-center gap-3 border-b border-border-light px-4 py-2.5">
-            <input
-              type="checkbox"
-              className="size-4 shrink-0 cursor-pointer accent-accent"
-              aria-label="Select all jobs"
-              checked={selectedIds.size === filtered.length}
-              onChange={toggleSelectAll}
-            />
-            <span className="text-xs text-text-tertiary">{pagination.total} total</span>
-          </div>
-        )}
-
-        {loading && jobs.length === 0 ? (
-          <LoadingState label="Loading jobs..." />
-        ) : filtered.length === 0 ? (
-          <EmptyState description="No jobs match your filters." />
-        ) : (
-          <Table
-            columns={columns}
-            data={filtered.map((j) => ({ ...j, _rowKey: rowKeyOf(j) }))}
-            rowKey="_rowKey"
-            onRowClick={setDetailJob}
+      <DataTable
+        columns={columns}
+        data={filtered.map((j) => ({ ...j, _rowKey: rowKeyOf(j) }))}
+        rowKey="_rowKey"
+        loading={loading}
+        error={error}
+        onRetry={() => refetch()}
+        onRowClick={setDetailJob}
+        header={
+          filtered.length > 0 && (
+            <div className="flex items-center gap-3 border-b border-border-light px-4 py-2">
+              <input type="checkbox" className="size-4 shrink-0 cursor-pointer accent-accent" aria-label="Select all jobs on this page" checked={allSelected} onChange={toggleSelectAll} />
+              <span className="text-xs text-text-tertiary">
+                {pagination.total} job{pagination.total === 1 ? "" : "s"}
+                {statusFilter !== "all" && ` · ${filtered.length} on this page match "${STATUS_FILTERS.find((f) => f.value === statusFilter)?.label}"`}
+              </span>
+            </div>
+          )
+        }
+        pagination={{ page: pagination.page, pages: pagination.pages || 1, total: pagination.total, onChange: goToPage }}
+        empty={
+          <EmptyState
+            compact
+            icon={ListChecks}
+            title={filtersActive ? "No jobs match" : "No jobs yet"}
+            description={filtersActive ? "Nothing on this page matches the filters. Other pages may." : "Jobs appear here as soon as you create a video, a course or a voice generation."}
+            actionLabel={filtersActive ? "Clear filters" : "Create Video"}
+            onAction={filtersActive ? clearFilters : () => navigate("/wizard")}
           />
-        )}
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-end gap-2 border-t border-border-light px-4 py-3">
-            <span className="mr-2 text-xs text-text-tertiary">
-              Page {pagination.page} of {totalPages}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              iconOnly
-              disabled={pagination.page <= 1}
-              onClick={() => goToPage(pagination.page - 1)}
-              icon={<ChevronLeft className="size-4" />}
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              iconOnly
-              disabled={pagination.page >= totalPages}
-              onClick={() => goToPage(pagination.page + 1)}
-              icon={<ChevronRight className="size-4" />}
-            />
-          </div>
-        )}
-      </Card>
+        }
+      />
 
       <JobDetailModal job={detailJob} onClose={() => setDetailJob(null)} navigate={navigate} />
     </div>

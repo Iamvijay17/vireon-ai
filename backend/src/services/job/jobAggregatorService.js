@@ -4,6 +4,7 @@ const AudioGeneration = require('../../models/AudioGeneration');
 const VideoService = require('../video/VideoService');
 const CourseService = require('../course/CourseService');
 const { JOB_STATUS, COURSE_STATUS } = require('../../constants');
+const { escapeRegex } = require('../../utils/escapeRegex');
 
 // AudioGeneration has no queue/cancel/retry concept - generation runs
 // through a simple serial queue (see audioController.js), so it only ever
@@ -84,21 +85,21 @@ function normalizeAudio(record) {
 function buildVideoQuery(filters) {
   const query = {};
   if (filters.status) query.status = filters.status;
-  if (filters.search) query.topic = { $regex: filters.search, $options: 'i' };
+  if (filters.search) query.topic = { $regex: escapeRegex(filters.search), $options: 'i' };
   return query;
 }
 
 function buildCourseQuery(filters) {
   const query = {};
   if (filters.status) query.status = filters.status;
-  if (filters.search) query.title = { $regex: filters.search, $options: 'i' };
+  if (filters.search) query.title = { $regex: escapeRegex(filters.search), $options: 'i' };
   return query;
 }
 
 function buildAudioQuery(filters) {
   const query = {};
   if (filters.status) query.status = filters.status;
-  if (filters.search) query.text = { $regex: filters.search, $options: 'i' };
+  if (filters.search) query.text = { $regex: escapeRegex(filters.search), $options: 'i' };
   return query;
 }
 

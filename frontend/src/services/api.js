@@ -422,6 +422,25 @@ export const getRecentLogs = (limit = 300) => api.get('/api/logs/recent', { para
 
 export const getHealth = () => api.get('/health');
 
+// Build stamp ({ version, commit, ... }) - the only system-info call that is safe to show anywhere.
+export const getApiVersion = () => api.get('/api/version');
+
+// ─── System: resources, AI services, workers ─────────────────────────────────────
+
+// Measured host telemetry. Any figure the machine could not report is null - show "Unavailable".
+export const getSystemResources = () => api.get('/api/system/resources');
+
+// { gpu: { currentService, mode, maxConcurrent, scheduler }, services: { llm, tts, comfyui, remotion } }
+export const getAiServices = () => api.get('/api/system/ai-services');
+
+// Manual override outside the scheduler: action is start | stop | restart.
+// Start/restart wait for the service to report healthy, which can take minutes.
+export const controlAiService = (service, action) =>
+  api.post(`/api/system/ai-services/${service}/${action}`, null, { timeout: 300000 });
+
+// Every BullMQ worker, flagging stale and duplicate ones.
+export const getSystemWorkers = () => api.get('/api/system/workers');
+
 export default api;
 
 // ─── Publishing (YouTube upload + Udemy course package) ─────────────────────────

@@ -76,10 +76,11 @@ async function generatePreview(request) {
 
     const requestedAt = Date.now();
     const LocalAIService = require('../../localAI');
+    const { PRIORITY } = require('../../gpu/priorities');
     const result = await LocalAIService.gpu.withGPU('tts', () => {
       MetricsService.recordDuration('tts.queueWait', Date.now() - requestedAt);
       return synthesizeScene({ jobId: 'preview', sceneNumber: PREVIEW_SCENE, plan, workDir: path.join(workDir, 'segments'), outputPath, clientHolder: holder, align: false });
-    });
+    }, { priority: PRIORITY.INTERACTIVE, label: 'voice-preview' });
 
     let buffer = await fs.readFile(outputPath);
     let format = 'wav';

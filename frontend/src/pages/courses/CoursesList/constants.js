@@ -50,25 +50,3 @@ export const STATUS_OPTIONS = [
 ];
 
 export const EMPTY_FORM = { title: "", description: "", category: "Other", difficulty: "Beginner", language: "english" };
-
-// Deterministic category -> gradient tone, so the same category always reads
-// the same color across cards without needing a fixed lookup table.
-const CATEGORY_TONES = [
-  "bg-gradient-to-br from-accent-500/20 to-accent-500/5 text-accent",
-  "bg-gradient-to-br from-info-500/20 to-info-500/5 text-info-600 dark:text-info-500",
-  "bg-gradient-to-br from-success-500/20 to-success-500/5 text-success-600 dark:text-success-500",
-  "bg-gradient-to-br from-warning-500/20 to-warning-500/5 text-warning-600 dark:text-warning-500",
-  "bg-gradient-to-br from-danger-500/20 to-danger-500/5 text-danger-600 dark:text-danger-500",
-];
-export const toneForCategory = (category = "") => {
-  let hash = 0;
-  for (let i = 0; i < category.length; i++) hash = (hash * 31 + category.charCodeAt(i)) >>> 0;
-  return CATEGORY_TONES[hash % CATEGORY_TONES.length];
-};
-
-export const STAT_TONES = {
-  accent: "bg-gradient-to-br from-accent-500/20 to-accent-500/5 text-accent",
-  info: "bg-gradient-to-br from-info-500/20 to-info-500/5 text-info-600 dark:text-info-500",
-  success: "bg-gradient-to-br from-success-500/20 to-success-500/5 text-success-600 dark:text-success-500",
-  neutral: "bg-surface-hover text-text-secondary",
-};

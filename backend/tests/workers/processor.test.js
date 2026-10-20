@@ -46,6 +46,8 @@ const renderStep = require('../../src/workers/videoWorker/renderStep');
 const uploadStep = require('../../src/workers/videoWorker/uploadStep');
 const { JobCancelledError } = require('../../src/workers/videoWorker/shared');
 const { processVideoJob } = require('../../src/workers/videoWorker/processor');
+const { QualityCheckError } = require('../../src/services/qc/video/QualityCheckError');
+const { buildReport } = require('../../src/services/qc/video/report');
 const { JOB_STATUS } = require('../../src/constants');
 
 const scriptBeforeImages = { scenes: [{ sceneNumber: 1, imageUrl: '' }] };
@@ -275,5 +277,61 @@ describe('structured failures and stage-specific retry', () => {
     }));
     await processVideoJob({ data: { jobId: 'job-1' } });
     expect(VideoService.updateStatus).toHaveBeenCalledWith('job-1', JOB_STATUS.RENDERING, { progress: 80 });
+  });
+});
+
+describe('the output quality gate (a video is complete only after its checks pass)', () => {
+  const failed = (check, message) => buildReport({ issues: [{ check, severity: 'error', message }] });
+
+  it('never reaches upload or completion when the rendered video fails a check', async () => {
+    renderStep.render.mockImplementation(async () => {
+      throw new QualityCheckError(failed('audio-silence', 'Scene 2 has narration but its audio is silent'), { renderFault: false });
+    });
+
+    await expect(processVideoJob({ data: { jobId: 'job-1' } })).rejects.toThrow(/Quality check failed/);
+
+    expect(uploadStep.run).not.toHaveBeenCalled(); // upload is what marks the job COMPLETED
+    expect(VideoService.fail).toHaveBeenCalledWith(
+      'job-1',
+      expect.stringMatching(/^Quality check failed: Scene 2 has narration/),
+      expect.any(String),
+      expect.objectContaining({ structured: expect.objectContaining({ code: 'QUALITY_FAILED', stage: 'render', retryable: false }) })
+    );
+  });
+
+  it('a content fault fails straight away rather than re-rendering the same scenes', async () => {
+    renderStep.render.mockImplementation(async () => {
+      throw new QualityCheckError(failed('images', 'Scene 1: the image returned HTTP 404'), { renderFault: false });
+    });
+    await expect(processVideoJob({ data: { jobId: 'job-1' } })).rejects.toBeInstanceOf(QualityCheckError);
+    expect(VideoService.scheduleRetry).not.toHaveBeenCalled();
+    expect(videoQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('a file fault is retried, resuming at the render stage', async () => {
+    renderStep.render.mockImplementation(async () => {
+      throw new QualityCheckError(failed('video-decodable', 'The video file cannot be read'), { renderFault: true });
+    });
+    const result = await processVideoJob({ data: { jobId: 'job-1' } });
+
+    expect(result).toMatchObject({ success: false, retryScheduled: true });
+    expect(VideoService.scheduleRetry).toHaveBeenCalledWith('job-1', expect.objectContaining({
+      structured: expect.objectContaining({ code: 'QUALITY_FAILED', stage: 'render', retryable: true }),
+    }));
+    expect(uploadStep.run).not.toHaveBeenCalled();
+    expect(VideoService.fail).not.toHaveBeenCalled();
+  });
+
+  it('a retry after a file fault runs the render stage again, then uploads once it passes', async () => {
+    VideoService.getById.mockResolvedValue(job({
+      status: JOB_STATUS.RETRY_SCHEDULED,
+      error: { step: 'Quality check', stage: 'render', retryCount: 1 },
+      script: scriptBeforeImages,
+    }));
+    await processVideoJob({ data: { jobId: 'job-1' } });
+
+    expect(VideoService.updateStatus).toHaveBeenCalledWith('job-1', JOB_STATUS.RENDERING, { progress: 80 });
+    expect(calls).toEqual(expect.arrayContaining(['render', 'upload']));
+    expect(calls.indexOf('render')).toBeLessThan(calls.indexOf('upload'));
   });
 });

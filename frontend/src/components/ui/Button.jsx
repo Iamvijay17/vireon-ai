@@ -4,13 +4,13 @@ import { cn } from "./cn";
 
 const VARIANTS = {
   primary:
-    "bg-accent text-white hover:bg-accent-hover active:bg-accent-active shadow-sm shadow-accent/20 disabled:hover:bg-accent",
+    "bg-accent text-white hover:bg-accent-hover active:bg-accent-active disabled:hover:bg-accent",
   secondary:
-    "bg-surface text-text-primary border border-border hover:bg-surface-hover active:bg-surface-active",
+    "bg-surface text-text-primary border border-border hover:bg-surface-hover hover:border-border-strong active:bg-surface-active",
   ghost: "bg-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary",
-  danger: "bg-danger-500 text-white hover:bg-danger-600 active:bg-danger-600 shadow-sm shadow-danger-500/20",
+  danger: "bg-danger-600 text-white hover:bg-danger-500 active:bg-danger-600",
   outline:
-    "bg-transparent text-text-primary border border-border hover:bg-surface-hover",
+    "bg-transparent text-text-primary border border-border hover:bg-surface-hover hover:border-border-strong",
 };
 
 const SIZES = {

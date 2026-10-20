@@ -66,7 +66,7 @@ const Analytics = () => {
       <div>
         <PageHeader title="Analytics" description="End-to-end metrics across your video and course pipelines." />
         <Card>
-          <LoadingState label="Loading analytics..." />
+          <LoadingState label="Loading analytics…" />
         </Card>
       </div>
     );
@@ -79,10 +79,8 @@ const Analytics = () => {
         description="End-to-end metrics across your video and course pipelines."
         extra={
           <>
-            <Select value={days} onChange={setDays} options={RANGE_OPTIONS} className="w-40" />
-            <Button variant="secondary" size="sm" loading={loading || refreshing} onClick={() => refetch()} icon={<RefreshCw className="size-4" />}>
-              Refresh
-            </Button>
+            <Select aria-label="Date range" value={days} onChange={setDays} options={RANGE_OPTIONS} className="w-40" />
+            <Button variant="secondary" iconOnly aria-label="Refresh analytics" title="Refresh analytics" loading={loading || refreshing} onClick={() => refetch()} icon={<RefreshCw className="size-4" />} />
           </>
         }
       />
@@ -91,19 +89,19 @@ const Analytics = () => {
 
       {/* Trend + at-a-glance side column, mirroring a chart-plus-gauges layout */}
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <ChartCard icon={Activity} title="Render Activity" subtitle={`Jobs and course videos over the last ${days} days`} stagger={4} className="lg:col-span-2">
+        <ChartCard icon={Activity} title="Render activity" subtitle={`Jobs and course videos over the last ${days} days`} stagger={4} className="lg:col-span-2">
           {hasActivity ? (
             <TrendChart data={data.trend} series={TREND_SERIES} />
           ) : (
-            <EmptyState description="No render activity in this range yet." />
+            <EmptyState compact title="No activity in this range" description="Pick a longer range, or create a video." />
           )}
         </ChartCard>
 
         <div className="flex flex-col gap-4">
           <ProcessingTimeCard summary={summary} />
 
-          <Card className="animate-slide-up flex flex-1 flex-col items-center justify-center rounded-2xl p-4 text-center shadow-sm" style={{ "--stagger-index": 6 }}>
-            <p className="self-start text-xs font-medium text-text-secondary">Cache Hit Rate</p>
+          <Card className="flex flex-1 flex-col items-center justify-center p-4 text-center">
+            <p className="self-start text-sm font-semibold text-text-primary">Cache hit rate</p>
             <GaugeRing
               value={summary.cacheHitRate}
               color="var(--color-success-500)"
@@ -119,10 +117,10 @@ const Analytics = () => {
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartCard icon={Layers} title="Job Status" stagger={7}>
+        <ChartCard icon={Layers} title="Job status" stagger={7}>
           <StatusDonut rows={data?.jobsByStatus || []} emptyLabel="No video jobs yet." />
         </ChartCard>
-        <ChartCard icon={BookOpen} title="Course Status" stagger={8}>
+        <ChartCard icon={BookOpen} title="Course status" stagger={8}>
           <StatusDonut rows={data?.coursesByStatus || []} emptyLabel="No courses yet." />
         </ChartCard>
       </div>
@@ -139,7 +137,7 @@ const Analytics = () => {
         </ChartCard>
         <ChartCard icon={HardDrive} title="Storage" stagger={12}>
           {(data?.storageByCategory || []).length === 0 ? (
-            <EmptyState description="No assets uploaded yet." />
+            <EmptyState compact description="Nothing stored yet." />
           ) : (
             <RankedBarChart
               rows={(data.storageByCategory || []).map((r) => ({ label: r.label, count: r.bytes }))}
@@ -158,9 +156,9 @@ const Analytics = () => {
           <RankedBarChart rows={data?.topLayouts || []} palette={CATEGORICAL_PALETTE} emptyLabel="No video jobs yet." />
         </ChartCard>
 
-        <Card className="animate-slide-up rounded-2xl p-4 shadow-sm" style={{ "--stagger-index": 15 }}>
-          <p className="flex items-center gap-2 text-xs font-medium text-text-secondary">
-            <Cpu className="size-4 text-text-tertiary" /> Worker Performance
+        <Card className="p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+            <Cpu className="size-4 text-text-tertiary" /> Worker performance
           </p>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <Stat label="Concurrency" value={data?.worker?.concurrency ?? "—"} />
@@ -172,8 +170,8 @@ const Analytics = () => {
       </div>
 
       {/* Course pipeline health */}
-      <Card className="mt-4 animate-slide-up rounded-2xl shadow-sm" style={{ "--stagger-index": 16 }}>
-        <CardHeader title="Course Video Pipeline" subtitle="Script, audio and render stage status across all lessons" />
+      <Card className="mt-4">
+        <CardHeader title="Course video pipeline" subtitle="Script, audio and render stage status across all lessons" />
         <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-3">
           <StatusStackedBar label="Script" rows={data?.courseVideoStages?.script || []} />
           <StatusStackedBar label="Audio" rows={data?.courseVideoStages?.audio || []} />

@@ -245,7 +245,7 @@ export const UdemyPanel = () => {
     <div className="space-y-4">
       <Alert type="warning" title="Udemy can't be published to automatically">
         Udemy has no public API for creating a course, uploading lecture videos or publishing. Its Instructor API (
-        <a className="text-accent underline" href="https://www.udemy.com/developers/instructor/" target="_blank" rel="noopener noreferrer">documentation</a>
+        <a className="text-accent-fg underline" href="https://www.udemy.com/developers/instructor/" target="_blank" rel="noopener noreferrer">documentation</a>
         ) covers reading your courses, reviews, Q&amp;A, performance and revenue. Vireon prepares a package - manifest, organised videos, captions, validation report and checklist - that you upload yourself. <strong>Exporting a package does not create or publish anything on Udemy.</strong>
         {caps && <span className="mt-1 block text-xs text-text-tertiary">Capabilities last reviewed {caps.reviewedOn}. No Udemy login or API key is requested or stored.</span>}
       </Alert>

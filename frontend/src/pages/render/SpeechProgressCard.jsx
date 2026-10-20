@@ -27,7 +27,7 @@ export const SpeechProgressCard = ({ events }) => {
             )}
           >
             {row.state === "done" && <Check className="size-4 text-success-600" />}
-            {row.state === "active" && <Loader2 className="size-4 animate-spin text-accent" />}
+            {row.state === "active" && <Loader2 className="size-4 animate-spin text-accent-fg" />}
             {row.state === "pending" && <Circle className="size-4" />}
             <span>{row.label}</span>
             {row.detail && <span className="text-xs text-text-tertiary">{row.detail}</span>}

@@ -7,7 +7,7 @@ For the project overview and deployment, see the [root README](../README.md).
 ## Tech stack
 
 - **Framework:** React 19, Vite 8
-- **Styling:** Tailwind CSS 4 with in-house UI primitives (`src/components/ui`); icons from lucide-react
+- **Styling:** Tailwind CSS 4 with in-house, shadcn-style UI primitives (`src/components/ui`) over CSS-variable design tokens (`src/index.css`); dark by default; icons from lucide-react
 - **Routing:** React Router 7
 - **Data:** TanStack Query, Axios
 - **Realtime:** Socket.IO client. One subscription (`useSocketQuerySync`) turns server events into query-cache invalidations
@@ -19,27 +19,35 @@ For the project overview and deployment, see the [root README](../README.md).
 
 | Route | Page |
 |-------|------|
-| `/` | Dashboard: job stats, recent jobs, live updates |
-| `/wizard` | Create video |
-| `/render?id=` | Render progress, pipeline actions, scene audio, video player |
-| `/studio` | Scene editor: content, style, timeline, inspector |
-| `/audio` | Standalone TTS: single voice and dialogue, history |
-| `/projects` | Projects |
-| `/jobs` | All jobs (videos and course videos) |
-| `/assets` | Asset library |
-| `/analytics` | Analytics |
+| `/` | Overview: totals, live activity, machine load, recent projects |
+| `/wizard` | Create Video: four steps (brief, voice & style, output, review) |
+| `/projects` | My Projects: videos and courses, search / filter / sort, grid or list |
+| `/render?id=` | A project's progress: pipeline actions, scene audio, quality report, video player (no `id`: the render queue) |
+| `/studio?id=` | A project's editor: content, style, timeline, inspector (asks before discarding unsaved edits) |
+| `/templates` | Template gallery: every scene layout the renderer has, playable with sample content |
+| `/media` | Media Library (`/assets` redirects here): files in storage by kind, with preview |
+| `/jobs` | Generation Jobs: videos, courses and voice generations, with cancel / retry / delete |
+| `/resources` | GPU & Resources: measured GPU / VRAM / RAM / CPU, the GPU task ledger, AI services, scheduler, queues |
+| `/quality` | Quality Control: output-check reports for finished videos |
+| `/audio` | Voice Studio: single voice and dialogue, voice direction, history |
+| `/images` | Image Studio |
+| `/workflow` | Pipeline graph |
+| `/publishing`, `/promotion/*` | YouTube / Udemy publishing, Facebook / Instagram / Threads promotion |
+| `/analytics` | Analytics and control center |
 | `/logs` | Live logs |
-| `/settings` | Settings (stored in the browser) |
+| `/settings` | Settings: appearance, video defaults, providers, storage, notifications, diagnostics |
 | `/editor/complete` | Completed videos |
 | `/courses`, `/courses/:id`, `/courses/:id/curriculum` | Course list, detail, curriculum |
 | `/courses/:courseId/videos/:videoId` (and `/studio`) | Course video editor and studio |
+
+The navigation (sidebar, breadcrumbs, tab titles, command palette) is generated from one list, `src/layout/navConfig.js`. See [docs/ui-redesign.md](../docs/ui-redesign.md) for the design system and the decisions behind these pages.
 
 ## Layout
 
 ```
 src/
 ├── components/   # shared components and UI primitives (Button, Modal, Toast, Table, ...)
-├── layout/       # app shell: sidebar, navbar, breadcrumbs, command palette, route table
+├── layout/       # app shell: sidebar, top bar, breadcrumbs, command palette, route table, navConfig
 ├── pages/        # pages, one folder each
 ├── shared/       # contexts (theme, sidebar, breadcrumbs) and hooks (job events, socket rooms, voices)
 ├── services/     # api.js (Axios + media URL helpers), socket.js

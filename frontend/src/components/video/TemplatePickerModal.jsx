@@ -62,7 +62,7 @@ export function TemplatePickerModal({ open, onClose, scene, value, onSelect, job
                 </div>
                 <div className="flex items-center justify-between gap-1.5 bg-surface px-2 py-1.5">
                   <span className="truncate text-[11px] font-medium text-text-primary">{t.label}</span>
-                  {isSelected && <Check className="size-3.5 shrink-0 text-accent" />}
+                  {isSelected && <Check className="size-3.5 shrink-0 text-accent-fg" />}
                 </div>
               </button>
             );

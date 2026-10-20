@@ -3,9 +3,18 @@ import { documentTitle } from "./pageTitle";
 
 describe("documentTitle", () => {
   it("titles static pages", () => {
-    expect(documentTitle("/")).toBe("Dashboard · Vireon AI");
+    expect(documentTitle("/")).toBe("Overview · Vireon AI");
     expect(documentTitle("/render")).toBe("Render Queue · Vireon AI");
     expect(documentTitle("/editor/complete/")).toBe("Completed Videos · Vireon AI");
+  });
+
+  it("titles the production pages by their navigation label", () => {
+    expect(documentTitle("/jobs")).toBe("Generation Jobs · Vireon AI");
+    expect(documentTitle("/audio")).toBe("Voice Studio · Vireon AI");
+    expect(documentTitle("/resources")).toBe("GPU & Resources · Vireon AI");
+    expect(documentTitle("/quality")).toBe("Quality Control · Vireon AI");
+    expect(documentTitle("/media")).toBe("Media Library · Vireon AI");
+    expect(documentTitle("/templates")).toBe("Templates · Vireon AI");
   });
 
   it("uses the registered record name on detail pages", () => {
@@ -17,6 +26,13 @@ describe("documentTitle", () => {
   it("falls back to a generic label while a record is loading", () => {
     expect(documentTitle("/courses/cou-ABCD1234")).toBe("Course · Vireon AI");
     expect(documentTitle("/courses/cou-A/videos/vid-B")).toBe("Course Video · Vireon AI");
+  });
+
+  it("titles a project's progress and editor views by the project's name", () => {
+    expect(documentTitle("/render", "Quantum computing", "?id=vid-abc12345")).toBe("Quantum computing · Progress · Vireon AI");
+    expect(documentTitle("/studio", "Quantum computing", "?id=vid-abc12345")).toBe("Quantum computing · Editor · Vireon AI");
+    expect(documentTitle("/render", null, "?id=vid-abc12345")).toBe("Progress · Vireon AI");
+    expect(documentTitle("/render")).toBe("Render Queue · Vireon AI");
   });
 
   it("falls back to the app name for unknown routes", () => {

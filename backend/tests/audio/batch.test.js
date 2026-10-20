@@ -113,10 +113,13 @@ describe('generateAllAudioSegmented', () => {
   });
 });
 
+const { PRIORITY } = require('../../src/services/gpu/priorities');
+
 describe('generateSceneAudioSegmented', () => {
   it('takes the GPU lease itself and forwards forced segment ids', async () => {
     const result = await generateSceneAudioSegmented('job-1', scene(2), 'custom:Ryan', false, false, { forceSegmentIds: ['s02-seg001'], totalScenes: 4 });
-    expect(mockWithGPU).toHaveBeenCalledWith('tts', expect.any(Function));
+    // A person asked for this scene, so it queues ahead of batch work - and as a stage of its own, so it is not deduped against the job's batch audio.
+    expect(mockWithGPU).toHaveBeenCalledWith('tts', expect.any(Function), expect.objectContaining({ jobId: 'job-1', stage: 'audio-scene-2', priority: PRIORITY.INTERACTIVE }));
     expect(mockSynthesize.mock.calls[0][0].forceSegmentIds).toEqual(['s02-seg001']);
     expect(result.file).toBe('scene2.mp3');
   });

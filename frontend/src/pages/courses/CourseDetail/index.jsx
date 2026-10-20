@@ -47,7 +47,7 @@ const CourseDetail = () => {
   const courseActions = useCourseActions({ id, course, navigate, fetchCourse });
   const lessons = useLessonActions({ id, videos, fetchVideos, fetchCourse });
 
-  if (loading) return <LoadingState label="Loading course..." />;
+  if (loading) return <LoadingState label="Loading course…" />;
 
   const columns = buildVideoColumns({
     videos,
@@ -72,7 +72,6 @@ const CourseDetail = () => {
         socketStatus={socketStatus}
         workerRunning={workerRunning}
         stopLoading={lessons.bulkActionLoading === "stop-course"}
-        onBack={() => navigate("/courses")}
         onStopCourse={lessons.handleStopCourse}
         onGenerateStructure={curriculum.showCurriculumModal}
         onCreateVideo={videoForms.showCreateModal}
@@ -98,9 +97,10 @@ const CourseDetail = () => {
         <CardHeader
           title={
             <span className="flex items-center gap-2">
-              <Video className="size-4 text-text-tertiary" /> Videos
+              <Video className="size-4 text-text-tertiary" /> Lesson videos
             </span>
           }
+          subtitle={`${videos.length} lesson${videos.length === 1 ? "" : "s"}`}
         />
         <Table
           columns={columns}
@@ -108,7 +108,7 @@ const CourseDetail = () => {
           rowKey="_id"
           loading={videosLoading}
           onRowClick={(video) => navigate(`/courses/${id}/videos/${video._id}`)}
-          emptyContent={<EmptyState description="No videos yet" actionLabel="Create Your First Video" onAction={videoForms.showCreateModal} />}
+          emptyContent={<EmptyState compact icon={Video} title="No lesson videos yet" description="Generate the course structure to create them all at once, or add one by hand." actionLabel="Add lesson video" onAction={videoForms.showCreateModal} />}
         />
       </Card>
 

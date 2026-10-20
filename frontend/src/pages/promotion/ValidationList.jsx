@@ -24,7 +24,7 @@ export const ValidationList = ({ results = [], schedule = [], checking, onSkip }
                 {r.ok ? "Ready" : "Needs changes"}
               </span>
               {!r.ok && onSkip && (
-                <button type="button" onClick={() => onSkip(r.accountId)} className="cursor-pointer text-xs font-medium text-accent hover:underline">Skip this account</button>
+                <button type="button" onClick={() => onSkip(r.accountId)} className="cursor-pointer text-xs font-medium text-accent-fg hover:underline">Skip this account</button>
               )}
             </div>
             {issues.length > 0 && (

@@ -91,8 +91,7 @@ export const ScriptStepCard = ({
               {scenes.map((scene, i) => (
                 <div
                   key={i}
-                  className="animate-slide-up rounded-[10px] bg-surface-hover p-3.5"
-                  style={{ "--stagger-index": i }}
+                  className="rounded-lg border border-border-light bg-surface-hover p-3.5"
                 >
                   <div className="mb-1.5 flex items-start justify-between gap-2">
                     <span className="flex items-center gap-2">

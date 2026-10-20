@@ -24,7 +24,7 @@ const AppShell = () => {
   useSocketQuerySync();
 
   return (
-    <div className={`app-theme-transition theme-${theme} min-h-screen bg-bg`}>
+    <div className={`theme-${theme} min-h-screen bg-bg`}>
       <ToastProvider>
         <SidebarProvider>
           <BreadcrumbProvider>
@@ -43,9 +43,9 @@ const App = () => {
   const [theme] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("vireon-theme");
-      return saved || "light";
+      return saved || "dark";
     }
-    return "light";
+    return "dark";
   });
 
   return (

@@ -38,17 +38,17 @@ export const ConfirmDialogHost = () => {
 
   return createPortal(
     <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <div className="absolute inset-0 animate-fade-in bg-black/40 backdrop-blur-[2px]" onClick={() => close(false)} />
+      <div className="absolute inset-0 animate-fade-in bg-black/60" onClick={() => close(false)} />
       <div
         role="alertdialog"
         aria-modal="true"
-        className="relative z-10 w-full max-w-sm animate-scale-in rounded-2xl border border-border bg-surface p-5 shadow-xl"
+        className="relative z-10 w-full max-w-sm animate-scale-in rounded-xl border border-border bg-surface-raised p-5 shadow-xl"
       >
         <div className="flex items-start gap-3">
           <span
             className={
               "flex size-9 shrink-0 items-center justify-center rounded-full " +
-              (state.danger ? "bg-danger-500/10 text-danger-500" : "bg-accent-subtle text-accent")
+              (state.danger ? "bg-danger-500/10 text-danger-500" : "bg-accent-subtle text-accent-fg")
             }
           >
             <AlertTriangle className="size-5" />

@@ -8,6 +8,7 @@ const AudioGeneration = require('../../models/AudioGeneration');
 const ImageGeneration = require('../../models/ImageGeneration');
 const LoggerService = require('../common/LoggerService');
 const { NotFoundError } = require('../../utils/errors');
+const { escapeRegex } = require('../../utils/escapeRegex');
 
 const MIME_TYPES = {
   '.mp3': 'audio/mpeg',
@@ -107,7 +108,7 @@ class AssetService {
     const query = {};
     if (ownerType) query.ownerType = ownerType;
     if (category) query.category = category;
-    if (search) query.fileName = { $regex: search, $options: 'i' };
+    if (search) query.fileName = { $regex: escapeRegex(search), $options: 'i' };
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));

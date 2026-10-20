@@ -1,24 +1,6 @@
-import { CheckCircle2, XCircle, Clock, RefreshCw, CircleSlash } from "lucide-react";
-import { Badge } from "../ui/Badge";
-import { classifyStatus } from "../../lib/statusTone";
+import StatusBadge from "../StatusBadge";
 
-const VARIANTS = {
-  success: { variant: "success", Icon: CheckCircle2, spin: false },
-  error: { variant: "danger", Icon: XCircle, spin: false },
-  default: { variant: "neutral", Icon: Clock, spin: false },
-  processing: { variant: "accent", Icon: RefreshCw, spin: true },
-  cancelled: { variant: "neutral", Icon: CircleSlash, spin: false },
-};
-
-const formatLabel = (status) => (status || "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-
-const StatusTag = ({ status, label }) => {
-  const { variant, Icon, spin } = VARIANTS[classifyStatus(status)];
-  return (
-    <Badge variant={variant} icon={<Icon className={spin ? "size-3 animate-spin" : "size-3"} />}>
-      {label || formatLabel(status)}
-    </Badge>
-  );
-};
+// Kept so existing pages keep working; StatusBadge is the implementation.
+const StatusTag = StatusBadge;
 
 export default StatusTag;

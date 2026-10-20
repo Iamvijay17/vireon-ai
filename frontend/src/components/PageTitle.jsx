@@ -6,12 +6,12 @@ import { documentTitle } from "../lib/pageTitle";
 // Renders nothing; keeps the browser tab title in sync with the route (and
 // with the record name a detail page registers for the breadcrumb).
 export default function PageTitle() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const { label } = useContext(BreadcrumbContext);
 
   useEffect(() => {
-    document.title = documentTitle(pathname, label);
-  }, [pathname, label]);
+    document.title = documentTitle(pathname, label, search);
+  }, [pathname, label, search]);
 
   return null;
 }

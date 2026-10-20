@@ -128,6 +128,11 @@ async function updateSceneSegments(jobId, sceneNumber, segments) {
   return job;
 }
 
+/** Store the output quality report on the job (see services/qc/video). */
+async function saveQualityReport(jobId, report) {
+  return VideoJob.findByIdAndUpdate(jobId, { $set: { qualityReport: report } }, { new: true });
+}
+
 /**
  * Complete a job with final URLs.
  */
@@ -191,10 +196,15 @@ async function fail(jobId, errorMessage, step, { detail, retryCount, structured 
  * re-enter the pipeline (see videoWorker/processor.js) after `nextRetryAt`
  * instead of requiring a manual Restart click. Unlike `fail()`, this is not
  * terminal - `retryCount` here is the attempt number just consumed.
+ *
+ * `fromStatus` makes the transition conditional: it only happens if the job is
+ * still in that status, and resolves null when it is not. A boot sweep run by
+ * two processes at once (dev and prod share one database) uses it so that only
+ * the first to get there schedules the retry.
  */
-async function scheduleRetry(jobId, { message, detail, step, retryCount, nextRetryAt, structured }) {
-  return VideoJob.findByIdAndUpdate(
-    jobId,
+async function scheduleRetry(jobId, { message, detail, step, retryCount, nextRetryAt, structured, fromStatus }) {
+  return VideoJob.findOneAndUpdate(
+    fromStatus ? { _id: jobId, status: fromStatus } : { _id: jobId },
     {
       $set: {
         status: JOB_STATUS.RETRY_SCHEDULED,
@@ -219,6 +229,7 @@ module.exports = {
   updateSceneImages,
   updateSceneAudio,
   updateSceneSegments,
+  saveQualityReport,
   complete,
   fail,
   scheduleRetry,

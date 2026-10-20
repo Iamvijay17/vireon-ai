@@ -2,12 +2,14 @@ import { Card, CardHeader } from "../../components/ui/Card";
 import { cn } from "../../components/ui/cn";
 
 /**
- * The dashboard's standard panel: a card that slides in at its place in the
- * page order (`stagger`), an icon + title header, and padded content.
+ * The analytics standard panel: an icon + title header and padded content.
+ * (`stagger` is accepted for old call sites and ignored - panels no longer
+ * animate in.)
  */
-export function ChartCard({ icon: Icon, title, subtitle, extra, stagger, className, bodyClassName = "p-3", children }) {
+// eslint-disable-next-line no-unused-vars
+export function ChartCard({ icon: Icon, title, subtitle, extra, stagger, className, bodyClassName = "p-4", children }) {
   return (
-    <Card className={cn("animate-slide-up rounded-2xl shadow-sm", className)} style={{ "--stagger-index": stagger }}>
+    <Card className={cn("overflow-hidden", className)}>
       <CardHeader
         title={
           <span className="flex items-center gap-2">

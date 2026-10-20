@@ -5,13 +5,22 @@ export const TYPE_OPTIONS = [
   { value: "audio", label: "Audio Studio" },
 ];
 
+// Grouped by the shared job phase (lib/jobStatus.jobPhase), so "In progress"
+// means the same here as on Projects: running, queued, or paused for you.
 export const STATUS_FILTERS = [
   { value: "all", label: "All" },
-  { value: "processing", label: "Processing" },
-  { value: "success", label: "Completed" },
-  { value: "error", label: "Failed" },
+  { value: "active", label: "In progress" },
+  { value: "completed", label: "Completed" },
+  { value: "failed", label: "Failed" },
   { value: "cancelled", label: "Cancelled" },
 ];
+
+/** Does a job fall under this status filter? */
+export const matchesStatusFilter = (job, filter, phaseOf) => {
+  if (filter === "all") return true;
+  const phase = phaseOf(job.status);
+  return filter === "active" ? ["running", "queued", "waiting"].includes(phase) : phase === filter;
+};
 
 export const TYPE_BADGE = {
   video: { variant: "info", label: "Video" },

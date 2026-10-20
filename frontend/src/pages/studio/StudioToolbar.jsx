@@ -1,10 +1,12 @@
-import { ArrowLeft, Save, Redo2, CheckCircle2, Pencil, AudioLines, Video } from "lucide-react";
+import { Save, Redo2, CheckCircle2, AudioLines, Video, Undo2 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { Alert } from "../../components/ui/Alert";
+import StatusBadge from "../../components/StatusBadge";
+import ConnectionIndicator from "../../components/ConnectionIndicator";
 
 /** Title row, save + the stage's primary action, and the stage's explainer banner. */
-export function StudioToolbar({ job, stage, socketStatus, hasChanges, actions, onBack }) {
+export function StudioToolbar({ job, stage, socketStatus, hasChanges, actions, onDiscard }) {
   const { isAwaitingApproval, isManual, isAwaitingAudioTrigger, isAwaitingRenderTrigger, canRegenerateAudio, canEdit } = stage;
   const { busy } = actions;
 
@@ -12,20 +14,23 @@ export function StudioToolbar({ job, stage, socketStatus, hasChanges, actions, o
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-          <Button variant="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={onBack}>
-            Back
-          </Button>
-          <h1 className="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-tight text-text-primary">
-            <Pencil className="size-[18px] shrink-0 text-text-tertiary" /> <span className="truncate">{job.topic}</span>
-          </h1>
-          <Badge variant={socketStatus === "connected" ? "success" : "neutral"} dot>
-            {socketStatus === "connected" ? "Live" : "Offline"}
-          </Badge>
-          {hasChanges && <Badge variant="warning">Unsaved changes</Badge>}
+          <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-text-primary">{job.topic}</h1>
+          <StatusBadge status={job.status} />
+          <ConnectionIndicator status={socketStatus} />
+          {hasChanges && (
+            <Badge variant="warning" dot>
+              Unsaved changes
+            </Badge>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {hasChanges && (
+            <Button variant="ghost" size="sm" icon={<Undo2 className="size-4" />} onClick={onDiscard} disabled={busy.saving}>
+              Discard
+            </Button>
+          )}
           <Button variant="secondary" size="sm" icon={<Save className="size-4" />} onClick={actions.handleSave} loading={busy.saving} disabled={!hasChanges || !canEdit}>
-            Save Changes
+            Save changes
           </Button>
           {canRegenerateAudio && (
             <Button variant="secondary" size="sm" icon={<AudioLines className="size-4" />} onClick={actions.handleGenerateAudio} loading={busy.generatingAudio}>

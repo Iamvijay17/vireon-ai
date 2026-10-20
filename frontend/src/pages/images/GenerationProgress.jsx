@@ -36,7 +36,7 @@ export const GenerationProgress = ({ progress, since, className }) => {
 
   return (
     <div className={cn("flex flex-col items-center justify-center gap-2.5 bg-surface-hover px-5 text-center", className)}>
-      <p className={cn("text-3xl font-semibold tabular-nums tracking-tight", waiting ? "text-text-tertiary" : "text-accent")}>
+      <p className={cn("text-3xl font-semibold tabular-nums tracking-tight", waiting ? "text-text-tertiary" : "text-accent-fg")}>
         {percent}%
       </p>
       <div

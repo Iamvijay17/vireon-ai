@@ -15,7 +15,7 @@ export const Tooltip = ({ content, side = "top", children, className }) => {
       <span
         role="tooltip"
         className={cn(
-          "pointer-events-none absolute z-50 w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-md bg-neutral-900 px-2 py-1 text-xs font-medium text-white",
+          "pointer-events-none absolute z-50 w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium text-text-primary",
           // display:none (not opacity-0) while idle: an invisible tooltip near
           // the viewport edge otherwise still widens the page's scroll area.
           "hidden shadow-lg group-hover/tooltip:block group-focus-within/tooltip:block group-hover/tooltip:animate-fade-in",

@@ -25,7 +25,7 @@ export const scriptToText = (script) => (script?.scenes?.length ? JSON.stringify
 
 export const STEP_CIRCLE_CLASSES = {
   done: "border-accent bg-accent text-white",
-  active: "border-accent bg-surface text-accent",
+  active: "border-accent bg-surface text-accent-fg",
   error: "border-danger-500 bg-danger-500/10 text-danger-500",
   locked: "border-border bg-surface text-text-tertiary",
 };

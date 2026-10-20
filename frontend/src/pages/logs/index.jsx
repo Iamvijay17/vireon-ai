@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Trash2, ChevronDown, ArrowDownToLine, Search } from "lucide-react";
+import { Trash2, ChevronDown, ArrowDownToLine, Pause, Play } from "lucide-react";
 import { getRecentLogs } from "../../services/api";
-import { connect, onServerLog, onConnect, onDisconnect, isConnected } from "../../services/socket";
+import { connect, onServerLog } from "../../services/socket";
 import { loadSettings, saveSettings } from "../../shared/settingsStorage";
+import { PageHeader } from "../../components";
+import ConnectionIndicator from "../../components/ConnectionIndicator";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
-import { Input } from "../../components/ui/Input";
 import { Switch } from "../../components/ui/Switch";
-import { Badge } from "../../components/ui/Badge";
+import { SearchInput } from "../../components/ui/SearchInput";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { cn } from "../../components/ui/cn";
 
 const MAX_ENTRIES = 1000;
@@ -16,17 +18,23 @@ const SCROLL_BOTTOM_THRESHOLD = 48;
 // Mirrors backend/src/services/LoggerService.js customLevels - only levels
 // that are actually broadcast over the 'serverLog' socket event (http/debug
 // are dropped server-side as too noisy for a pipeline-activity console).
+// Colours come from the theme's status tokens so they follow light and dark.
 const LEVELS = [
-  { value: "error", label: "Error", dot: "bg-red-500 dark:bg-red-400", text: "text-red-600 dark:text-red-400" },
-  { value: "warn", label: "Warn", dot: "bg-amber-500 dark:bg-amber-400", text: "text-amber-600 dark:text-amber-400" },
-  { value: "info", label: "Info", dot: "bg-sky-500 dark:bg-sky-400", text: "text-sky-600 dark:text-sky-400" },
-  { value: "llm", label: "LLM", dot: "bg-violet-500 dark:bg-violet-400", text: "text-violet-600 dark:text-violet-400" },
-  { value: "tts", label: "TTS", dot: "bg-emerald-500 dark:bg-emerald-400", text: "text-emerald-600 dark:text-emerald-400" },
-  { value: "render", label: "Render", dot: "bg-slate-500 dark:bg-slate-400", text: "text-slate-600 dark:text-slate-400" },
-  { value: "upload", label: "Upload", dot: "bg-orange-500 dark:bg-orange-400", text: "text-orange-600 dark:text-orange-400" },
+  { value: "error", label: "Error", dot: "bg-danger-500", text: "text-danger-600 dark:text-danger-500" },
+  { value: "warn", label: "Warn", dot: "bg-warning-500", text: "text-warning-600 dark:text-warning-500" },
+  { value: "info", label: "Info", dot: "bg-info-500", text: "text-info-600 dark:text-info-500" },
+  { value: "llm", label: "LLM", dot: "bg-accent-fg", text: "text-accent-fg" },
+  { value: "tts", label: "TTS", dot: "bg-success-500", text: "text-success-600 dark:text-success-500" },
+  { value: "render", label: "Render", dot: "bg-text-secondary", text: "text-text-secondary" },
+  { value: "upload", label: "Upload", dot: "bg-warning-600", text: "text-warning-600 dark:text-warning-500" },
 ];
 
 const LEVEL_META = Object.fromEntries(LEVELS.map((l) => [l.value, l]));
+
+const TIME_OPTIONS = [
+  { value: "24h", label: "24h" },
+  { value: "12h", label: "12h" },
+];
 
 const formatTime = (timestamp, hour12 = false) => {
   if (!timestamp) return "--:--:--";
@@ -41,7 +49,7 @@ let seq = 0;
 const withKey = (entry) => ({ ...entry, _key: `${Date.now()}-${seq++}` });
 
 const LogRow = ({ entry, expanded, onToggle, hour12 }) => {
-  const meta = LEVEL_META[entry.level] || { label: entry.level, dot: "bg-neutral-400", text: "text-neutral-600 dark:text-neutral-400" };
+  const meta = LEVEL_META[entry.level] || { label: entry.level, dot: "bg-text-tertiary", text: "text-text-tertiary" };
   const hasMeta = entry.meta && Object.keys(entry.meta).length > 0;
 
   return (
@@ -50,17 +58,13 @@ const LogRow = ({ entry, expanded, onToggle, hour12 }) => {
         className={cn("flex flex-wrap items-start gap-x-3 sm:flex-nowrap", hasMeta && "cursor-pointer")}
         onClick={hasMeta ? onToggle : undefined}
       >
-        <span className="shrink-0 text-neutral-400 dark:text-neutral-500">{formatTime(entry.timestamp, hour12)}</span>
-        <span className={cn("shrink-0 w-[60px] font-semibold uppercase tracking-wide sm:w-[74px]", meta.text)}>
-          {meta.label}
-        </span>
-        <span className="order-last min-w-0 basis-full whitespace-pre-wrap break-words text-neutral-700 sm:order-none sm:basis-0 sm:flex-1 dark:text-neutral-200">{entry.message}</span>
-        {hasMeta && (
-          <ChevronDown className={cn("ml-auto size-3.5 shrink-0 self-center text-neutral-400 transition-transform sm:ml-0 dark:text-neutral-500", expanded && "rotate-180")} />
-        )}
+        <span className="tabular shrink-0 text-text-tertiary">{formatTime(entry.timestamp, hour12)}</span>
+        <span className={cn("w-[60px] shrink-0 font-semibold uppercase tracking-wide sm:w-[74px]", meta.text)}>{meta.label}</span>
+        <span className="order-last min-w-0 basis-full whitespace-pre-wrap break-words text-text-primary sm:order-none sm:flex-1 sm:basis-0">{entry.message}</span>
+        {hasMeta && <ChevronDown className={cn("ml-auto size-3.5 shrink-0 self-center text-text-tertiary transition-transform sm:ml-0", expanded && "rotate-180")} />}
       </div>
       {hasMeta && expanded && (
-        <pre className="mt-1.5 overflow-x-auto sm:ml-[104px] rounded-md bg-surface-active p-2 text-[11.5px] text-neutral-600 dark:text-neutral-400">
+        <pre className="mt-1.5 overflow-x-auto rounded-md border border-border-light bg-surface-active p-2 text-[11.5px] text-text-secondary sm:ml-[104px]">
           {JSON.stringify(entry.meta, null, 2)}
         </pre>
       )}
@@ -68,9 +72,12 @@ const LogRow = ({ entry, expanded, onToggle, hour12 }) => {
   );
 };
 
+/**
+ * Live Logs: the backend's activity stream (LLM, TTS, render, upload) as it
+ * happens. Filter by level or text, pause to read, expand a line for its data.
+ */
 const LiveLogs = () => {
   const [entries, setEntries] = useState([]);
-  const [connected, setConnected] = useState(isConnected());
   const [activeLevels, setActiveLevels] = useState(() => new Set(LEVELS.map((l) => l.value)));
   const [query, setQuery] = useState("");
   const [autoScroll, setAutoScroll] = useState(true);
@@ -87,15 +94,6 @@ const LiveLogs = () => {
     getRecentLogs(300)
       .then((res) => setEntries((res.data.logs || []).map(withKey)))
       .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const unsubConnect = onConnect(() => setConnected(true));
-    const unsubDisconnect = onDisconnect(() => setConnected(false));
-    return () => {
-      unsubConnect();
-      unsubDisconnect();
-    };
   }, []);
 
   useEffect(() => {
@@ -142,10 +140,7 @@ const LiveLogs = () => {
     return entries.filter((entry) => {
       if (!activeLevels.has(entry.level)) return false;
       if (!q) return true;
-      return (
-        entry.message?.toLowerCase().includes(q) ||
-        (entry.meta && JSON.stringify(entry.meta).toLowerCase().includes(q))
-      );
+      return entry.message?.toLowerCase().includes(q) || (entry.meta && JSON.stringify(entry.meta).toLowerCase().includes(q));
     });
   }, [entries, activeLevels, query]);
 
@@ -173,8 +168,6 @@ const LiveLogs = () => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   };
 
-  const clearLogs = () => setEntries([]);
-
   const setTimeFormat = (value) => {
     setHour12(value === "12h");
     saveSettings({ ...loadSettings(), timeFormat: value });
@@ -182,94 +175,57 @@ const LiveLogs = () => {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-text-primary">Live Logs</h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            Real-time stream of backend activity - LLM, TTS, rendering, and uploads.
-          </p>
-        </div>
-        <Badge variant={connected ? "success" : "danger"} dot>
-          {connected ? "Live" : "Offline"}
-        </Badge>
-      </div>
+      <PageHeader
+        title="Live Logs"
+        description="Real-time backend activity: language model, narration, rendering and uploads."
+        meta={<ConnectionIndicator />}
+      />
 
-      <Card className="flex h-[calc(100dvh-12rem)] min-h-[420px] animate-slide-up sm:h-[calc(100dvh-16rem)] sm:min-h-[380px] flex-col overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-border-light px-4 py-3">
-          <div className="flex flex-wrap items-center gap-1.5">
+      <Card className="flex h-[calc(100dvh-13rem)] min-h-[420px] flex-col overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border-light px-3 py-2.5">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search logs" className="w-full sm:w-60" />
+
+          <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filter by level">
             {LEVELS.map((level) => {
               const active = activeLevels.has(level.value);
               return (
                 <button
                   key={level.value}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => toggleLevel(level.value)}
                   className={cn(
-                    "cursor-pointer inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                    active
-                      ? "border-transparent bg-accent-subtle text-accent"
-                      : "border-border text-text-tertiary hover:bg-surface-hover"
+                    "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                    active ? "border-border-strong bg-surface-active text-text-primary" : "border-border text-text-tertiary hover:bg-surface-hover"
                   )}
                 >
-                  <span className={cn("size-1.5 rounded-full", level.dot)} />
+                  <span className={cn("size-1.5 rounded-full", active ? level.dot : "bg-text-tertiary")} />
                   {level.label}
                 </button>
               );
             })}
           </div>
 
-          <Input
-            icon={<Search className="size-4" />}
-            placeholder="Search logs..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full sm:ml-auto sm:w-56"
-          />
-
-          <div className="flex items-center gap-2 text-xs text-text-secondary">
-            <span>Auto-scroll</span>
-            <Switch checked={autoScroll} onChange={setAutoScroll} />
+          <div className="flex items-center gap-2 sm:ml-auto">
+            <SegmentedControl aria-label="Time format" size="sm" value={hour12 ? "12h" : "24h"} onChange={setTimeFormat} options={TIME_OPTIONS} />
+            <label className="flex items-center gap-2 text-xs text-text-secondary">
+              Auto-scroll
+              <Switch aria-label="Auto-scroll" checked={autoScroll} onChange={setAutoScroll} />
+            </label>
+            <Button variant="secondary" size="sm" icon={paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />} onClick={togglePause}>
+              {paused ? `Resume${pendingCount ? ` (${pendingCount})` : ""}` : "Pause"}
+            </Button>
+            <Button variant="ghost" size="sm" icon={<Trash2 className="size-3.5" />} onClick={() => setEntries([])}>
+              Clear
+            </Button>
           </div>
-
-          <label className="flex items-center gap-1.5 text-xs text-text-secondary">
-            <input
-              type="radio"
-              name="time-format"
-              checked={hour12}
-              onChange={() => setTimeFormat("12h")}
-              className="size-3.5 accent-accent"
-            />
-            12h
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-text-secondary">
-            <input
-              type="radio"
-              name="time-format"
-              checked={!hour12}
-              onChange={() => setTimeFormat("24h")}
-              className="size-3.5 accent-accent"
-            />
-            24h
-          </label>
-
-          <Button variant="secondary" size="sm" onClick={togglePause}>
-            {paused ? `Resume${pendingCount ? ` (${pendingCount})` : ""}` : "Pause"}
-          </Button>
-
-          <Button variant="ghost" size="sm" icon={<Trash2 className="size-4" />} onClick={clearLogs}>
-            Clear
-          </Button>
         </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col">
-          <div
-            ref={scrollRef}
-            onScroll={handleScroll}
-            className="min-h-0 flex-1 overflow-y-auto bg-neutral-100 dark:bg-neutral-950"
-          >
+          <div ref={scrollRef} onScroll={handleScroll} role="log" aria-live="off" className="min-h-0 flex-1 overflow-y-auto bg-bg">
             {filtered.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-                {entries.length === 0 ? "Waiting for activity..." : "No logs match the current filters"}
+                {entries.length === 0 ? "Waiting for activity…" : "No logs match the current filters"}
               </div>
             ) : (
               filtered.map((entry) => (
@@ -288,7 +244,7 @@ const LiveLogs = () => {
             <button
               type="button"
               onClick={jumpToLatest}
-              className="cursor-pointer absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-lg shadow-black/20 hover:bg-accent-hover"
+              className="absolute bottom-4 right-4 flex cursor-pointer items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-lg hover:bg-accent-hover"
             >
               <ArrowDownToLine className="size-3.5" />
               Jump to latest

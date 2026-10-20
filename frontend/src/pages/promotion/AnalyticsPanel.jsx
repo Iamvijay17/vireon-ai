@@ -15,6 +15,7 @@ import { useInvalidate } from "../../lib/useApiQuery";
 import { queryKeys } from "../../lib/queryClient";
 import { refreshSocialAnalytics } from "../../services/api";
 import { useSocialAnalytics, useBusy } from "./usePromotion";
+import { StatTile } from "../../components/ui/StatTile";
 import { PlatformBadge, RemoteLink, SkeletonRows } from "./shared";
 import { PLATFORMS, platformLabel, formatMetric, formatCount, successRateText, formatInZone } from "./format";
 
@@ -24,13 +25,7 @@ const SERIES = [
   { key: "failed", label: "Failed", color: "var(--color-danger-500)" },
 ];
 
-const Tile = ({ label, value, hint }) => (
-  <div className="rounded-xl border border-border-light p-4">
-    <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">{label}</p>
-    <p className="mt-1.5 text-2xl font-semibold tabular-nums text-text-primary">{value}</p>
-    {hint && <p className="mt-0.5 text-xs text-text-tertiary">{hint}</p>}
-  </div>
-);
+const Tile = ({ label, value, hint }) => <StatTile label={label} value={value} hint={hint} />;
 
 /**
  * Results from the platforms' own APIs. A figure appears only when a platform reported it; "Not available" is

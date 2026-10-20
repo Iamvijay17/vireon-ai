@@ -206,6 +206,10 @@ const videoJobSchema = new mongoose.Schema(
       attempt: { type: Number, default: undefined },
       timestamp: { type: Date, default: undefined },
     },
+    // Output quality report (services/qc/video/report.js): what was checked on the
+    // finished render and what was found. Written by the render stage; null until
+    // a render has been checked, and replaced by each later check.
+    qualityReport: { type: mongoose.Schema.Types.Mixed, default: null },
     // Per-stage pipeline state: { script, audio, images, assets, render, upload }.
     // Absent on jobs created before stage tracking; every reader tolerates that.
     stages: stagesDefinition,

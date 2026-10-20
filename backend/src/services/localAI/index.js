@@ -39,6 +39,10 @@ gpu.register('llm', llmManager, { autoStop: config.localAI.ollama.autoStop, proc
 gpu.register('tts', ttsManager, { autoStop: config.localAI.tts.autoStop, process: ttsManager.process });
 gpu.register('comfyui', comfyUIManager, { autoStop: config.localAI.comfyUI.autoStop, process: comfyUIManager.process });
 
+// Every gpu.withGPU() below is a scheduled task: queued by priority and age,
+// admitted by slot + VRAM, ordered across processes when the lease is on.
+const scheduler = require('../gpu').attachGpuScheduler(gpu);
+
 async function getAllStatuses() {
   const [llm, tts, comfyui] = await Promise.all([
     llmManager.getStatus(),
@@ -49,7 +53,7 @@ async function getAllStatuses() {
   const gpuStatus = gpu.getStatus();
 
   return {
-    gpu: gpuStatus.gpu,
+    gpu: { ...gpuStatus.gpu, scheduler: scheduler ? await scheduler.snapshot() : null },
     services: {
       llm: { ...llm, gpuState: gpuStatus.services.llm.status },
       tts: { ...tts, gpuState: gpuStatus.services.tts.status },
@@ -64,5 +68,6 @@ module.exports = {
   tts: ttsManager,
   comfyUI: comfyUIManager,
   gpu,
+  scheduler,
   getAllStatuses,
 };

@@ -4,6 +4,7 @@ const LoggerService = require('../common/LoggerService');
 const { getStorageProvider } = require('../storage/providers');
 const { COURSE_STATUS, VIDEO_STATUS } = require('../../constants');
 const { NotFoundError } = require('../../utils/errors');
+const { escapeRegex } = require('../../utils/escapeRegex');
 
 /**
  * Service for managing courses.
@@ -47,8 +48,8 @@ class CourseService {
     }
     if (filters.search) {
       query.$or = [
-        { title: { $regex: filters.search, $options: 'i' } },
-        { description: { $regex: filters.search, $options: 'i' } },
+        { title: { $regex: escapeRegex(filters.search), $options: 'i' } },
+        { description: { $regex: escapeRegex(filters.search), $options: 'i' } },
       ];
     }
 

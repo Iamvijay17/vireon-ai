@@ -89,14 +89,14 @@ const CourseVideoEditor = () => {
     setActionLoading: actions.setActionLoading,
   });
 
-  if (loading) return <LoadingState label="Loading video..." />;
+  if (loading) return <LoadingState label="Loading lesson…" />;
 
   if (!video) {
     return (
       <div className="flex flex-col items-center gap-4 py-20 text-center">
-        <h2 className="text-lg font-semibold text-text-primary">Video not found</h2>
+        <h2 className="text-base font-semibold text-text-primary">Lesson not found</h2>
         <Button variant="primary" onClick={() => navigate(`/courses/${courseId}`)}>
-          Back to Course
+          Back to course
         </Button>
       </div>
     );
@@ -137,13 +137,12 @@ const CourseVideoEditor = () => {
         isProcessing={v.isProcessing}
         isFailed={v.isFailed}
         actionLoading={actionLoading}
-        onBack={() => navigate(`/courses/${courseId}`)}
         onStop={actions.handleStop}
         onRetry={actions.handleRetry}
       />
 
       {/* Progress + Video Info */}
-      <Card className="mb-4 p-4 sm:p-6">
+      <Card className="mb-4 p-4">
         <Steps items={stepItems} current={Math.max(currentStep, 0)} status={v.isFailed ? "error" : "process"} />
         {v.isProcessing && (video.liveProgress ?? 0) > 0 && (
           <div className="mt-5">
@@ -240,9 +239,9 @@ const CourseVideoEditor = () => {
         </div>
 
         {/* Right Column - Activity Log */}
-        <Card className="h-fit">
-          <CardHeader title="Activity Log" />
-          <div className="p-5 h-[420px] overflow-y-auto">
+        <Card className="h-fit lg:sticky lg:top-20">
+          <CardHeader title="Activity log" />
+          <div className="max-h-[26rem] overflow-y-auto p-4">
             {activityLog.length === 0 ? (
               <InlineEmpty description="No activity yet" />
             ) : (

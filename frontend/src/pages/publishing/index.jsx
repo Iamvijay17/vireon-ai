@@ -74,7 +74,7 @@ const PublishingPage = () => {
 
       {attention.length > 0 && tab !== "accounts" && (
         <Alert type="warning" title="A YouTube account needs reconnecting" className="mb-4"
-          action={<button type="button" className="cursor-pointer text-[13px] font-medium text-accent hover:underline" onClick={() => setTab("accounts")}>Go to Accounts</button>}>
+          action={<button type="button" className="cursor-pointer text-[13px] font-medium text-accent-fg hover:underline" onClick={() => setTab("accounts")}>Go to Accounts</button>}>
           {attention.map((a) => a.displayName || a.externalId).join(", ")} can't be used for uploads until you reconnect it.
         </Alert>
       )}

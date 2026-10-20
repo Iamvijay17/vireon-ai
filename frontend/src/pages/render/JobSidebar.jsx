@@ -1,11 +1,17 @@
 import { useState } from "react";
-import { Copy } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { JobEventTimeline } from "../../components";
 import { Card, CardHeader } from "../../components/ui/Card";
 import { Timeline } from "../../components/ui/Timeline";
-import { Badge } from "../../components/ui/Badge";
-import { DescriptionList } from "../../components/ui/DescriptionList";
 import { Tabs } from "../../components/ui/Tabs";
+import { typeLabel } from "../../lib/projectModel";
+
+const Row = ({ label, children }) => (
+  <div className="flex items-baseline justify-between gap-4 py-2">
+    <dt className="shrink-0 text-xs text-text-tertiary">{label}</dt>
+    <dd className="min-w-0 truncate text-right text-[13px] text-text-primary">{children}</dd>
+  </div>
+);
 
 /** Right column: the job's details (with a copyable id) and its event / activity history. */
 export function JobSidebar({ job, jobEvents, eventsLoading, activityLog }) {
@@ -13,39 +19,36 @@ export function JobSidebar({ job, jobEvents, eventsLoading, activityLog }) {
   const [historyTab, setHistoryTab] = useState("events");
 
   const copyJobId = async () => {
-    await navigator.clipboard.writeText(job?._id || "");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(job?._id || "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard blocked (insecure origin): the id is selectable on screen.
+    }
   };
 
-  const details = [
-    {
-      label: "Job ID",
-      value: (
-        <button onClick={copyJobId} className="flex items-center gap-1.5 font-mono text-xs hover:text-accent cursor-pointer">
-          {job?._id}
-          <Copy className="size-3" />
-          {copied && <span className="text-[11px] text-accent">Copied</span>}
-        </button>
-      ),
-    },
-    { label: "Type", value: <Badge>{job?.type}</Badge> },
-    { label: "Resolution", value: job?.resolution || "—" },
-    { label: "Language", value: job?.language || "—" },
-    { label: "Voice", value: job?.voice || "—" },
-    { label: "Created", value: job?.createdAt ? new Date(job.createdAt).toLocaleString() : "—" },
-  ];
-
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="h-fit animate-slide-up" style={{ "--stagger-index": 0.5 }}>
+    <div className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
+      <Card>
         <CardHeader title="Details" />
-        <div className="p-5">
-          <DescriptionList items={details} columns={1} />
-        </div>
+        <dl className="divide-y divide-border-light px-4">
+          <Row label="Job ID">
+            <button onClick={copyJobId} className="inline-flex cursor-pointer items-center gap-1.5 font-mono text-xs text-text-secondary hover:text-accent-fg" aria-label="Copy job ID">
+              {job?._id}
+              {copied ? <Check className="size-3 text-success-500" /> : <Copy className="size-3" />}
+            </button>
+          </Row>
+          <Row label="Type">{typeLabel(job?.type) || "—"}</Row>
+          <Row label="Format">{[job?.aspectRatio, job?.resolution].filter(Boolean).join(" · ") || "—"}</Row>
+          <Row label="Quality">{job?.quality || "—"}</Row>
+          <Row label="Language">{job?.language || "—"}</Row>
+          <Row label="Voice">{job?.voice || "—"}</Row>
+          <Row label="Created">{job?.createdAt ? new Date(job.createdAt).toLocaleString() : "—"}</Row>
+        </dl>
       </Card>
 
-      <Card className="h-fit animate-slide-up" style={{ "--stagger-index": 1 }}>
+      <Card>
         <CardHeader title="History" />
         <Tabs
           className="px-3"
@@ -53,12 +56,12 @@ export function JobSidebar({ job, jobEvents, eventsLoading, activityLog }) {
           onChange={setHistoryTab}
           items={[
             { key: "events", label: `Events${jobEvents.length ? ` (${jobEvents.length})` : ""}` },
-            { key: "activity", label: "Activity Log" },
+            { key: "activity", label: "Activity log" },
           ]}
         />
-        <div className="h-[420px] overflow-y-auto p-5">
+        <div className="max-h-[26rem] overflow-y-auto p-4">
           {historyTab === "events" ? (
-            <JobEventTimeline events={jobEvents} emptyText={eventsLoading ? "Loading events..." : "No events recorded yet"} />
+            <JobEventTimeline events={jobEvents} emptyText={eventsLoading ? "Loading events…" : "No events recorded yet"} />
           ) : activityLog.length === 0 ? (
             <p className="text-[13px] text-text-tertiary">No activity yet</p>
           ) : (

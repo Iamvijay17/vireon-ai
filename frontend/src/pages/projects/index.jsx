@@ -1,219 +1,199 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, FolderKanban, Film, BookOpen, PlayCircle, CheckCircle2 } from "lucide-react";
-import { getVideoJobs, getCourses, resolveMediaUrl } from "../../services/api";
-import { PageHeader, LoadingState, EmptyState, StatusTag } from "../../components";
-import { useApiQuery } from "../../lib/useApiQuery";
-import { queryKeys } from "../../lib/queryClient";
-import { Card } from "../../components/ui/Card";
+import { BookOpen, ExternalLink, FolderKanban, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
+import { deleteVideoJob, deleteCourse } from "../../services/api";
+import { PageHeader, EmptyState, ErrorState } from "../../components";
+import ProjectGrid from "../../components/ProjectCard/ProjectGrid";
+import FilterBar from "../../components/FilterBar";
 import { Button } from "../../components/ui/Button";
-import { Input } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
-import { Badge } from "../../components/ui/Badge";
+import { SearchInput } from "../../components/ui/SearchInput";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { toast } from "../../components/ui/toastBus";
+import { confirmDialog } from "../../components/ui/confirmBus";
+import { useInvalidate } from "../../lib/useApiQuery";
+import { queryKeys } from "../../lib/queryClient";
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from "../../lib/useDebouncedValue";
+import { useProjects } from "../../lib/useProjects";
+import { STATUS_FILTERS, SORTS, filterProjects, sortProjects, countByStatus } from "../../lib/projectModel";
 
-const TYPE_OPTIONS = [
+const PAGE_STEP = 100;
+const VIEW_KEY = "vireon-projects-view";
+
+const KIND_OPTIONS = [
   { value: "", label: "All projects" },
-  { value: "video", label: "Video jobs" },
+  { value: "video", label: "Videos" },
   { value: "course", label: "Courses" },
 ];
 
-const FETCH_LIMIT = 50;
-
-// Stable reference for the not-yet-loaded case: `?? []` would allocate a
-// fresh array every render and invalidate the useMemo below each time.
-const EMPTY = [];
+const readView = () => {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid";
+  } catch {
+    return "grid";
+  }
+};
 
 /**
- * Unified overview across the two kinds of work this app produces: single
- * Video Jobs (wizard/render pipeline) and multi-lesson Courses. Both already
- * have their own dedicated pages (Dashboard, Courses) - this view exists to
- * answer "what am I working on right now" across both at a glance, so it
- * intentionally reuses their existing list endpoints rather than a new model.
+ * Everything you are working on - single videos and courses - in one place,
+ * with search, status filters, sorting and a grid/list switch. Search runs on
+ * the server (so it finds projects beyond the loaded page); the rest narrows
+ * what is loaded, and the page says plainly when more exist than are shown.
  */
 const Projects = () => {
   const navigate = useNavigate();
-  const [type, setType] = useState("");
+  const invalidate = useInvalidate();
   const [search, setSearch] = useState("");
+  const [kind, setKind] = useState("");
+  const [status, setStatus] = useState("all");
+  const [sort, setSort] = useState("updated");
+  const [view, setViewState] = useState(readView);
+  const [limit, setLimit] = useState(PAGE_STEP);
 
-  // Two independent queries rather than one combined fetch: they are
-  // cached (and invalidated by socket events) under their own keys, so a
-  // course event no longer forces a refetch of the video jobs beside it.
-  const jobsQuery = useApiQuery(
-    queryKeys.videos.list(1, { limit: FETCH_LIMIT }),
-    () => getVideoJobs(1, FETCH_LIMIT),
-    { select: (data) => data.jobs || [], errorMessage: "Failed to load projects" }
-  );
-
-  const coursesQuery = useApiQuery(
-    queryKeys.courses.list(1, { limit: FETCH_LIMIT }),
-    () => getCourses(1, FETCH_LIMIT),
-    { select: (data) => data.courses || [], errorMessage: "Failed to load projects" }
-  );
-
-  const videoJobs = jobsQuery.data ?? EMPTY;
-  const courses = coursesQuery.data ?? EMPTY;
-  const loading = jobsQuery.loading || coursesQuery.loading;
-
-  const projects = useMemo(() => {
-    const fromJobs = videoJobs.map((j) => ({
-      id: j._id,
-      kind: "video",
-      title: j.topic,
-      status: j.status,
-      thumbnail: resolveMediaUrl(j.thumbnailUrl),
-      meta: [j.type, j.resolution].filter(Boolean).join(" · "),
-      updatedAt: j.updatedAt || j.createdAt,
-      route: `/render?id=${j._id}`,
-    }));
-    const fromCourses = courses.map((c) => ({
-      id: c._id,
-      kind: "course",
-      title: c.title,
-      status: c.status,
-      thumbnail: resolveMediaUrl(c.thumbnail),
-      meta: `${c.completedVideoCount || 0} / ${c.videoCount || 0} lessons`,
-      updatedAt: c.updatedAt || c.createdAt,
-      route: `/courses/${c._id}`,
-    }));
-
-    return [...fromJobs, ...fromCourses]
-      .filter((p) => !type || p.kind === type)
-      .filter((p) => !search || p.title?.toLowerCase().includes(search.toLowerCase()))
-      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-  }, [videoJobs, courses, type, search]);
-
-  const stats = [
-    { title: "Total Projects", value: videoJobs.length + courses.length, icon: FolderKanban, tone: "accent" },
-    { title: "Video Jobs", value: videoJobs.length, icon: Film, tone: "info" },
-    { title: "Courses", value: courses.length, icon: BookOpen, tone: "warning" },
-    {
-      title: "Completed",
-      value:
-        videoJobs.filter((j) => j.status === "COMPLETED").length +
-        courses.filter((c) => c.status === "Completed").length,
-      icon: CheckCircle2,
-      tone: "success",
-    },
-  ];
-
-  const toneCls = {
-    accent: "bg-accent-subtle text-accent",
-    info: "bg-info-500/10 text-info-600 dark:text-info-500",
-    warning: "bg-warning-500/10 text-warning-600 dark:text-warning-500",
-    success: "bg-success-500/10 text-success-600 dark:text-success-500",
+  const setView = (next) => {
+    setViewState(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Private mode / blocked storage: the choice just won't be remembered.
+    }
   };
 
-  if (loading && videoJobs.length === 0 && courses.length === 0) {
-    return (
-      <div>
-        <PageHeader title="Projects" description="Everything you're working on — video jobs and courses, in one place." />
-        <Card>
-          <LoadingState label="Loading projects..." />
-        </Card>
-      </div>
-    );
-  }
+  const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
+  const { projects, totals, truncated, loading, refreshing, error, failed, refetch } = useProjects({
+    search: debouncedSearch,
+    limit,
+  });
+
+  const visible = useMemo(
+    () => sortProjects(filterProjects(projects, { kind, status }), sort),
+    [projects, kind, status, sort]
+  );
+  const counts = useMemo(() => countByStatus(projects, { kind }), [projects, kind]);
+
+  const handleDelete = async (project) => {
+    const isCourse = project.kind === "course";
+    const ok = await confirmDialog({
+      title: `Delete “${project.title}”?`,
+      content: isCourse
+        ? "The course, all of its lessons and their generated files will be removed. This can't be undone."
+        : "The video job and its generated files will be removed. This can't be undone.",
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await (isCourse ? deleteCourse(project.id) : deleteVideoJob(project.id));
+      toast.success(`Deleted “${project.title}”`);
+      invalidate(queryKeys.videos.all, queryKeys.jobs.all, queryKeys.courses.all, queryKeys.assets.all);
+    } catch (err) {
+      toast.error(err.friendlyMessage || "Failed to delete the project");
+    }
+  };
+
+  const actionsFor = (project) => [
+    { label: "Open", icon: <ExternalLink />, onSelect: (p) => navigate(p.route) },
+    ...(project.editRoute ? [{ label: "Open editor", icon: <Pencil />, onSelect: (p) => navigate(p.editRoute) }] : []),
+    { divider: true },
+    { label: "Delete…", icon: <Trash2 />, danger: true, onSelect: handleDelete },
+  ];
+
+  const filtersActive = Boolean(debouncedSearch || kind || status !== "all");
+  const clearFilters = () => {
+    setSearch("");
+    setKind("");
+    setStatus("all");
+  };
+
+  const everythingFailed = error && projects.length === 0;
+  const noProjectsAtAll = !loading && !error && projects.length === 0 && !debouncedSearch;
 
   return (
     <div>
       <PageHeader
-        title="Projects"
-        description="Everything you're working on — video jobs and courses, in one place."
+        title="My Projects"
+        description="Videos and courses in one place. Open a project to follow its progress, edit its scenes or download the result."
         extra={
-          <>
-            <Button variant="secondary" size="sm" onClick={() => navigate("/courses")} icon={<BookOpen className="size-4" />}>
-              New Course
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => navigate("/wizard")} icon={<Plus className="size-4" />}>
-              New Video
-            </Button>
-          </>
+          <Button variant="secondary" icon={<BookOpen className="size-4" />} onClick={() => navigate("/courses")}>
+            Courses
+          </Button>
         }
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s, i) => (
-          <Card key={s.title} hoverable className="animate-slide-up p-5" style={{ "--stagger-index": i }}>
-            <div className={`mb-3 flex size-10 items-center justify-center rounded-[10px] ${toneCls[s.tone]}`}>
-              <s.icon className="size-[19px]" />
-            </div>
-            <p className="text-xs font-medium text-text-tertiary">{s.title}</p>
-            <p className="mt-1 text-2xl font-semibold text-text-primary">{s.value}</p>
-          </Card>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <Card className="mb-6 mt-6 p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <Input
-            icon={<Search className="size-4" />}
-            placeholder="Search projects..."
-            className="min-w-56 flex-1"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+      <FilterBar
+        search={<SearchInput value={search} onChange={setSearch} placeholder="Search projects" />}
+        onRefresh={refetch}
+        refreshing={refreshing}
+        refreshLabel="Refresh projects"
+        trailing={
+          <SegmentedControl
+            aria-label="Layout"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "grid", label: <LayoutGrid className="size-4" aria-label="Grid" />, title: "Grid view" },
+              { value: "list", label: <List className="size-4" aria-label="List" />, title: "List view" },
+            ]}
           />
-          <Select value={type} onChange={setType} options={TYPE_OPTIONS} className="w-44" />
-        </div>
-      </Card>
+        }
+      >
+        <SegmentedControl
+          aria-label="Filter by status"
+          value={status}
+          onChange={setStatus}
+          options={STATUS_FILTERS.map((f) => ({ ...f, count: loading || everythingFailed ? undefined : counts[f.value] }))}
+        />
+        <Select aria-label="Filter by type" className="w-36" value={kind} onChange={setKind} options={KIND_OPTIONS} />
+        <Select aria-label="Sort by" className="w-44" value={sort} onChange={setSort} options={SORTS} />
+      </FilterBar>
 
-      {projects.length === 0 ? (
-        <Card>
-          <EmptyState
-            description="No projects yet. Start a video or a course to see it here."
-            actionLabel="Create Video"
-            actionIcon={<PlayCircle className="size-4" />}
-            onAction={() => navigate("/wizard")}
-          />
-        </Card>
+      {error && !everythingFailed && (
+        <ErrorState
+          className="mb-4"
+          message={failed.videos ? "Videos could not be loaded" : "Courses could not be loaded"}
+          description="The other list is shown, but this page is incomplete until it loads."
+          onRetry={refetch}
+        />
+      )}
+
+      {everythingFailed ? (
+        <ErrorState message="Could not load projects" description={error.friendlyMessage || error.message} onRetry={refetch} />
+      ) : loading ? (
+        <ProjectGrid loading view={view} />
+      ) : noProjectsAtAll ? (
+        <EmptyState
+          icon={FolderKanban}
+          title="No projects yet"
+          description="Create your first video and it will appear here, with its progress and result."
+          actionLabel="Create Video"
+          actionIcon={<Plus className="size-4" />}
+          onAction={() => navigate("/wizard")}
+          secondaryLabel="Start a course"
+          onSecondary={() => navigate("/courses")}
+        />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          icon={FolderKanban}
+          title="No projects match"
+          description={debouncedSearch ? `Nothing found for “${debouncedSearch}” with these filters.` : "No project has this status or type."}
+          actionLabel={filtersActive ? "Clear filters" : undefined}
+          onAction={filtersActive ? clearFilters : undefined}
+        />
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p, i) => (
-            <Card
-              key={`${p.kind}-${p.id}`}
-              hoverable
-              className="animate-slide-up cursor-pointer overflow-hidden"
-              style={{ "--stagger-index": i % 12 }}
-              onClick={() => navigate(p.route)}
-            >
-              <div className="relative aspect-video w-full overflow-hidden bg-neutral-950">
-                {p.thumbnail ? (
-                  <img
-                    src={p.thumbnail}
-                    alt={p.title}
-                    width={1280}
-                    height={720}
-                    loading="lazy"
-                    decoding="async"
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="flex size-full items-center justify-center text-neutral-600">
-                    {p.kind === "course" ? <BookOpen className="size-8" /> : <Film className="size-8" />}
-                  </div>
-                )}
-                <Badge
-                  variant={p.kind === "course" ? "warning" : "info"}
-                  className="absolute left-2 top-2 backdrop-blur-sm"
-                >
-                  {p.kind === "course" ? "Course" : "Video"}
-                </Badge>
-              </div>
-
-              <div className="p-4">
-                <p className="mb-2 truncate text-sm font-medium text-text-primary">{p.title}</p>
-                <div className="mb-3 flex items-center justify-between">
-                  <StatusTag status={p.status} />
-                </div>
-                <div className="flex items-center justify-between text-xs text-text-tertiary">
-                  <span className="truncate">{p.meta}</span>
-                  <span className="shrink-0">{p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "—"}</span>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <>
+          <p aria-live="polite" className="mb-3 text-xs text-text-tertiary">
+            {visible.length} project{visible.length === 1 ? "" : "s"}
+            {truncated && ` · ${projects.length} of ${totals.videos + totals.courses} loaded, newest first`}
+          </p>
+          <ProjectGrid projects={visible} view={view} actions={actionsFor} />
+          {truncated && (
+            <div className="mt-5 flex justify-center">
+              <Button variant="secondary" onClick={() => setLimit((l) => l + PAGE_STEP)}>
+                Load more
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -21,7 +21,7 @@ export const ImageTile = ({ item, progress, deleting, onOpen, onDelete, onDownlo
   const done = item.status === "COMPLETED" && item.imageUrl;
 
   return (
-    <div className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-border-light bg-surface shadow-xs">
+    <div className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-border-light bg-surface">
       {done ? (
         <button
           type="button"
@@ -103,7 +103,7 @@ export const ImageTile = ({ item, progress, deleting, onOpen, onDelete, onDownlo
 
         <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-text-tertiary">
           <RelativeTime value={item.createdAt} />
-          <button type="button" onClick={() => onReuse(item)} className="cursor-pointer font-medium text-accent hover:underline">
+          <button type="button" onClick={() => onReuse(item)} className="cursor-pointer font-medium text-accent-fg hover:underline">
             Use prompt
           </button>
         </div>

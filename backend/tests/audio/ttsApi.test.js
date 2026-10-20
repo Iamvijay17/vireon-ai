@@ -58,7 +58,8 @@ const res = () => {
 describe('generatePreview', () => {
   it('runs the real planning pipeline and returns playable audio under the GPU lease', async () => {
     const out = await generatePreview({ text: 'React and Node.js are popular.', voiceProfile: 'educational-teacher', format: 'wav' });
-    expect(mockWithGPU).toHaveBeenCalledWith('tts', expect.any(Function));
+    // A preview has someone waiting on it: interactive priority.
+    expect(mockWithGPU).toHaveBeenCalledWith('tts', expect.any(Function), expect.objectContaining({ priority: 2 }));
     expect(out.buffer.equals(WAV)).toBe(true);
     expect(out).toMatchObject({ contentType: 'audio/wav', format: 'wav', cache: 'miss', segments: 1, style: 'educational', voice: 'custom:Serena' });
 

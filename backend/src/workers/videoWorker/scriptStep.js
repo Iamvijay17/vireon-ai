@@ -3,6 +3,7 @@ const ActivityLogService = require('../../services/common/ActivityLogService');
 const AIDirectorService = require('../../services/director/AIDirectorService');
 const { planScriptBudget } = require('../../services/director/scriptBudget');
 const LocalAIService = require('../../services/localAI');
+const { PRIORITY } = require('../../services/gpu/priorities');
 const ScriptParserService = require('../../services/video/ScriptParserService');
 const VideoService = require('../../services/video/VideoService');
 const SocketService = require('../../services/common/SocketService');
@@ -83,7 +84,12 @@ async function run(jobId, videoJob, currentStatus, ctx) {
         await ActivityLogService.add(jobId, `Script generation: ${scenesGenerated} scenes written (chunk ${chunkIndex}/${chunkCount})`);
         SocketService.emitJobProgress({ _id: jobId, progress, status: JOB_STATUS.SCRIPT_GENERATION, currentStep: JOB_STATUS.SCRIPT_GENERATION, currentScene: scenesGenerated });
       },
-    })
+    }),
+    // Script generation is idempotent, so a service blip (Ollama still loading,
+    // a dropped connection) is retried inside the task with the GPU released
+    // while it backs off. Stop and the stage timeout both cancel a task that is
+    // still waiting its turn.
+    { jobId, stage: 'script', priority: PRIORITY.NORMAL, signal: ctx.signal, retries: true }
   );
 
   const validatedScript = ScriptParserService.validate(rawScript, videoJob.type, {

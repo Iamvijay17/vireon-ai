@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS = {
   defaultResolution: "1920x1080",
   defaultQuality: "standard",
   defaultCaptionStyle: "fadeInUp",
+  defaultFontPairing: "default",
   defaultCourseStyle: "educational",
   defaultCourseDuration: 5,
   timeFormat: "24h",
@@ -24,6 +25,12 @@ export const DEFAULT_SETTINGS = {
   // Pre-fills the Wizard's "Auto-approve script" switch (needs fast generation):
   // skips the script review too, so a video runs topic -> finished with no clicks.
   defaultAutoApprove: false,
+  // Tell me when a video finishes / fails, wherever I am in the app.
+  notifyOnComplete: true,
+  notifyOnFail: true,
+  // Also raise an operating-system notification when the tab is in the
+  // background. Off until the user opts in (the browser asks permission).
+  desktopNotifications: false,
 };
 
 export const loadSettings = () => {

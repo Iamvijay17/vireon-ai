@@ -11,7 +11,7 @@ const CONFIG = {
 export const Alert = ({ type = "info", title, children, action = null, onClose, className }) => {
   const { icon: Icon, cls } = CONFIG[type];
   return (
-    <div className={cn("flex items-start gap-3 rounded-xl border p-3.5", cls, className)}>
+    <div className={cn("flex items-start gap-3 rounded-lg border p-3", cls, className)}>
       <Icon className="mt-0.5 size-4 shrink-0" />
       <div className="min-w-0 flex-1">
         {title && <p className="text-sm font-semibold">{title}</p>}

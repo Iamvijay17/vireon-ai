@@ -18,7 +18,7 @@ const Stat = ({ label, value, hint }) => (
 );
 
 const Panel = ({ icon: Icon, title, subtitle, children, className }) => (
-  <Card className={`animate-slide-up rounded-2xl shadow-sm ${className || ""}`}>
+  <Card className={`overflow-hidden ${className || ""}`}>
     <CardHeader
       title={
         <span className="flex items-center gap-2">
@@ -95,7 +95,7 @@ export function ControlCenter({ days }) {
 
   if (loading && !data) {
     return (
-      <Card className="mt-4 rounded-2xl">
+      <Card className="mt-4 rounded-xl">
         <LoadingState label="Loading control center..." />
       </Card>
     );

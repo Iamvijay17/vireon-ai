@@ -65,7 +65,7 @@ export const AudioPlayer = ({ src, className }) => {
   const activeBarIndex = Math.floor(progress * bars.length);
 
   return (
-    <div className={cn("flex items-center gap-3 rounded-full bg-success-500/10 py-1.5 pr-4 pl-1.5", className)}>
+    <div className={cn("flex items-center gap-3 rounded-full border border-border bg-surface-hover py-1.5 pr-4 pl-1.5", className)}>
       <audio
         ref={audioRef}
         src={src}
@@ -86,7 +86,7 @@ export const AudioPlayer = ({ src, className }) => {
         type="button"
         onClick={togglePlay}
         aria-label={playing ? "Pause" : "Play"}
-        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success-500 text-white shadow-sm transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-white transition-colors hover:bg-accent-hover active:bg-accent-active cursor-pointer"
       >
         {playing ? <Pause className="size-4" fill="currentColor" /> : <Play className="ml-0.5 size-4" fill="currentColor" />}
       </button>
@@ -114,7 +114,7 @@ export const AudioPlayer = ({ src, className }) => {
         {bars.map((h, i) => (
           <span
             key={i}
-            className={cn("shrink-0 rounded-full transition-colors", i <= activeBarIndex ? "bg-success-500" : "bg-success-500/40")}
+            className={cn("shrink-0 rounded-full transition-colors", i <= activeBarIndex ? "bg-accent-fg" : "bg-text-tertiary/40")}
             style={{ width: BAR_WIDTH, height: `${Math.round(h * 100)}%` }}
           />
         ))}

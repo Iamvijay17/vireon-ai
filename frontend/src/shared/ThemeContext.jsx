@@ -3,7 +3,7 @@ import { getColors } from "./theme";
 import { ThemeContext } from "./themeContextValue";
 
 export const ThemeProvider = ({ children, initialTheme }) => {
-  const [theme, setTheme] = useState(() => initialTheme || "light");
+  const [theme, setTheme] = useState(() => initialTheme || "dark");
 
   // Modals/dropdowns render via createPortal to document.body, outside the
   // themed wrapper div in App.jsx - so the theme class also needs to live on

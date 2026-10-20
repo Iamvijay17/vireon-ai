@@ -1,320 +1,256 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Search, RefreshCw, Trash2, ExternalLink, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { AlertTriangle, ExternalLink, Images, LayoutGrid, List, Trash2 } from "lucide-react";
 import { getAssets, deleteAsset } from "../../services/api";
-import { PageHeader, LoadingState, EmptyState } from "../../components";
-import { Card } from "../../components/ui/Card";
-import { Table } from "../../components/ui/Table";
-import { Button } from "../../components/ui/Button";
-import { Input } from "../../components/ui/Input";
-import { Select } from "../../components/ui/Select";
+import { PageHeader, EmptyState, ErrorState } from "../../components";
+import DataTable from "../../components/DataTable";
+import FilterBar from "../../components/FilterBar";
 import { Badge } from "../../components/ui/Badge";
-import { CopyButton } from "../../components/ui/CopyButton";
-import { Tooltip } from "../../components/ui/Tooltip";
+import { Button } from "../../components/ui/Button";
+import { Select } from "../../components/ui/Select";
+import { SearchInput } from "../../components/ui/SearchInput";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { Pagination } from "../../components/ui/Pagination";
+import { SkeletonCard } from "../../components/ui/Skeleton";
 import { toast } from "../../components/ui/toastBus";
 import { confirmDialog } from "../../components/ui/confirmBus";
 import { useApiQuery, useInvalidate } from "../../lib/useApiQuery";
 import { queryKeys } from "../../lib/queryClient";
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from "../../lib/useDebouncedValue";
-
-const OWNER_TYPE_OPTIONS = [
-  { value: "", label: "All owners" },
-  { value: "video", label: "Video jobs" },
-  { value: "course-video", label: "Course videos" },
-  { value: "audio-studio", label: "Audio Studio" },
-  { value: "image-studio", label: "Image Studio" },
-];
-
-const CATEGORY_OPTIONS = [
-  { value: "", label: "All categories" },
-  { value: "audio", label: "Audio" },
-  { value: "render", label: "Render" },
-  { value: "audio-studio", label: "Audio Studio" },
-  { value: "image", label: "Image" },
-];
-
-const OWNER_BADGE = {
-  video: { variant: "info", label: "Video" },
-  "course-video": { variant: "warning", label: "Course Video" },
-  "audio-studio": { variant: "accent", label: "Audio Studio" },
-  "image-studio": { variant: "accent", label: "Image Studio" },
-  unknown: { variant: "neutral", label: "Unknown" },
-};
-
-const OWNER_ROUTE = {
-  video: (id) => `/render?id=${id}`,
-  "audio-studio": () => `/audio`,
-  "image-studio": () => `/images`,
-};
+import { formatBytes } from "../../lib/format";
+import { timeAgo } from "../../lib/timeAgo";
+import { useOverview } from "../dashboard/useOverview";
+import { mediaKind, KIND_LABEL } from "../../components/media/mediaKind";
+import { KIND_TABS, OWNER_OPTIONS, OWNER_LABEL, CATEGORY_LABEL, PAGE_SIZE } from "./mediaLibrary";
+import { MediaTile } from "./MediaTile";
+import { MediaDetailModal } from "./MediaDetailModal";
 
 const EMPTY = [];
+const VIEW_KEY = "vireon-media-view";
 
-const PAGE_SIZE = 20;
-
-function formatBytes(bytes) {
-  if (!bytes && bytes !== 0) return "—";
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
-}
+const readView = () => {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid";
+  } catch {
+    return "grid";
+  }
+};
 
 /**
- * Cross-cutting browser over the Asset registry (backend/src/models/Asset.js) -
- * every file uploaded to MinIO across video jobs, course videos, and Audio
- * Studio, in one searchable list, with orphan detection (an asset whose
- * owner doc no longer exists - see AssetService.list). Deleting here only
- * removes the file + its registry entry, not the owning job/lesson/generation;
- * for that, use each domain's own delete flow (Job Management, course detail,
- * Audio Studio history).
+ * Media Library: every file the pipeline and the studios have written to
+ * storage, browsable by kind, with a real preview. Files are created by jobs
+ * (and the Voice and Image studios), so there is no manual upload here - the
+ * actions that exist are the ones the backend supports: open, copy the link,
+ * jump to the source, delete.
  */
-const AssetsPage = () => {
-  const navigate = useNavigate();
+const MediaLibrary = () => {
+  const invalidate = useInvalidate();
   const [page, setPage] = useState(1);
-  const [ownerType, setOwnerType] = useState("");
-  const [category, setCategory] = useState("");
+  const [kind, setKind] = useState("");
+  const [owner, setOwner] = useState("");
   const [search, setSearch] = useState("");
   const [orphanedOnly, setOrphanedOnly] = useState(false);
-  const [rowActionId, setRowActionId] = useState(null);
+  const [view, setViewState] = useState(readView);
+  const [open, setOpen] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  // Debounced for the query key only - see the same note in pages/jobs.
-  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
+  const setView = (next) => {
+    setViewState(next);
+    setPage(1);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Storage blocked: the choice just is not remembered.
+    }
+  };
+
+  const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
+  const pageSize = PAGE_SIZE[view];
   const filters = useMemo(
     () => ({
-      ownerType: ownerType || undefined,
-      category: category || undefined,
+      ownerType: owner || undefined,
+      category: kind || undefined,
       search: debouncedSearch || undefined,
       orphanedOnly: orphanedOnly || undefined,
     }),
-    [ownerType, category, debouncedSearch, orphanedOnly]
+    [owner, kind, debouncedSearch, orphanedOnly]
   );
 
-  // The filters are part of the query key, so changing one fetches (and
-  // caches) that combination - no effect re-running a fetch by hand, and
-  // no eslint-disable over its dependency list.
-  const { data, loading, refreshing, refetch } = useApiQuery(
-    queryKeys.assets.list(page, filters),
-    () => getAssets(page, PAGE_SIZE, filters),
-    { errorMessage: "Failed to load assets" }
+  // Errors are shown inline below (with Retry), not toasted a second time.
+  const { data, loading, refreshing, error, refetch } = useApiQuery(
+    queryKeys.assets.list(page, { ...filters, limit: pageSize }),
+    () => getAssets(page, pageSize, filters),
+    { errorMessage: "Failed to load the media library" }
   );
-
-  const invalidate = useInvalidate();
+  const { storageByCategory, loading: storageLoading } = useOverview();
 
   const assets = data?.data ?? EMPTY;
   const pagination = data?.pagination ?? { page, total: 0, pages: 0 };
+  const filtersActive = Boolean(kind || owner || debouncedSearch || orphanedOnly);
 
-  // Changing a filter should always land on the first page; staying on
-  // page 4 of a narrower result set shows an empty table.
-  const applyFilter = (setter) => (value) => {
+  // Changing a filter always lands on page 1; staying on page 4 of a narrower
+  // result set would show an empty page.
+  const withReset = (setter) => (value) => {
     setter(value);
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setKind("");
+    setOwner("");
+    setSearch("");
+    setOrphanedOnly(false);
     setPage(1);
   };
 
   const handleDelete = async (asset) => {
     const ok = await confirmDialog({
-      title: `Delete "${asset.fileName}"?`,
+      title: `Delete “${asset.fileName}”?`,
       content: asset.orphaned
-        ? "This asset's owner no longer exists - deleting it just reclaims storage."
-        : "This removes the file from storage. This can't be undone.",
+        ? "Whatever produced this file no longer exists - deleting it just reclaims storage."
+        : "This removes the file from storage. The project that uses it keeps its record but will be missing the file. This can't be undone.",
       confirmText: "Delete",
       danger: true,
     });
     if (!ok) return;
-    setRowActionId(asset._id);
+    setDeleting(true);
     try {
       await deleteAsset(asset._id);
-      toast.success(`Deleted "${asset.fileName}"`);
-      invalidate(queryKeys.assets.all);
+      toast.success(`Deleted “${asset.fileName}”`);
+      setOpen(null);
+      invalidate(queryKeys.assets.all, queryKeys.analytics.all);
     } catch (err) {
-      toast.error(err.friendlyMessage || "Failed to delete asset");
+      toast.error(err.friendlyMessage || "Failed to delete the file");
     } finally {
-      setRowActionId(null);
+      setDeleting(false);
     }
   };
 
-  const totalPages = pagination.pages || 1;
-
   const columns = [
-    {
-      key: "ownerType",
-      title: "Owner",
-      width: 140,
-      render: (asset) => <Badge variant={OWNER_BADGE[asset.ownerType].variant}>{OWNER_BADGE[asset.ownerType].label}</Badge>,
-    },
-    {
-      key: "category",
-      title: "Category",
-      width: 110,
-      render: (asset) => <span className="text-xs text-text-tertiary">{asset.category}</span>,
-    },
     {
       key: "fileName",
       title: "File",
-      render: (asset) => (
-        <div className="flex items-center gap-2">
-          <span className="block max-w-xs truncate text-[13px] font-medium text-text-primary">{asset.fileName}</span>
-          {asset.orphaned && (
-            <span className="inline-flex items-center gap-1 text-xs text-warning-600 dark:text-warning-500">
-              <AlertTriangle className="size-3.5" /> orphaned
+      render: (a) => (
+        <div className="min-w-0">
+          <span className="block max-w-xs truncate text-[13px] font-medium text-text-primary" title={a.fileName}>
+            {a.fileName}
+          </span>
+          {a.orphaned && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-warning-600 dark:text-warning-500">
+              <AlertTriangle className="size-3" /> orphaned
             </span>
           )}
         </div>
       ),
     },
-    {
-      key: "size",
-      title: "Size",
-      width: 90,
-      render: (asset) => <span className="text-xs text-text-tertiary">{formatBytes(asset.size)}</span>,
-    },
-    {
-      key: "cache",
-      title: "Cache",
-      width: 130,
-      // contentHash = sha256 of the uploaded bytes (a byte-identical dupe
-      // elsewhere shares it); cacheKey = the producing step's input hash
-      // (only set where CacheService is wired in - TTS/audio today). Shown
-      // truncated + copyable since the full hash is only useful pasted
-      // elsewhere, never read at a glance.
-      render: (asset) => (
-        <div className="flex flex-col gap-1">
-          {asset.contentHash && (
-            <Tooltip content={`contentHash ${asset.contentHash}`}>
-              <span className="inline-flex items-center gap-1 font-mono text-[11px] text-text-tertiary">
-                {asset.contentHash.slice(0, 8)}
-                <CopyButton value={asset.contentHash} label="Copy contentHash" size="xs" />
-              </span>
-            </Tooltip>
-          )}
-          {asset.cacheKey && (
-            <Tooltip content={`cacheKey ${asset.cacheKey}`}>
-              <Badge variant="info" className="w-fit font-mono text-[10px]">
-                {asset.cacheKey.slice(0, 8)}
-              </Badge>
-            </Tooltip>
-          )}
-          {!asset.contentHash && !asset.cacheKey && <span className="text-xs text-text-tertiary">—</span>}
-        </div>
-      ),
-    },
-    {
-      key: "createdAt",
-      title: "Created",
-      width: 150,
-      render: (asset) => <span className="text-xs text-text-tertiary">{asset.createdAt ? new Date(asset.createdAt).toLocaleString() : "—"}</span>,
-    },
+    { key: "kind", title: "Type", width: 110, render: (a) => <Badge variant="neutral">{CATEGORY_LABEL[a.category] || KIND_LABEL[mediaKind(a)]}</Badge> },
+    { key: "ownerType", title: "Source", width: 140, render: (a) => <span className="text-xs text-text-secondary">{OWNER_LABEL[a.ownerType] || a.ownerType}</span> },
+    { key: "size", title: "Size", width: 90, align: "right", render: (a) => <span className="tabular text-xs text-text-tertiary">{formatBytes(a.size)}</span> },
+    { key: "createdAt", title: "Created", width: 110, align: "right", render: (a) => <span className="text-xs text-text-tertiary" title={a.createdAt ? new Date(a.createdAt).toLocaleString() : undefined}>{timeAgo(a.createdAt)}</span> },
     {
       key: "actions",
       title: "",
+      width: 80,
       align: "right",
-      width: 90,
-      render: (asset) => (
+      render: (a) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="sm" iconOnly icon={<ExternalLink className="size-4" />} aria-label="Open file" onClick={() => window.open(asset.url, "_blank", "noopener")} />
-          <Button
-            variant="ghost"
-            size="sm"
-            iconOnly
-            loading={rowActionId === asset._id}
-            icon={<Trash2 className="size-4 text-danger-500" />}
-            aria-label={`Delete ${asset.fileName}`}
-            onClick={() => handleDelete(asset)}
-          />
+          <Button variant="ghost" size="sm" iconOnly aria-label={`Open ${a.fileName}`} icon={<ExternalLink className="size-4" />} onClick={() => window.open(a.url, "_blank", "noopener")} />
+          <Button variant="ghost" size="sm" iconOnly aria-label={`Delete ${a.fileName}`} icon={<Trash2 className="size-4 text-danger-500" />} onClick={() => handleDelete(a)} />
         </div>
       ),
     },
   ];
 
+  const totalStored = storageByCategory.reduce((sum, row) => sum + row.bytes, 0);
+
   return (
     <div>
       <PageHeader
-        title="Assets"
-        description="Every file uploaded to storage across video jobs, course videos, and Audio Studio - searchable, with orphan detection."
+        title="Media Library"
+        description="Every image, narration track and rendered video stored for your projects. Files are created by jobs and the studios; open one to preview it."
+        meta={!storageLoading && totalStored > 0 && <Badge variant="neutral">{formatBytes(totalStored)} stored</Badge>}
       />
 
-      <Card className="mb-4 p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <Input
-            icon={<Search className="size-4" />}
-            placeholder="Search by file name..."
-            className="min-w-56 flex-1"
-            value={search}
-            onChange={(e) => applyFilter(setSearch)(e.target.value)}
+      <FilterBar
+        search={<SearchInput value={search} onChange={withReset(setSearch)} placeholder="Search by file name" />}
+        onRefresh={refetch}
+        refreshing={refreshing}
+        refreshLabel="Refresh library"
+        trailing={
+          <SegmentedControl
+            aria-label="Layout"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "grid", label: <LayoutGrid className="size-4" aria-label="Grid" />, title: "Grid view" },
+              { value: "list", label: <List className="size-4" aria-label="List" />, title: "List view" },
+            ]}
           />
-          <Select value={ownerType} onChange={applyFilter(setOwnerType)} options={OWNER_TYPE_OPTIONS} className="w-44" />
-          <Select value={category} onChange={applyFilter(setCategory)} options={CATEGORY_OPTIONS} className="w-44" />
-          <button
-            type="button"
-            onClick={() => applyFilter(setOrphanedOnly)(!orphanedOnly)}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-              orphanedOnly
-                ? "border-warning-500/40 bg-warning-500/10 text-warning-600 dark:text-warning-500"
-                : "border-border bg-surface-hover/50 text-text-tertiary hover:text-text-secondary"
-            }`}
-          >
-            Orphaned only
-          </button>
-          <Button
-            variant="secondary"
-            size="sm"
-            iconOnly
-            aria-label="Refresh assets"
-            loading={loading || refreshing}
-            icon={<RefreshCw className="size-4" />}
-            onClick={() => refetch()}
-          />
+        }
+      >
+        <SegmentedControl aria-label="File type" value={kind} onChange={withReset(setKind)} options={KIND_TABS} />
+        <Select aria-label="Source" className="w-40" value={owner} onChange={withReset(setOwner)} options={OWNER_OPTIONS} />
+        <Button
+          variant={orphanedOnly ? "primary" : "secondary"}
+          aria-pressed={orphanedOnly}
+          icon={<AlertTriangle className="size-4" />}
+          onClick={() => withReset(setOrphanedOnly)(!orphanedOnly)}
+        >
+          Orphaned only
+        </Button>
+      </FilterBar>
+
+      {!loading && storageByCategory.length > 0 && !filtersActive && (
+        <p className="mb-3 text-xs text-text-tertiary">
+          {storageByCategory.map((row) => `${CATEGORY_LABEL[row.label] || row.label} ${formatBytes(row.bytes)}`).join(" · ")}
+        </p>
+      )}
+
+      {error && assets.length === 0 ? (
+        <ErrorState message="Could not load the media library" description={error.friendlyMessage || error.message} onRetry={refetch} />
+      ) : view === "list" ? (
+        <DataTable
+          columns={columns}
+          data={assets}
+          rowKey="_id"
+          loading={loading}
+          onRowClick={setOpen}
+          pagination={{ page: pagination.page, pages: pagination.pages, total: pagination.total, onChange: setPage }}
+          empty={<LibraryEmpty filtersActive={filtersActive} onClear={clearFilters} />}
+        />
+      ) : loading && assets.length === 0 ? (
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6" aria-hidden="true">
+          {Array.from({ length: 12 }, (_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
-      </Card>
-
-      <Card className="overflow-hidden">
-        {assets.length > 0 && (
-          <div className="flex items-center gap-3 border-b border-border-light px-4 py-2.5">
-            <span className="text-xs text-text-tertiary">{pagination.total} total</span>
+      ) : assets.length === 0 ? (
+        <LibraryEmpty filtersActive={filtersActive} onClear={clearFilters} />
+      ) : (
+        <>
+          <p aria-live="polite" className="mb-3 text-xs text-text-tertiary">
+            {pagination.total} file{pagination.total === 1 ? "" : "s"}
+          </p>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
+            {assets.map((asset) => (
+              <MediaTile key={asset._id} asset={asset} onOpen={setOpen} />
+            ))}
           </div>
-        )}
-
-        {loading && assets.length === 0 ? (
-          <LoadingState label="Loading assets..." />
-        ) : assets.length === 0 ? (
-          <EmptyState description="No assets match your filters." />
-        ) : (
-          <Table
-            columns={columns}
-            data={assets}
-            rowKey="_id"
-            onRowClick={(asset) => {
-              const route = OWNER_ROUTE[asset.ownerType];
-              if (route) navigate(route(asset.ownerId));
-            }}
-          />
-        )}
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-end gap-2 border-t border-border-light px-4 py-3">
-            <span className="mr-2 text-xs text-text-tertiary">
-              Page {pagination.page} of {totalPages}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              iconOnly
-              disabled={pagination.page <= 1}
-              onClick={() => setPage(pagination.page - 1)}
-              icon={<ChevronLeft className="size-4" />}
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              iconOnly
-              disabled={pagination.page >= totalPages}
-              onClick={() => setPage(pagination.page + 1)}
-              icon={<ChevronRight className="size-4" />}
-            />
+          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface">
+            <Pagination page={pagination.page} pages={pagination.pages} total={pagination.total} onChange={setPage} className="flex items-center justify-between gap-2 px-4 py-2.5" />
           </div>
-        )}
-      </Card>
+        </>
+      )}
+
+      {open && <MediaDetailModal asset={open} onClose={() => setOpen(null)} onDelete={handleDelete} deleting={deleting} />}
     </div>
   );
 };
 
-export default AssetsPage;
+const LibraryEmpty = ({ filtersActive, onClear }) =>
+  filtersActive ? (
+    <EmptyState icon={Images} title="No files match" description="Try another file type, source or search." actionLabel="Clear filters" onAction={onClear} />
+  ) : (
+    <EmptyState icon={Images} title="The library is empty" description="Images, narration and rendered videos are saved here as projects are generated." />
+  );
+
+export default MediaLibrary;

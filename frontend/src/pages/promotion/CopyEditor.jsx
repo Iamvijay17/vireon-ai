@@ -113,7 +113,7 @@ export const AiCaptionGenerator = ({ tone, onTone, selectedPlatforms, onGenerate
           return (
             <button
               key={p} type="button" onClick={() => toggle(p)} aria-pressed={on}
-              className={cn("cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors", on ? "border-accent bg-accent-subtle text-accent" : "border-border text-text-tertiary hover:text-text-secondary")}
+              className={cn("cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors", on ? "border-accent bg-accent-subtle text-accent-fg" : "border-border text-text-tertiary hover:text-text-secondary")}
             >
               {platformLabel(p)}
             </button>

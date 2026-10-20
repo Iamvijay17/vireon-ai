@@ -171,7 +171,7 @@ export function ScenePreview({ scenes = NO_SCENES, focusIndex, onActiveSceneChan
               onClick={() => seekToScene(i)}
               className={`shrink-0 cursor-pointer rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
                 i === activeIndex
-                  ? "border-accent bg-accent-subtle text-accent"
+                  ? "border-accent bg-accent-subtle text-accent-fg"
                   : "border-border-light text-text-tertiary hover:text-text-primary"
               }`}
             >

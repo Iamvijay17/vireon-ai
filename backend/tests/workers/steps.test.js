@@ -63,7 +63,7 @@ describe('scriptStep', () => {
   it('sizes the script from the requested duration and holds the LLM slot for the whole Director run', async () => {
     await scriptStep.run('job-1', videoJob({ duration: 5 }), JOB_STATUS.QUEUED, ctx());
 
-    expect(LocalAIService.gpu.withGPU).toHaveBeenCalledWith('llm', expect.any(Function));
+    expect(LocalAIService.gpu.withGPU).toHaveBeenCalledWith('llm', expect.any(Function), expect.objectContaining({ jobId: 'job-1', stage: 'script', retries: true }));
     expect(AIDirectorService.direct).toHaveBeenCalledWith(expect.objectContaining({
       videoType: 'educational', topic: 'tides', sceneCount: 10, wordCount: 975, wordsPerScene: 98, durationMinutes: 5, jobId: 'job-1',
     }));
@@ -140,7 +140,7 @@ describe('imageStep', () => {
     await imageStep.run('job-1', context);
 
     expect(context.currentStep).toBe(JOB_STATUS.GENERATING_IMAGES);
-    expect(LocalAIService.gpu.withGPU).toHaveBeenCalledWith('comfyui', expect.any(Function));
+    expect(LocalAIService.gpu.withGPU).toHaveBeenCalledWith('comfyui', expect.any(Function), expect.objectContaining({ jobId: 'job-1', stage: 'images', signal: context.signal }));
     expect(VideoService.updateStatus.mock.calls.map((c) => c[1])).toEqual([JOB_STATUS.GENERATING_IMAGES, JOB_STATUS.IMAGE_COMPLETED]);
     expect(SocketService.emitJobProgress).toHaveBeenLastCalledWith(expect.objectContaining({ status: JOB_STATUS.IMAGE_COMPLETED, progress: 60 }));
   });

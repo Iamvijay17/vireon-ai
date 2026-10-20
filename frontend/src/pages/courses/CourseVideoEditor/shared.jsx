@@ -4,17 +4,17 @@ import { Spinner } from "../../../components/ui/Spinner";
 import { STEP_CIRCLE_CLASSES } from "./constants";
 
 export const InlineEmpty = ({ description, children }) => (
-  <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-    <div className="flex size-11 items-center justify-center rounded-2xl bg-surface-hover text-text-tertiary">
+  <div className="flex flex-col items-center gap-2.5 px-6 py-8 text-center">
+    <div className="flex size-10 items-center justify-center rounded-lg border border-border bg-surface-hover text-text-tertiary">
       <Inbox className="size-5" />
     </div>
-    <p className="max-w-xs text-sm text-text-tertiary">{description}</p>
+    <p className="max-w-xs text-[13px] leading-relaxed text-text-tertiary">{description}</p>
     {children}
   </div>
 );
 
 export const InlineSpinner = ({ label }) => (
-  <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+  <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
     <Spinner size="lg" />
     <p className="text-sm text-text-secondary">{label}</p>
   </div>
@@ -27,19 +27,19 @@ export const InlineSpinner = ({ label }) => (
  */
 export const StepSection = ({ number, title, state, badges, summary, actions, isOpen, onToggle, children }) => (
   <Card>
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-light px-4 py-3.5 sm:px-5 sm:py-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-light px-4 py-3">
       <button
         type="button"
         onClick={onToggle}
         className="flex min-w-0 flex-1 basis-56 cursor-pointer items-center gap-3 text-left"
       >
         <ChevronDown className={`size-4 shrink-0 text-text-tertiary transition-transform ${isOpen ? "" : "-rotate-90"}`} />
-        <span className={`flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold ${STEP_CIRCLE_CLASSES[state]}`}>
+        <span className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold ${STEP_CIRCLE_CLASSES[state]}`}>
           {state === "done" ? <Check className="size-4" /> : state === "locked" ? <Lock className="size-3.5" /> : number}
         </span>
         <span className="min-w-0">
           <span className="flex flex-wrap items-center gap-2">
-            <h3 className="text-[15px] font-semibold text-text-primary">{title}</h3>
+            <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
             {badges}
           </span>
           {!isOpen && summary && <p className="mt-0.5 truncate text-xs text-text-tertiary">{summary}</p>}
@@ -47,6 +47,6 @@ export const StepSection = ({ number, title, state, badges, summary, actions, is
       </button>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
-    {isOpen && <div className="p-4 sm:p-5">{children}</div>}
+    {isOpen && <div className="p-4">{children}</div>}
   </Card>
 );

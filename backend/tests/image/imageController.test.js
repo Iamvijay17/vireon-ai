@@ -73,7 +73,8 @@ describe('ImageController.generate', () => {
     expect(ImageGeneration.create).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'a lighthouse', variant: 0, width: 1024, height: 576 }));
 
     await flush();
-    expect(LocalAIService.gpu.withGPU).toHaveBeenCalledWith('comfyui', expect.any(Function));
+    // Image Studio has someone watching: interactive priority.
+    expect(LocalAIService.gpu.withGPU).toHaveBeenCalledWith('comfyui', expect.any(Function), expect.objectContaining({ priority: 2 }));
     expect(ImageGenerationService.generate).toHaveBeenCalledWith(
       expect.objectContaining({ jobId: 'img-ABCD1234', prompt: `a lighthouse. ${NO_TEXT}`, aspectRatio: '16:9', variant: 0, onProgress: expect.any(Function) })
     );

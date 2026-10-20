@@ -19,6 +19,9 @@ import { ScenePreview } from "../../components/video/ScenePreview";
 import { SceneThumbnail } from "../../components/video/SceneThumbnail";
 import { TemplatePickerModal } from "../../components/video/TemplatePickerModal";
 import { useForceSidebarCollapsed } from "../../shared/sidebarContextValue";
+import { useSetBreadcrumbLabel } from "../../shared/breadcrumbContextValue";
+import { useUnsavedChangesGuard } from "../../lib/useUnsavedChangesGuard";
+import { PageHeader } from "../../components";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -84,6 +87,10 @@ const CourseVideoStudio = () => {
   useEffect(() => {
     fetchVideo();
   }, [fetchVideo]);
+
+  useSetBreadcrumbLabel(video?.title ? `${video.title} - Studio` : null);
+  // Leaving with unsaved scene edits asks first (see lib/useUnsavedChangesGuard).
+  useUnsavedChangesGuard(hasChanges);
 
   const renumber = (list) => list.map((s, i) => ({ ...s, sceneNumber: i + 1 }));
 
@@ -178,7 +185,7 @@ const CourseVideoStudio = () => {
   if (loading) return <LoadingState label="Loading studio..." />;
 
   if (!video) {
-    return <EmptyState description="Video not found" actionLabel="Back to course" onAction={() => navigate(`/courses/${courseId}`)} />;
+    return <EmptyState title="Lesson not found" description="It may have been deleted." actionLabel="Back to course" onAction={() => navigate(`/courses/${courseId}`)} />;
   }
 
   const scene = editedScenes[selectedSceneIndex];
@@ -186,20 +193,33 @@ const CourseVideoStudio = () => {
   // Fixed-height three-pane workspace only from lg up; below that the panes
   // stack at natural height and the page scrolls (see pages/studio/index.jsx).
   return (
-    <div className="flex flex-col gap-3 lg:h-[calc(100dvh-13rem)] lg:min-h-[520px]">
+    <div className="flex flex-col gap-3 lg:h-[calc(100dvh-9rem)] lg:min-h-[520px]">
       {/* TOOLBAR */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-          <Button variant="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={() => navigate(`/courses/${courseId}/videos/${videoId}`)}>
-            Back
-          </Button>
-          <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-text-primary">{video.title}</h1>
-          {hasChanges && <Badge variant="warning">Unsaved changes</Badge>}
-        </div>
-        <Button variant="primary" size="sm" icon={<Save className="size-4" />} onClick={handleSave} loading={saving} disabled={!hasChanges}>
-          Save Changes
-        </Button>
-      </div>
+      <PageHeader
+        title={<span className="truncate">{video.title}</span>}
+        meta={
+          hasChanges && (
+            <Badge variant="warning" dot>
+              Unsaved changes
+            </Badge>
+          )
+        }
+        extra={
+          <>
+            <Button variant="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={() => navigate(`/courses/${courseId}/videos/${videoId}`)}>
+              Back to lesson
+            </Button>
+            {hasChanges && (
+              <Button variant="ghost" size="sm" onClick={fetchVideo} disabled={saving}>
+                Discard
+              </Button>
+            )}
+            <Button variant="primary" size="sm" icon={<Save className="size-4" />} onClick={handleSave} loading={saving} disabled={!hasChanges}>
+              Save changes
+            </Button>
+          </>
+        }
+      />
 
       {editedScenes.length === 0 ? (
         <EmptyState description="No scenes found" />
@@ -242,7 +262,7 @@ const CourseVideoStudio = () => {
                       <SceneThumbnail scene={s} jobId={videoId} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className={cn("truncate text-[11px] font-medium", isActive ? "text-accent" : "text-text-primary")}>
+                      <p className={cn("truncate text-[11px] font-medium", isActive ? "text-accent-fg" : "text-text-primary")}>
                         {s.sceneNumber || i + 1}. {s.title || "Untitled"}
                       </p>
                       <p className="mt-0.5 text-[10px] text-text-tertiary">{Math.round(s.duration || 8)}s</p>

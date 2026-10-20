@@ -22,6 +22,23 @@ function stageTimeout(name, fallback) {
   return Number.isInteger(n) && n >= 0 ? n : fallback;
 }
 
+// Positive finite number env var (fractions and decimals allowed) with a fallback.
+function positiveNumber(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+// Non-negative integer env var with a fallback; anything unparseable (or
+// negative) falls back rather than silently disabling the setting.
+function nonNegativeInt(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : fallback;
+}
+
 const config = Object.freeze({
   port: parseInt(process.env.PORT, 10) || 3000,
   // Interface to bind. Defaults to 0.0.0.0 because LAN access is an
@@ -292,6 +309,79 @@ const config = Object.freeze({
     // lingers before another process can reclaim the card. Short is good;
     // too short risks a renewal round-trip losing a race it should win.
     leaseTtlMs: parseInt(process.env.GPU_LEASE_TTL_MS, 10) || 30000,
+
+    // ── GPU task scheduler (services/gpu/GpuScheduler) ────────────────────
+    // Every gpu.withGPU() call is a queued task, not a race for the card.
+    scheduler: {
+      // Priority levels are a head start measured in queue age: a task one
+      // level higher sorts as if it had been waiting this much longer, so
+      // interactive work jumps the line but a batch task that has waited long
+      // enough still runs. Nothing starves.
+      priorityWeightMs: nonNegativeInt('GPU_PRIORITY_WEIGHT_MS', 120_000),
+      // A task for the model that is already loaded may jump the queue by up
+      // to this much queue age: swapping Ollama <-> TTS <-> ComfyUI costs tens
+      // of seconds each way on the 6GB card, so batching same-model work is
+      // worth a bounded wait. 0 turns it off (strict priority/FIFO).
+      affinityWindowMs: nonNegativeInt('GPU_AFFINITY_WINDOW_MS', 120_000),
+      // Retries *inside* one GPU task (service blip, model not ready yet) for
+      // callers that opt in - see GpuScheduler.run's `retries`. Job-level
+      // retry (retryPolicy.js) still sits on top of this.
+      taskRetries: nonNegativeInt('GPU_TASK_RETRIES', 2),
+      taskRetryBaseMs: nonNegativeInt('GPU_TASK_RETRY_BASE_MS', 3000),
+      // Cross-process ordering ticket: how long a waiting process may go
+      // silent before the others stop queueing behind it.
+      ticketTtlMs: nonNegativeInt('GPU_TICKET_TTL_MS', 15_000),
+      // How often the process at the head of the line re-checks whether the
+      // card has been handed off (and that it is still next).
+      leasePollMs: nonNegativeInt('GPU_LEASE_POLL_MS', 250),
+      // Task ledger: a queued/running row whose process has stopped sending
+      // its once-a-minute heartbeat for this long belongs to a dead process.
+      staleTaskMs: nonNegativeInt('GPU_STALE_TASK_MS', 5 * 60_000),
+    },
+    // VRAM-aware admission. Estimates are what each service's model needs
+    // resident, NOT measured values - tune them to your card (nvidia-smi
+    // while the service is loaded). Defaults make every service exclusive on a
+    // 6GB card and let two co-reside on a 24GB one, which is the point.
+    vram: {
+      admission: process.env.GPU_VRAM_ADMISSION !== 'false',
+      // Used when nvidia-smi is unavailable; the probe's own total wins when it works.
+      totalMb: nonNegativeInt('GPU_VRAM_TOTAL_MB', 6144),
+      // Held back for the desktop compositor, a browser, and allocator slack.
+      reserveMb: nonNegativeInt('GPU_VRAM_RESERVE_MB', 512),
+      estimateMb: {
+        llm: nonNegativeInt('GPU_VRAM_MB_LLM', 5000),
+        tts: nonNegativeInt('GPU_VRAM_MB_TTS', 5000),
+        comfyui: nonNegativeInt('GPU_VRAM_MB_COMFYUI', 5000),
+      },
+      // Live nvidia-smi check before loading a model onto an apparently empty
+      // card: if another application is holding the VRAM, wait for it rather
+      // than start a load that will OOM or crawl through shared memory.
+      liveCheck: process.env.GPU_VRAM_LIVE_CHECK !== 'false',
+      // Fraction of a service's estimate that must be free for the live check to
+      // pass. Below 1 because these models offload part of their weights to system
+      // RAM rather than fail, and a desktop (browser, compositor) always holds a
+      // few hundred MB - measured at 731MB used on the 6GB dev card - so demanding
+      // the full estimate would turn ordinary desktop use into a two-minute wait.
+      liveFactor: (() => {
+        const n = Number(process.env.GPU_VRAM_LIVE_FACTOR);
+        return process.env.GPU_VRAM_LIVE_FACTOR && n > 0 && n <= 1 ? n : 0.8;
+      })(),
+      probeCacheMs: nonNegativeInt('GPU_VRAM_PROBE_CACHE_MS', 2000),
+      pollMs: nonNegativeInt('GPU_VRAM_POLL_MS', 3000),
+      // After this long the task goes ahead anyway (and is flagged
+      // admittedUnderPressure): an estimate that is too high must never wedge
+      // the pipeline, only slow it.
+      admissionTimeoutMs: nonNegativeInt('GPU_ADMISSION_TIMEOUT_MS', 120_000),
+    },
+    // Per-service circuit breaker: after `threshold` consecutive failures a
+    // service is skipped (jobs fail fast, retryably) for a cooldown that
+    // doubles up to `maxCooldownMs`, instead of every queued task paying a
+    // full startup timeout against a service that is down.
+    breaker: {
+      threshold: nonNegativeInt('GPU_BREAKER_THRESHOLD', 3),
+      cooldownMs: nonNegativeInt('GPU_BREAKER_COOLDOWN_MS', 30_000),
+      maxCooldownMs: nonNegativeInt('GPU_BREAKER_MAX_COOLDOWN_MS', 5 * 60_000),
+    },
   },
 
   remotion: {
@@ -450,6 +540,45 @@ const config = Object.freeze({
     enabled: process.env.QC_ENABLED === 'true',
     failOnError: process.env.QC_FAIL_ON_ERROR === 'true',
     timeoutMs: parseInt(process.env.QC_TIMEOUT_MS, 10) || 300000,
+
+    // Output QC (services/qc/video/): after the render, decode the finished file and
+    // check it - files present and decodable, narration audible, no black frames,
+    // duration matching the script, captions timed and fitting, images loading.
+    // Unlike the layout check above this is ON by default and gates completion:
+    //   enforce  a failed check fails the job before upload (default)
+    //   report   record the report, never block
+    //   off      skip entirely
+    // Thresholds are tuning, not policy - the defaults are deliberately forgiving
+    // (a transition, a fade or a dark theme must not look like a defect).
+    video: {
+      mode: ['enforce', 'report', 'off'].includes(process.env.QC_VIDEO_MODE) ? process.env.QC_VIDEO_MODE : 'enforce',
+      // Decoding the whole file (audio + sampled frames) is bounded by this.
+      timeoutMs: nonNegativeInt('QC_VIDEO_TIMEOUT_MS', 10 * 60_000),
+      // Allowed gap between the file's length and the script's: the larger of the two.
+      durationToleranceSec: positiveNumber('QC_DURATION_TOLERANCE_SEC', 1),
+      durationTolerancePct: positiveNumber('QC_DURATION_TOLERANCE_PCT', 0.015),
+      // Audio at or below this level (dBFS) counts as silent.
+      silenceDb: -Math.abs(positiveNumber('QC_SILENCE_DB', 50)),
+      // Share of a narrated scene that may be silent before it warns / fails.
+      silentSceneWarn: positiveNumber('QC_SILENT_SCENE_WARN', 0.6),
+      silentSceneError: positiveNumber('QC_SILENT_SCENE_ERROR', 0.9),
+      maxSilentGapSec: positiveNumber('QC_MAX_SILENT_GAP_SEC', 6),
+      // A frame is black when its mean luma (0-255) AND its brightest 1% are both this low.
+      blackMeanMax: positiveNumber('QC_BLACK_MEAN_MAX', 12),
+      blackBrightMax: positiveNumber('QC_BLACK_BRIGHT_MAX', 40),
+      blackMinSec: positiveNumber('QC_BLACK_MIN_SEC', 1),
+      blackErrorSec: positiveNumber('QC_BLACK_ERROR_SEC', 3),
+      // Frames sampled per second of video for the black-frame check.
+      sampleFps: positiveNumber('QC_SAMPLE_FPS', 2),
+      // Subtitle cues (utils/subtitles.js) and burned-in caption boxes (CaptionRenderer).
+      subtitleMaxChars: nonNegativeInt('QC_SUBTITLE_MAX_CHARS', 42),
+      subtitleMaxCueSec: positiveNumber('QC_SUBTITLE_MAX_CUE_SEC', 7),
+      subtitleMaxCharsPerSec: positiveNumber('QC_SUBTITLE_MAX_CPS', 21),
+      captionFontSize: nonNegativeInt('QC_CAPTION_FONT_SIZE', 48),
+      captionMaxLines: nonNegativeInt('QC_CAPTION_MAX_LINES', 2),
+      // Fetch every image the video uses once, to confirm it still loads.
+      probeImages: process.env.QC_PROBE_IMAGES !== 'false',
+    },
   },
 
   // Multi-platform publishing (services/publishing/): YouTube upload through the
@@ -618,6 +747,15 @@ const config = Object.freeze({
       const n = Number(process.env.DIRECTOR_MAX_REPAIRS);
       return Number.isInteger(n) && n >= 0 && process.env.DIRECTOR_MAX_REPAIRS !== '' ? n : 1;
     })(),
+  },
+
+  // Boot-time recovery (startup/recovery.js).
+  recovery: {
+    // A job whose worker died with it (Redis lost the queue entry) is put back on
+    // the queue and resumes at the stage that was running, spending one retry
+    // from its budget - instead of being parked as FAILED for a human to click
+    // Restart. AUTO_RESUME_INTERRUPTED_JOBS=false restores the old behaviour.
+    autoResumeInterrupted: process.env.AUTO_RESUME_INTERRUPTED_JOBS !== 'false',
   },
 
   // Per-stage wall-clock budgets for the video worker (services/pipeline/

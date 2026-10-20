@@ -178,6 +178,15 @@ class RedisLease {
     }
   }
 
+  /**
+   * Is `name` currently held by anyone? A read-only peek (no claim, no demand
+   * signal) for callers that queue elsewhere and only want to contend once the
+   * resource looks free - see GpuScheduler._waitForCard.
+   */
+  async isHeld(name) {
+    return (await this._client.exists(this._key(name))) === 1;
+  }
+
   _waitForWakeOrTimeout(name, ms) {
     return new Promise((resolve) => {
       const waiters = this._waiters.get(name);

@@ -1,36 +1,44 @@
-import { useState, useEffect } from "react";
-import { Send, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, Rocket } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createVideoJob, getVoices, getTtsVoices } from "../../services/api";
 import { useFavoriteVoices } from "../../shared/useFavoriteVoices";
-import { LoadingState } from "../../components";
-import { Card } from "../../components/ui/Card";
+import { PageHeader } from "../../components";
 import { Button } from "../../components/ui/Button";
-import { Select } from "../../components/ui/Select";
-import { Textarea, Label, FieldHint } from "../../components/ui/Input";
 import { toast } from "../../components/ui/toastBus";
 import {
-  VIDEO_TYPES, VERTICAL_RESOLUTIONS, FALLBACK_VOICES, LANGUAGES, DURATIONS, SHORTS_DURATIONS, DEFAULT_VALUES,
-  isVerticalResolution, buildInitialValues,
+  VERTICAL_RESOLUTIONS, FALLBACK_VOICES, SHORTS_DURATIONS, DEFAULT_VALUES, isVerticalResolution, buildInitialValues,
 } from "./constants";
-import { Section } from "./Section";
-import { AudioSection } from "./AudioSection";
-import { OutputSection } from "./OutputSection";
+import { STEPS, validateStep, validateAll, stepOfField } from "./summary";
+import { useCreationReadiness } from "./useCreationReadiness";
+import { StepNav } from "./StepNav";
+import { BriefStep } from "./BriefStep";
+import { VoiceStep } from "./VoiceStep";
+import { OutputStep } from "./OutputStep";
+import { ReviewStep } from "./ReviewStep";
+import { SummaryPanel } from "./SummaryPanel";
 import { JobCreated } from "./JobCreated";
 
+const LAST_STEP = STEPS.length - 1;
+
 /**
- * Create Video: topic and type, voice, and output settings on one page.
- * Owns the form values and validation; each card is its own component.
+ * Create Video: a four-step flow (brief -> voice & style -> output -> review).
+ * Owns the form values, per-step validation and submission; each step is its
+ * own component and a live summary stays beside them on wide screens.
  */
 const Wizard = () => {
   const navigate = useNavigate();
   const [values, setValues] = useState(buildInitialValues);
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(0);
+  const [reached, setReached] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
+  const [dirty, setDirty] = useState(false);
   const [voiceCatalog, setVoiceCatalog] = useState({ custom: [], clone: [] });
   const [voiceStyles, setVoiceStyles] = useState([]);
   const { isFavorite, toggleFavorite } = useFavoriteVoices();
+  const readiness = useCreationReadiness();
 
   useEffect(() => {
     let cancelled = false;
@@ -62,13 +70,32 @@ const Wizard = () => {
     return () => { cancelled = true; };
   }, []);
 
+  // Closing or reloading the tab mid-form would silently throw the brief away.
+  useEffect(() => {
+    if (!dirty || result) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, result]);
+
   const voiceOptions = [
     ...voiceCatalog.custom.map((v) => ({ value: v.id, label: v.label, description: "Custom", previewUrl: v.previewUrl })),
     ...voiceCatalog.clone.map((v) => ({ value: v.id, label: v.label, description: "Clone", previewUrl: v.previewUrl })),
   ];
   if (voiceOptions.length === 0) voiceOptions.push(...FALLBACK_VOICES);
 
-  const setField = (name, value) => setValues((prev) => ({ ...prev, [name]: value }));
+  const update = (updater) => {
+    setDirty(true);
+    setValues(updater);
+  };
+  const setField = (name, value) => {
+    update((prev) => ({ ...prev, [name]: value }));
+    // A field the user is fixing should not keep complaining while they type.
+    setErrors((prev) => (name in prev ? { ...prev, [name]: undefined } : prev));
+  };
 
   // Duration and resolution are each constrained to a different set of
   // valid options depending on video type (YouTube Shorts: 1-3 minutes,
@@ -77,7 +104,7 @@ const Wizard = () => {
   // snap the other to a sensible default instead of leaving it pointed at
   // an option that's no longer offered (and that the backend would reject).
   const handleTypeChange = (type) => {
-    setValues((prev) => {
+    update((prev) => {
       const next = { ...prev, type };
       if (type === "youtube_shorts") {
         if (!SHORTS_DURATIONS.some((d) => d.value === prev.duration)) next.duration = SHORTS_DURATIONS[0].value;
@@ -87,140 +114,123 @@ const Wizard = () => {
       }
       return next;
     });
+    setErrors((prev) => ({ ...prev, type: undefined, duration: undefined }));
   };
 
-  const validateAll = () => {
-    const next = {};
-    if (!values.topic || values.topic.trim().length < 3) next.topic = "At least 3 characters";
-    if (!values.type) next.type = "Please select a type";
-    if (!values.duration) next.duration = "Please select a duration";
-    if (values.type === "podcast") {
-      if (!values.hostVoice) next.hostVoice = "Please select a host voice";
-      if (!values.guestVoice) next.guestVoice = "Please select a guest voice";
+  const goTo = (index) => {
+    setStep(index);
+    window.scrollTo({ top: 0 });
+  };
+
+  const handleNext = () => {
+    const found = validateStep(STEPS[step].key, values);
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      toast.error("Fix the highlighted fields to continue");
+      return;
     }
-    setErrors(next);
-    return Object.keys(next).length === 0;
+    const next = Math.min(step + 1, LAST_STEP);
+    setReached((r) => Math.max(r, next));
+    goTo(next);
   };
 
   const handleSubmit = async () => {
-    if (!validateAll()) return;
+    const found = validateAll(values);
+    if (Object.keys(found).length > 0) {
+      setErrors(found);
+      goTo(stepOfField(Object.keys(found)[0]));
+      toast.error("Some settings need attention before the video can be created");
+      return;
+    }
     try {
-      setLoading(true);
+      setSubmitting(true);
       // "Auto" is sent as nothing at all, so the server derives the style.
-      const payload = { ...values };
+      const payload = { ...values, topic: values.topic.trim() };
       if (!payload.voiceStyle) delete payload.voiceStyle;
       const res = await createVideoJob(payload);
       setResult(res.data);
-      toast.success("Video job created! Processing started.");
+      toast.success("Video job created - generation has been queued");
     } catch (err) {
-      const errMsg =
-        err.friendlyMessage || "Failed to create job";
-      toast.error(errMsg);
+      toast.error(err.friendlyMessage || "Failed to create the video job");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div>
-        <h1 className="mb-6 text-xl font-semibold tracking-tight text-text-primary">Create Video</h1>
-        <Card className="min-h-105 p-8">
-          <LoadingState label="Creating your video job..." />
-        </Card>
-      </div>
-    );
-  }
+  const resetForm = () => {
+    setResult(null);
+    setValues(buildInitialValues());
+    setErrors({});
+    setStep(0);
+    setReached(0);
+    setDirty(false);
+  };
 
   if (result) {
     return (
       <div>
-        <h1 className="mb-6 text-xl font-semibold tracking-tight text-text-primary">Create Video</h1>
+        <PageHeader title="Create Video" />
         <JobCreated
           result={result}
+          values={values}
           onViewProgress={() => navigate(`/render?id=${result.jobId}`)}
-          onCreateAnother={() => {
-            setResult(null);
-            setValues(buildInitialValues());
-          }}
-          onHome={() => navigate("/")}
+          onCreateAnother={resetForm}
+          onProjects={() => navigate("/projects")}
         />
       </div>
     );
   }
 
+  const stepProps = { values, setField, errors };
+  const isReview = step === LAST_STEP;
+
   return (
     <div>
-      <h1 className="text-xl font-semibold tracking-tight text-text-primary">Create Video</h1>
-      <p className="mt-1 mb-8 text-sm text-text-secondary">Fill in the details below, then create your video.</p>
+      <PageHeader
+        title="Create Video"
+        description="Describe the video, choose how it sounds and looks, then review and start. Nothing is generated until you start it."
+      />
 
-      <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* ── Topic & Type ──────────────────────────────────────────────── */}
-        <Section icon={Sparkles} title="What do you want to create?" className="lg:col-span-2">
-          <div className="mb-5">
-            <Label required>Video Topic</Label>
-            <Textarea
-              rows={3}
-              placeholder="e.g., Introduction to Quantum Computing, The Future of AI, How to Start a Business..."
-              value={values.topic}
-              onChange={(e) => setField("topic", e.target.value)}
-              error={Boolean(errors.topic)}
+      <div className="mb-5">
+        <StepNav steps={STEPS} current={step} reached={reached} onSelect={goTo} />
+      </div>
+
+      <div className={isReview ? "mx-auto max-w-4xl" : "grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]"}>
+        <div className="min-w-0">
+          {step === 0 && <BriefStep {...stepProps} onTypeChange={handleTypeChange} />}
+          {step === 1 && (
+            <VoiceStep
+              {...stepProps}
+              setValues={update}
+              voiceOptions={voiceOptions}
+              voiceStyles={voiceStyles}
+              isFavorite={isFavorite}
+              toggleFavorite={toggleFavorite}
             />
-            <FieldHint error={Boolean(errors.topic)}>{errors.topic}</FieldHint>
+          )}
+          {step === 2 && <OutputStep {...stepProps} />}
+          {isReview && <ReviewStep values={values} voiceOptions={voiceOptions} readiness={readiness} onEdit={goTo} />}
+
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <Button variant="secondary" icon={<ArrowLeft className="size-4" />} disabled={step === 0 || submitting} onClick={() => goTo(step - 1)}>
+              Back
+            </Button>
+            {isReview ? (
+              <Button variant="primary" size="lg" icon={<Rocket className="size-4" />} loading={submitting} onClick={handleSubmit}>
+                Start generation
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={handleNext}>
+                Continue
+                <ArrowRight className="size-4" />
+              </Button>
+            )}
           </div>
-
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <div>
-              <Label required>Video Type</Label>
-              <Select
-                placeholder="Select video type"
-                options={VIDEO_TYPES}
-                value={values.type}
-                onChange={handleTypeChange}
-                error={Boolean(errors.type)}
-              />
-              <FieldHint error={Boolean(errors.type)}>{errors.type}</FieldHint>
-            </div>
-
-            <div>
-              <Label required>Duration</Label>
-              <Select
-                placeholder="Select duration"
-                options={values.type === "youtube_shorts" ? SHORTS_DURATIONS : DURATIONS}
-                value={values.duration}
-                onChange={(v) => setField("duration", v)}
-                error={Boolean(errors.duration)}
-              />
-              <FieldHint error={Boolean(errors.duration)}>
-                {errors.duration || (values.type === "youtube_shorts" ? "YouTube Shorts are capped at 3 minutes." : undefined)}
-              </FieldHint>
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <Label>Language</Label>
-            <Select options={LANGUAGES} value={values.language} onChange={(v) => setField("language", v)} />
-          </div>
-        </Section>
-
-        <AudioSection
-          values={values}
-          setValues={setValues}
-          setField={setField}
-          errors={errors}
-          voiceOptions={voiceOptions}
-          voiceStyles={voiceStyles}
-          isFavorite={isFavorite}
-          toggleFavorite={toggleFavorite}
-        />
-
-        <OutputSection values={values} setField={setField} />
-
-        <div className="flex justify-end pb-2 lg:col-span-2">
-          <Button variant="primary" size="lg" icon={<Send className="size-4" />} loading={loading} onClick={handleSubmit}>
-            Create Video
-          </Button>
         </div>
+
+        {!isReview && (
+          <SummaryPanel values={values} voiceOptions={voiceOptions} readiness={readiness} currentStep={step} onEdit={(i) => i <= reached && goTo(i)} />
+        )}
       </div>
     </div>
   );

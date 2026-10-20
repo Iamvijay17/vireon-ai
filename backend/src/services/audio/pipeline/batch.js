@@ -193,6 +193,7 @@ async function generateAllAudioSegmented(jobId, scenes, voice, onSceneComplete, 
  */
 async function generateSceneAudioSegmented(jobId, scene, voice, fastMode = false, skipCache = false, options = {}) {
   const LocalAIService = require('../../localAI');
+  const { PRIORITY } = require('../../gpu/priorities');
   const clientHolder = { current: null };
   try {
     return await LocalAIService.gpu.withGPU('tts', () =>
@@ -200,7 +201,10 @@ async function generateSceneAudioSegmented(jobId, scene, voice, fastMode = false
         jobId, scene, index: 0, count: 1, voice, fastMode, skipCache,
         forceSegmentIds: options.forceSegmentIds || [], clientHolder, signal: options.signal || null,
         options,
-      })
+      }),
+      // Regenerating or retrying one scene: someone asked for it just now. A stage of
+      // its own so it is not mistaken for the job's whole-batch audio task.
+      { jobId, stage: `audio-scene-${scene.sceneNumber}`, priority: PRIORITY.INTERACTIVE, signal: options.signal || undefined }
     );
   } finally {
     if (clientHolder.current) {
