@@ -383,6 +383,10 @@ class RemotionService {
           config.remotion.pixelFormat,
         ];
 
+        // Chrome tabs per render: only passed when a profile / REMOTION_CONCURRENCY sets it,
+        // otherwise Remotion's own default applies, exactly as before profiles.
+        if (config.remotion.concurrency) args.push('--concurrency', String(config.remotion.concurrency));
+
         LoggerService.render('Remotion command args', { args });
         LoggerService.render('Executing Remotion command', { binaryPath, args });
 

@@ -9,6 +9,7 @@ const connection = {
 
 const videoQueue = new Queue('video-rendering', {
   connection,
+  ...(config.videoWorker.queuePrefix ? { prefix: config.videoWorker.queuePrefix } : {}),
   defaultJobOptions: {
     // BullMQ's own retry was fighting the app's manual retry flow: on
     // failure, VideoService.fail() marks the job FAILED in Mongo and the

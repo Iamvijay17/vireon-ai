@@ -52,6 +52,34 @@ router.get('/control-center', authenticate, AnalyticsController.controlCenter);
 
 /**
  * @swagger
+ * /api/analytics/benchmarks:
+ *   get:
+ *     summary: Stored benchmark runs (hardware, versions, settings, per-stage time and measured memory)
+ *     description: Written by scripts/benchPipeline.js. Each run carries its bottleneck explanation; an unmeasured value is null.
+ *     tags: [Analytics]
+ *     parameters:
+ *       - { name: limit, in: query, schema: { type: integer, default: 20 } }
+ *     responses:
+ *       200: { description: "{ runs: [...] }" }
+ */
+router.get('/benchmarks', authenticate, AnalyticsController.benchmarks);
+
+/**
+ * @swagger
+ * /api/analytics/benchmarks/compare:
+ *   get:
+ *     summary: Compare two stored benchmark runs (before / after)
+ *     tags: [Analytics]
+ *     parameters:
+ *       - { name: before, in: query, required: true, schema: { type: string } }
+ *       - { name: after, in: query, required: true, schema: { type: string } }
+ *     responses:
+ *       200: { description: "{ before, after, comparison } - comparison.comparable is false when the workloads differ a lot" }
+ */
+router.get('/benchmarks/compare', authenticate, AnalyticsController.compareBenchmarks);
+
+/**
+ * @swagger
  * /api/analytics/videos:
  *   get:
  *     summary: Per-video pipeline stage timing breakdown

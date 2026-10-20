@@ -39,7 +39,12 @@ function nonNegativeInt(name, fallback) {
   return Number.isInteger(n) && n >= 0 ? n : fallback;
 }
 
+// Active performance profile (PERF_PROFILE): resolved once, before the config object, so the
+// knobs it sets are plain values below. See config/perfProfiles.js.
+const perfProfile = require('./perfProfiles').resolveProfile(process.env);
+
 const config = Object.freeze({
+  perfProfile,
   port: parseInt(process.env.PORT, 10) || 3000,
   // Interface to bind. Defaults to 0.0.0.0 because LAN access is an
   // intended workflow here (CORS_ORIGIN ships with LAN origins, and the
@@ -392,6 +397,10 @@ const config = Object.freeze({
     // this, no codec/crf/pixel-format flags were passed at all, so every
     // render used Remotion's own built-in defaults with no way to tune
     // quality vs. file size.
+    // Chrome tabs per render (--concurrency). null = Remotion's own default (half the cores),
+    // which is what every render used before profiles. Set by REMOTION_CONCURRENCY or the active
+    // PERF_PROFILE (config/perfProfiles.js); the explicit variable always wins.
+    concurrency: perfProfile.knobs.remotionConcurrency,
     codec: process.env.REMOTION_CODEC || 'h264',
     pixelFormat: process.env.REMOTION_PIXEL_FORMAT || 'yuv420p',
     // CRF per VideoJob.quality preset (lower = higher quality/larger file).
@@ -734,6 +743,11 @@ const config = Object.freeze({
   // right number for a given deployment (e.g. after splitting render into
   // its own queue).
   videoWorker: {
+    // Redis key prefix for the video queue. Unset (the default) is BullMQ's own 'bull', i.e.
+    // exactly how the queue has always been keyed. Set it on a dev API + worker pair so their jobs
+    // are picked up only by that pair and never by another worker (e.g. the production one) that
+    // shares the Redis - used by scripts/benchPipeline.js runs. API and worker must agree on it.
+    queuePrefix: (process.env.VIDEO_QUEUE_PREFIX || '').trim() || null,
     concurrency:
       parseInt(process.env.VIDEO_WORKER_CONCURRENCY, 10) ||
       Math.max(1, Math.min(os.cpus().length - 1, 3)),

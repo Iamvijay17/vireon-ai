@@ -1,4 +1,4 @@
-import { Gauge, Timer, DatabaseZap, ShieldAlert, Server } from "lucide-react";
+import { Gauge, Timer, DatabaseZap, ShieldAlert, Server, Hourglass } from "lucide-react";
 import { getControlCenter } from "../../services/api";
 import { LoadingState, EmptyState } from "../../components";
 import { Card, CardHeader } from "../../components/ui/Card";
@@ -7,7 +7,7 @@ import { Table } from "../../components/ui/Table";
 import { useApiQuery } from "../../lib/useApiQuery";
 import { queryKeys } from "../../lib/queryClient";
 import { formatPercent } from "./format";
-import { showCount, showDuration, showRate, stageCoverageNote, kindLabel, queueState, missReasons } from "./controlCenterFormat";
+import { showCount, showDuration, showRate, showMb, showPct, stageCoverageNote, kindLabel, queueState, missReasons } from "./controlCenterFormat";
 
 const Stat = ({ label, value, hint }) => (
   <div>
@@ -37,6 +37,10 @@ const STAGE_COLUMNS = [
   { key: "maxMs", title: "Slowest", align: "right", render: (r) => showDuration(r.maxMs) },
   { key: "timedRuns", title: "Timed runs", align: "right", render: (r) => showCount(r.timedRuns) },
   { key: "reused", title: "Reused", align: "right", render: (r) => showCount(r.reused) },
+  // Measured, machine-wide peaks. "—" = never measured (older jobs, or no NVIDIA driver) - not zero.
+  { key: "vram", title: "Peak VRAM", align: "right", render: (r) => showMb(r.resources?.vramPeakMb) },
+  { key: "ram", title: "Peak RAM", align: "right", render: (r) => showMb(r.resources?.ramPeakMb) },
+  { key: "cpu", title: "Avg CPU", align: "right", render: (r) => showPct(r.resources?.cpuAvgPct) },
 ];
 
 const CACHE_COLUMNS = [
@@ -131,7 +135,17 @@ export function ControlCenter({ days }) {
           ) : (
             <EmptyState description="No stage timing yet." />
           )}
-          {coverage && <p className="px-4 pb-4 text-xs text-text-tertiary">{coverage}</p>}
+          {pipeline.bottleneck && (
+            <div className="mx-4 mt-3 flex items-start gap-2 rounded-xl border border-border-light bg-surface-secondary/40 p-3" data-testid="bottleneck">
+              <Hourglass className="mt-0.5 size-4 shrink-0 text-accent-500" />
+              <div className="min-w-0 text-xs">
+                <p className="font-medium text-text-primary">Slowest stage: {pipeline.bottleneck.label}</p>
+                <p className="text-text-secondary">{pipeline.bottleneck.explanation}</p>
+                {pipeline.bottleneck.nextExperiment && <p className="mt-1 text-text-tertiary">To try next: {pipeline.bottleneck.nextExperiment}</p>}
+              </div>
+            </div>
+          )}
+          {coverage && <p className="px-4 pb-4 pt-3 text-xs text-text-tertiary">{coverage}</p>}
         </Panel>
 
         <Panel icon={DatabaseZap} title="Cache" subtitle="What was reused instead of generated again">

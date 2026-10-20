@@ -82,6 +82,35 @@ describe("ControlCenter", () => {
     expect(root.textContent).not.toContain("0.0s");
   });
 
+  it("shows measured peak memory per stage, and dashes where nothing was measured", async () => {
+    const d = data();
+    d.pipeline.stages = d.pipeline.stages.map((s) => (s.key === "audio"
+      ? { ...s, resources: { runs: 2, vramPeakMb: 5400, vramBaseMb: 760, vramTotalMb: 6144, ramPeakMb: 9000, cpuAvgPct: 22.5 } }
+      : s));
+    api.getControlCenter.mockResolvedValue({ data: d });
+    mount();
+    const root = await screen.findByTestId("control-center");
+    expect(root.textContent).toContain("5.3 GB"); // VRAM peak
+    expect(root.textContent).toContain("8.8 GB"); // RAM peak
+    expect(root.textContent).toContain("22.5%");
+  });
+
+  it("names the slowest stage and what to try next, only when the backend found one", async () => {
+    const d = data();
+    d.pipeline.bottleneck = { stage: "render", label: "Render (Remotion)", sharePct: 67, explanation: "Render (Remotion) took 200.0s, 67% of active time.", nextExperiment: "Benchmark REMOTION_CONCURRENCY." };
+    api.getControlCenter.mockResolvedValue({ data: d });
+    mount();
+    const box = await screen.findByTestId("bottleneck");
+    expect(box.textContent).toContain("Slowest stage: Render (Remotion)");
+    expect(box.textContent).toContain("To try next: Benchmark REMOTION_CONCURRENCY.");
+  });
+
+  it("shows no bottleneck box when there is nothing to base one on", async () => {
+    mount();
+    await screen.findByTestId("control-center");
+    expect(screen.queryByTestId("bottleneck")).toBeNull();
+  });
+
   it("says that older jobs are not part of the stage averages", async () => {
     mount();
     const root = await screen.findByTestId("control-center");

@@ -64,3 +64,25 @@ export const queueState = (queue) => {
   if (queue.active > 0) return { label: "Working", tone: "success" };
   return { label: "Idle", tone: "neutral" };
 };
+
+/** A memory reading in MB as GB/MB, or "—" when it was never measured (0 is a real reading). */
+export { formatMb as showMb } from "../../lib/format";
+
+/** A percentage with one decimal, or "—" when never measured. */
+export const showPct = (value) => (value === null || value === undefined ? "—" : `${Number(value).toFixed(1)}%`);
+
+/**
+ * "-23.4% faster" / "+8.0% slower" / "no change" for a before/after delta where negative means
+ * the later run took less time. null in -> "—" (no basis), never a fake zero.
+ */
+export const describeDelta = (deltaPct) => {
+  if (deltaPct === null || deltaPct === undefined) return "—";
+  if (deltaPct === 0) return "no change";
+  return `${Math.abs(deltaPct)}% ${deltaPct < 0 ? "faster" : "slower"}`;
+};
+
+/** Tone for a delta badge: only a clear change in either direction is coloured. */
+export const deltaTone = (deltaPct) => {
+  if (deltaPct === null || deltaPct === undefined || Math.abs(deltaPct) < 5) return "neutral";
+  return deltaPct < 0 ? "success" : "danger";
+};

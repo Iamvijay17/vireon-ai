@@ -5,6 +5,7 @@ const CacheLedger = require('../cache/CacheLedger');
 const config = require('../../config');
 const { JOB_STATUS } = require('../../constants');
 const { STAGE_ORDER } = require('../pipeline/stages');
+const { findBottleneck } = require('../perf/benchmarkAnalysis');
 
 /**
  * The Control Center: one read-only view of how the pipeline is actually doing, built
@@ -72,6 +73,14 @@ const stageTimingPipeline = (since) => [
       timedRuns: { $sum: { $cond: [TIMED, 1, 0] } },
       totalMs: { $sum: { $cond: [TIMED, '$stages.v.durationMs', 0] } },
       maxMs: { $max: { $cond: [TIMED, '$stages.v.durationMs', null] } },
+      // Measured machine-wide peaks (services/pipeline/resourceSampler.js). $max/$avg skip
+      // missing values, so a stage that was never measured stays null rather than reading 0.
+      resourceRuns: { $sum: { $cond: [{ $ne: [{ $type: '$stages.v.resources' }, 'object'] }, 0, 1] } },
+      vramPeakMb: { $max: '$stages.v.resources.vram.peakUsedMb' },
+      vramBaseMb: { $max: '$stages.v.resources.vram.startUsedMb' },
+      vramTotalMb: { $max: '$stages.v.resources.vram.totalMb' },
+      ramPeakMb: { $max: '$stages.v.resources.ram.peakUsedMb' },
+      cpuAvgPct: { $avg: '$stages.v.resources.cpu.avgPct' },
     },
   },
 ];
@@ -183,14 +192,30 @@ function shapePipeline({ stageRows, generationRows, stageDataRows, queueWaitMs }
       timedRuns: r?.timedRuns || 0,
       avgMs: avg(r?.totalMs || 0, r?.timedRuns || 0),
       maxMs: r?.maxMs ?? null,
+      // null = never measured (jobs from before resource sampling, or sampling off).
+      resources: r?.resourceRuns > 0
+        ? {
+          runs: r.resourceRuns,
+          vramPeakMb: r.vramPeakMb ?? null,
+          vramBaseMb: r.vramBaseMb ?? null,
+          vramTotalMb: r.vramTotalMb ?? null,
+          ramPeakMb: r.ramPeakMb ?? null,
+          cpuAvgPct: r.cpuAvgPct == null ? null : Math.round(r.cpuAvgPct * 10) / 10,
+        }
+        : null,
     };
   });
+  // Which stage dominates, from the averages above - the same arithmetic the benchmark report uses.
+  const bottleneck = findBottleneck(
+    Object.fromEntries(stages.filter((s) => s.avgMs != null).map((s) => [s.key, { durationMs: s.avgMs, reused: false, attempt: 1, resources: null }]))
+  );
   const counts = Object.fromEntries(stageDataRows.map((r) => [r._id, r.count]));
   return {
     avgGenerationMs: generationRows[0]?.avgMs != null ? Math.round(generationRows[0].avgMs) : null,
     generationSampleSize: generationRows[0]?.jobs || 0,
     avgQueueWaitMs: queueWaitMs == null ? null : Math.round(queueWaitMs),
     stages,
+    bottleneck: bottleneck.stage ? { stage: bottleneck.stage, label: bottleneck.label, sharePct: bottleneck.sharePct, explanation: bottleneck.explanation, nextExperiment: bottleneck.nextExperiment } : null,
     // Jobs from before stage tracking exist but have no per-stage timing; they are left out, not guessed.
     jobsWithStageData: counts.with || 0,
     jobsWithoutStageData: counts.without || 0,

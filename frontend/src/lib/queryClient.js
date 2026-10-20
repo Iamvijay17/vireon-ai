@@ -48,6 +48,9 @@ export const queryKeys = {
     all: ['analytics'],
     overview: (days) => ['analytics', 'overview', days],
     controlCenter: (days) => ['analytics', 'controlCenter', days],
+    benchmarks: ['analytics', 'benchmarks'],
+    benchmarkCompare: (before, after) => ['analytics', 'benchmarkCompare', before, after],
+    perfProfile: ['analytics', 'perfProfile'],
     videoMetrics: (page) => ['analytics', 'videoMetrics', page],
   },
   publishing: {
