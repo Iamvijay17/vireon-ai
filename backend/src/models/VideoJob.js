@@ -20,6 +20,10 @@ const stageStateSchema = new mongoose.Schema(
     // True when the stage found its output already stored and did no work.
     reused: { type: Boolean, default: false },
     error: { type: mongoose.Schema.Types.Mixed, default: null },
+    // Measured machine-wide peak VRAM / RAM / CPU while the stage ran (services/pipeline/
+    // resourceSampler.js). A section is null when it could not be measured - never 0.
+    // Null for a reused stage (it did no work) and for stages run before this existed.
+    resources: { type: mongoose.Schema.Types.Mixed, default: null },
   },
   { _id: false }
 );

@@ -1,6 +1,13 @@
 const config = require('../../config');
 const tracker = require('./stageTracker');
+const { createResourceSampler } = require('./resourceSampler');
 const { StageTimeoutError, toStructuredError } = require('./pipelineErrors');
+
+// One sampler per stage run; none when sampling is switched off.
+const defaultSampler = () => {
+  const { enabled, intervalMs } = config.pipeline.resourceSampling;
+  return enabled ? createResourceSampler({ intervalMs }) : null;
+};
 
 const isCancellation = (err) => err?.cancelled === true || err?.name === 'AbortError';
 
@@ -20,10 +27,14 @@ const isCancellation = (err) => err?.cancelled === true || err?.name === 'AbortE
  * recorded as cancelled. The runner never swallows an error - the processor
  * still owns what happens next (retry, fail, rethrow).
  */
-async function runStage(key, { jobId, ctx, fn, timeoutMs }) {
+async function runStage(key, { jobId, ctx, fn, timeoutMs, createSampler = defaultSampler }) {
   const budget = timeoutMs ?? config.pipeline.stageTimeoutMs[key] ?? 0;
   const startedAt = Date.now();
   const { attempt } = await tracker.begin(jobId, key);
+  const sampler = createSampler();
+  sampler?.start();
+  // Closing the sampler is bounded by one nvidia-smi timeout and can never throw.
+  const resources = () => sampler?.stop().catch(() => null) ?? null;
   ctx.reused = false;
   ctx.attempt = attempt;
 
@@ -50,7 +61,8 @@ async function runStage(key, { jobId, ctx, fn, timeoutMs }) {
 
   try {
     const result = await (timeoutRace ? Promise.race([fn(), timeoutRace]) : fn());
-    await tracker.complete(jobId, key, { durationMs: Date.now() - startedAt, reused: Boolean(ctx.reused) });
+    const durationMs = Date.now() - startedAt;
+    await tracker.complete(jobId, key, { durationMs, reused: Boolean(ctx.reused), resources: await resources() });
     return result;
   } catch (rawErr) {
     const durationMs = Date.now() - startedAt;
@@ -59,7 +71,7 @@ async function runStage(key, { jobId, ctx, fn, timeoutMs }) {
     const err = timedOut && !(rawErr instanceof StageTimeoutError) ? new StageTimeoutError(key, budget) : rawErr;
 
     if (isCancellation(err)) {
-      await tracker.cancel(jobId, key, { durationMs });
+      await tracker.cancel(jobId, key, { durationMs, resources: await resources() });
       throw err;
     }
 
@@ -69,7 +81,7 @@ async function runStage(key, { jobId, ctx, fn, timeoutMs }) {
     } catch {
       // frozen/primitive error - the processor reclassifies from the message
     }
-    await tracker.fail(jobId, key, structured, { durationMs });
+    await tracker.fail(jobId, key, structured, { durationMs, resources: await resources() });
     throw err;
   } finally {
     clearTimeout(timer);

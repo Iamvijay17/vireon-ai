@@ -50,6 +50,49 @@ describe('runStage - success', () => {
   });
 });
 
+describe('runStage - resource sampling', () => {
+  const summary = { sampleCount: 2, vram: null, ram: { peakUsedMb: 1 }, cpu: null };
+  const samplerFactory = (stopImpl = async () => summary) => {
+    const sampler = { start: jest.fn(), stop: jest.fn(stopImpl) };
+    return { sampler, createSampler: () => sampler };
+  };
+
+  it('samples for the length of the stage and hands the summary to the tracker on completion', async () => {
+    const { sampler, createSampler } = samplerFactory();
+    await runStage('audio', { jobId: 'j1', ctx: newCtx(), timeoutMs: 0, createSampler, fn: async () => {
+      expect(sampler.start).toHaveBeenCalledTimes(1);
+      expect(sampler.stop).not.toHaveBeenCalled();
+    } });
+    expect(sampler.stop).toHaveBeenCalledTimes(1);
+    expect(tracker.complete).toHaveBeenCalledWith('j1', 'audio', expect.objectContaining({ resources: summary }));
+  });
+
+  it('still records what was measured when the stage fails, and when it is cancelled', async () => {
+    const failing = samplerFactory();
+    await expect(runStage('render', { jobId: 'j1', ctx: newCtx(), timeoutMs: 0, createSampler: failing.createSampler, fn: async () => { throw new Error('boom'); } })).rejects.toThrow('boom');
+    expect(tracker.fail).toHaveBeenCalledWith('j1', 'render', expect.any(Object), expect.objectContaining({ resources: summary }));
+
+    const cancelled = samplerFactory();
+    await expect(runStage('render', { jobId: 'j1', ctx: newCtx(), timeoutMs: 0, createSampler: cancelled.createSampler, fn: async () => { throw new JobCancelledError('j1'); } })).rejects.toBeInstanceOf(JobCancelledError);
+    expect(tracker.cancel).toHaveBeenCalledWith('j1', 'render', expect.objectContaining({ resources: summary }));
+  });
+
+  it('a sampler that cannot be closed never fails the stage', async () => {
+    const { createSampler } = samplerFactory(async () => { throw new Error('nvidia-smi hung'); });
+    await expect(runStage('audio', { jobId: 'j1', ctx: newCtx(), timeoutMs: 0, createSampler, fn: async () => 7 })).resolves.toBe(7);
+    expect(tracker.complete).toHaveBeenCalledWith('j1', 'audio', expect.objectContaining({ resources: null }));
+  });
+
+  it('runs without any sampler when sampling is off', async () => {
+    await runStage('audio', { jobId: 'j1', ctx: newCtx(), timeoutMs: 0, createSampler: () => null, fn: async () => {} });
+    expect(tracker.complete).toHaveBeenCalledWith('j1', 'audio', expect.objectContaining({ resources: null }));
+  });
+
+  it('is off by default under Jest, so unit tests never shell out to nvidia-smi', () => {
+    expect(require('../../src/config').pipeline.resourceSampling.enabled).toBe(false);
+  });
+});
+
 describe('runStage - failure', () => {
   it('records a structured failure, attaches it to the error and rethrows the same error', async () => {
     const boom = new Error('TTS failed: no response');

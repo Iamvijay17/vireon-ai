@@ -765,6 +765,13 @@ const config = Object.freeze({
   // and retried like any other transient failure. 0 disables a stage's
   // timeout; STAGE_TIMEOUT_<STAGE>_MS overrides it.
   pipeline: {
+    // Peak VRAM/RAM/CPU recorded per stage (services/pipeline/resourceSampler.js): one
+    // nvidia-smi spawn (~50ms) per sample. PIPELINE_RESOURCE_SAMPLING=false turns it off;
+    // it is also off under Jest so unit tests never shell out to nvidia-smi.
+    resourceSampling: {
+      enabled: process.env.PIPELINE_RESOURCE_SAMPLING !== 'false' && !process.env.JEST_WORKER_ID,
+      intervalMs: Math.max(1000, parseInt(process.env.PIPELINE_RESOURCE_SAMPLE_MS, 10) || 3000),
+    },
     stageTimeoutMs: {
       script: stageTimeout('SCRIPT', 30 * 60_000),
       audio: stageTimeout('AUDIO', 120 * 60_000),
